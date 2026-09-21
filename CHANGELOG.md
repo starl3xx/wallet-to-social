@@ -2,6 +2,88 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the account gets a page)
+
+- **`/dashboard`**, the first surface that shows a signed-in account what it
+  owns. Everything on it was already finished and session-authorized and
+  reachable by no button: the page adds no endpoint, no table and no migration.
+  Reached from the account menu only, since it is private.
+- **`lib/use-credits.ts` stops discarding four fields `/api/credits` already
+  returns.** `lots`, `freeUsedThisWindow`, `freeWindowResetsAt` and
+  `freeAllowance` were fetched on every page load and mapped away, so the header
+  could show one aggregate number and nothing could answer which pack an account
+  holds or when it lapses. The admin console rendered a customer's lots for
+  staff; the customer had no surface for them. Additive, so both existing
+  callers are unaffected.
+- **Balance, packs and expiry.** A bar for the free window, which has a
+  denominator and a reset and is therefore honest; a count and a date for a
+  pack, never a bar, because a draining bar turns a balance into an emergency. A
+  lot inside 30 days of lapsing takes `caution`. An unmetered legacy or
+  whitelisted account gets a sentence instead of a zero, because those tiers
+  were sold before credits existed and a meter would imply one they never agreed
+  to. Pack names go through `isPackId`, since `lots[].pack` is free text and a
+  support grant writes `grant`.
+- **Saved lookups, claimed addresses, and a developer panel.** `LookupHistory`
+  grows an optional `emptyState`: rendering nothing is right on the homepage,
+  which has a hero and three inputs above it, and wrong on a dashboard where it
+  is the first thing a new account sees. The claims panel is a second reader of
+  `/api/claim/mine`, not a replacement, because an invariant requires
+  `ClaimFlow.tsx` to keep reading it too.
+- **Connected applications stay reachable without credits.**
+  `/api/oauth/connections` is deliberately not behind the developer guard, so
+  the control that opens them is offered to every signed-in account rather than
+  only to paying ones. Putting it inside the paid branch would have
+  reintroduced the defect that route's comment describes.
+- **Signing in from the dashboard comes back to it.** `isAllowedReturnPath`
+  gains `/dashboard` as a third shape, a literal compared with `===` carrying
+  no query, exactly like `/claim`. The account surface is the one page where
+  the sign-in round trip is the normal entry rather than an edge, and landing
+  that person on the home page abandons the page they asked for. It widens
+  nothing: a literal supplies no caller-controlled data, and
+  `scripts/check-invariants.ts` now asserts the same eight near misses against
+  it that `/claim` already refuses (`/dashboards`, `//dashboard`,
+  `/dashboard?next=…`, `/dashboard/../admin` and the rest).
+- **A failed read is never rendered as a fact about the account.** `useCredits`
+  grows a `failed` flag and now throws on a non-2xx instead of falling through
+  to `.json()`, because a 500 answering with an HTML error page used to settle
+  as `available: 0`. The balance card, the developer card and the lookups list
+  each say so rather than showing a zero, an empty list or an upgrade pitch. A
+  paying account was being told to buy a pack it already owns, both while the
+  balance loaded and permanently if the read failed.
+- **"Wallets you can submit now" no longer overstates the free allowance by
+  2x.** `maxWallets` is the balance times the submission multiplier, which on
+  the free allowance is not the binding limit: the per-lookup cap is, so 100
+  free matches reported 1,000 wallets against a server that refuses above
+  `TIER_LIMITS.free`. Clamped the way the homepage already clamps it.
+- **A pack's expiry date renders.** `Badge` is capped at 12ch and truncates,
+  which is right for a name somebody chose and wrong for a formatted date:
+  `Expires Sep 20, 2026` uppercased to twenty characters and rendered
+  `EXPIRES…`, losing the one thing the badge exists to say, with no `title` to
+  recover it.
+- `MenuItem` with an `href` no longer forces `target="_blank"`. New tabs are
+  opt-in through `external`, and an internal route goes through the router.
+  Nothing passed `href` before the dashboard did, so no caller relied on it.
+- **A 404 from the usage route is an answer, not a failure.** It answers 404
+  with "No API keys found for this user" when an account holds none, which an
+  entitled account that has not minted one yet is in. Treating every non-2xx as
+  a failed read told that account its usage could not be reached, when the
+  truthful answer is that it has not spent anything.
+- **The header sign-in returns you to the page you signed in from.** It opened
+  `AuthModal` with no return path, so adding `/dashboard` to the allowlist fixed
+  the in-page button and left the sign-in most people reach for still landing on
+  the home page. It now hands over the current path and lets the allowlist
+  decide, which keeps no second list of routes in step: `send-magic-link` drops
+  anything unrecognized silently rather than refusing the link.
+- Also from review: an accessible name on the free-window bar, real headings on
+  the cards, the invalid-date guard the claims panel was missing (`Intl.format`
+  throws rather than returning a string), mono tabular dates, and reflow fixes
+  for a long email address and a long handle at 320 and 360px.
+- Deliberately absent, each with its reason recorded in `PROJECT_OVERVIEW.md`:
+  the upload widget (needs the block lifted out of `app/page.tsx` first), a
+  running-jobs and an X-lists module (`/api/jobs` and `/api/x/lists` export POST
+  only, and an index for either needs a route plus an index migration), a
+  results preview, an activity feed and any chart.
+
 ### 2026-09-21 (main is checked, and the conflict that stopped checking it)
 
 - **`CHANGELOG.md` merges by union.** Every PR adds an entry at the top of it,

@@ -320,10 +320,10 @@ export async function cleanupExpiredAuth(): Promise<{
  *
  * A magic link that carries a caller-supplied return path is an open redirect
  * with a stamp of authenticity on it, so this is not a sanitiser: it is an
- * allowlist of two shapes. A path matches only if it is the OAuth consent
+ * allowlist of three shapes. A path matches only if it is the OAuth consent
  * screen carrying one opaque request id, and that id was minted by
- * `createAuthorizationRequest` before the link was ever sent, or if it is
- * the literal string `/claim`.
+ * `createAuthorizationRequest` before the link was ever sent, or if it is one
+ * of the two literal strings `/claim` and `/dashboard`.
  *
  * Nothing an OAuth client supplied travels through the mail round trip. The
  * client's `redirect_uri`, `state` and `client_id` are all in the row this id
@@ -357,9 +357,30 @@ const RETURN_PATH = /^\/oauth\/authorize\?req=[A-Za-z0-9-]{36}$/;
  */
 const CLAIM_RETURN_PATH = '/claim';
 
+/**
+ * The third shape, a literal for the same reason as the second.
+ *
+ * `/dashboard` has exactly the shape that earned `/claim` its entry, and has
+ * it more strongly. It is the account surface: a signed-out visitor who opens
+ * it is asked to sign in before it can show anything, so the round trip is its
+ * normal entry rather than an edge case, and landing that person on the home
+ * page afterwards abandons the one page they asked for.
+ *
+ * Widening this is the thing to be careful about, so nothing here widens: it
+ * is compared with `===` and carries no query, exactly like `/claim`. A
+ * literal supplies no caller-controlled data, which is the whole danger a
+ * return path carries, and `scripts/check-invariants.ts` asserts the same
+ * eight near misses against it that `/claim` already refuses.
+ */
+const DASHBOARD_RETURN_PATH = '/dashboard';
+
 export function isAllowedReturnPath(path: string | null): boolean {
   if (typeof path !== 'string') return false;
-  return path === CLAIM_RETURN_PATH || RETURN_PATH.test(path);
+  return (
+    path === CLAIM_RETURN_PATH ||
+    path === DASHBOARD_RETURN_PATH ||
+    RETURN_PATH.test(path)
+  );
 }
 
 // Cookie configuration

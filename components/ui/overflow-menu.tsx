@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
+import Link from 'next/link';
 import { DotsThree } from '@phosphor-icons/react';
 import { Slot } from '@radix-ui/react-slot';
 
@@ -182,18 +183,43 @@ export function MenuItem({
   onClick,
   children,
   href,
+  external,
 }: {
   onClick?: () => void;
   children: React.ReactNode;
   href?: string;
+  /**
+   * Leave the site in a new tab. Opt-in, because the default was the opposite
+   * and that is a surprising thing to do to an internal route: an account page
+   * opened from the account menu should replace the page you are on, not
+   * strand a second tab behind it. Nothing passed `href` until the dashboard
+   * did, so no caller relied on the old behavior.
+   */
+  external?: boolean;
 }) {
   const cls =
     'transition-control flex w-full items-center gap-2 rounded-sm px-2.5 py-2 text-left text-sm text-foreground/90 hover:bg-fill-subtle hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
   if (href) {
+    if (external) {
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={cls}
+        >
+          {children}
+        </a>
+      );
+    }
+    // An internal route goes through the router, so the menu does not cost a
+    // full document load. It stays an anchor, so it keeps a link's keyboard
+    // and screen-reader behavior and can still be opened in a new tab by
+    // someone who wants one.
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={cls}>
+      <Link href={href} className={cls}>
         {children}
-      </a>
+      </Link>
     );
   }
   return (

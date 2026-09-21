@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   Lightning as Zap,
   User,
   SignIn as LogIn,
   SignOut as LogOut,
   Key as KeyRound,
+  SquaresFour as LayoutDashboard,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -61,6 +63,7 @@ interface AccessBannerProps {
 export function AccessBanner({ trailing }: AccessBannerProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
+  const pathname = usePathname();
   const { user, isLoading, signOut } = useAuth();
   const upgradeModal = useUpgradeModal();
   const tier: UserTier = user?.tier ?? 'free';
@@ -132,6 +135,14 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
               credits. Without them the modal explains what the API does
               and routes to the packs, which is a better answer than
               hiding the entrance entirely. */}
+          {/* The account surface, and the only link to it. The dashboard is
+              deliberately not in the header row or the footer: it is a private
+              page, so it is reached from the account control rather than
+              advertised to signed-out visitors and crawlers. */}
+          <MenuItem href="/dashboard">
+            <LayoutDashboard className="h-4 w-4" aria-hidden />
+            Dashboard
+          </MenuItem>
           <MenuItem onClick={() => setApiKeysOpen(true)}>
             <KeyRound className="h-4 w-4" aria-hidden />
             API keys
@@ -161,7 +172,21 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
           <LogIn className="h-4 w-4" />
           Sign in
         </Button>
-        <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
+        {/* Come back to the page they signed in from.
+            The header renders on every route, so this hands over wherever the
+            visitor is and lets `isAllowedReturnPath` decide: it is an
+            allowlist, not a sanitiser, and `send-magic-link` drops anything it
+            does not recognise silently rather than refusing the link. So this
+            returns to `/claim` and `/dashboard`, and falls back to the home
+            page everywhere else, with no list of routes to keep in step here.
+            Without it the account surface added `/dashboard` to that allowlist
+            and then the one sign-in most people reach for still landed them on
+            the home page. */}
+        <AuthModal
+          open={authModalOpen}
+          onOpenChange={setAuthModalOpen}
+          next={pathname ?? undefined}
+        />
       </>
     );
   };
@@ -262,9 +287,17 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
             credits.entitled ? 'inline-flex' : 'hidden sm:inline-flex'
           )}
         >
-          {credits.available === null
-            ? `Free · ${FREE_MATCHES_PER_WINDOW} matches`
-            : `${credits.available.toLocaleString()} matches`}
+          {/* A failed read is not the free tier.
+              `available` is null in two unrelated cases: nothing has been
+              fetched, and the fetch did not land. Reading both as the free
+              allowance tells a paying account it is on free, which is a
+              stronger false claim than the zero this used to show when a
+              non-2xx still parsed as JSON. `failed` separates them. */}
+          {credits.failed
+            ? 'Balance unavailable'
+            : credits.available === null
+              ? `Free · ${FREE_MATCHES_PER_WINDOW} matches`
+              : `${credits.available.toLocaleString()} matches`}
         </Badge>
         {/* "Buy credits", matching the modal it opens and what is actually
             sold. "Upgrade" named a tier ladder that no longer exists, and a
