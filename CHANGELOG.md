@@ -2,6 +2,30 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (what the union driver actually buys, measured)
+
+- **GitHub does not honor `merge=union`.** Measured rather than assumed: with
+  `.gitattributes` on `main`, PR #342 still went `CONFLICTING` against a `main`
+  carrying a sibling `CHANGELOG.md` entry. Mergeability is computed on GitHub's
+  servers and does not read `.gitattributes`, so a second PR touching that file
+  is still shown as conflicting and its `pull_request` workflows still do not
+  run. The driver does not fix the dangerous half, and the change that added it
+  said so only after review caught the first draft claiming otherwise.
+- **Locally it applies from the second merge onward, not the first.** Git reads
+  attributes from the branch being merged INTO, so the merge that delivers the
+  file still conflicts: the branch does not have it yet. Worth writing down
+  because the obvious reading of that first conflict is that the driver is
+  broken.
+- **A union merge leaves the file unformatted.** It concatenates both sides'
+  lines literally, so where two entries meet there is no blank line and
+  Prettier fails. `format` is a required check, so that alone blocks the merge:
+  the driver saves the resolution and hands back a formatting fix. Observed on
+  this PR, which is the first merge the driver ever resolved.
+- Both facts are now in `.gitattributes` and `docs/OPERATIONS.md`, replacing
+  the hedged "reportedly does not" with what was observed. The protections that
+  matter never depended on the answer: branch protection, `pr:status` and
+  `main-guard.yml`.
+
 ### 2026-09-20 (the account gets a page)
 
 - **`/dashboard`**, the first surface that shows a signed-in account what it

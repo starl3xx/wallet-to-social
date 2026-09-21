@@ -22,24 +22,38 @@
 # lines from both sides instead of writing markers. For a file that is only
 # ever prepended to, that is exactly the resolution a person would make.
 #
-# ## What this does and does not buy, measured rather than assumed
+# ## What this buys, measured on 2026-09-21 rather than assumed
 #
-# VERIFIED: a local merge of the base branch into a PR branch resolves this
-# file with no markers and both entries kept. That is the step the protocol
-# already tells you to take, so the hand-resolution is gone.
+# Both halves were tested on the first PRs to follow this file onto `main`,
+# and both came back smaller than the change that introduced it claimed.
 #
-# NOT VERIFIED, and do not read this file as promising it: whether GitHub's
-# own mergeability computation honors a merge driver from `.gitattributes`.
-# It is computed on GitHub's servers, not by your git, and the widely reported
-# behavior is that it does NOT. If that holds, a second PR touching this file
-# is still shown as CONFLICTING and its `pull_request` workflows still do not
-# run, which is the dangerous half.
+# **GitHub does NOT honor this driver.** With this file on `main`, PR #342
+# still went `CONFLICTING (DIRTY)` against a `main` carrying a sibling entry.
+# Mergeability is computed on GitHub's servers, not by your git, and it
+# ignores `.gitattributes`. So a second PR touching this file is still shown
+# as conflicting and its `pull_request` workflows still do not run. That is
+# the dangerous half, and this file does not fix it.
 #
-# So this is a convenience with a possible safety benefit, and the actual
-# protections against a stale-green PR are elsewhere and do not depend on it:
-# `npm run pr:status` reads the real state rather than the checkmarks, and
-# `.github/workflows/main-guard.yml` checks `main` after every push. Step 5 of
-# the protocol in docs/OPERATIONS.md still stands: merge the base branch in.
+# **Locally it works, but not on the merge that delivers it.** Git reads
+# attributes from the branch being merged INTO, so the first merge after this
+# file lands still conflicts: the branch does not have the file yet, it is
+# arriving in that very merge. From the next merge onward the resolution is
+# automatic. Do not read a conflict on the first merge as this being broken.
+#
+# **Run `npm run format` after a union merge.** Union concatenates both sides'
+# lines literally, so where two entries meet it produces no blank line between
+# them and the file stops being Prettier-clean. `format` is a REQUIRED check,
+# so an unformatted CHANGELOG blocks the merge: the driver saves the
+# resolution and hands you a formatting fix instead. Observed on #346, which
+# is the first merge this driver ever resolved.
+#
+# So this is a convenience from the second merge onward, and nothing more. The
+# protections against a stale-green PR are elsewhere and never depended on it:
+# branch protection (required checks, strict mode), `npm run pr:status`, which
+# reads the real state rather than the checkmarks, and
+# `.github/workflows/main-guard.yml`, which checks `main` after every push.
+# Step 5 of the protocol in docs/OPERATIONS.md stands unchanged: merge the
+# base branch in.
 #
 # ## What union costs, stated rather than discovered
 #
