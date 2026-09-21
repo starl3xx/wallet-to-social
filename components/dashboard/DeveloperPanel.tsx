@@ -15,7 +15,12 @@ import {
 } from '@/components/ui/card';
 import { Figure } from '@/components/ui/figure';
 import type { UserTier } from '@/lib/access';
-import { API_PLANS, apiPlanForAccount } from '@/lib/api-plans';
+import {
+  API_PLANS,
+  CREDIT_API_PLAN,
+  apiPlanForAccount,
+  ladderedPlanId,
+} from '@/lib/api-plans';
 import type { CreditsView } from '@/lib/use-credits';
 
 /**
@@ -71,7 +76,30 @@ export function DeveloperPanel({
   const [usageFailed, setUsageFailed] = useState(false);
 
   const entitled = credits.entitled;
-  const planId = apiPlanForAccount(tier, entitled);
+  /**
+   * The plan actually serving this account, not the one tier and entitlement
+   * imply.
+   *
+   * `apiPlanForAccount` maps every pack holder to the Developer preset, and a
+   * live Scale or Index pack is served higher ceilings at request time
+   * (`PACK_API_PLAN`). Stating the Developer numbers as fact therefore told a
+   * Scale buyer the wrong limits. The keys dialog cannot do better, because it
+   * knows only tier and entitlement; this card knows the lots, so it ladders
+   * the plan up the way the server does.
+   *
+   * It can still only ladder DOWN-wards-safe: `getBalance` returns lots with
+   * credits remaining, while the server's ladder counts any unexpired pack,
+   * so an account that has spent its Scale pack but not outlived it reads as
+   * Developer here. That is why the qualifying sentence below stays on the
+   * Developer case rather than being deleted as solved.
+   */
+  const basePlanId = apiPlanForAccount(tier, entitled);
+  const planId = basePlanId
+    ? ladderedPlanId(
+        basePlanId,
+        (credits.lots ?? []).map((l) => l.pack)
+      )
+    : null;
   const plan = planId ? API_PLANS[planId] : null;
 
   useEffect(() => {
@@ -135,6 +163,17 @@ export function DeveloperPanel({
               : entitled && plan
                 ? `The ${plan.name} plan: ${plan.requestsPerMinute.toLocaleString()} requests a minute and up to ${plan.maxBatchSize.toLocaleString()} addresses a batch.`
                 : 'API access comes with credits, and draws on the same balance.'}
+            {/* Said rather than guessed, the same qualification the keys
+                dialog carries: the lots above can raise this plan but cannot
+                see a pack that is spent and still unexpired, which the server
+                counts. */}
+            {entitled && plan && planId === CREDIT_API_PLAN && (
+              <>
+                {' '}
+                These are the starting limits. A live Scale or Index pack is
+                served higher ones; /v1/usage reports the limits serving you.
+              </>
+            )}
           </CardDescription>
           <CardAction>
             {/* Offered to every signed-in account, because the dialog is also

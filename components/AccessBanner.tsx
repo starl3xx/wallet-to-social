@@ -287,9 +287,17 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
             credits.entitled ? 'inline-flex' : 'hidden sm:inline-flex'
           )}
         >
-          {credits.available === null
-            ? `Free · ${FREE_MATCHES_PER_WINDOW} matches`
-            : `${credits.available.toLocaleString()} matches`}
+          {/* A failed read is not the free tier.
+              `available` is null in two unrelated cases: nothing has been
+              fetched, and the fetch did not land. Reading both as the free
+              allowance tells a paying account it is on free, which is a
+              stronger false claim than the zero this used to show when a
+              non-2xx still parsed as JSON. `failed` separates them. */}
+          {credits.failed
+            ? 'Balance unavailable'
+            : credits.available === null
+              ? `Free · ${FREE_MATCHES_PER_WINDOW} matches`
+              : `${credits.available.toLocaleString()} matches`}
         </Badge>
         {/* "Buy credits", matching the modal it opens and what is actually
             sold. "Upgrade" named a tier ladder that no longer exists, and a
