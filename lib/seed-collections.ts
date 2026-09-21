@@ -864,6 +864,15 @@ function withTimeout<T>(
 const SLOT_RESERVE_MS = ATTEMPT_RESERVE_MS + 35_000;
 
 /**
+ * How many leading entries of `SEED_ORDER` keep their place every day while
+ * the rest rotate. These are the chains no competing index serves, so their
+ * coverage is the thing nobody else can sell; a day they miss is a day the
+ * differentiator does not grow. Everything below them rotates instead, which
+ * is what stops the last chain in the list from never running at all.
+ */
+const PINNED_SEED_HEAD = 2;
+
+/**
  * Try novel candidates in rank order until one seeds successfully. Every
  * attempt — success or failure — is recorded first, so a broken contract
  * consumes its novelty and tomorrow's run moves down the rankings instead
@@ -955,8 +964,6 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
   const results: SeedRunResult[] = [];
   // 240s of the route's 300s maxDuration, shared across all slots
   const deadline = Date.now() + 240_000;
-  // Robinhood first: it's the chain with no competing index, so it must
-  // never be the one starved when earlier slots burn the time budget
   // Deliberate order, because the run shares one time budget across all slots
   // and whatever sits last is what gets dropped when it runs out.
   //
@@ -981,10 +988,41 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
     'optimism',
     'bsc',
   ];
-  const chains: SupportedChain[] = [
+  const ranked: SupportedChain[] = [
     ...SEED_ORDER.filter((c) => SUPPORTED_CHAINS.includes(c)),
     ...SUPPORTED_CHAINS.filter((c) => !SEED_ORDER.includes(c)),
   ];
+  // A fixed order plus one shared deadline gives the last position a standing
+  // disadvantage: the same chain absorbs every overrun, forever. No starved
+  // run has been observed — the `budgetExhausted` path exists because the
+  // budget can run out, not because it demonstrably has — so this is closing a
+  // structural hazard the comment above already names, not repairing damage.
+  //
+  // It is worth closing cheaply because the failure would be invisible. A
+  // starved slot writes no `seeded_contracts` row, so a chain that stopped
+  // being reached and a chain with nothing left to seed look identical from
+  // the table.
+  //
+  // Only the head stays pinned, and the rest rotate by day. The head is the
+  // two chains no competing index serves, which is the reason they were put
+  // first; demoting those to give the tail a turn would trade one chain's
+  // disadvantage for a costlier one. Everything after them takes the front of
+  // the tail in turn, so each tail chain leads every `tail.length` days and
+  // none is permanently last.
+  const head = ranked.slice(0, PINNED_SEED_HEAD);
+  const tail = ranked.slice(PINNED_SEED_HEAD);
+  // Whole days since the epoch, in UTC: the cron fires once a day, so this
+  // advances by exactly one per run regardless of the hour it actually lands.
+  const dayIndex = Math.floor(Date.now() / 86_400_000);
+  const offset = tail.length > 0 ? dayIndex % tail.length : 0;
+  const chains: SupportedChain[] = [
+    ...head,
+    ...tail.slice(offset),
+    ...tail.slice(0, offset),
+  ];
+  console.log(
+    `Seed order today: ${chains.join(', ')} (head pinned, tail rotated by ${offset})`
+  );
 
   const budgetExhausted = (
     chain: SupportedChain,
@@ -1121,6 +1159,27 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
         });
       }
     }
+  }
+
+  // Say which slots the clock ate. A starved slot writes no `seeded_contracts`
+  // row, so without this line the only trace is a chain quietly missing from a
+  // table nobody reads daily, which is indistinguishable from a chain with
+  // nothing left to seed. That ambiguity already cost real time once: BSC's
+  // absence through 2026-09-19/21 was read here as starvation when it was the
+  // discovery gate refusing the chain, and the table could not tell the two
+  // apart. If the same chains appear on this line every day even with the
+  // rotation, the run needs more time, not a different order.
+  const starved = [
+    ...new Set(
+      results
+        .filter((r) => r.contract.label === 'time budget exhausted')
+        .map((r) => `${r.contract.chain}/${r.contract.kind}`)
+    ),
+  ];
+  if (starved.length > 0) {
+    console.warn(
+      `Seed run ran out of time before ${starved.length} slot(s): ${starved.join(', ')}`
+    );
   }
 
   return results;

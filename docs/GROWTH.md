@@ -261,6 +261,34 @@ continuations fill the slots that used to end the day as "no novel
 candidates". The per-run cap and every budget guard are unchanged; what
 changed is that the same daily spend now always buys new wallets.
 
+**2026-09-21: a skipped slot and a refused chain look identical in the table,
+and that cost an afternoon.** Checking whether the Chainbase key had revived
+BSC, the evidence read as starvation: BSC sits last in `SEED_ORDER`, the run
+shares one 240-second deadline across all slots, and BSC had no row for three
+days while the seven chains above it seeded daily.
+
+That was wrong. BSC was refused at **discovery**, not skipped for time. The
+gate introduced on 2026-09-19 kept refusing BNB Chain by name, and the
+`hasThirdHolderIndex` rung that released it landed on 2026-09-21. The
+disproof was already in the table: BSC **was** attempted on 09-16, 09-17 and
+09-18, and a slot that is never reached cannot write an attempt marker.
+
+Both paths write nothing, which is why they were confusable. A gate refusal
+`continue`s before the slot; a starved slot returns `budgetExhausted`. Neither
+leaves a row, so from `seeded_contracts` a chain that was refused, a chain that
+was skipped, and a chain with nothing left to seed are the same absence.
+
+Two changes, neither of which was the BSC fix:
+
+- **The starved case now announces itself.** The run logs the order it chose
+  and warns with any slot the clock ate. The gate already logs its refusals, so
+  the two are now distinguishable from the log alone.
+- **The tail rotates by day**, so the last position is not a standing
+  disadvantage for one chain. No starved run has been observed; this closes the
+  hazard rather than repairing damage. The head stays pinned to the two chains
+  no competing index serves, since rotating those would trade one chain's
+  disadvantage for a costlier one.
+
 ## Two funnels, never added together
 
 `purchases` and `revenue` in the report mean packs bought by people. The x402

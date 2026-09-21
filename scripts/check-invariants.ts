@@ -5890,6 +5890,39 @@ async function main() {
         '];'
       ).includes("'hyperevm'")
     );
+
+    /**
+     * The tail of SEED_ORDER must rotate, and the head must not.
+     *
+     * One shared deadline over a fixed order makes the last position a
+     * standing disadvantage: the same chain absorbs every overrun. The failure
+     * would also be silent, because a starved slot writes no row — an absence
+     * indistinguishable from a refused chain or an exhausted one, which is
+     * exactly the confusion that sent the 2026-09-21 BSC investigation down
+     * the wrong path. Restoring a plain walk over the ranked list brings the
+     * hazard back.
+     *
+     * Pinning the whole list would defeat the point, so the head is asserted
+     * to be a genuine prefix rather than everything.
+     */
+    {
+      const pinned = /const PINNED_SEED_HEAD = (\d+);/.exec(seed);
+      const { SUPPORTED_CHAINS } = await import('@/lib/chains');
+      ok(
+        'the seed tail rotates daily, so no chain is permanently last',
+        pinned !== null &&
+          Number(pinned[1]) > 0 &&
+          Number(pinned[1]) < SUPPORTED_CHAINS.length &&
+          seed.includes('const offset = tail.length > 0 ? dayIndex %') &&
+          seed.includes('...tail.slice(offset)') &&
+          seed.includes('...tail.slice(0, offset)')
+      );
+      ok(
+        'a starved seed slot is reported rather than silently dropped',
+        seed.includes("label === 'time budget exhausted'") &&
+          seed.includes('Seed run ran out of time before')
+      );
+    }
   }
 
   // ------------------- Budget counters: an untyped parameter disables them
