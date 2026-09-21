@@ -11261,32 +11261,30 @@ async function main() {
        * recovering the job in progress the page reopens a lookup the person
        * had moved on from.
        *
-       * Asserted at all three exits, because the one that is easy to forget is
-       * whichever gets added next. `handleAddToLookup` is deliberately not one
-       * of them: growing a lookup leaves the same lookup on screen.
+       * Asserted as ONE rule keyed on what is displayed, not as a list of the
+       * ways to leave. The first version of this enumerated three exits, and
+       * review found a fourth it had missed on the same day ("Create new
+       * lookup instead"), with the contract importer and the paste path behind
+       * it. A list of the ways to leave a screen is never finished; the
+       * condition for being on it is, so the check is that the condition is
+       * what the code reads.
+       *
+       * Two call sites exactly: the effect that enforces the rule, and the
+       * deep link's own failure path, which cannot wait for the effect because
+       * a failure changes no state and would not re-run it. A third would mean
+       * somebody had gone back to patching exits one at a time.
        */
-      const exits = [
-        'const handleReset =',
-        'const startLookup =',
-        'const runStarterCollection =',
-      ].map((marker) => ({ marker, at: homeSrc.indexOf(marker) }));
-      const clears = [...homeSrc.matchAll(/forgetLookupParam\(\);/g)].map(
-        (m) => m.index ?? -1
-      );
-      // Sorted, so the assertion does not encode the order these happen to be
-      // declared in: each exit needs a clear before the next declaration
-      // begins, and the last one needs any clear after it.
-      const bounds = exits
-        .map((e) => e.at)
-        .slice()
-        .sort((a, b) => a - b);
-      const covered = bounds.every((from, i) => {
-        const to = i + 1 < bounds.length ? bounds[i + 1] : homeSrc.length;
-        return clears.some((c) => c > from && c < to);
-      });
+      const clears = [...homeSrc.matchAll(/forgetLookupParam\(\);/g)].length;
+      const ruleEffect =
+        /if \(lookupDeepLinkPending\.current\) return;\s*if \(state === 'complete' && currentLookupId\) return;\s*forgetLookupParam\(\);\s*\}, \[state, currentLookupId\]\);/.test(
+          homeSrc.replace(/\s+/g, ' ').replace(/ /g, ' ')
+        ) ||
+        /lookupDeepLinkPending\.current[\s\S]{0,200}state === 'complete' && currentLookupId[\s\S]{0,120}forgetLookupParam\(\);[\s\S]{0,80}\[state, currentLookupId\]/.test(
+          homeSrc
+        );
       ok(
-        'every exit from a saved lookup drops its parameter from the URL',
-        exits.every((e) => e.at > 0) && clears.length >= 3 && covered
+        'the lookup parameter is dropped by one rule about what is on screen, not per exit',
+        clears === 2 && ruleEffect
       );
     }
 

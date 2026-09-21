@@ -1112,12 +1112,6 @@ export default function Home() {
     const submittedName = typedName || derivedName;
     submittedNameRef.current = submittedName;
 
-    // A new run replaces whatever was on screen, so the URL stops naming the
-    // saved lookup that used to be. Without this the parameter outlives the
-    // thing it addresses and the next refresh reopens it instead of resuming
-    // this job.
-    forgetLookupParam();
-
     setState('processing');
     setResults([]);
     setCacheHits(0);
@@ -1227,11 +1221,6 @@ export default function Home() {
       if (collection.name) {
         submittedNameRef.current = `Holders of ${collection.name}`;
       }
-
-      // A new run, so the URL stops naming the saved lookup it replaces.
-      // `handleAddToLookup` deliberately does not do this: growing a lookup
-      // leaves the same lookup on screen, so its address is still correct.
-      forgetLookupParam();
 
       setState('processing');
       setResults([]);
@@ -1687,10 +1676,7 @@ export default function Home() {
     }
     // Starting over means starting over. A surviving hint would reinstate the
     // old gated lookup on the next visit, over the work being started here.
-    // The URL is the same kind of hint: `?lookup=` names what is on screen,
-    // and nothing is on screen now.
     forgetGatedJob();
-    forgetLookupParam();
     setJobId(null);
     setStartTime(null);
     setWallets([]);
@@ -1850,6 +1836,12 @@ export default function Home() {
    * that is not yours, without distinguishing them.
    */
   const lookupDeepLinkRead = useRef(false);
+  /**
+   * True from the moment a `lookup=` arrival is recognized until its fetch
+   * settles. The clearing effect below reads it so a deep link is not stripped
+   * from the URL before the thing it names has had a chance to open.
+   */
+  const lookupDeepLinkPending = useRef(false);
 
   useEffect(() => {
     if (lookupDeepLinkRead.current) return;
@@ -1861,10 +1853,12 @@ export default function Home() {
     const id = new URLSearchParams(window.location.search).get('lookup');
     if (!id) return;
 
+    lookupDeepLinkPending.current = true;
     let cancelled = false;
     fetch(`/api/history/${id}`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error('not found'))))
       .then((data) => {
+        lookupDeepLinkPending.current = false;
         if (cancelled) return;
         handleLoadHistory(
           data.results,
@@ -1875,6 +1869,13 @@ export default function Home() {
         );
       })
       .catch(() => {
+        // Settled, so the clearing effect may drop the parameter: nothing was
+        // opened, so the URL must stop claiming otherwise.
+        lookupDeepLinkPending.current = false;
+        // Cleared here rather than left to the effect below: a failure changes
+        // no state, so that effect would not re-run and the URL would go on
+        // naming a lookup that never opened.
+        forgetLookupParam();
         // A lookup that is gone, or was never yours, leaves the page as it
         // was: the upload view, which is a working page rather than an error.
         // Saying more would distinguish "not found" from "not yours", which
@@ -1884,6 +1885,33 @@ export default function Home() {
       cancelled = true;
     };
   }, [authLoading, handleLoadHistory]);
+
+  /**
+   * And it stops naming one the moment one is not on screen.
+   *
+   * This is the other half of not clearing the parameter on read. An address
+   * that outlives the thing it addresses is worse than no address at all: the
+   * mount restore bails on `lookup=` by design, so a stale one makes the next
+   * refresh reopen a lookup somebody had moved on from instead of resuming the
+   * job they had started.
+   *
+   * Keyed on what is displayed rather than called from each exit, and that is
+   * the whole point. The first version of this called `forgetLookupParam()`
+   * from reset, a new lookup and a starter collection, and review immediately
+   * found a fourth exit it had missed ("Create new lookup instead"), with the
+   * contract importer and the paste path behind it. A list of the ways to
+   * leave a screen is never finished; the condition for being on it is.
+   *
+   * `lookupDeepLinkPending` is why this cannot simply run on mount: a deep
+   * link arrives with `state` still `upload`, so without it this would strip
+   * the parameter before the fetch it describes had resolved. A failed fetch
+   * clears it, which is correct, since nothing was opened.
+   */
+  useEffect(() => {
+    if (lookupDeepLinkPending.current) return;
+    if (state === 'complete' && currentLookupId) return;
+    forgetLookupParam();
+  }, [state, currentLookupId]);
 
   // Handle adding addresses to existing lookup
   const handleAddToLookup = useCallback(

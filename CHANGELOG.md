@@ -40,15 +40,20 @@ All notable changes to walletlink.social. Newest first.
   somebody asked for by name and take its id and unlock wiring with it.
   `forgetGatedJob()` clears the key and does nothing about a fetch already in
   flight, so the bail belongs where the arrival is recognized.
-- **`?lookup=` is dropped everywhere the screen stops showing that lookup**:
-  reset, a new run, and a starter collection. Not clearing it on read is what
-  makes it an address rather than a payload, and that only holds if it stops
-  naming a lookup once one is no longer displayed. Left behind it outlives the
-  thing it addresses, and the next refresh would be worse than not having the
-  feature: the mount restore bails on `lookup=` by design, so the page would
-  reopen a lookup the person had moved on from instead of resuming the job in
-  progress. Growing a lookup deliberately keeps it, because the same lookup is
-  still on screen.
+- **`?lookup=` is dropped by one rule about what is on screen**, not by a call
+  at each exit. Not clearing it on read is what makes it an address rather than
+  a payload, and that only holds if it stops naming a lookup once one is no
+  longer displayed: left behind it outlives the thing it addresses, and the
+  next refresh is worse than not having the feature, because the mount restore
+  bails on `lookup=` by design and would reopen a lookup the person had moved
+  on from instead of resuming the job in progress.
+- **That rule replaced a list, after the list was shown to be incomplete.** The
+  first version called a helper from reset, a new lookup and a starter
+  collection; review found a fourth exit it had missed the same day ("Create
+  new lookup instead"), with the contract importer and the paste path behind
+  it. A list of the ways to leave a screen is never finished, so the check is
+  now the condition for being on it. Growing a lookup still keeps the
+  parameter, and needs no exemption to do it: the same lookup is on screen.
 - The deep link is read in an effect on the statically rendered homepage, the
   same shape as `/?contract=`, and deliberately **not** cleared from the URL:
   there the parameter is a payload that must not replay, here it is the address
