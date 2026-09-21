@@ -556,6 +556,12 @@ export async function eraseIdentifier(
     // storage trigger only refuses FUTURE writes; the existing row goes
     // here, whole (same rationale as the migration's skip-guard comment).
     await del('known_agents', sql`t.wallet = ${identifier}`);
+    // The KYC-attested set: the row asserts a regulated exchange vouched
+    // for this wallet's owner, which is a fact about the person, not the
+    // address. The weekly sweep re-offers the whole live set, so the
+    // storage trigger refuses its re-insert; this deletes what is already
+    // held.
+    await del('cb_verified_wallets', sql`t.wallet = ${identifier}`);
   } else {
     await blank(
       'social_graph',
@@ -744,6 +750,7 @@ const DELETED_TABLES: Record<SuppressionKind, string[]> = {
     'social_graph_history',
     'wallet_holdings',
     'known_agents',
+    'cb_verified_wallets',
   ],
   twitter: [
     'x_accounts',
@@ -780,6 +787,7 @@ const RESTORE_PK: Record<string, readonly string[]> = {
   x_accounts: ['handle'],
   known_agents: ['wallet'],
   lookup_history: ['id'],
+  cb_verified_wallets: ['wallet'],
 };
 
 export interface UnsuppressReport {

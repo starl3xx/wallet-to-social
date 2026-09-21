@@ -768,6 +768,7 @@ export function calculateQualityScore(
       case 'debank_tweet':
       case 'sybil_list':
       case 'snapshot_profile':
+      case 'lens_profile':
       case 'opensea_profile':
       case 'ud_profile':
       /**
@@ -846,6 +847,7 @@ export function isTwitterVerified(sources: string[]): boolean {
       s === 'debank_tweet' ||
       s === 'sybil_list' ||
       s === 'snapshot_profile' ||
+      s === 'lens_profile' ||
       s === 'opensea_profile' ||
       s === 'ud_profile' ||
       s === 'basename_record' ||

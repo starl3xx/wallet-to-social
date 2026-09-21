@@ -84,6 +84,50 @@ All notable changes to walletlink.social. Newest first.
   only, and an index for either needs a route plus an index migration), a
   results preview, an activity feed and any chart.
 
+### 2026-09-20 (owner-set handles from the social protocol's account metadata)
+
+- **`lens_profile`**: a cursor walk of the social protocol's accounts
+  (`scripts/harvest-lens-profiles.ts`), ingesting the X handle an account's
+  OWNER set in its metadata attributes (keys `x`, `twitter`), written
+  against the controlling EOA. An owner-set record nobody checked: the
+  governance-profile tier, so the same class and quality floor. Probed
+  before building, which is the day's rule and the day's contrast: 12 of
+  the first 50 accounts carried the attribute, and the identity network
+  probed the same hour carried 0 in 560, so this adapter exists and that
+  one does not.
+- Measured on the first 3,000 accounts of the walk: 384 wallets the graph
+  had never seen, 159 fills of known wallets, 471 agreements with what
+  other sources already attested, 84 recorded disagreements. The graph has
+  been largely static since its biggest client shut down in early 2025, so
+  the workflow is a monthly touch plus manual dispatch for the backfill,
+  not a daily pipeline.
+
+### 2026-09-20 (the graph learns which wallets a regulated exchange vouched for)
+
+- **`cb_verified_wallets`**: one row per wallet carrying a live
+  verified-account attestation from the exchange's onchain attester on Base:
+  314,295 on the first full sweep, of which 56,326 are wallets the graph
+  holds. The schema's raw total is 722,875, and 408,567 of those are
+  REVOKED: more than half of every attestation ever issued, which is what
+  makes the full-resync design below load-bearing rather than cautious. A
+  quality signal, not an identity link: one boolean, no handle, nothing
+  near the attested-links machinery, no product surface change yet beyond
+  the admin composition pane's overlap tile.
+- **Inside the removal boundary from day one, after review caught it
+  outside**: the table is declared in the schema, carries the suppression
+  skip trigger (a removed wallet's re-insert is silently refused, which on
+  a weekly full resync is the designed outcome), is deleted with quarantine
+  by the wallet-kind erasure, and the sweep excludes suppressed wallets
+  explicitly as a second line. The sweep also refuses a malformed page as
+  the end of the set, since an empty page unlocks the delete pass.
+- Its own table rather than a `social_graph` column, deliberately: the set
+  mostly does not intersect the graph, a column would go stale for wallets
+  that arrive after their attestation was swept, and a weekly FULL resync
+  (`scripts/sweep-cb-verified.ts`, ~723 pages of 1,000) is never stale by
+  more than a cadence. Rows the walk did not see are deleted only after a
+  COMPLETE walk, which is how a revocation leaves; a walk that dies mid-run
+  deletes nothing.
+
 ### 2026-09-20 (Sharper hero portraits)
 
 - Fetch the 400px X portrait variant instead of enlarging 48px thumbnails.
