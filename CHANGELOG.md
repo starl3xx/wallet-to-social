@@ -2,6 +2,26 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (NFT import stops being a single-index bet)
+
+- **A second NFT-owner index behind the first** (`fetchNftOwnersInsight`),
+  on the six majors, on our own key, never gated on `allowPublicFallback`.
+  Until now the first index's absence stopped NFT import on every chain
+  that has one, which is why its health row said critical; it now says
+  degrades, and Robinhood Chain is the one place it still stops.
+- The completeness rule is the design: the rescue returns only when the
+  token walk reached the collection's end, and a deadline or the page cap
+  mid-walk throws with the first index's error intact, because a silent
+  partial labeled complete is the USDG lesson this file already paid for.
+  The provider's offset pagination degrades with depth (measured: page 20
+  in 1.6s, pages 25-35 in 11-15s), so the per-page timeout is 25s, pages
+  retry once, and under the default 45s import budget the rescue's ceiling
+  is about 20k tokens; the seed cron's own deadline reaches further.
+- Proven end to end before shipping: with the first index's key removed,
+  a ~37k-token collection fell through, walked to the end in 154s, and
+  returned 7,872 distinct holders with the cap honestly marked truncated
+  and bag sizes from occurrence counts.
+
 ### 2026-09-21 (the union merge driver is removed, same day it was added)
 
 - **`CHANGELOG.md merge=union` broke `format`, which is a required check, in a

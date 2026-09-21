@@ -346,6 +346,27 @@ const CHAINBASE_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
 };
 
 /**
+ * The second NFT-owner index, keyed by decimal chain id.
+ *
+ * Until 2026-09-21 the first index was the ONLY NFT-owner index, marked
+ * critical in the health panel because its absence stopped NFT import on
+ * every chain that has one. This stands behind it as a rescue on the six
+ * majors; Robinhood Chain has no entry (the provider does not serve it,
+ * verified by its chains-not-supported error shape) and HyperEVM never
+ * resolves through an index at all. Pagination pages over TOKENS, not
+ * owners (probed live: 1,000 per page, 0-based), so holder counts fall out
+ * of distinct addresses and bag sizes out of occurrence counts.
+ */
+const INSIGHT_CHAIN_IDS: Partial<Record<SupportedChain, string>> = {
+  ethereum: '1',
+  base: '8453',
+  arbitrum: '42161',
+  polygon: '137',
+  optimism: '10',
+  bsc: '56',
+};
+
+/**
  * The second metered ERC-20 holder index, keyed by its own chain slugs.
  *
  * A second *metered* index, which is the property that matters: it answers with
@@ -690,6 +711,140 @@ async function getTokenInfo(
 /**
  * Get NFT (ERC-721/1155) holders using Alchemy API
  */
+/**
+ * NFT owners from the second NFT index.
+ *
+ * The completeness rule is the whole design: this returns ONLY when the
+ * token walk actually reached the end of the collection (a short page says
+ * so). A deadline or the page cap mid-walk THROWS instead of returning the
+ * owners found so far, because a silent partial labeled complete is the
+ * USDG lesson this file already paid for once. The caller keeps the first
+ * index's error as primary and this one as its cause.
+ *
+ * Bag sizes are occurrence counts: one entry per token, so ERC-721 counts
+ * are exact and ERC-1155 counts are distinct token ids rather than summed
+ * quantities, which the sparse-Bag contract tolerates and the comment on
+ * the column explains.
+ */
+async function fetchNftOwnersInsight(
+  address: string,
+  chain: SupportedChain,
+  limit: number,
+  deadlineMs: number
+): Promise<{
+  wallets: string[];
+  totalHolders: number;
+  balances: Map<string, string>;
+}> {
+  const chainId = INSIGHT_CHAIN_IDS[chain];
+  if (!chainId) throw new Error('CHAIN_NO_NFT_SUPPORT');
+  const clientId = process.env.THIRDWEB_CLIENT_ID;
+  if (!clientId) throw new Error('INSIGHT_NOT_CONFIGURED');
+
+  const counts = new Map<string, number>();
+  const PAGE = 1_000;
+  /**
+   * The provider's offset pagination degrades hard with depth, measured
+   * live on a ~36k-token collection: page 20 answered in 1.6s, pages 25-35
+   * in 11-15s, and pages past ~200 time out server-side. Two consequences
+   * are designed in rather than discovered later: the per-page timeout is
+   * 25s because the deep pages genuinely take that long, and a collection
+   * too large for the caller's deadline makes this rescue THROW with the
+   * first index's error intact rather than lie with a partial. Under the
+   * default 45s import budget that puts the rescue's ceiling around 20k
+   * tokens; the seed cron passes its own larger deadline and reaches
+   * further.
+   */
+  const MAX_PAGES = 200;
+  let ended = false;
+
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const remaining = deadlineMs - Date.now();
+    if (remaining <= 0) {
+      throw new Error('Second NFT index ran out of time before the end');
+    }
+    const url = new URL(
+      `https://insight.thirdweb.com/v1/nfts/owners/${address}`
+    );
+    url.searchParams.set('chain', chainId);
+    url.searchParams.set('limit', String(PAGE));
+    url.searchParams.set('page', String(page));
+
+    /**
+     * One retry per page before the rescue gives up: the first live test
+     * lost the whole walk to a single slow page, and a rescue that dies on
+     * one hiccup rescues nothing. Still bounded by the shared deadline.
+     */
+    let res: Response | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const left = deadlineMs - Date.now();
+      if (left <= 0)
+        throw new Error('Second NFT index ran out of time before the end');
+      try {
+        res = await withTimeout(
+          fetch(url.toString(), {
+            headers: { Accept: 'application/json', 'x-client-id': clientId },
+          }),
+          Math.min(25_000, Math.max(2_000, left)),
+          'Second NFT index timed out'
+        );
+        if (res.status === 429 || res.status >= 500) {
+          if (attempt === 0) {
+            await new Promise((r) => setTimeout(r, 1_000));
+            continue;
+          }
+          throw new Error(`Second NFT index error: ${res.status}`);
+        }
+        break;
+      } catch (err) {
+        if (attempt === 0) continue;
+        throw err;
+      }
+    }
+    if (!res) throw new Error('Second NFT index unreachable');
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(
+        `Second NFT index error: ${res.status} - ${body.slice(0, 200)}`
+      );
+    }
+    const json = (await res.json()) as {
+      data?: Array<{ owner_addresses?: string[] }>;
+    };
+    if (!Array.isArray(json.data)) {
+      throw new Error(
+        `Second NFT index returned no data array: ${JSON.stringify(json).slice(0, 200)}`
+      );
+    }
+    let pageAddresses = 0;
+    for (const row of json.data) {
+      for (const raw of row.owner_addresses ?? []) {
+        const addr = raw.toLowerCase();
+        if (!/^0x[0-9a-f]{40}$/.test(addr)) continue;
+        pageAddresses++;
+        counts.set(addr, (counts.get(addr) ?? 0) + 1);
+      }
+    }
+    if (pageAddresses < PAGE) {
+      ended = true;
+      break;
+    }
+  }
+  if (!ended) {
+    throw new Error(
+      `Second NFT index walk exceeded ${MAX_PAGES} pages without ending`
+    );
+  }
+
+  const uniqueOwners = [...counts.keys()];
+  const limited = uniqueOwners.slice(0, limit);
+  return {
+    wallets: limited,
+    totalHolders: uniqueOwners.length,
+    balances: new Map(limited.map((w) => [w, String(counts.get(w) ?? '')])),
+  };
+}
+
 async function getERC721Holders(
   address: string,
   chain: SupportedChain,
@@ -1988,11 +2143,44 @@ export async function getContractHolders(
         deadlineMs
       );
     } else {
-      holdersResult = await getERC721Holders(
-        normalizedAddress,
-        chain,
-        effectiveLimit
-      );
+      try {
+        holdersResult = await getERC721Holders(
+          normalizedAddress,
+          chain,
+          effectiveLimit
+        );
+      } catch (error) {
+        /**
+         * The second NFT index, on the same standing as the second and
+         * third ERC-20 indexes: our own key on our own plan, so it is never
+         * gated on `allowPublicFallback` and the seed cron may use it. Any
+         * first-index failure falls through, for the reason the metered
+         * ERC-20 catch documents: matching on specific codes silently loses
+         * the fallback the day the provider invents a new failure string.
+         */
+        const reason = error instanceof Error ? error.message : String(error);
+        if (!INSIGHT_CHAIN_IDS[chain] || !process.env.THIRDWEB_CLIENT_ID) {
+          throw error;
+        }
+        console.warn(
+          `NFT holder index failed on ${chain} (${reason}); trying the second NFT index.`
+        );
+        try {
+          holdersResult = await fetchNftOwnersInsight(
+            normalizedAddress,
+            chain,
+            effectiveLimit,
+            deadlineMs
+          );
+        } catch (secondError) {
+          console.error(
+            `Second NFT index also failed on ${chain}:`,
+            secondError instanceof Error ? secondError.message : secondError
+          );
+          if (error instanceof Error) appendCause(error, secondError);
+          throw error;
+        }
+      }
     }
   } else {
     holdersResult = await getERC20Holders(

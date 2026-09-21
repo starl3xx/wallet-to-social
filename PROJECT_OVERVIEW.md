@@ -1101,13 +1101,13 @@ signup.
 
 | Chain           | Chain ID | NFT holders       | ERC-20 holders (in fallback order)         |
 | --------------- | -------- | ----------------- | ------------------------------------------ |
-| Ethereum        | 1        | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
-| Base            | 8453     | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
+| Ethereum        | 1        | Alchemy → Insight | Moralis → OpenSea → Chainbase → Blockscout |
+| Base            | 8453     | Alchemy → Insight | Moralis → OpenSea → Chainbase → Blockscout |
 | Robinhood Chain | 4663     | Alchemy NFT API   | Blockscout → OpenSea                       |
-| Arbitrum        | 42161    | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
-| Polygon         | 137      | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
-| Optimism        | 10       | Alchemy NFT API   | Moralis → OpenSea → Chainbase → Blockscout |
-| BNB Chain       | 56       | Alchemy NFT API   | Moralis → Chainbase (since 2026-09-20)     |
+| Arbitrum        | 42161    | Alchemy → Insight | Moralis → OpenSea → Chainbase → Blockscout |
+| Polygon         | 137      | Alchemy → Insight | Moralis → OpenSea → Chainbase → Blockscout |
+| Optimism        | 10       | Alchemy → Insight | Moralis → OpenSea → Chainbase → Blockscout |
+| BNB Chain       | 56       | Alchemy → Insight | Moralis → Chainbase (since 2026-09-20)     |
 | HyperEVM        | 999      | Onchain `ownerOf` | OpenSea only (added 2026-09-19)            |
 
 The Blockscout column is the public-explorer fallback and is refused to
