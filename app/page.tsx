@@ -116,6 +116,35 @@ import { asSourceList } from '@/lib/api-sources';
 
 type AppState = 'upload' | 'ready' | 'processing' | 'complete' | 'error';
 
+/**
+ * Drop `lookup=` from the URL.
+ *
+ * The deep link deliberately does not clear this on read, because the
+ * parameter is the address of what is on screen rather than a payload that
+ * must not replay. This is the other half of that bargain: it has to stop
+ * naming a lookup the moment the screen stops showing one.
+ *
+ * Left behind it survives a reset and a new run, and the next refresh is then
+ * worse than not having the feature at all: the mount restore bails on
+ * `lookup=` by design, so instead of recovering the job in progress the page
+ * reopens the lookup the person had already moved on from.
+ *
+ * `replaceState`, not `pushState`: leaving a saved lookup is not a place in
+ * history to go back to.
+ */
+function forgetLookupParam(): void {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('lookup')) return;
+  params.delete('lookup');
+  const rest = params.toString();
+  window.history.replaceState(
+    {},
+    '',
+    window.location.pathname + (rest ? `?${rest}` : '')
+  );
+}
+
 export default function Home() {
   const [state, setState] = useState<AppState>('upload');
   const [wallets, setWallets] = useState<string[]>([]);
@@ -1083,6 +1112,12 @@ export default function Home() {
     const submittedName = typedName || derivedName;
     submittedNameRef.current = submittedName;
 
+    // A new run replaces whatever was on screen, so the URL stops naming the
+    // saved lookup that used to be. Without this the parameter outlives the
+    // thing it addresses and the next refresh reopens it instead of resuming
+    // this job.
+    forgetLookupParam();
+
     setState('processing');
     setResults([]);
     setCacheHits(0);
@@ -1192,6 +1227,11 @@ export default function Home() {
       if (collection.name) {
         submittedNameRef.current = `Holders of ${collection.name}`;
       }
+
+      // A new run, so the URL stops naming the saved lookup it replaces.
+      // `handleAddToLookup` deliberately does not do this: growing a lookup
+      // leaves the same lookup on screen, so its address is still correct.
+      forgetLookupParam();
 
       setState('processing');
       setResults([]);
@@ -1647,7 +1687,10 @@ export default function Home() {
     }
     // Starting over means starting over. A surviving hint would reinstate the
     // old gated lookup on the next visit, over the work being started here.
+    // The URL is the same kind of hint: `?lookup=` names what is on screen,
+    // and nothing is on screen now.
     forgetGatedJob();
+    forgetLookupParam();
     setJobId(null);
     setStartTime(null);
     setWallets([]);

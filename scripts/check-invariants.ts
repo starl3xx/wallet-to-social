@@ -11248,6 +11248,46 @@ async function main() {
             'if (onSelectLookup) {'
           )
       );
+
+      /**
+       * `?lookup=` is cleared everywhere the screen stops showing that lookup.
+       *
+       * The deep link does not clear it on read, deliberately: it is the
+       * address of what is on screen rather than a payload that must not
+       * replay. That bargain only holds if it stops naming a lookup the moment
+       * one is no longer displayed. Left behind, it outlives the thing it
+       * addresses, and the next refresh is worse than not having the feature:
+       * the mount restore bails on `lookup=` by design, so instead of
+       * recovering the job in progress the page reopens a lookup the person
+       * had moved on from.
+       *
+       * Asserted at all three exits, because the one that is easy to forget is
+       * whichever gets added next. `handleAddToLookup` is deliberately not one
+       * of them: growing a lookup leaves the same lookup on screen.
+       */
+      const exits = [
+        'const handleReset =',
+        'const startLookup =',
+        'const runStarterCollection =',
+      ].map((marker) => ({ marker, at: homeSrc.indexOf(marker) }));
+      const clears = [...homeSrc.matchAll(/forgetLookupParam\(\);/g)].map(
+        (m) => m.index ?? -1
+      );
+      // Sorted, so the assertion does not encode the order these happen to be
+      // declared in: each exit needs a clear before the next declaration
+      // begins, and the last one needs any clear after it.
+      const bounds = exits
+        .map((e) => e.at)
+        .slice()
+        .sort((a, b) => a - b);
+      const covered = bounds.every((from, i) => {
+        const to = i + 1 < bounds.length ? bounds[i + 1] : homeSrc.length;
+        return clears.some((c) => c > from && c < to);
+      });
+      ok(
+        'every exit from a saved lookup drops its parameter from the URL',
+        exits.every((e) => e.at > 0) && clears.length >= 3 && covered
+      );
     }
 
     {

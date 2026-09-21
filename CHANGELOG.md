@@ -40,6 +40,15 @@ All notable changes to walletlink.social. Newest first.
   somebody asked for by name and take its id and unlock wiring with it.
   `forgetGatedJob()` clears the key and does nothing about a fetch already in
   flight, so the bail belongs where the arrival is recognized.
+- **`?lookup=` is dropped everywhere the screen stops showing that lookup**:
+  reset, a new run, and a starter collection. Not clearing it on read is what
+  makes it an address rather than a payload, and that only holds if it stops
+  naming a lookup once one is no longer displayed. Left behind it outlives the
+  thing it addresses, and the next refresh would be worse than not having the
+  feature: the mount restore bails on `lookup=` by design, so the page would
+  reopen a lookup the person had moved on from instead of resuming the job in
+  progress. Growing a lookup deliberately keeps it, because the same lookup is
+  still on screen.
 - The deep link is read in an effect on the statically rendered homepage, the
   same shape as `/?contract=`, and deliberately **not** cleared from the URL:
   there the parameter is a payload that must not replay, here it is the address
