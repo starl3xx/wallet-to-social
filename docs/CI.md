@@ -43,3 +43,9 @@ types; `rm -rf .next` and re-run. `npm run build` typechecks as part of the buil
 typechecks clean); after touching `scripts/check-invariants.ts` always run
 the guard too; after editing any string under `app/`, run design-language
 before pushing.
+
+The `outreach` job runs `npm run check:outreach` on Node 24 for changes to the
+local acquisition runner. The same suite runs in `preflight`. It uses mocked
+mailbox responses and temporary SQLite state, with no credentials or outbound
+mail. A failure means the approval, reply-stop, delivery or storage contract
+changed. See [OUTREACH.md](OUTREACH.md) for its operating posture.

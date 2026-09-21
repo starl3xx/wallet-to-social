@@ -7,6 +7,9 @@ is. This document is the operating loop: the baseline, the channels, the
 cadence, and a dated log of interventions so that a change in the numbers can
 be traced to something somebody did.
 
+The revenue outreach workflow and its current activation status are documented
+in [OUTREACH.md](OUTREACH.md).
+
 ## The baseline, 2026-09-16
 
 Measured with `npm run growth:report`, not estimated.

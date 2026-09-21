@@ -1,0 +1,19 @@
+name: outreach
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/outreach/**'
+      - '.github/workflows/outreach.yml'
+      - 'package.json'
+
+jobs:
+  outreach:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Mocked mailbox only; no credentials, production database, or email sends.
+      - run: node --test scripts/outreach/*.test.mjs

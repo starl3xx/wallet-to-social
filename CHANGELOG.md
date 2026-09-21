@@ -940,6 +940,15 @@ All notable changes to walletlink.social. Newest first.
   the line outside any group so it scopes to whichever crawler happens to
   precede it.
 
+### 2026-09-21 (reviewed revenue outreach)
+
+- Added a private local prospect research, qualification, draft review and
+  outreach runner with per-sequence approval and two timed follow-ups.
+- Gmail reply checks, existing-account exclusions, opt-out stops, volume
+  limits and delivery reconciliation keep the queue bounded and recoverable.
+- Added campaign revenue tracking, a five-minute worker, mocked-provider tests
+  and an operator runbook. No live mail, infrastructure changes or deployment.
+
 ### 2026-09-21 (NFT import stops being a single-index bet)
 
 - **A second NFT-owner index behind the first** (`fetchNftOwnersInsight`),

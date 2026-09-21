@@ -1,0 +1,9 @@
+{
+  "sender": "gm@walletlink.social",
+  "mailbox": "replace-with-receiving-mailbox@example.com",
+  "senderName": "Jake",
+  "signature": "WalletLink | https://walletlink.social",
+  "timezone": "America/Chicago",
+  "dailyLimit": 5,
+  "minGapMinutes": 15
+}
