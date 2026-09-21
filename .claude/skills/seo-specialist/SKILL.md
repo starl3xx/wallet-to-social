@@ -126,8 +126,14 @@ Never render a chain name from the raw slug (`{result.chain}` with CSS
 - [x] JSON-LD structured data (SoftwareApplication)
 - [x] Canonical URLs set
 - [x] Robots meta configured
-- [ ] XML sitemap
-- [ ] robots.txt
+- [x] XML sitemap (`app/sitemap.ts`)
+- [x] robots.txt (`app/robots.txt/route.ts`, a Route Handler, not the Next
+      `robots.ts` metadata convention: that serializer discards any directive
+      it does not know, including `Content-Signal`)
+- [x] Content signals (`search=yes, ai-input=yes, ai-train=yes`). Access and
+      use are separate axes, and an omitted signal is a declined answer rather
+      than a `no`. See the Content signals section of `docs/SEO-STRATEGY.md`
+      before editing that line.
 
 ### On-Page
 

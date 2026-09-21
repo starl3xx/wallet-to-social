@@ -533,6 +533,61 @@ for (const rule of RULES) {
   }
 }
 
+/**
+ * The verbatim exemption covers one literal, not the file around it.
+ *
+ * An exemption is the one edit to a guard that can only ever remove coverage,
+ * so it is the one that has to be watched failing. Both halves are asserted:
+ * the literal is really skipped, and a violation four lines below it in the
+ * same file is still caught. Without the second half a slightly wrong range
+ * would silently exempt the rest of the file and every fixture above here
+ * would still pass.
+ */
+{
+  const src = [
+    'const CONTENT_SIGNALS_POLICY = `# As a condition of accessing this website, you agree to abide by the following content signals:',
+    "# search: short excerpts from your website's contents, reproduced as published.",
+    '`;',
+    // A template literal, not a quoted string: the quote extractor's
+    // character class excludes `'`, so it cannot see an apostrophe inside a
+    // `"..."` at all. Using one here would have made this half of the
+    // fixture pass for the wrong reason.
+    "const ELSEWHERE = `a saved lookup that hasn't finished`;",
+  ].join('\n');
+  const range = templateRange(src, 'CONTENT_SIGNALS_POLICY');
+  const apostrophe = RULES.find((r) => r.name === 'straight-apostrophe');
+  if (!range) {
+    console.error('FIXTURE FAIL  templateRange did not find the literal');
+    failed++;
+  } else {
+    const inside = copySpans(src).filter(
+      ([, index]) => index >= range[0] && index <= range[1]
+    );
+    // The premise: without the exemption this literal IS a violation.
+    if (!inside.some(([text]) => fire(apostrophe, text))) {
+      console.error(
+        'FIXTURE FAIL  the exempted literal carries no violation, so the exemption proves nothing'
+      );
+      failed++;
+    }
+    const outside = copySpans(src)
+      .filter(([, index]) => !(index >= range[0] && index <= range[1]))
+      .filter(([text]) => fire(apostrophe, text));
+    if (!outside.some(([text]) => /hasn't finished/.test(text))) {
+      console.error(
+        'FIXTURE FAIL  the exemption swallowed copy outside the literal it names'
+      );
+      failed++;
+    }
+  }
+  if (templateRange(src, 'NOT_DECLARED_HERE') !== null) {
+    console.error(
+      'FIXTURE FAIL  templateRange returned a range for a binding that is not there'
+    );
+    failed++;
+  }
+}
+
 if (failed) {
   console.error(
     `\n${failed} fixture(s) failed. The guard does not do what it claims.`
@@ -568,14 +623,77 @@ const record = (file, offsetSrc, index, rule, text) =>
     text: text.trim().replace(/\s+/g, ' ').slice(0, 80),
   });
 
+/**
+ * Third-party text this repo reproduces exactly, where a house-style edit
+ * would be the defect rather than the fix.
+ *
+ * There is one, and the bar for a second is that the text is somebody else's
+ * and that matching it byte for byte is the reason it is here at all. "It
+ * reads better the published way" is not that bar.
+ *
+ * Scoped to a single named binding, never to a file and never to a rule. The
+ * rest of `app/robots.txt/route.ts` is checked exactly as before, which is
+ * what stops this from becoming the place people put copy they do not want
+ * corrected.
+ */
+const VERBATIM = [
+  {
+    file: 'app/robots.txt/route.ts',
+    binding: 'CONTENT_SIGNALS_POLICY',
+    why: 'the Cloudflare Content Signals Policy, CC0. The Content-Signal line in the same file has no meaning except by reference to this text, and its final paragraph is a reservation of rights under Article 4 of EU Directive 2019/790. Curling the apostrophe in "website\'s" would make this a paraphrase of the policy rather than the policy.',
+  },
+];
+
+/**
+ * The byte range of the template literal bound to `binding`, or null.
+ *
+ * From the first backtick after the declaration to the next unescaped one.
+ * That is enough because a verbatim literal has no interpolation in it: if
+ * one ever appears, the range still ends at the literal's real close, since
+ * `${...}` contains no backtick.
+ */
+function templateRange(src, binding) {
+  const open = src.indexOf(`const ${binding} = \``);
+  if (open === -1) return null;
+  const start = src.indexOf('`', open);
+  let end = start + 1;
+  while (end < src.length && !(src[end] === '`' && src[end - 1] !== '\\'))
+    end++;
+  return [start, end];
+}
+
 for (const file of walk('app', [], ['.tsx', '.ts']).concat(
   walk('components', [], ['.tsx', '.ts']),
   walk('lib', [], ['.tsx', '.ts'])
 )) {
   const src = readFileSync(file, 'utf8');
-  for (const [text, index] of copySpans(src))
+  const exempt = [];
+  for (const entry of VERBATIM) {
+    if (entry.file !== file) continue;
+    const range = templateRange(src, entry.binding);
+    /**
+     * A stale exemption is a hole, so it fails rather than doing nothing.
+     * Renaming the binding would otherwise leave an entry that exempts an
+     * empty range and a literal that is now silently being corrected by a
+     * guard nobody asked to edit it.
+     */
+    if (!range) {
+      hits.push({
+        file,
+        line: 1,
+        rule: 'verbatim-exemption',
+        msg: `the exemption names \`const ${entry.binding}\`, which is not in this file. Fix the name or delete the entry; an exemption pointing at nothing protects nothing.`,
+        text: entry.binding,
+      });
+      continue;
+    }
+    exempt.push(range);
+  }
+  for (const [text, index] of copySpans(src)) {
+    if (exempt.some(([s, e]) => index >= s && index <= e)) continue;
     for (const rule of RULES)
       if (fire(rule, text)) record(file, src, index, rule, text);
+  }
 }
 
 for (const file of walk('docs-site', [], ['.mdx', '.md', '.json']).concat([

@@ -2,6 +2,41 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (robots.txt declares what may be done with the content, not just who may read it)
+
+- **`/robots.txt` now carries a `Content-Signal` line, and `app/robots.ts` is
+  gone.** The Next metadata convention could not express it: `resolveRobots`
+  serializes `User-Agent`, `Allow`, `Disallow`, `Crawl-delay`, `Host` and
+  `Sitemap`, drops any key it does not know, and cannot emit a comment at all.
+  So the file moved to a Route Handler at `app/robots.txt/route.ts`,
+  `force-static` because it reads nothing. **The rules did not change**: the
+  same one wildcard group, the same four allows and two disallows, byte for
+  byte, and the same reasoning preserved in the comments.
+- **The signal is `search=yes, ai-input=yes, ai-train=yes`.** `Allow` and
+  `Disallow` govern access; a content signal governs use after access, and
+  this file had never spoken to the second. `ai-input` is the one to get
+  right: it, not `ai-train`, is what governs a ChatGPT or Perplexity citation,
+  and that is the channel `docs/GROWTH.md` measures as the best converter.
+  `ai-train=yes` departs from Cloudflare's managed default of `no`, chosen
+  because a model that already knows what this product is recommends it with
+  no crawl and no citation needed, and weights are the only place that
+  knowledge can live.
+- **The policy text ships verbatim, under CC0, and the house style is
+  suspended inside it.** Straight apostrophe, double space, shouted Article 4
+  paragraph, all as published. A signal without its definition is a token
+  nobody has agreed a meaning for, and the paraphrase is what drops the EU
+  Directive 2019/790 reservation that is the only part with legal weight.
+- **Deleting a signal is the dangerous edit, not the safe one.** Paragraph (c)
+  of that policy says an omitted signal neither grants nor restricts, so
+  trimming `ai-train=yes` out reads as tidying and is actually a withdrawal of
+  the answer. `check-invariants.ts` therefore asserts each of the three labels
+  is present with an explicit value and deliberately does **not** assert which
+  value: changing a yes to a no is a decision someone is allowed to make;
+  deleting the label is not. Four new mutations in the guard prove all of it
+  bites, including the one Cloudflare's own robots.txt gets wrong, emitting
+  the line outside any group so it scopes to whichever crawler happens to
+  precede it.
+
 ### 2026-09-21 (NFT import stops being a single-index bet)
 
 - **A second NFT-owner index behind the first** (`fetchNftOwnersInsight`),
@@ -1164,7 +1199,7 @@ twitterHandle, address kol`, Optimism + Base): the same issuer and the
 - `parseBatchByIds` is pure and exported, so the refusal can be asserted by
   feeding it a body rather than by mocking a socket. Three assertions: an
   error body carrying a plausible user is not evidence about any id, a success
-  body with no `users` array is an unrecognised shape rather than an empty
+  body with no `users` array is an unrecognized shape rather than an empty
   answer, and a real answer resolves only what passes the handle rule.
 - **`CREDITS_PER_BATCHED_LOOKUP` stops being a dead constant.** It was exported
   and referenced by nothing while its own doc comment asserted that "the second
@@ -1739,7 +1774,7 @@ twitterHandle, address kol`, Optimism + Base): the same issuer and the
   full stop, would otherwise have been paid for nothing: error messages end in
   parentheticals constantly, and `(table kept for the corrective pass)` is
   exactly the shape that was getting through.
-- **Untagged SQL is recognised by statement shape, not by a loose keyword.**
+- **Untagged SQL is recognized by statement shape, not by a loose keyword.**
   The first version of this widened the shared keyword list with `UPDATE`,
   `DELETE`, `DROP` and `ALTER`, which quietly stopped the guard checking any
   copy containing those very ordinary words: "Drop your CSV here", "Failed to
@@ -1748,7 +1783,7 @@ twitterHandle, address kol`, Optimism + Base): the same issuer and the
   silently checks less is the exact failure this file exists to prevent. Caught
   by Bugbot. The shared list is back to its original five keywords byte for
   byte, so quoted strings behave precisely as they did before, and untagged SQL
-  is recognised for templates only.
+  is recognized for templates only.
 - **A leading verb is not statement shape either, and the first correction used
   one.** UI copy is imperative constantly, so "Drop your CSV here" and "Delete
   this lookup" open with a SQL verb and are prose, which put the same silent
@@ -3468,7 +3503,7 @@ Two integration details that would have failed quietly:
   the one chain nobody else indexes to a couple of curated names. It now tests
   whether discovery found nothing, and appends rather than replaces.
 - `discoverTokenCandidates` threw on a bad GeckoTerminal response, which would
-  have discarded the recognised names along with the outage. It now returns them
+  have discarded the recognized names along with the outage. It now returns them
   and rethrows only when there is genuinely nothing to seed, so a real discovery
   failure still reports itself.
 

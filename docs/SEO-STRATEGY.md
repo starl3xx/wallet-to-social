@@ -289,9 +289,35 @@ Detailed comparison of walletlink.social and Addressable. If you only need walle
 - [x] Update meta title/description in layout.tsx
 - [ ] Add structured data (Organization, Product, FAQ schemas)
 - [x] Create sitemap.ts
-- [ ] Create robots.ts
+- [x] Serve robots.txt (`app/robots.txt/route.ts`)
 - [ ] Add canonical URLs
 - [ ] Optimize Core Web Vitals (already done with virtualization)
+
+### Content signals
+
+`/robots.txt` declares `Content-Signal: search=yes, ai-input=yes,
+ai-train=yes`, above the Cloudflare Content Signals Policy reproduced verbatim
+under CC0.
+
+Two things a future editor gets wrong here. The first is treating this as an
+access rule: `Allow` and `Disallow` say who may fetch the bytes, a content
+signal says what may be done with them afterwards, and the two are independent.
+The second is treating deletion as neutral. Paragraph (c) of the policy says an
+omitted signal neither grants nor restricts, so removing a label does not mean
+"no", it means the site has declined to answer. Change a value if the policy
+changes; do not delete the label.
+
+`ai-input` is the load-bearing one. It, not `ai-train`, governs whether an
+assistant may ground an answer in this site at query time, which is the
+citation path `docs/GROWTH.md` measures as the best converter. Setting it to
+`no` would be a request to be left out of the answers this site is written to
+appear in.
+
+The rules and the signal both live in `app/robots.txt/route.ts`, which is a
+Route Handler rather than the Next `robots.ts` metadata convention, because
+that convention's serializer emits six known directives and silently discards
+anything else. `scripts/check-invariants.ts` asserts the file has not drifted
+back.
 
 ### Content to Create
 
