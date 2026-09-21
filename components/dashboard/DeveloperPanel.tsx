@@ -83,6 +83,17 @@ export function DeveloperPanel({
     let cancelled = false;
     fetch('/api/developer/usage?period=month')
       .then((r) => {
+        /**
+         * A 404 here is an answer, not a failure.
+         *
+         * The route answers 404 with "No API keys found for this user" when
+         * the account holds none, which an entitled account that has not
+         * minted one yet is in. Treating every non-2xx as a failed read told
+         * that account we could not reach its usage, when the truthful answer
+         * is that it has not spent anything. Zeros say that; a failure notice
+         * says something false about the request.
+         */
+        if (r.status === 404) return null;
         if (!r.ok) throw new Error(`usage read failed: ${r.status}`);
         return r.json();
       })

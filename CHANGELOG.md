@@ -63,6 +63,17 @@ All notable changes to walletlink.social. Newest first.
 - `MenuItem` with an `href` no longer forces `target="_blank"`. New tabs are
   opt-in through `external`, and an internal route goes through the router.
   Nothing passed `href` before the dashboard did, so no caller relied on it.
+- **A 404 from the usage route is an answer, not a failure.** It answers 404
+  with "No API keys found for this user" when an account holds none, which an
+  entitled account that has not minted one yet is in. Treating every non-2xx as
+  a failed read told that account its usage could not be reached, when the
+  truthful answer is that it has not spent anything.
+- **The header sign-in returns you to the page you signed in from.** It opened
+  `AuthModal` with no return path, so adding `/dashboard` to the allowlist fixed
+  the in-page button and left the sign-in most people reach for still landing on
+  the home page. It now hands over the current path and lets the allowlist
+  decide, which keeps no second list of routes in step: `send-magic-link` drops
+  anything unrecognized silently rather than refusing the link.
 - Also from review: an accessible name on the free-window bar, real headings on
   the cards, the invalid-date guard the claims panel was missing (`Intl.format`
   throws rather than returning a string), mono tabular dates, and reflow fixes

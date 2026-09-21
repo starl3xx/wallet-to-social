@@ -151,15 +151,51 @@ export default function DashboardPage() {
 
         <BalancePanel credits={credits} />
 
-        <LookupHistory
-          onLoadLookup={handleLoadLookup}
-          entitled={credits.entitled}
-          emptyState={
-            <p className="text-sm text-muted-foreground">
-              Nothing saved yet. Run a lookup and it will be here.
-            </p>
-          }
-        />
+        {/* Held until the balance settles.
+            `entitled` is false while the credits read is in flight and false
+            again if it fails, and this card spends that flag on two claims: it
+            shows one saved lookup instead of ten, and it offers the
+            buy-credits pitch. Both are assertions about what the account has
+            paid for, so making them from a flag that only means "not answered
+            yet" tells a paying account it has not paid. The balance and
+            developer cards refuse to make that claim and this one now refuses
+            with them. */}
+        {credits.loading ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <h2 className="leading-none font-semibold">My lookups</h2>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">One moment…</p>
+            </CardContent>
+          </Card>
+        ) : credits.failed ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>
+                <h2 className="leading-none font-semibold">My lookups</h2>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">
+                We could not confirm your plan just now, so your saved lookups
+                are not shown here. Nothing has changed; reload to try again.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <LookupHistory
+            onLoadLookup={handleLoadLookup}
+            entitled={credits.entitled}
+            emptyState={
+              <p className="text-sm text-muted-foreground">
+                Nothing saved yet. Run a lookup and it will be here.
+              </p>
+            }
+          />
+        )}
 
         <ClaimedAddresses />
 

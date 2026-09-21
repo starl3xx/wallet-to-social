@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   Lightning as Zap,
   User,
@@ -62,6 +63,7 @@ interface AccessBannerProps {
 export function AccessBanner({ trailing }: AccessBannerProps) {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [apiKeysOpen, setApiKeysOpen] = useState(false);
+  const pathname = usePathname();
   const { user, isLoading, signOut } = useAuth();
   const upgradeModal = useUpgradeModal();
   const tier: UserTier = user?.tier ?? 'free';
@@ -170,7 +172,21 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
           <LogIn className="h-4 w-4" />
           Sign in
         </Button>
-        <AuthModal open={authModalOpen} onOpenChange={setAuthModalOpen} />
+        {/* Come back to the page they signed in from.
+            The header renders on every route, so this hands over wherever the
+            visitor is and lets `isAllowedReturnPath` decide: it is an
+            allowlist, not a sanitiser, and `send-magic-link` drops anything it
+            does not recognise silently rather than refusing the link. So this
+            returns to `/claim` and `/dashboard`, and falls back to the home
+            page everywhere else, with no list of routes to keep in step here.
+            Without it the account surface added `/dashboard` to that allowlist
+            and then the one sign-in most people reach for still landed them on
+            the home page. */}
+        <AuthModal
+          open={authModalOpen}
+          onOpenChange={setAuthModalOpen}
+          next={pathname ?? undefined}
+        />
       </>
     );
   };
