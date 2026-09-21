@@ -1,4 +1,10 @@
 import type { NextConfig } from 'next';
+/**
+ * Relative, not `@/lib/site-url`. This file is loaded by Next's own config
+ * loader rather than compiled with the app, and the `@/` alias is a tsconfig
+ * path the app's compiler resolves. A relative specifier needs nobody's help.
+ */
+import { DOCS_URL } from './lib/site-url';
 
 /**
  * The pages that answer markdown when a client asks for it.
@@ -164,6 +170,18 @@ const nextConfig: NextConfig = {
           source: '/.well-known/oauth-authorization-server',
           destination: '/api/oauth/metadata/authorization-server',
         },
+        /**
+         * The API catalog, RFC 9727, at the well-known URI the specification
+         * names. Here for the same reason as the three rules above: the App
+         * Router will not route a segment whose directory name begins with a
+         * dot, so the handler lives at `app/api/api-catalog` and this maps
+         * the public URL onto it. `afterFiles` like its neighbours, because
+         * no page competes for the path.
+         */
+        {
+          source: '/.well-known/api-catalog',
+          destination: '/api/api-catalog',
+        },
       ],
     };
   },
@@ -181,11 +199,69 @@ const nextConfig: NextConfig = {
    * of a negotiated pair have to say it; a `Vary` on one representation says
    * nothing about the other.
    */
+  /**
+   * A second rule for `/`, and Next applies both.
+   *
+   * The homepage is in `MARKDOWN_NEGOTIABLE`, so it already has a `Vary`
+   * rule above; this adds `Link` beside it rather than folding the two
+   * together, because they are answers to different questions and the
+   * negotiation list should not have to know about link relations.
+   *
+   * ## `Link` headers, RFC 8288 and RFC 9727 section 3
+   *
+   * The catalog is only discoverable if something points at it, and the two
+   * ways to point are this header and the markup. Both ship: the header
+   * serves a client that issues a HEAD and never receives a body to parse,
+   * and the `<link>` in `app/layout.tsx` serves one that parses HTML. The
+   * RFC's own example carries both.
+   *
+   * ## This survives, and `Vary` in the same position does not
+   *
+   * Worth stating because the opposite was written down first and was wrong.
+   * The `Vary` above is measured to be overwritten by the App Router's own,
+   * and that was generalized to `Link` without testing it. It does not hold:
+   * measured in `next dev` on 2026-09-21, the homepage answers with TWO
+   * `Link` lines, this one and the font preloads Next emits, which is
+   * exactly how RFC 8288 expects multiple links to arrive. `Vary` is the
+   * special case, not this.
+   *
+   * ## Homepage only, deliberately
+   *
+   * Every relation below is a statement about the origin rather than about a
+   * page, and the homepage is the origin's representation. Repeating them on
+   * 165 URLs would add bytes to every holder report to say something already
+   * true of the site, and the site-wide half of the job is already done by
+   * the `<link>` tag in the layout.
+   *
+   * ## Relative for our own paths, absolute for the docs host
+   *
+   * RFC 8288 resolves a relative reference against the request URL, so
+   * `</.well-known/api-catalog>` points at whichever host served the page.
+   * That is the behavior we want: on a preview deployment it names the
+   * preview's own catalog, where an absolute URL would send a client to
+   * production. The docs live on another origin and have no choice.
+   */
   async headers() {
-    return MARKDOWN_NEGOTIABLE.map((source) => ({
-      source,
-      headers: [{ key: 'Vary', value: 'Accept' }],
-    }));
+    return [
+      ...MARKDOWN_NEGOTIABLE.map((source) => ({
+        source,
+        headers: [{ key: 'Vary', value: 'Accept' }],
+      })),
+      {
+        source: '/',
+        headers: [
+          {
+            key: 'Link',
+            value: [
+              '</.well-known/api-catalog>; rel="api-catalog"',
+              '</llms.txt>; rel="describedby"; type="text/plain"',
+              `<${DOCS_URL}/openapi.yaml>; rel="service-desc"; type="text/yaml"`,
+              `<${DOCS_URL}/api-reference/introduction>; rel="service-doc"; type="text/html"`,
+            ].join(', '),
+          },
+        ],
+      },
+    ];
   },
   experimental: {
     /**

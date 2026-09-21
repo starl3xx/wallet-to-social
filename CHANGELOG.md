@@ -2,6 +2,64 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (three APIs, one place to find them)
+
+- **`/.well-known/api-catalog` now publishes an API catalog, RFC 9727.** It
+  lists the REST API, the MCP server and the x402 credit rail, each with an
+  `anchor` and the RFC 8631 relations: `service-desc` for the machine
+  description, `service-doc` for the human one, and `service-meta` on the MCP
+  entry for its OAuth protected resource metadata. Served as
+  `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`,
+  which is a MUST and a SHOULD respectively in section 4.2.
+- **Finding the catalog is its own problem, and it has two answers**, because
+  they reach different clients. The homepage answers with a `Link` header
+  carrying `api-catalog`, `describedby` (`/llms.txt`), `service-desc` and
+  `service-doc`, which is what a client that issues a HEAD and never receives
+  a body can see. Every page carries `<link rel="api-catalog">` in its markup,
+  which is what an HTML parser sees. RFC 9727 section 3 shows both.
+- **A correction, recorded because the wrong version was written first.** This
+  work initially claimed a `Link` response header could not be set on an App
+  Router page, generalizing from the config `Vary` that the App Router really
+  does overwrite. Measured instead of reasoned: the homepage answers with two
+  `Link` lines, ours and Next's font preloads, which is exactly how RFC 8288
+  expects multiple links to arrive. `Vary` is the special case, not `Link`.
+- **The catalog link is relative and the docs links are absolute**, each for
+  its own reason. RFC 8288 resolves a relative reference against the request
+  URL, so `</.well-known/api-catalog>` names whichever host served the page:
+  on a preview deployment that is the preview's own catalog, where an absolute
+  URL would hand a discovery client production's. The docs live on another
+  origin and have no choice. Both are asserted, and the guard reintroduces the
+  absolute form as a defect.
+- **The three APIs were discoverable three different ways and none of them
+  from the origin**: the REST API from the docs site, the MCP server from a
+  registry row, the x402 rail from a sentence in the agent pack.
+- **No `status` link.** RFC 9727 makes it optional and there is no public
+  health endpoint to point it at: `/api/admin/health/dependencies` is admin
+  gated and `/api/v1/stats` needs a key. `/api/public-stats` is keyless and
+  would resolve, but it reports index coverage rather than service health, and
+  a `status` relation pointing at it would describe it as something it is not.
+  Revisit by adding a real health check, not by relabeling that one.
+- **No `service-desc` on the x402 rail**, because it has no static machine
+  description: a POST with no payment answers 402 with a `PAYMENT-REQUIRED`
+  header describing what to pay. Section 4.1 contemplates exactly that.
+- **The catalog is asserted by calling it, not by reading its source.** A
+  regex over the literal would verify that the file says what it says.
+  `check-invariants.ts` imports the handler, parses the bytes, and checks the
+  RFC 9264 shape rules: `linkset` the sole member, an absolute `anchor` on
+  every context, and every relation an array of link targets **even when there
+  is one**. That last one is the trap the format sets: written as the object
+  it obviously is, the document still parses, still reads correctly to a
+  person, and is not a linkset. Seven new guard mutations, including that one.
+- Every URL in the catalog was checked to answer without a redirect in front
+  of it, because `lib/site-url.ts` records what a machine-to-machine URL
+  pointing at a redirect cost this product once already. Two of the three
+  anchors answer 405 to a GET, which is a POST-only endpoint saying it exists.
+- `DOCS_URL` joins `PRODUCTION_URL` in `lib/site-url.ts`. The docs origin was
+  written out by hand in eight places, two of them machine-to-machine:
+  `lib/oauth/metadata.ts` now reads the constant. The prose links in the
+  comparison pages still spell it out and were left alone, since a redirect
+  costs a clicking human nothing.
+
 ### 2026-09-21 (six pages answer markdown when a client asks for it)
 
 - **`Accept: text/markdown` on `/`, `/pricing`, `/blog`, `/blog/<slug>`,

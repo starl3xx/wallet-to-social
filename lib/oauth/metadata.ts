@@ -11,7 +11,7 @@
  * a preview that advertised the production issuer would send a tester's
  * consent to production and hand back a token minted for the wrong resource.
  */
-import { getSiteUrl } from '@/lib/site-url';
+import { DOCS_URL, getSiteUrl } from '@/lib/site-url';
 
 /**
  * The one scope, and it is one on purpose.
@@ -65,7 +65,7 @@ export function protectedResourceMetadata(): Record<string, unknown> {
     bearer_methods_supported: ['header'],
     scopes_supported: [MCP_SCOPE],
     resource_name: 'walletlink.social MCP server',
-    resource_documentation: 'https://docs.walletlink.social/mcp-server',
+    resource_documentation: `${DOCS_URL}/mcp-server`,
   };
 }
 
@@ -99,7 +99,7 @@ export function authorizationServerMetadata(): Record<string, unknown> {
     code_challenge_methods_supported: ['S256'],
     client_id_metadata_document_supported: true,
     authorization_response_iss_parameter_supported: true,
-    service_documentation: 'https://docs.walletlink.social/mcp-server',
+    service_documentation: `${DOCS_URL}/mcp-server`,
   };
 }
 

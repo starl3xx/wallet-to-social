@@ -264,6 +264,25 @@ export default function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
+        {/* The API catalog, RFC 9727 section 3. The well-known URI is the
+            convention a client guesses; this is the one it can follow
+            without guessing, and the specification shows both a `Link`
+            response header and markup.
+
+            Both ship, and they cover different clients. The homepage's
+            `Link` header (`headers()` in `next.config.ts`) is what a client
+            issuing a HEAD sees, since it never receives a body to parse.
+            This tag is what an HTML parser sees, and unlike the header it
+            is on every page rather than the homepage alone, because it costs
+            one line to be true everywhere.
+
+            An earlier draft of this comment claimed a `Link` response header
+            could not be set here at all, generalizing from the config `Vary`
+            that the App Router really does overwrite. Measured rather than
+            reasoned: the homepage answers with two `Link` lines, ours and
+            Next's font preloads, which is exactly how RFC 8288 expects
+            multiple links to arrive. `Vary` is the special case. */}
+        <link rel="api-catalog" href="/.well-known/api-catalog" />
         {/* The entity graph is site-wide because the entity is. The FAQPage
             that used to sit beside it is not: it shipped on all 165 URLs,
             `/privacy` included, and it now renders with the answers on the

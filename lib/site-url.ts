@@ -40,6 +40,26 @@
 export const PRODUCTION_URL = 'https://walletlink.social';
 
 /**
+ * The published documentation origin, with no trailing slash.
+ *
+ * A second origin, so it needs the same treatment as the first. It was
+ * written out by hand in eight places before this constant existed, two of
+ * them machine-to-machine surfaces where the rule above applies with full
+ * force: `lib/oauth/metadata.ts` hands this host to an MCP client as
+ * `resource_documentation`, and `app/api/api-catalog` publishes it to
+ * anything that discovers the API catalog.
+ *
+ * The prose links in the comparison pages still spell it out. They are
+ * `href`s a person clicks, where a redirect costs nothing and a constant
+ * buys nothing, so they were left alone rather than swept.
+ *
+ * Verified 2026-09-21 to answer 200 directly, not 30x: docs.walletlink.social
+ * serves `/openapi.yaml`, `/api-reference/introduction`, `/mcp-server` and
+ * `/agent-pack` with no redirect in front of any of them.
+ */
+export const DOCS_URL = 'https://docs.walletlink.social';
+
+/**
  * The legal entity behind the site.
  *
  * Here because it was in two places and got written a third time from memory,
