@@ -146,15 +146,21 @@ stated 30-day retention.
 
    Resolve it by merging the base branch **in**. A rebase needs a force-push.
 
-   **The usual cause was `CHANGELOG.md` and is now fixed.** Every PR adds an
-   entry at the top of it, so any two open PRs edited the same region and the
-   second to merge conflicted every time, on the one file whose resolution is
-   never in doubt. That guaranteed conflict was silently switching off every
-   gate above, on every second PR. `.gitattributes` now marks that file
-   `merge=union`, so both entries survive and no marker is written. Read its
-   header before adding a second entry to that list: union never reports a
-   conflict, which is right for an append-only log and wrong for anything a
-   guard reads.
+   **The usual cause is `CHANGELOG.md`.** Every PR adds an entry at the top of
+   it, so any two open PRs edit the same region and the second to merge
+   conflicts, on the one file whose resolution is never in doubt. That
+   guaranteed conflict is what switches the gates above off, on every second
+   PR.
+
+   `.gitattributes` marks that file `merge=union`, which **verifiably** removes
+   the hand-resolution when you merge the base branch in locally: both entries
+   survive and no marker is written. Whether GitHub's own mergeability
+   computation honors a merge driver is a different question, it runs on
+   GitHub's servers rather than in your git, and the reported behavior is that
+   it does not. So assume a second PR touching this file is still shown as
+   CONFLICTING until somebody measures otherwise, and keep doing what this step
+   already says. The protections that do not depend on it are `pr:status` and
+   `main-guard.yml`.
 
 6. **A merged PR is not a checked commit, and nothing checks `main`.** Every
    gate here is `pull_request`-only, so what CI tested was the computed merge

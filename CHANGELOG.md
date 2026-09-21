@@ -6,13 +6,20 @@ All notable changes to walletlink.social. Newest first.
 
 - **`CHANGELOG.md` merges by union.** Every PR adds an entry at the top of it,
   so any two open PRs edited the same region and the second to merge conflicted
-  every time, on the one file whose resolution is never in doubt. That mattered
+  every time, on the one file whose resolution is never in doubt. That matters
   far more than the tedium: a `CONFLICTING` PR runs **no** `pull_request`
   workflows at all, and the checks still shown are whatever ran on an older
   head, green and describing code that is gone. A guaranteed conflict on a log
   file was quietly switching off every gate in the repo on every second PR.
-  `.gitattributes` now marks it `merge=union`; its header records what union
-  costs, and why the list must stay short.
+  `.gitattributes` now marks it `merge=union`.
+- **What that buys is scoped deliberately**, because the first draft of this
+  change overclaimed it and review caught it. Verified: a local merge of the
+  base branch resolves the file with no markers and both entries kept, which is
+  the step the protocol already prescribes, so the hand-resolution is gone. Not
+  verified, and not promised: whether GitHub's own mergeability computation
+  honors a merge driver, which runs on its servers rather than in your git and
+  reportedly does not. The protections against a stale-green PR are `pr:status`
+  and `main-guard.yml`, and neither depends on the answer.
 - **`main-guard.yml` runs `npm run preflight` on every push to `main`.** Every
   gate here was `pull_request`-only, so nothing had ever checked `main` itself:
   what CI tested was the computed merge commit, never the squash that landed,

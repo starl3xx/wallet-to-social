@@ -22,6 +22,25 @@
 # lines from both sides instead of writing markers. For a file that is only
 # ever prepended to, that is exactly the resolution a person would make.
 #
+# ## What this does and does not buy, measured rather than assumed
+#
+# VERIFIED: a local merge of the base branch into a PR branch resolves this
+# file with no markers and both entries kept. That is the step the protocol
+# already tells you to take, so the hand-resolution is gone.
+#
+# NOT VERIFIED, and do not read this file as promising it: whether GitHub's
+# own mergeability computation honors a merge driver from `.gitattributes`.
+# It is computed on GitHub's servers, not by your git, and the widely reported
+# behavior is that it does NOT. If that holds, a second PR touching this file
+# is still shown as CONFLICTING and its `pull_request` workflows still do not
+# run, which is the dangerous half.
+#
+# So this is a convenience with a possible safety benefit, and the actual
+# protections against a stale-green PR are elsewhere and do not depend on it:
+# `npm run pr:status` reads the real state rather than the checkmarks, and
+# `.github/workflows/main-guard.yml` checks `main` after every push. Step 5 of
+# the protocol in docs/OPERATIONS.md still stands: merge the base branch in.
+#
 # ## What union costs, stated rather than discovered
 #
 # A union merge never reports a conflict, so if two branches edit the SAME
