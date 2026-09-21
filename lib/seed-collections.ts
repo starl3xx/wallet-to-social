@@ -608,7 +608,16 @@ async function recordSeed(
 
 /** Import one contract's holders and queue them through the lookup pipeline. */
 export async function seedContract(
-  candidate: SeedCandidate
+  candidate: SeedCandidate,
+  /**
+   * The run's remaining wall-clock, passed down so the holder fetch's
+   * internal deadline matches the budget this attempt is raced against.
+   * Without it the fetch self-limited to its 45s default while the race
+   * allowed minutes, and the second NFT index's deep-page walks (154s on a
+   * 37k-token collection, measured) died on the inner limit with outer
+   * budget to spare (caught in review).
+   */
+  deadlineMs?: number
 ): Promise<SeedRunResult> {
   /**
    * An ERC-20 seed draws on the same daily allowance a paying customer's
@@ -686,6 +695,7 @@ export async function seedContract(
         walkBefore?.source === 'opensea' || walkBefore?.source === 'chainbase'
           ? { source: walkBefore.source, cursor: walkBefore.cursor }
           : undefined,
+      deadlineMs,
     }
   );
 
@@ -896,7 +906,7 @@ async function seedFirstViable(
       // minus the cleanup margin, but can never exceed it — regardless of
       // how many sequential requests the holder fetch makes internally
       return await withTimeout(
-        seedContract(candidate),
+        seedContract(candidate, Date.now() + attemptBudget),
         attemptBudget,
         candidate.label
       );

@@ -255,8 +255,14 @@ export async function GET(request: NextRequest) {
     dependency(
       'NFT ownership',
       ['ALCHEMY_KEY'],
-      'NFT contract import stops on every chain.',
-      'critical'
+      'NFT import falls through to the second NFT index on six chains; Robinhood Chain stops.',
+      'degrades'
+    ),
+    dependency(
+      'Second NFT index',
+      ['THIRDWEB_CLIENT_ID'],
+      'NFT import loses its rescue rung; a first-index failure stops it again.',
+      'degrades'
     ),
     dependency(
       'ERC-20 holder index',
