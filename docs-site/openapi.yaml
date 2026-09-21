@@ -1272,6 +1272,13 @@ components:
       scheme: bearer
       description: |
         `Authorization: Bearer wts_live_xxxxxxxx`. The documented form.
+
+        Keys are self-serve from the account menu for any signed-in account,
+        with no pack required. Holding a key and being able to spend are
+        separate questions: every call is metered against the same balance the
+        web app uses, so a key on an account with no pack resolves the free
+        allowance of 100 matches per rolling 30 days and then answers
+        `NO_CREDITS`.
     apiKeyAuth:
       type: apiKey
       in: header
