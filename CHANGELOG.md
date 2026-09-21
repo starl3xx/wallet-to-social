@@ -2,6 +2,22 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (the cron minute was never the problem)
+
+- **Measured the scheduler lag instead of acting on the first reading of it.**
+  `docs/GROWTH.md` had recorded that the Monday 09:00 UTC slot looked stuck and
+  suggested moving it off the top of the hour. Four weeks of run history across
+  six workflows say the minute is not the variable: `ud-domain-harvest` at
+  `15 2` runs 5h40 late and `daily-cast` at `35 17` runs two hours late, while
+  the `:00` jobs run 4 to 8 hours late. The lag is repo-wide and worse in the
+  UTC morning, where most of these sit.
+- `growth-report` did fire on 2026-09-21, at 15:48, nine minutes after the
+  check that reported it had not. Its first scheduled run ever, and it
+  succeeded.
+- No cron line changed, deliberately. The note now carries the table and says
+  that if punctuality ever matters the lever is an external `workflow_dispatch`
+  trigger, not the schedule.
+
 ### 2026-09-21 (a key is not a spend, and the report could not see two products)
 
 - **Any signed-in account may now hold an API key.** The REST door refused one
