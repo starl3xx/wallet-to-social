@@ -27,6 +27,19 @@ All notable changes to walletlink.social. Newest first.
   homepage does not mount the card, and a dashboard row opens a lookup by id.
   Re-linking `/success` at the anchor, re-importing the card on the homepage,
   and reverting the row to an anchor push each fail exactly one of them.
+- **A dashboard row takes the id without fetching the rows.** Loading them to
+  throw them away is not a spared request: `GET /api/history/[id]` marks the
+  lookup viewed and `enrichedWallets` is measured from that timestamp, so
+  fetching here and again on arrival would compare "new since last look"
+  against a moment ago and the paid new-match highlights would never appear.
+  `onSelectLookup` short-circuits before the fetch, and a fourth assertion
+  keeps that door open.
+- **`/?lookup=` bails the mount restore, as `collection=` already did.** That
+  restore paints `state`, `results` and the unlock wiring from whatever job was
+  in localStorage, so a slower jobs response could overwrite the lookup
+  somebody asked for by name and take its id and unlock wiring with it.
+  `forgetGatedJob()` clears the key and does nothing about a fetch already in
+  flight, so the bail belongs where the arrival is recognized.
 - The deep link is read in an effect on the statically rendered homepage, the
   same shape as `/?contract=`, and deliberately **not** cleared from the URL:
   there the parameter is a payload that must not replay, here it is the address

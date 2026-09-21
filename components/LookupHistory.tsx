@@ -57,6 +57,20 @@ interface LookupHistoryProps {
    * it.
    */
   emptyState?: React.ReactNode;
+  /**
+   * Open a lookup by id instead of loading its rows here.
+   *
+   * For a caller that navigates rather than renders: it receives the id and
+   * the name, and this component does not fetch at all. `onLoadLookup` is
+   * skipped entirely when this is passed.
+   *
+   * It exists because fetching and discarding is not free. `GET
+   * /api/history/[id]` marks the lookup viewed, and `enrichedWallets` is
+   * measured from that timestamp, so fetching here and again at the
+   * destination compares "new since last look" against a moment ago and the
+   * paid new-match highlights never appear.
+   */
+  onSelectLookup?: (id: string, name: string | null) => void;
 }
 
 // How many entries to show. Free and signed in without a pack see the latest
@@ -71,6 +85,7 @@ export const LookupHistory = memo(function LookupHistory({
   entitled,
   onAddAddresses,
   emptyState,
+  onSelectLookup,
 }: LookupHistoryProps) {
   const { user } = useAuth();
   const [history, setHistory] = useState<LookupSummary[]>([]);
@@ -154,6 +169,21 @@ export const LookupHistory = memo(function LookupHistory({
   // Lazy load full results only when user clicks "Load"
   const handleLoadLookup = useCallback(
     async (id: string, name: string | null) => {
+      /**
+       * A caller that navigates takes the id and nothing else.
+       *
+       * Fetching first and discarding the result is not merely a wasted
+       * request. `GET /api/history/[id]` marks the lookup viewed, and
+       * `enrichedWallets` is computed against that timestamp, so a fetch here
+       * followed by a real one at the destination measures "new since last
+       * look" against a moment ago and the paid new-match highlights never
+       * appear. The row would quietly spend the feature it is advertising.
+       */
+      if (onSelectLookup) {
+        onSelectLookup(id, name);
+        return;
+      }
+
       setLoadingId(id);
       try {
         const res = await fetch(`/api/history/${id}`);
@@ -168,7 +198,7 @@ export const LookupHistory = memo(function LookupHistory({
         setLoadingId(null);
       }
     },
-    [onLoadLookup]
+    [onLoadLookup, onSelectLookup]
   );
 
   // CardTitle at its default, 16px/600: the one card-title size. A `text-lg`

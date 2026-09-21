@@ -518,6 +518,22 @@ export default function Home() {
      */
     if (window.location.search.includes('collection=')) return;
 
+    /**
+     * `lookup=` is the same arrival and the same race.
+     *
+     * A deep-linked saved lookup paints `state`, `results` and the unlock
+     * wiring, and this restore paints the same three from whatever job was in
+     * localStorage. Whichever response lands last wins, so a slower jobs
+     * response overwrites the lookup somebody asked for by name and takes its
+     * id and unlock wiring with it. `handleLoadHistory` calls
+     * `forgetGatedJob()`, which clears the key and does nothing about a fetch
+     * already in flight.
+     *
+     * Bailing here rather than cancelling there, because the deep link is the
+     * explicit request and the restore is the guess.
+     */
+    if (window.location.search.includes('lookup=')) return;
+
     const savedJobId = localStorage.getItem('currentJobId');
     if (savedJobId) {
       // Check if job still exists and get its status

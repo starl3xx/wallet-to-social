@@ -76,16 +76,16 @@ export default function DashboardPage() {
    * somewhere else. That card is gone and a saved lookup has a URL now, so a
    * row goes to the thing it names.
    *
-   * The rows this receives are discarded on purpose. The component fetches
-   * them to hand over, and the results view on `/` fetches them again from
-   * the id; paying one redundant request buys an address that survives a
-   * refresh and can be copied, which state handed across a navigation cannot.
-   * The fetch to drop is the component's, and removing it is a change to the
-   * component rather than to this page.
+   * This takes the id and nothing else, through `onSelectLookup`, so the row
+   * does not fetch the rows it would immediately throw away. That is not a
+   * spared request: `GET /api/history/[id]` marks the lookup viewed, and
+   * `enrichedWallets` is measured from that timestamp, so fetching here and
+   * again on arrival would compare "new since last look" against a moment ago
+   * and the paid new-match highlights would never appear. The row would spend
+   * the feature it is advertising.
    */
-  const handleLoadLookup = useCallback(
-    (_results: unknown, lookupId?: string) => {
-      if (!lookupId) return;
+  const handleSelectLookup = useCallback(
+    (lookupId: string) => {
       router.push(`/?lookup=${encodeURIComponent(lookupId)}`);
     },
     [router]
@@ -207,7 +207,10 @@ export default function DashboardPage() {
           </Card>
         ) : (
           <LookupHistory
-            onLoadLookup={handleLoadLookup}
+            /* Required by the component, and unreachable here: passing
+               `onSelectLookup` short-circuits before it. */
+            onLoadLookup={() => {}}
+            onSelectLookup={handleSelectLookup}
             entitled={credits.entitled}
             emptyState={
               <p className="text-sm text-muted-foreground">

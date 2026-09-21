@@ -11229,6 +11229,25 @@ async function main() {
           dashSrc
         )
       );
+
+      /**
+       * And it takes the id WITHOUT fetching the rows first.
+       *
+       * `onLoadLookup` makes the component fetch and hand over the results;
+       * a caller that only navigates would discard them. That is not a spared
+       * request: `GET /api/history/[id]` marks the lookup viewed, and
+       * `enrichedWallets` is measured from that timestamp, so fetching twice
+       * compares "new since last look" against a moment ago and the paid
+       * new-match highlights never appear. `onSelectLookup` short-circuits
+       * before the fetch, and the component must keep offering that door.
+       */
+      ok(
+        'the dashboard selects a lookup without fetching rows it would discard',
+        dashSrc.includes('onSelectLookup={') &&
+          readFileSync('components/LookupHistory.tsx', 'utf8').includes(
+            'if (onSelectLookup) {'
+          )
+      );
     }
 
     {
