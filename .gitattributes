@@ -1,71 +1,44 @@
-# Append-only files merge by union rather than by conflict.
+# Nothing here on purpose. Read this before adding `CHANGELOG.md merge=union`.
 #
-# ## The problem this removes
+# ## The problem it was meant to solve
 #
-# Every PR adds a dated entry to the top of CHANGELOG.md, because CLAUDE.md
-# asks it to. Two open PRs therefore always edit the same region of the same
-# file, so the second one to be merged conflicts every single time, on a file
-# where the correct resolution is never in doubt: keep both entries.
+# Every PR adds a dated entry to the top of CHANGELOG.md, so any two open PRs
+# edit the same region and the second to merge conflicts. That is not merely
+# tedious: a CONFLICTING PR runs no `pull_request` workflows at all, and the
+# checks still shown are stale ones from an older head, green and describing
+# code that is gone. So a guaranteed conflict on a log file was switching off
+# every gate in the repository on every second PR.
 #
-# That is tedious on its own and it is not the real cost. A conflicting PR is
-# not merely inconvenient here, it is dangerous, because GitHub runs
-# `pull_request` workflows against the computed merge commit: a CONFLICTING PR
-# triggers nothing at all. No queued run, no failed run, and the checks still
-# shown on the page are whatever ran on an older head, all green and all
-# describing code that is no longer there. docs/OPERATIONS.md records an hour
-# lost to reading that as an Actions outage. So the guaranteed conflict on a
-# file nobody disagrees about was silently switching off every quality gate in
-# the repository, on every second PR, until somebody noticed and merged main
-# in by hand.
+# `merge=union` was added for that on 2026-09-21 and removed the same day.
+# What it actually bought, measured on the three PRs that followed it:
 #
-# `union` is a built-in git merge driver: on a conflicting hunk it keeps the
-# lines from both sides instead of writing markers. For a file that is only
-# ever prepended to, that is exactly the resolution a person would make.
+#   - It did NOT stop GitHub marking a PR CONFLICTING. #342 and #347 both went
+#     conflicting with this file on `main`. Mergeability is computed on
+#     GitHub's servers and does not read `.gitattributes`, so the dangerous
+#     half of the problem was untouched.
+#   - Locally it worked only from the SECOND merge onward, because git reads
+#     attributes from the branch being merged INTO and the first merge is the
+#     one delivering the file.
+#   - And it broke `format`, which is a required check, in a way no author can
+#     fix on their branch.
 #
-# ## What this buys, measured on 2026-09-21 rather than assumed
+# ## That last one is why it is gone
 #
-# Both halves were tested on the first PRs to follow this file onto `main`,
-# and both came back smaller than the change that introduced it claimed.
+# Union concatenates both sides' lines for a conflicting hunk, so where two
+# entries meet it produces no blank line between the last bullet and the next
+# `###` heading, and Prettier requires one. Running `npm run format` and
+# committing does not help: GitHub recomputes the merge from the base for
+# `refs/pull/<n>/merge`, which is what CI checks out, and union re-applies
+# there and drops the blank line again. Observed as a one-byte diff between a
+# branch that passes `prettier --check` locally and a merge commit that fails
+# it, with no edit available that survives.
 #
-# **GitHub does NOT honor this driver.** With this file on `main`, PR #342
-# still went `CONFLICTING (DIRTY)` against a `main` carrying a sibling entry.
-# Mergeability is computed on GitHub's servers, not by your git, and it
-# ignores `.gitattributes`. So a second PR touching this file is still shown
-# as conflicting and its `pull_request` workflows still do not run. That is
-# the dangerous half, and this file does not fix it.
+# So the driver cost a required check its fixability and bought a convenience
+# from the second local merge onward. Resolving CHANGELOG.md by hand takes
+# seconds; an unfixable red does not.
 #
-# **Locally it works, but not on the merge that delivers it.** Git reads
-# attributes from the branch being merged INTO, so the first merge after this
-# file lands still conflicts: the branch does not have the file yet, it is
-# arriving in that very merge. From the next merge onward the resolution is
-# automatic. Do not read a conflict on the first merge as this being broken.
-#
-# **Run `npm run format` after a union merge.** Union concatenates both sides'
-# lines literally, so where two entries meet it produces no blank line between
-# them and the file stops being Prettier-clean. `format` is a REQUIRED check,
-# so an unformatted CHANGELOG blocks the merge: the driver saves the
-# resolution and hands you a formatting fix instead. Observed on #346, which
-# is the first merge this driver ever resolved.
-#
-# So this is a convenience from the second merge onward, and nothing more. The
-# protections against a stale-green PR are elsewhere and never depended on it:
-# branch protection (required checks, strict mode), `npm run pr:status`, which
-# reads the real state rather than the checkmarks, and
-# `.github/workflows/main-guard.yml`, which checks `main` after every push.
-# Step 5 of the protocol in docs/OPERATIONS.md stands unchanged: merge the
-# base branch in.
-#
-# ## What union costs, stated rather than discovered
-#
-# A union merge never reports a conflict, so if two branches edit the SAME
-# existing line, both versions survive and nothing asks. That is the wrong
-# answer for source code and an acceptable one for a log of dated entries,
-# where an edit to an already-published entry is rare and a duplicate is
-# visible in review rather than silently wrong at runtime.
-#
-# This is why the list below is short and stays short. A file belongs here
-# only when it is append-only by construction and its merge has one obvious
-# answer. Source files, config and anything a guard reads do NOT belong here:
-# for those a conflict is information, and silencing it would hide a real
-# disagreement about behavior.
-CHANGELOG.md merge=union
+# The real fix for the underlying conflict is not a merge driver: it is not
+# putting every PR's entry at the top of one file. A `changelog.d/` directory
+# with one file per change, assembled on release, has no shared region to
+# conflict over. That is a change to a documented workflow rather than a line
+# here, which is why it is written down instead of done.

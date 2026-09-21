@@ -152,29 +152,32 @@ stated 30-day retention.
    guaranteed conflict is what switches the gates above off, on every second
    PR.
 
-   `.gitattributes` marks that file `merge=union`, and **it buys less than it
-   looks like it should.** Measured on 2026-09-21, on the first two PRs to
-   follow it onto `main`:
-   - **GitHub ignores it.** #342 still went `CONFLICTING` against a `main`
-     carrying a sibling entry. Mergeability is computed on GitHub's servers and
-     does not read `.gitattributes`, so a second PR touching this file is still
-     shown as conflicting and its workflows still do not run. The union driver
-     does not fix the dangerous half. Nothing does, short of not putting every
-     PR's entry at the top of one file.
-   - **Locally it works from the second merge onward.** Git reads attributes
-     from the branch being merged INTO, so the merge that first delivers the
-     file still conflicts, because the branch does not have it yet. Do not read
-     that conflict as the driver being broken.
-   - **Run `npm run format` after a union merge.** It concatenates both sides'
-     lines literally, so where two entries meet there is no blank line and the
-     file stops being Prettier-clean. `format` is a required check, so that
-     alone blocks the merge: the driver saves you the resolution and hands you
-     a formatting fix instead.
+   **`merge=union` was tried for this on 2026-09-21 and removed the same day.**
+   Do not re-add it; `.gitattributes` holds the full account. Measured on the
+   three PRs that followed it:
+   - **It did not stop GitHub marking a PR CONFLICTING.** #342 and #347 both
+     went conflicting with the driver on `main`. Mergeability is computed on
+     GitHub's servers and does not read `.gitattributes`, so the dangerous half
+     was untouched.
+   - **Locally it applied only from the second merge onward**, because git
+     reads attributes from the branch being merged INTO and the first merge is
+     the one delivering the file.
+   - **And it broke `format`, unfixably.** Union concatenates both sides'
+     lines, so two entries meet with no blank line before the next heading and
+     Prettier fails. Running `npm run format` does not help: GitHub recomputes
+     the merge for `refs/pull/<n>/merge`, which is what CI checks out, and
+     union re-applies there and drops the blank line again. A branch can pass
+     `prettier --check` locally and fail CI on the same commit, with no edit
+     available that survives.
 
-   So this step is unchanged in practice: merge the base branch in, and expect
-   to resolve `CHANGELOG.md` by hand exactly once per branch. What protects
-   against merging a stale-green PR is branch protection and `pr:status`, not
-   this.
+   So resolve `CHANGELOG.md` by hand, once per branch. It takes seconds and an
+   unfixable red does not. What protects against merging a stale-green PR is
+   branch protection and `pr:status`, not a merge driver.
+
+   The real fix is not putting every PR's entry at the top of one file: a
+   `changelog.d/` directory, one file per change, assembled on release, has no
+   shared region to conflict over. That is a change to a documented workflow
+   rather than a line in a config, so it is written down rather than done.
 
 6. **A merged PR is not a checked commit, and nothing checks `main`.** Every
    gate here is `pull_request`-only, so what CI tested was the computed merge

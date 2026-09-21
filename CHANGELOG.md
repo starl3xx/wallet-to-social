@@ -2,6 +2,29 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (the union merge driver is removed, same day it was added)
+
+- **`CHANGELOG.md merge=union` broke `format`, which is a required check, in a
+  way no author can fix on their branch.** Union concatenates both sides' lines
+  for a conflicting hunk, so two entries meet with no blank line before the
+  next heading and Prettier fails. Running `npm run format` and committing does
+  not help: GitHub recomputes the merge for `refs/pull/<n>/merge`, which is
+  what CI checks out, and union re-applies there and drops the blank line
+  again. Observed as a one-byte difference between a branch that passes
+  `prettier --check` locally and a merge commit that fails it on the same
+  commit.
+- **What it bought, measured rather than assumed:** it did not stop GitHub
+  marking a PR `CONFLICTING` (#342 and #347 both did, with the driver on
+  `main`), and locally it applied only from the second merge onward, because
+  git reads attributes from the branch being merged into. So it cost a required
+  check its fixability and bought a local convenience. Resolving the file by
+  hand takes seconds; an unfixable red does not.
+- `.gitattributes` survives as the record, with no rules in it, so the next
+  person to reach for the driver reads what happened first. The real fix is
+  named there and not done: a `changelog.d/` directory with one file per change
+  has no shared region to conflict over, and that is a change to a documented
+  workflow rather than a line in a config.
+
 ### 2026-09-21 (saved lookups have one home, and an address)
 
 - **The homepage no longer lists saved lookups.** `/dashboard` renders that
@@ -70,6 +93,7 @@ All notable changes to walletlink.social. Newest first.
   same shape as `/?contract=`, and deliberately **not** cleared from the URL:
   there the parameter is a payload that must not replay, here it is the address
   of what is on screen. Ownership is unchanged and server-side.
+
 ### 2026-09-20 (the identity-platform sweep moves onchain)
 
 - **`lib/ethos.ts` reads chain state instead of the platform's API.** Their
