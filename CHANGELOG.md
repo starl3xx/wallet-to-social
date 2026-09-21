@@ -2,6 +2,57 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (main is checked, and the conflict that stopped checking it)
+
+- **`CHANGELOG.md` merges by union.** Every PR adds an entry at the top of it,
+  so any two open PRs edited the same region and the second to merge conflicted
+  every time, on the one file whose resolution is never in doubt. That matters
+  far more than the tedium: a `CONFLICTING` PR runs **no** `pull_request`
+  workflows at all, and the checks still shown are whatever ran on an older
+  head, green and describing code that is gone. A guaranteed conflict on a log
+  file was quietly switching off every gate in the repo on every second PR.
+  `.gitattributes` now marks it `merge=union`.
+- **What that buys is scoped deliberately**, because the first draft of this
+  change overclaimed it and review caught it. Verified: a local merge of the
+  base branch resolves the file with no markers and both entries kept, which is
+  the step the protocol already prescribes, so the hand-resolution is gone. Not
+  verified, and not promised: whether GitHub's own mergeability computation
+  honors a merge driver, which runs on its servers rather than in your git and
+  reportedly does not. The protections against a stale-green PR are `pr:status`
+  and `main-guard.yml`, and neither depends on the answer.
+- **Branch protection is on `main`** as of 2026-09-21, which is what turns most
+  of the PR protocol from a habit into a rule: required checks (`format`,
+  `invariants`, `guard`), required up-to-date branches, and no force pushes or
+  deletions. Only three checks are required because every other gate is
+  path-filtered, and a required check that never runs leaves a PR pending
+  forever. Admins are not enforced and reviews are not required: this is a solo
+  repository, and locking the owner out of an emergency is a worse failure than
+  the one being prevented. Recorded in `docs/OPERATIONS.md`, since a repository
+  setting cannot be read out of the repo.
+- **`main-guard.yml` runs `npm run preflight` on every push to `main`.** Every
+  gate here was `pull_request`-only, so nothing had ever checked `main` itself:
+  what CI tested was the computed merge commit, never the squash that landed,
+  and there is no branch protection. It cannot block a bad landing, it
+  announces one, which is the part that was missing.
+- **`docs/OPERATIONS.md` reached `main` unformatted on 2026-09-21**, which is
+  what made the hole visible. `format.yml` runs `prettier --check .` over the
+  whole repo, so one drifted file failed the format job on PRs that had touched
+  no markdown, and the first person to see it would reasonably read the red as
+  their own. Formatted here.
+- **`WALLETS_WITH_X` 1.17 to 1.20 million**, with the copy beside it in
+  `docs-site/concepts/coverage.mdx` and the two queued social posts that quote
+  it, which `check:social` caught rather than letting them publish a figure the
+  registry no longer holds. Index drift rather than anyone's diff: the
+  index grows daily and the figure had gone 2.1% stale, which is the case the
+  Monday schedule exists for and which surfaced first as a red on an unrelated
+  PR.
+- The PR protocol gains what this cost to learn: that a merged PR is not a
+  checked commit, that `gh pr merge` from a worktree fails **after** merging
+  (`fatal: 'main' is already used by worktree`) and leaves the remote branch
+  behind, that siblings must be merged one at a time with the second re-checked
+  against the moved base, and that branch protection would make most of the
+  list unnecessary rather than merely written down.
+
 ### 2026-09-20 (an X list job can report that it finished)
 
 - **The X list outcome is mounted where the callback can reach it.**

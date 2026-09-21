@@ -141,7 +141,17 @@ It was unenforced until 2026-08-24, and that was worse than either alternative.
 Nothing ran it, 150 of 352 files had drifted, and `npm run format` was therefore
 a trap: any invocation rewrote a wide slice of the repo, so a one-line fix
 arrived as a hundred-file diff. The repo was formatted once and the gate added
-in the same PR, so drift cannot accumulate again.
+in the same PR.
+
+**That gate is on pull requests only, which is not the same as "drift cannot
+accumulate".** It said so here until 2026-09-21, when `docs/OPERATIONS.md`
+reached `main` unformatted anyway: a `CONFLICTING` PR runs no workflows at all,
+and a squash commit is not the artifact CI tested. Because `format.yml` runs
+`prettier --check .` over the whole repo, that one file then failed the format
+job on every open PR, including ones that had touched no markdown. If you see a
+format red you cannot explain from your own diff, check `main` before you
+change anything: `main-guard.yml` runs the same gates there after every push,
+and `docs/OPERATIONS.md` has the protocol.
 
 One thing worth knowing before you distrust a reflow. Prettier will break a JSX
 line between an expression and the text beside it:
