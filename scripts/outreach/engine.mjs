@@ -202,18 +202,18 @@ export function plan(state, now) {
     link.searchParams.set('utm_medium', 'email');
     link.searchParams.set('utm_campaign', lead.campaign);
     // The URL deliberately contains no recipient or prospect identifier.
-    const offer =
+    const question =
       lead.segment === 'agency'
-        ? 'Would it be useful to evaluate a sample from one client’s wallet audience before their next campaign?'
+        ? 'Does that come up in your client work?'
         : lead.segment === 'developer'
-          ? 'Would a sample from your own wallet dataset help you evaluate identity enrichment for your workflow?'
-          : 'Would it help to evaluate a sample of your wallet audience for community research or a planned campaign?';
-    const footer = `\n\n${state.config.senderName}\n${state.config.signature}\n\nIf this is not relevant, reply and I will stop following up.`;
-    const subject = `Wallet audience research for ${lead.company}`;
+          ? 'Would that be useful in what you’re building?'
+          : 'Is that something you’d use when looking into your audience?';
+    const footer = `\n\n${state.config.senderName}\n${state.config.signature}\n\nNot relevant? Just say so and I won't follow up.`;
+    const subject = 'wallets → socials';
     const bodies = [
-      `Hi ${lead.name},\n\n${lead.observation}\n\nI’m working on WalletLink. It resolves EVM wallet lists to published X and Farcaster identities, with evidence attached to the matches.\n\n${offer}\n\nYou can see the lookup here: ${link.href}${footer}`,
-      `Hi ${lead.name},\n\nFollowing up on the wallet audience question. A small sample can help establish whether the available identities are useful before you consider a larger export.\n\n${offer}${footer}`,
-      `Hi ${lead.name},\n\nOne final follow-up. If wallet audience research becomes relevant for ${lead.company}, WalletLink is here: ${link.href}\n\nI’ll leave it here unless you’d like to discuss a sample.${footer}`,
+      `Hey ${lead.name},\n\n${lead.observation}\n\nI built walletlink for looking up the X and Farcaster accounts linked to EVM wallets. Drop in a wallet list and it checks for matches.\n\n${question}\n\n${link.href}${footer}`,
+      `Hey ${lead.name},\n\nJust following up on this. Curious whether looking up the socials behind a wallet list is something you already do, or haven't had a reason to try.\n\n${question}${footer}`,
+      `I'll leave it here. If a wallet list turns up and you want to try it, it's at ${link.href}\n\n${state.config.senderName}\n${state.config.signature}\n\nNo more follow-ups from me.`,
     ];
     lead.messages = bodies.map((body, index) => ({
       id: randomUUID(),

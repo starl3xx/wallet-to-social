@@ -12,6 +12,15 @@ sequence: the approved initial message, a follow-up four days later, and a
 final follow-up seven days after that. The review shows all three messages.
 Any change to recipient, sender, evidence, or copy invalidates the approval.
 
+## Writing voice
+
+Use short, casual notes from starl3xx: one concrete observation, a plain
+explanation only when needed, and one useful question. Avoid sales jargon,
+repeated feature lists, invented familiarity and claims about a prospect’s
+budget or current plans. Personalize each follow-up with a useful detail;
+the generated copy is a starting point that still requires review. Keep
+match uncertainty and EVM scope clear.
+
 ## What this automates
 
 1. Inspect explicitly selected company and contact pages, preserving source

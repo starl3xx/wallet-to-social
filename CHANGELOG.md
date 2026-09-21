@@ -914,6 +914,7 @@ All notable changes to walletlink.social. Newest first.
 - Added campaign revenue tracking, a five-minute worker, mocked-provider tests
   and an operator runbook. The local mailbox and exclusion connection are
   verified; the sender remains paused and no prospect mail has been sent.
+- Shorten generated outreach into casual notes with clear questions.
 - Preserve the reviewed sender display name in email headers and bind it to
   approval. Query the explicit users schema for reliable exclusion syncs.
 
