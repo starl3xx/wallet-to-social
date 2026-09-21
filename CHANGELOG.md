@@ -16,10 +16,16 @@ All notable changes to walletlink.social. Newest first.
   file still conflicts: the branch does not have it yet. Worth writing down
   because the obvious reading of that first conflict is that the driver is
   broken.
+- **A union merge leaves the file unformatted.** It concatenates both sides'
+  lines literally, so where two entries meet there is no blank line and
+  Prettier fails. `format` is a required check, so that alone blocks the merge:
+  the driver saves the resolution and hands back a formatting fix. Observed on
+  this PR, which is the first merge the driver ever resolved.
 - Both facts are now in `.gitattributes` and `docs/OPERATIONS.md`, replacing
   the hedged "reportedly does not" with what was observed. The protections that
   matter never depended on the answer: branch protection, `pr:status` and
   `main-guard.yml`.
+
 ### 2026-09-20 (the account gets a page)
 
 - **`/dashboard`**, the first surface that shows a signed-in account what it

@@ -40,6 +40,13 @@
 # arriving in that very merge. From the next merge onward the resolution is
 # automatic. Do not read a conflict on the first merge as this being broken.
 #
+# **Run `npm run format` after a union merge.** Union concatenates both sides'
+# lines literally, so where two entries meet it produces no blank line between
+# them and the file stops being Prettier-clean. `format` is a REQUIRED check,
+# so an unformatted CHANGELOG blocks the merge: the driver saves the
+# resolution and hands you a formatting fix instead. Observed on #346, which
+# is the first merge this driver ever resolved.
+#
 # So this is a convenience from the second merge onward, and nothing more. The
 # protections against a stale-green PR are elsewhere and never depended on it:
 # branch protection (required checks, strict mode), `npm run pr:status`, which

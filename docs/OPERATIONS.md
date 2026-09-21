@@ -165,6 +165,11 @@ stated 30-day retention.
      from the branch being merged INTO, so the merge that first delivers the
      file still conflicts, because the branch does not have it yet. Do not read
      that conflict as the driver being broken.
+   - **Run `npm run format` after a union merge.** It concatenates both sides'
+     lines literally, so where two entries meet there is no blank line and the
+     file stops being Prettier-clean. `format` is a required check, so that
+     alone blocks the merge: the driver saves you the resolution and hands you
+     a formatting fix instead.
 
    So this step is unchanged in practice: merge the base branch in, and expect
    to resolve `CHANGELOG.md` by hand exactly once per branch. What protects
