@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (a missing row does not say why it is missing)
+
+- **The daily seed run now logs the chain order it chose**, and warns with any
+  slot the clock ate before it began.
+- **The reason it needed to**: a chain refused at discovery, a chain skipped
+  for time, and a chain with nothing left to seed all write no
+  `seeded_contracts` row, so from the table they are one absence. That
+  ambiguity sent a BSC investigation down the wrong path on the same day: its
+  missing rows read as slot starvation when the chain was being refused by the
+  gate added on 09-19 and released on 09-21. The disproof was already in the
+  table, since BSC had been attempted on 09-16, 09-17 and 09-18, and a slot
+  that is never reached cannot write an attempt marker. The discovery gate
+  already logged its refusals; now the starved case speaks too, so the log
+  alone separates them.
+- **The tail of `SEED_ORDER` rotates by UTC day** behind a pinned head of the
+  two chains no competing index serves. One shared deadline over a fixed order
+  makes the last position a standing disadvantage for whichever chain holds
+  it. No starved run has been observed, so this closes a hazard rather than
+  repairing damage.
+- Invariants assert the rotation, that the pinned head is a genuine prefix
+  rather than the whole list, and that a starved slot is reported.
+
 ### 2026-09-21 (three APIs, one place to find them)
 
 - **`/.well-known/api-catalog` now publishes an API catalog, RFC 9727.** It
