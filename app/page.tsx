@@ -16,7 +16,7 @@ import { reachableHandlesInPriorityOrder } from '@/lib/reachable-handles';
 import { ShareButtons } from '@/components/ShareButtons';
 import { StatsCards } from '@/components/StatsCards';
 import { NoMatchesFound } from '@/components/NoMatchesFound';
-import { LookupHistory } from '@/components/LookupHistory';
+
 import { ReverseLookup, type ReverseMeta } from '@/components/ReverseLookup';
 import {
   StarterCollections,
@@ -115,6 +115,35 @@ import type { WalletSocialResult, LookupProgress } from '@/lib/types';
 import { asSourceList } from '@/lib/api-sources';
 
 type AppState = 'upload' | 'ready' | 'processing' | 'complete' | 'error';
+
+/**
+ * Drop `lookup=` from the URL.
+ *
+ * The deep link deliberately does not clear this on read, because the
+ * parameter is the address of what is on screen rather than a payload that
+ * must not replay. This is the other half of that bargain: it has to stop
+ * naming a lookup the moment the screen stops showing one.
+ *
+ * Left behind it survives a reset and a new run, and the next refresh is then
+ * worse than not having the feature at all: the mount restore bails on
+ * `lookup=` by design, so instead of recovering the job in progress the page
+ * reopens the lookup the person had already moved on from.
+ *
+ * `replaceState`, not `pushState`: leaving a saved lookup is not a place in
+ * history to go back to.
+ */
+function forgetLookupParam(): void {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('lookup')) return;
+  params.delete('lookup');
+  const rest = params.toString();
+  window.history.replaceState(
+    {},
+    '',
+    window.location.pathname + (rest ? `?${rest}` : '')
+  );
+}
 
 export default function Home() {
   const [state, setState] = useState<AppState>('upload');
@@ -464,7 +493,8 @@ export default function Home() {
    * domain, so every abandoned checkout also lost the result.
    *
    * Only the anonymous rail needs it. A signed-in buyer already gets back
-   * through /#my-lookups and the gate stored on the saved lookup.
+   * through the saved-lookups list on /dashboard, which opens a lookup by id
+   * and carries the gate stored on it.
    */
   const GATED_KEY = 'gatedJobId';
   const GATED_AT_KEY = 'gatedJobSavedAt';
@@ -516,6 +546,22 @@ export default function Home() {
      * the same one it uses so the two cannot disagree about what an arrival is.
      */
     if (window.location.search.includes('collection=')) return;
+
+    /**
+     * `lookup=` is the same arrival and the same race.
+     *
+     * A deep-linked saved lookup paints `state`, `results` and the unlock
+     * wiring, and this restore paints the same three from whatever job was in
+     * localStorage. Whichever response lands last wins, so a slower jobs
+     * response overwrites the lookup somebody asked for by name and takes its
+     * id and unlock wiring with it. `handleLoadHistory` calls
+     * `forgetGatedJob()`, which clears the key and does nothing about a fetch
+     * already in flight.
+     *
+     * Bailing here rather than cancelling there, because the deep link is the
+     * explicit request and the restore is the guess.
+     */
+    if (window.location.search.includes('lookup=')) return;
 
     const savedJobId = localStorage.getItem('currentJobId');
     if (savedJobId) {
@@ -846,6 +892,10 @@ export default function Home() {
     setInputSource('text_input');
     setSourceContract(null);
     setSourceFileName(null);
+    // Opting out of growing the saved lookup means the page stops being about
+    // it: the id goes, and the rule below drops it from the URL.
+    setCurrentLookupId(null);
+    setCurrentLookupName(null);
     setState('ready');
     setShowPasteInput(false);
   }, [pasteText]);
@@ -1066,6 +1116,12 @@ export default function Home() {
     const submittedName = typedName || derivedName;
     submittedNameRef.current = submittedName;
 
+    // A new run is not the saved lookup that was on screen. Until this, the id
+    // survived, so Rename and Add addresses stayed bound to the old lookup
+    // while new results were displayed, and the URL went on naming it.
+    setCurrentLookupId(null);
+    setCurrentLookupName(null);
+
     setState('processing');
     setResults([]);
     setCacheHits(0);
@@ -1175,6 +1231,10 @@ export default function Home() {
       if (collection.name) {
         submittedNameRef.current = `Holders of ${collection.name}`;
       }
+
+      // A new run, same reason as startLookup.
+      setCurrentLookupId(null);
+      setCurrentLookupName(null);
 
       setState('processing');
       setResults([]);
@@ -1768,23 +1828,119 @@ export default function Home() {
     []
   );
 
-  // Handle opening the add addresses modal
-  const handleOpenAddAddresses = useCallback(async (lookupId: string) => {
-    // Fetch the existing results for this lookup
-    try {
-      const res = await fetch(`/api/history/${lookupId}`);
-      if (!res.ok) throw new Error('Failed to fetch lookup');
-      const data = await res.json();
-      const existingWallets = (data.results as WalletSocialResult[]).map(
-        (r) => r.wallet
-      );
-      setAddAddressesLookupId(lookupId);
-      setAddAddressesExistingWallets(existingWallets);
-      setShowAddAddressesModal(true);
-    } catch (err) {
-      console.error('Failed to load lookup for add addresses:', err);
-    }
-  }, []);
+  /**
+   * `/?lookup=<id>` opens a saved lookup.
+   *
+   * This is what replaced the homepage's saved-lookups card. The list lives on
+   * `/dashboard` now, and a list whose rows cannot open anything is not a
+   * list, so the rows link here. It is also the thing this page was missing:
+   * results were in-app state with no URL, which is why a row used to have to
+   * scroll somebody to a card on this page rather than open anything.
+   *
+   * Same shape as the contract deep link above and for the same reason: the
+   * page is statically rendered, so this reads `window.location` in an effect
+   * rather than through `useSearchParams`, which would force a Suspense
+   * boundary and push the whole route to dynamic for one query string.
+   *
+   * It does NOT clear the URL, and that is the difference from the contract
+   * link. There the value is a payload that must not replay; here it IS the
+   * address of the thing on screen, so a refresh should reopen it and the link
+   * should survive being copied. Nothing leaks by keeping it: `/api/history/[id]`
+   * is session-scoped and answers 404 for a lookup that is missing and for one
+   * that is not yours, without distinguishing them.
+   */
+  const lookupDeepLinkRead = useRef(false);
+  /**
+   * True from the moment a `lookup=` arrival is recognized until its fetch
+   * settles. The clearing effect below reads it so a deep link is not stripped
+   * from the URL before the thing it names has had a chance to open.
+   */
+  const lookupDeepLinkPending = useRef(
+    typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).has('lookup')
+  );
+
+  useEffect(() => {
+    if (lookupDeepLinkRead.current) return;
+    // Wait for the session. History is session-scoped, so firing before
+    // `useAuth` resolves asks for a lookup as nobody and gets a 401.
+    if (authLoading) return;
+    lookupDeepLinkRead.current = true;
+
+    const id = new URLSearchParams(window.location.search).get('lookup');
+    if (!id) return;
+
+    lookupDeepLinkPending.current = true;
+    let cancelled = false;
+    fetch(`/api/history/${id}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('not found'))))
+      .then((data) => {
+        lookupDeepLinkPending.current = false;
+        if (cancelled) return;
+        handleLoadHistory(
+          data.results,
+          id,
+          data.name ?? null,
+          data.enrichedWallets ?? [],
+          data.jobId ?? null
+        );
+      })
+      .catch(() => {
+        // Settled, so the clearing effect may drop the parameter: nothing was
+        // opened, so the URL must stop claiming otherwise.
+        lookupDeepLinkPending.current = false;
+        // Cleared here rather than left to the effect below: a failure changes
+        // no state, so that effect would not re-run and the URL would go on
+        // naming a lookup that never opened.
+        forgetLookupParam();
+        // A lookup that is gone, or was never yours, leaves the page as it
+        // was: the upload view, which is a working page rather than an error.
+        // Saying more would distinguish "not found" from "not yours", which
+        // the endpoint deliberately does not.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, handleLoadHistory]);
+
+  /**
+   * And it stops naming one the moment one is not on screen.
+   *
+   * This is the other half of not clearing the parameter on read. An address
+   * that outlives the thing it addresses is worse than no address at all: the
+   * mount restore bails on `lookup=` by design, so a stale one makes the next
+   * refresh reopen a lookup somebody had moved on from instead of resuming the
+   * job they had started.
+   *
+   * Keyed on `currentLookupId`, which is the one value that means "the results
+   * on this screen are that saved lookup". Not on a list of exits: the first
+   * version called a helper from three of them and review found a fourth the
+   * same day, with two more behind it. A list of the ways to leave a screen is
+   * never finished; the condition for being on it is.
+   *
+   * It is not keyed on `state` either, which the version before this one got
+   * wrong: growing a lookup goes to `processing` and is still that lookup, so
+   * a `state === 'complete'` term dropped the URL of the thing still on
+   * screen. `currentLookupId` survives the merge and says so.
+   *
+   * That only works because a new run now clears the id, which it did not
+   * before. The variable claimed to mean this and did not: after viewing a
+   * saved lookup and starting another, it kept pointing at the old one, which
+   * left Rename and Add addresses bound to a lookup nobody was looking at.
+   *
+   * `lookupDeepLinkPending` starts true when the URL arrives carrying the
+   * parameter, read during the first render rather than in an effect. It has
+   * to: this effect runs on mount, the deep-link effect waits for the session
+   * first, and a flag set there would be set too late. The earlier version was
+   * exactly that, and it deleted the parameter before anything could read it,
+   * which made every dashboard row a silent no-op: the bug this whole change
+   * exists to fix, reintroduced by its fix.
+   */
+  useEffect(() => {
+    if (lookupDeepLinkPending.current) return;
+    if (currentLookupId) return;
+    forgetLookupParam();
+  }, [currentLookupId]);
 
   // Handle adding addresses to existing lookup
   const handleAddToLookup = useCallback(
@@ -2098,7 +2254,7 @@ export default function Home() {
             Mounting it unconditionally is necessary and was not sufficient:
             below the upload branch it renders under the hero, the three input
             methods, the starter collections, the reverse lookup, the recent
-            wins and the lookup history, which is off the bottom of a screen
+            wins, which is off the bottom of a screen
             somebody has just been returned to the top of. Above them it is the
             first thing on the page, which is what the original comment asked
             for when it said "above the stats".
@@ -2127,7 +2283,7 @@ export default function Home() {
                 pasteActive={showPasteInput}
                 // Yielding to open dialogs is handled inside the component by
                 // asking the DOM, not enumerated here: dialogs also open from
-                // the access banner and lookup history, which this file does
+                // the access banner, which this file does
                 // not track, and any list would go stale on the next one added
                 contractLocked={!entitled}
                 onContractClick={handleContractCardClick}
@@ -2189,9 +2345,8 @@ export default function Home() {
                   file: a signed-in account with no history saw an empty page
                   and had to go and find data before it could find out what
                   this does. */}
-            {/* Named, so the zero-match panel can send somebody here. Same
-                plumbing as `#my-lookups`: `scroll-mt-24` keeps the heading
-                clear of the sticky header. */}
+            {/* Named, so the zero-match panel can send somebody here.
+                `scroll-mt-24` keeps the heading clear of the sticky header. */}
             <div id="starter-collections" className="scroll-mt-24">
               <StarterCollections onRun={runStarterCollection} />
             </div>
@@ -2223,21 +2378,6 @@ export default function Home() {
             </p>
 
             <RecentWins />
-            {/* `entitled`, not the tier: a pack buyer's tier stays 'free', and
-                  history depth and growing a lookup are included in every
-                  pack. The server applies the same rule on the write. */}
-            {/* The anchor /success sends a buyer to. A gated lookup is
-                reached through this panel and nowhere else: saved lookups are
-                in-app state, so there is no URL that opens one directly, and
-                an anchor is the honest amount of plumbing for a one-line
-                routing fix. */}
-            <div id="my-lookups" className="scroll-mt-24">
-              <LookupHistory
-                onLoadLookup={handleLoadHistory}
-                entitled={entitled}
-                onAddAddresses={handleOpenAddAddresses}
-              />
-            </div>
           </div>
         )}
 

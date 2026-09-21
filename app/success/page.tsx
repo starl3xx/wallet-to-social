@@ -278,9 +278,12 @@ function SuccessContent() {
                   they had already run, and this page used to offer them "Run a
                   lookup", which is the one thing they do not need: it starts a
                   new one and leaves the gated result they paid for behind. It
-                  now points at the panel that holds it. */}
+                  points at the list that holds it, which is `/dashboard` now:
+                  the homepage card this used to anchor to is gone, and an
+                  anchor to an id that no longer exists fails by scrolling
+                  nowhere rather than by erroring. */}
               <Button asChild className="w-full">
-                <Link href={pack.signedInAsBuyer ? '/#my-lookups' : '/'}>
+                <Link href={pack.signedInAsBuyer ? '/dashboard' : '/'}>
                   {pack.signedInAsBuyer
                     ? 'Open your lookups'
                     : 'Back to walletlink.social'}

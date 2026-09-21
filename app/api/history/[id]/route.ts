@@ -169,6 +169,17 @@ export async function GET(
     return NextResponse.json({
       results: servedResults,
       enrichedWallets, // wallets that were updated since last view
+      /**
+       * The lookup's own name.
+       *
+       * It used to arrive from the list instead: the saved-lookups card had
+       * the name in hand and passed it alongside the rows. The list moved to
+       * `/dashboard` and opens a lookup by URL now, so the page that renders
+       * it has an id and nothing else, and without this the results view
+       * would show a lookup with no title. Not a new fact about the row,
+       * just one the caller can no longer be assumed to already hold.
+       */
+      name: lookup.name ?? null,
       // The job behind the gate rides along so the client can key an unlock.
       ...(lockedMatches > 0 ? { lockedMatches, jobId: lookup.jobId } : {}),
     });

@@ -2,6 +2,98 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (the union merge driver is removed, same day it was added)
+
+- **`CHANGELOG.md merge=union` broke `format`, which is a required check, in a
+  way no author can fix on their branch.** Union concatenates both sides' lines
+  for a conflicting hunk, so two entries meet with no blank line before the
+  next heading and Prettier fails. Running `npm run format` and committing does
+  not help: GitHub recomputes the merge for `refs/pull/<n>/merge`, which is
+  what CI checks out, and union re-applies there and drops the blank line
+  again. Observed as a one-byte difference between a branch that passes
+  `prettier --check` locally and a merge commit that fails it on the same
+  commit.
+- **What it bought, measured rather than assumed:** it did not stop GitHub
+  marking a PR `CONFLICTING` (#342 and #347 both did, with the driver on
+  `main`), and locally it applied only from the second merge onward, because
+  git reads attributes from the branch being merged into. So it cost a required
+  check its fixability and bought a local convenience. Resolving the file by
+  hand takes seconds; an unfixable red does not.
+- `.gitattributes` survives as the record, with no rules in it, so the next
+  person to reach for the driver reads what happened first. The real fix is
+  named there and not done: a `changelog.d/` directory with one file per change
+  has no shared region to conflict over, and that is a change to a documented
+  workflow rather than a line in a config.
+
+### 2026-09-21 (saved lookups have one home, and an address)
+
+- **The homepage no longer lists saved lookups.** `/dashboard` renders that
+  card, so the homepage carried a second copy of it behind an
+  `id="my-lookups"` anchor. Removed, along with the handler that existed only
+  to serve it.
+- **A saved lookup has a URL: `/?lookup=<id>`.** This is what the removal
+  forced rather than an extra. The homepage card was the only surface in the
+  product that could display a saved lookup, and both `/success` and
+  `/dashboard` routed to its anchor rather than to a lookup, so deleting it
+  alone would have left saved lookups unopenable anywhere. A dashboard row now
+  opens the thing it names.
+- **`/success` sends a buyer to `/dashboard`.** Its "Open your lookups" button
+  pointed at the deleted anchor, and that is the highest-cost link in the set:
+  it is what somebody sees immediately after paying to unlock a match-gated
+  lookup. A dead in-page anchor does not error, it scrolls nowhere.
+- `/api/history/[id]` returns the lookup's `name`. It used to arrive from the
+  list, which had it in hand; a page that opens a lookup from a URL has an id
+  and nothing else.
+- **Three assertions, each checked against its own regression** rather than
+  against passing code: nothing links to the retired anchor (comments stripped
+  first, so an explanation of the removal is not mistaken for a link), the
+  homepage does not mount the card, and a dashboard row opens a lookup by id.
+  Re-linking `/success` at the anchor, re-importing the card on the homepage,
+  and reverting the row to an anchor push each fail exactly one of them.
+- **A dashboard row takes the id without fetching the rows.** Loading them to
+  throw them away is not a spared request: `GET /api/history/[id]` marks the
+  lookup viewed and `enrichedWallets` is measured from that timestamp, so
+  fetching here and again on arrival would compare "new since last look"
+  against a moment ago and the paid new-match highlights would never appear.
+  `onSelectLookup` short-circuits before the fetch, and a fourth assertion
+  keeps that door open.
+- **`/?lookup=` bails the mount restore, as `collection=` already did.** That
+  restore paints `state`, `results` and the unlock wiring from whatever job was
+  in localStorage, so a slower jobs response could overwrite the lookup
+  somebody asked for by name and take its id and unlock wiring with it.
+  `forgetGatedJob()` clears the key and does nothing about a fetch already in
+  flight, so the bail belongs where the arrival is recognized.
+- **`?lookup=` is dropped by one rule about what is on screen**, not by a call
+  at each exit. Not clearing it on read is what makes it an address rather than
+  a payload, and that only holds if it stops naming a lookup once one is no
+  longer displayed: left behind it outlives the thing it addresses, and the
+  next refresh is worse than not having the feature, because the mount restore
+  bails on `lookup=` by design and would reopen a lookup the person had moved
+  on from instead of resuming the job in progress.
+- **The rule keys on `currentLookupId`, and a new run now clears it.** That
+  variable claimed to mean "the results on screen are this saved lookup" and
+  did not: it survived a new run, so Rename and Add addresses stayed bound to a
+  lookup nobody was looking at. Making it true is what lets one condition cover
+  every case, including growing a lookup, which goes to `processing` and is
+  still the same lookup.
+- **The deep-link guard is read during the first render, not set in an effect.**
+  The clearing effect runs on mount and the deep-link effect waits for the
+  session, so a flag set there is set too late: the parameter was deleted
+  before anything could read it, which made every dashboard row a silent
+  no-op. That is the bug this change exists to fix, reintroduced by its own
+  fix, and caught in review rather than by me.
+- **That rule replaced a list, after the list was shown to be incomplete.** The
+  first version called a helper from reset, a new lookup and a starter
+  collection; review found a fourth exit it had missed the same day ("Create
+  new lookup instead"), with the contract importer and the paste path behind
+  it. A list of the ways to leave a screen is never finished, so the check is
+  now the condition for being on it. Growing a lookup still keeps the
+  parameter, and needs no exemption to do it: the same lookup is on screen.
+- The deep link is read in an effect on the statically rendered homepage, the
+  same shape as `/?contract=`, and deliberately **not** cleared from the URL:
+  there the parameter is a payload that must not replay, here it is the address
+  of what is on screen. Ownership is unchanged and server-side.
+
 ### 2026-09-20 (the identity-platform sweep moves onchain)
 
 - **`lib/ethos.ts` reads chain state instead of the platform's API.** Their

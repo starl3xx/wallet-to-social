@@ -11154,7 +11154,7 @@ async function main() {
      * the real requirement rather than merely completing the set: that is the
      * state a callback lands in, and everything that branch renders (the
      * hero, the three input methods, the starter collections, the reverse
-     * lookup, the recent wins, the lookup history) is above the fold of a
+     * lookup, the recent wins) is above the fold of a
      * screen somebody has just been returned to the top of. Mounting this
      * unconditionally but below them is the halfway version of the same bug,
      * and it is the one that looks fixed.
@@ -11163,6 +11163,159 @@ async function main() {
      * rename fails loudly here rather than passing over a check it never
      * performed.
      */
+    /**
+     * The saved-lookups list has one home, and nothing links to its old one.
+     *
+     * It used to be mounted on the homepage behind `id="my-lookups"`, and both
+     * `/success` and `/dashboard` routed to that anchor. The list moved to
+     * `/dashboard` and a saved lookup opens at `/?lookup=<id>`; the anchor is
+     * gone.
+     *
+     * Asserted as the refusal, because a dead in-page anchor is the quietest
+     * failure in a browser: the hash changes, the page scrolls nowhere, and
+     * nothing errors. The `/success` link is the expensive one, since it is
+     * what a buyer sees immediately after paying to unlock a gated lookup.
+     *
+     * The second half is what keeps the card from quietly acquiring two homes
+     * again, which is the state this change ended: if `app/page.tsx` imports
+     * it, somebody has remounted it there.
+     */
+    {
+      const sources = readdirSync('app', { recursive: true })
+        .map(String)
+        .filter((f) => f.endsWith('.tsx') || f.endsWith('.ts'))
+        .map((f) => `app/${f}`)
+        .concat(
+          readdirSync('components', { recursive: true })
+            .map(String)
+            .filter((f) => f.endsWith('.tsx'))
+            .map((f) => `components/${f}`)
+        );
+
+      /**
+       * Comments are stripped first. Two of the files that used to link here
+       * now explain in prose that they no longer do, and a check that cannot
+       * tell an explanation from a link is a check people learn to silence.
+       * `withoutComments` is the same tool the rest of this file uses for it.
+       */
+      const linkers = sources.filter((f) =>
+        withoutComments(readFileSync(f, 'utf8')).includes('my-lookups')
+      );
+      ok(
+        'nothing links or scrolls to the retired #my-lookups anchor',
+        sources.length > 50 && linkers.length === 0
+      );
+
+      ok(
+        'the homepage does not mount the saved-lookups card',
+        !homeSrc.includes('LookupHistory')
+      );
+
+      const dashSrc = readFileSync('app/dashboard/page.tsx', 'utf8');
+      ok(
+        'the dashboard mounts the saved-lookups card, which is now its only home',
+        dashSrc.includes('<LookupHistory') &&
+          dashSrc.includes("from '@/components/LookupHistory'")
+      );
+
+      /**
+       * And a row opens the lookup rather than a list of lookups. The old
+       * handler pushed an anchor and discarded the id it had been handed,
+       * which is exactly what made the click a no-op once the anchor went.
+       */
+      ok(
+        'a dashboard row opens a saved lookup by id',
+        /router\.push\(`\/\?lookup=\$\{encodeURIComponent\(lookupId\)\}`\)/.test(
+          dashSrc
+        )
+      );
+
+      /**
+       * And it takes the id WITHOUT fetching the rows first.
+       *
+       * `onLoadLookup` makes the component fetch and hand over the results;
+       * a caller that only navigates would discard them. That is not a spared
+       * request: `GET /api/history/[id]` marks the lookup viewed, and
+       * `enrichedWallets` is measured from that timestamp, so fetching twice
+       * compares "new since last look" against a moment ago and the paid
+       * new-match highlights never appear. `onSelectLookup` short-circuits
+       * before the fetch, and the component must keep offering that door.
+       */
+      ok(
+        'the dashboard selects a lookup without fetching rows it would discard',
+        dashSrc.includes('onSelectLookup={') &&
+          readFileSync('components/LookupHistory.tsx', 'utf8').includes(
+            'if (onSelectLookup) {'
+          )
+      );
+
+      /**
+       * `?lookup=` is cleared everywhere the screen stops showing that lookup.
+       *
+       * The deep link does not clear it on read, deliberately: it is the
+       * address of what is on screen rather than a payload that must not
+       * replay. That bargain only holds if it stops naming a lookup the moment
+       * one is no longer displayed. Left behind, it outlives the thing it
+       * addresses, and the next refresh is worse than not having the feature:
+       * the mount restore bails on `lookup=` by design, so instead of
+       * recovering the job in progress the page reopens a lookup the person
+       * had moved on from.
+       *
+       * Asserted as ONE rule keyed on what is displayed, not as a list of the
+       * ways to leave. The first version of this enumerated three exits, and
+       * review found a fourth it had missed on the same day ("Create new
+       * lookup instead"), with the contract importer and the paste path behind
+       * it. A list of the ways to leave a screen is never finished; the
+       * condition for being on it is, so the check is that the condition is
+       * what the code reads.
+       *
+       * Two call sites exactly: the effect that enforces the rule, and the
+       * deep link's own failure path, which cannot wait for the effect because
+       * a failure changes no state and would not re-run it. A third would mean
+       * somebody had gone back to patching exits one at a time.
+       */
+      const clears = [...homeSrc.matchAll(/forgetLookupParam\(\);/g)].length;
+      const flat = homeSrc.replace(/\s+/g, ' ');
+      ok(
+        'the lookup parameter is dropped by one rule about what is on screen, not per exit',
+        clears === 2 &&
+          flat.includes(
+            'if (lookupDeepLinkPending.current) return; if (currentLookupId) return; forgetLookupParam(); }, [currentLookupId]);'
+          )
+      );
+
+      /**
+       * The flag that guards it is read during render, not set in an effect.
+       *
+       * This effect runs on mount and the deep-link effect waits for the
+       * session first, so a flag set there is set too late: the parameter is
+       * deleted before anything reads it and every dashboard row becomes a
+       * silent no-op, which is the bug this whole change exists to fix. The
+       * earlier version did exactly that.
+       */
+      ok(
+        'the deep-link guard is armed from the URL before any effect runs',
+        /const lookupDeepLinkPending = useRef\(\s*typeof window !== 'undefined' &&\s*new URLSearchParams\(window\.location\.search\)\.has\('lookup'\)\s*\)/.test(
+          homeSrc
+        )
+      );
+
+      /**
+       * And a new run stops claiming to be the saved lookup it replaced.
+       *
+       * `currentLookupId` is what the rule above reads, and it is also what
+       * gates Rename and Add addresses. Until this it survived a new run, so
+       * both stayed bound to a lookup nobody was looking at and the URL went
+       * on naming it. Three sites clear it: reset, a new lookup, and a starter
+       * collection. Growing a lookup deliberately does not, because the same
+       * lookup is still on screen, and that is the case the rule has to keep.
+       */
+      ok(
+        'a new run stops claiming the saved lookup it replaced',
+        [...homeSrc.matchAll(/setCurrentLookupId\(null\);/g)].length >= 4
+      );
+    }
+
     {
       const statusMount = homeSrc.indexOf('<XListStatus />');
       const uploadBranch = homeSrc.indexOf("{state === 'upload'");

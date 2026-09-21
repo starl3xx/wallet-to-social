@@ -147,7 +147,7 @@ wallet-to-social/
 │   ├── StarterCollections.tsx # First action: run a seeded collection, brings nothing
 │   ├── PackPricing.tsx       # Pack ladder on the /vs pages, reads lib/packs.ts
 │   ├── AccessBanner.tsx      # Header chip, Buy credits button, account menu
-│   ├── LookupHistory.tsx     # Saved lookups sidebar
+│   ├── LookupHistory.tsx     # Saved lookups card, mounted on /dashboard
 │   └── admin/
 │       ├── AdminNav.tsx         # The nine destinations, two groups
 │       ├── FunnelPane.tsx       # The one funnel: sources, sessions, events, gates, purchases, the agent rail
@@ -569,8 +569,20 @@ chart answers "how has this been going" and the page answers "where do I stand".
 No running-jobs or X-lists module, because `/api/jobs` and `/api/x/lists` export
 POST only and an index for either needs a route and an index migration first
 (`lookup_jobs` has no index on `user_id`; `x_list_jobs` has none beyond its
-primary key). Opening a saved lookup sends the reader to the homepage's list,
-because saved results are in-app state there and no URL opens one.
+primary key). Opening a saved lookup navigates to `/?lookup=<id>`, because the
+results view is a virtualized working surface entangled with `app/page.tsx` and
+a dashboard that also rendered it would be two products sharing a URL.
+
+**The homepage no longer lists saved lookups.** It carried the same card behind
+an `id="my-lookups"` anchor, and `/success` and `/dashboard` both routed to that
+anchor rather than to a lookup. The list has one home now, and
+`/?lookup=<id>` gives a saved lookup the address it never had: the deep link is
+read in an effect on the statically rendered homepage, the same shape as
+`/?contract=`, and deliberately not cleared from the URL, because here the
+parameter is the address of what is on screen rather than a payload that must
+not replay. Ownership is unchanged and enforced server-side: `/api/history/[id]`
+answers 404 for a lookup that is missing and for one that is not yours, without
+distinguishing them.
 
 ### Claiming an address
 
