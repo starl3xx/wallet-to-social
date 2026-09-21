@@ -15,10 +15,15 @@ All notable changes to walletlink.social. Newest first.
   checkpoint, ids into handles from the graph first and the resolver
   within a budget, unresolved ids holding the frontier, and the two sweeps
   share the denial ledger because a resolver denial is a fact about the
-  id, not about who asked. Lifecycle events (archive, restore, claim to
-  another profile) resolve last-writer-wins per id inside a run, archived
-  profiles are skipped, and addresses their owner flagged as compromised
-  are dropped.
+  id, not about who asked. Events only DISCOVER attestation ids; the state
+  ingested is read back from `attestationById` at sweep time (review
+  killed a last-writer-wins replay that a capped or rewound window could
+  feed intermediate history), archived attestations and profiles are
+  skipped, and addresses their owner flagged as compromised are dropped.
+  Daily runs are capped at 10M blocks; the weekly `?full=1` cron entry
+  re-reads every active profile, because connecting a wallet to an
+  existing profile emits no event, and never touches the incremental
+  checkpoint.
 - **Backfill run and cross-validated before shipping**: 91,062 events over
   the contract's whole history produced 87,148 links, of which 86,235
   agree with what the REST-era sweep had already written: the chain

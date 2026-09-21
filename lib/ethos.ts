@@ -172,21 +172,27 @@ async function saveCheckpoint(block: number): Promise<void> {
   `);
 }
 
-interface AccountState {
-  profileId: bigint;
-  active: boolean;
-  /** The earliest block this id appeared in the scanned range: the frontier
-   *  holds here if the id ends the run unresolved and unabandoned. */
-  firstBlock: number;
-}
-
-/** Adaptive log scan; the same self-tuning shape as the other harvests. */
+/**
+ * The scan DISCOVERS attestation ids; it never derives their state.
+ *
+ * The first design replayed lifecycle events last-writer-wins, and review
+ * showed the failure that buys: a capped or rewound window sees an
+ * intermediate state (created, later archived beyond the window's edge) and
+ * ingests it against CURRENT wallets. Every event carries the attestation
+ * id, and `attestationById` answers with the current archived flag, owning
+ * profile, account and service, so the truth is one view call away and the
+ * events only need to say which ids are worth asking about. The event's own
+ * service string survives solely as a prefilter that keeps non-X ids out of
+ * the confirm batch.
+ */
 async function scanEvents(
   provider: ethers.JsonRpcProvider,
   fromBlock: number,
   toBlock: number
-): Promise<{ states: Map<string, AccountState>; events: number }> {
-  const states = new Map<string, AccountState>();
+): Promise<{ discovered: Map<string, number>; events: number }> {
+  // attestationId -> earliest block seen; the frontier holds there if the
+  // id ends the run unconfirmed or its handle unresolved.
+  const discovered = new Map<string, number>();
   let events = 0;
   let window = 100_000;
   let block = fromBlock;
@@ -221,17 +227,13 @@ async function scanEvents(
       events++;
       const service = String(parsed.args.service ?? '').toLowerCase();
       if (!X_SERVICES.has(service)) continue;
-      const account = String(parsed.args.account ?? '').trim();
-      if (!/^\d{1,25}$/.test(account)) continue;
-      const profileId = BigInt(parsed.args.profileId);
-      const active = parsed.name !== 'AttestationArchived';
+      const attId = BigInt(parsed.args.attestationId).toString();
       const blockNumber = parseInt(log.blockNumber, 16);
-      const prev = states.get(account);
-      states.set(account, {
-        profileId,
-        active,
-        firstBlock: prev ? Math.min(prev.firstBlock, blockNumber) : blockNumber,
-      });
+      const prev = discovered.get(attId);
+      discovered.set(
+        attId,
+        prev === undefined ? blockNumber : Math.min(prev, blockNumber)
+      );
     }
 
     block = upper + 1;
@@ -240,7 +242,69 @@ async function scanEvents(
       window = Math.max(Math.floor(window / 2), 1_000);
   }
 
-  return { states, events };
+  return { discovered, events };
+}
+
+interface ConfirmedAttestation {
+  archived: boolean;
+  profileId: bigint;
+  account: string;
+  service: string;
+}
+
+/**
+ * Current state per attestation id, straight from the contract.
+ *
+ * Tuple order was decoded EMPIRICALLY against a known event on 2026-09-20:
+ * (archived, attestationId, profileId, createdAt, account, service). A call
+ * that fails or does not decode lands in `failed` and holds the frontier:
+ * an unreadable attestation is not-yet-readable, never skippable.
+ */
+const attestationIface = new ethers.Interface([
+  'function attestationById(uint256) view returns (bool archived, uint256 attestationId, uint256 profileId, uint256 createdAt, string account, string service)',
+]);
+
+async function confirmAttestations(
+  provider: ethers.JsonRpcProvider,
+  attIds: string[],
+  failed: Set<string>
+): Promise<Map<string, ConfirmedAttestation>> {
+  const out = new Map<string, ConfirmedAttestation>();
+  const BATCH = 300;
+  for (let i = 0; i < attIds.length; i += BATCH) {
+    const batch = attIds.slice(i, i + BATCH);
+    const results = await multicallAdaptive(
+      provider,
+      batch.map((id) => ({
+        target: ATTESTATION_CONTRACT,
+        callData: attestationIface.encodeFunctionData('attestationById', [
+          BigInt(id),
+        ]),
+      }))
+    );
+    for (let j = 0; j < batch.length; j++) {
+      const r = results[j];
+      if (!r.success || r.returnData === '0x') {
+        failed.add(batch[j]);
+        continue;
+      }
+      try {
+        const dec = attestationIface.decodeFunctionResult(
+          'attestationById',
+          r.returnData
+        );
+        out.set(batch[j], {
+          archived: Boolean(dec[0]),
+          profileId: BigInt(dec[2]),
+          account: String(dec[4]).trim(),
+          service: String(dec[5]).toLowerCase(),
+        });
+      } catch {
+        failed.add(batch[j]);
+      }
+    }
+  }
+  return out;
 }
 
 async function multicallAdaptive(
@@ -510,13 +574,45 @@ export async function sweepEthos(
   };
   if (fromBlock > target) return stats;
 
-  const { states, events } = await scanEvents(provider, fromBlock, target);
+  const { discovered, events } = await scanEvents(provider, fromBlock, target);
   stats.events = events;
 
-  const activeIds = [...states.entries()].filter(([, s]) => s.active);
+  // Current state per discovered attestation, straight from the contract:
+  // the events only said which ids exist, and this is what they are NOW.
+  const failedConfirms = new Set<string>();
+  const confirmed = await confirmAttestations(
+    provider,
+    [...discovered.keys()],
+    failedConfirms
+  );
+
+  /**
+   * One active attestation per account id. Re-created attestations leave an
+   * archived old id beside an active new one, which the archived filter
+   * settles; two ACTIVE attestations for one account can only be a claim in
+   * flight, and the higher attestation id is the newer statement.
+   */
+  const byAccount = new Map<
+    string,
+    { attId: string; profileId: bigint; firstBlock: number }
+  >();
+  for (const [attId, c] of confirmed) {
+    if (c.archived) continue;
+    if (!X_SERVICES.has(c.service)) continue;
+    if (!/^\d{1,25}$/.test(c.account)) continue;
+    const firstBlock = discovered.get(attId) ?? fromBlock;
+    const prev = byAccount.get(c.account);
+    if (!prev || BigInt(attId) > BigInt(prev.attId)) {
+      byAccount.set(c.account, { attId, profileId: c.profileId, firstBlock });
+    }
+  }
+  const activeIds = [...byAccount.entries()].map(
+    ([account, v]) => [account, v] as const
+  );
   stats.candidates = activeIds.length;
   onProgress?.(
-    `ethos onchain: ${events} events, ${activeIds.length} active X ids in blocks ${fromBlock}-${target}`
+    `ethos onchain: ${events} events, ${discovered.size} attestations, ` +
+      `${activeIds.length} active X ids in blocks ${fromBlock}-${target}`
   );
 
   // Handles: the graph first, then the resolver within budget.
@@ -552,14 +648,20 @@ export async function sweepEthos(
   let checkpointTo = target;
   for (const id of stillUnknown) {
     if (abandoned.has(id)) continue;
-    const s = states.get(id);
-    if (s) checkpointTo = Math.min(checkpointTo, s.firstBlock - 1);
+    const v = byAccount.get(id);
+    if (v) checkpointTo = Math.min(checkpointTo, v.firstBlock - 1);
+  }
+  // An attestation whose confirm call failed is not-yet-readable: hold at
+  // its discovery block so tomorrow re-offers it.
+  for (const attId of failedConfirms) {
+    const b = discovered.get(attId);
+    if (b !== undefined) checkpointTo = Math.min(checkpointTo, b - 1);
   }
   stats.frontierHeld = checkpointTo < target;
 
   // Wallets for the profiles whose ids we can actually name.
   const resolvable = activeIds.filter(([id]) => handles.has(id));
-  const profileIds = [...new Set(resolvable.map(([, s]) => s.profileId))];
+  const profileIds = [...new Set(resolvable.map(([, v]) => v.profileId))];
   const failedProfiles = new Set<string>();
   const wallets = await walletsForProfiles(
     provider,
@@ -570,18 +672,18 @@ export async function sweepEthos(
   // A failed profile read holds the frontier exactly as an unresolved id
   // does: the link is not skippable, only not-yet-readable.
   if (failedProfiles.size > 0) {
-    for (const [, s] of resolvable) {
-      if (failedProfiles.has(s.profileId.toString())) {
-        checkpointTo = Math.min(checkpointTo, s.firstBlock - 1);
+    for (const [, v] of resolvable) {
+      if (failedProfiles.has(v.profileId.toString())) {
+        checkpointTo = Math.min(checkpointTo, v.firstBlock - 1);
       }
     }
     stats.frontierHeld = checkpointTo < target;
   }
 
   const links: AttestedLink[] = [];
-  for (const [id, s] of resolvable) {
+  for (const [id, v] of resolvable) {
     const handle = handles.get(id);
-    const ws = wallets.get(s.profileId.toString());
+    const ws = wallets.get(v.profileId.toString());
     if (!handle || !ws) continue;
     for (const wallet of ws) {
       links.push({ wallet, handle, twitterUserId: id });
@@ -599,11 +701,22 @@ export async function sweepEthos(
     stats.conflicts = ingest.conflicts;
   }
 
-  await saveCheckpoint(checkpointTo);
-  stats.checkpoint = checkpointTo;
+  /**
+   * A full pass never writes the checkpoint, in either direction (caught in
+   * review: its firstBlocks are historical, and writing them back would
+   * send Monday's capped incremental re-walking old slices). The checkpoint
+   * belongs to the incremental frontier alone; a full pass is an overlay
+   * whose retry mechanism is next week's full pass.
+   */
+  if (!full) {
+    await saveCheckpoint(checkpointTo);
+    stats.checkpoint = checkpointTo;
+  }
   onProgress?.(
-    `ethos onchain: ${stats.links} links (${stats.newWallets} new wallets), ` +
-      `checkpoint ${checkpointTo}${stats.frontierHeld ? ' (frontier held)' : ''}`
+    `ethos onchain: ${stats.links} links (${stats.newWallets} new wallets)` +
+      (full
+        ? ' (full pass; checkpoint untouched)'
+        : `, checkpoint ${checkpointTo}${stats.frontierHeld ? ' (frontier held)' : ''}`)
   );
   return stats;
 }
