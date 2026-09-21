@@ -185,7 +185,7 @@ Having an account and reaching it are different claims again, which is what the 
 
 ## The API
 
-The REST API is the same index and the same credits as the app. Base URL https://walletlink.social/api/v1. Authentication is an API key in the Authorization header, as a bearer token. Keys are self-serve for any account holding live credits.
+The REST API is the same index and the same credits as the app. Base URL https://walletlink.social/api/v1. Authentication is an API key in the Authorization header, as a bearer token. Keys are self-serve for any signed-in account, including one spending the free allowance; what a key may draw is decided per call against the same balance.
 
 Nine endpoints: a single wallet lookup, a batch lookup of up to ${batchSize} addresses per request on the default plan, an async job submission with a free status poll, a free dry-run estimate over a list (counts only: how many are in the index and the band a resolve would bill inside), reverse lookup by X handle, reverse lookup by Farcaster username, index statistics with the measured per-chain match rates, and your own usage and remaining balance. Reverse results are cursor-paginated. A job runs the same pipeline the app runs, resolving wallets the index has not checked against live sources; it is billed only on matches when it completes, one job may be active per account at a time, and a submission is capped at ${SUBMISSION_MULTIPLIER} times the match balance.
 
@@ -203,11 +203,13 @@ Eight tools: resolve addresses to their social identities (up to the key’s pla
 
 Two ways to authenticate. OAuth 2.1, which is what a client with a person behind it should use: add the URL, and the first tool call opens a consent screen rather than asking for a key. The server is an OAuth resource server, discovery starts at https://walletlink.social/.well-known/oauth-protected-resource, and it registers clients through both client ID metadata documents and dynamic client registration at https://walletlink.social/api/oauth/register. Every client is public, so PKCE with S256 is required and no client secret is issued. Access tokens last an hour and refresh themselves; a person ends a connection from their account and it stops on the next call.
 
-Or the same bearer key the REST API uses, which is the better answer for a server with no browser to sign in from. Keys are self-serve at https://walletlink.social for any account holding credits, and the keys modal offers a one-click install for Cursor and a one-line command for Claude Code at the moment a key is created.
+Or the same bearer key the REST API uses, which is the better answer for a server with no browser to sign in from. Keys are self-serve at https://walletlink.social for any signed-in account, free allowance included, and the keys modal offers a one-click install for Cursor and a one-line command for Claude Code at the moment a key is created.
 
 Tool discovery needs neither: a client can connect and list the tools before buying anything. Calling a tool with no credential answers 401 with a WWW-Authenticate header naming the protected resource metadata, which is the signal to start the flow, rather than a tool error a model would read out and move past.
 
 The skill file is at https://walletlink.social/skill.md, which is a URL a person can hand to an agent directly: what the tools are, what each costs, how to authenticate, and how to read a result. It is generated from the same constants and canonical sentences as this file, so it cannot drift from what the product actually charges or claims.
+
+There is also an Apify Actor at https://apify.com/starl3xx/wallet-to-twitter-farcaster-lookup, which wraps the same REST API for a scraping marketplace. It is free to run and takes the caller’s own key, so it draws the same free allowance and the same packs rather than a second balance.
 
 ## For agents: buying credits with USDC, no account
 
@@ -247,10 +249,12 @@ Individual holder reports live at /holders/{chain}/{contract address}, for examp
 
 Claim-by-claim comparisons with the alternatives, maintained and dated:
 
-- [All comparisons](https://walletlink.social/vs): the hub over the six pages below, split by whether the service still exists.
+- [All comparisons](https://walletlink.social/vs): the hub over the eight pages below, split by whether the service still exists.
+- [walletlink vs Absolute Labs](https://walletlink.social/vs/absolute-labs): a wallet relationship management platform sold by demo, with no price published anywhere on its site. Different purchase.
 - [walletlink vs Addressable](https://walletlink.social/vs/addressable): deterministic and owner-attested against probabilistic fingerprinting, and self-serve against a sales call.
 - [walletlink vs Cookie3](https://walletlink.social/vs/cookie3): their wallet-to-X matching caps at ten thousand accounts on every tier a person can buy. Cookie3 is not Cookie.fun; the page says so explicitly.
 - [walletlink vs Formo](https://walletlink.social/vs/formo): Formo is product analytics for your own app, billed per request whether or not an address resolves. Different purchase.
+- [walletlink vs Nansen](https://walletlink.social/vs/nansen): Nansen answers what a wallet does; its address API returns behavior and labels and no social account. We answer who published it.
 - [walletlink vs Holder](https://walletlink.social/vs/holder): Holder sunset in June 2024. A migration page, with no subscription to replace.
 - [walletlink vs Blaze](https://walletlink.social/vs/blaze): Blaze is no longer available. The page records the comparison for the searches that still land on it.
 - [walletlink vs Airstack](https://walletlink.social/vs/airstack): Airstack is no longer available, and its Farcaster APIs were deprecated before that. Same treatment.

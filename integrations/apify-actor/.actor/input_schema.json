@@ -44,7 +44,7 @@
     "apiKey": {
       "title": "walletlink.social API key",
       "type": "string",
-      "description": "Starts with wts_live_. Create one free at https://walletlink.social — the free allowance is 100 matches every 30 days, and wallets that resolve to nothing never count against it.",
+      "description": "Starts with wts_live_. Create one free at https://walletlink.social: the free allowance is 100 matches every 30 days, and wallets that resolve to nothing never count against it.",
       "editor": "textfield",
       "isSecret": true
     },

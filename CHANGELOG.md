@@ -2,6 +2,75 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (a key is not a spend, and the report could not see two products)
+
+- **Any signed-in account may now hold an API key.** The REST door refused one
+  to anybody on the free allowance while `mintAccessToken` in
+  `lib/oauth/grants.ts` had been writing `api_keys` rows on the same
+  `CREDIT_API_PLAN` with no credit test at all, so every free account that
+  connected an OAuth client already held a working key. One product, two
+  doors, opposite rules, and the refusing door was the one our own Apify
+  listing told strangers to use: the Actor has said "get a free API key" since
+  2026-09-17 and the endpoint answered 403.
+- The refusal protected nothing. What a key may draw is decided per call by
+  `trackApiUsage` against the same balance the web app uses, so a key on an
+  empty balance resolves 100 matches per rolling 30 days and then answers
+  NO_CREDITS. `apiPlanForAccount` lost its `hasCredits` parameter,
+  `requireDeveloperAccess` lost its tier gate, and the dashboard stopped
+  hiding usage from free accounts. `hasPaidAccess` still decides everything
+  that really is a spend.
+- Asserted from the direction that can regress: both doors are now compared in
+  `check-invariants.ts`, which nothing did before, which is why they disagreed
+  for as long as they did.
+- Copy corrected on the six surfaces that stated the old rule (README,
+  `docs-site/mcp-server.mdx`, `llms.txt` twice, `/mcp`, `skill.md`) and in
+  `server.json`, now **v1.4.0 and needing a registry publish**.
+- **The weekly report graded two products as bounces.** Activation counted
+  `lookup_started` alone, so the free single-wallet lookup on
+  `/find-twitter-account-from-wallet-address` and the app's reverse lookup
+  both registered as sessions that did nothing. One `ACTIVATION_EVENTS` list
+  now feeds all four query sites. The column is relabeled "Ran something" and
+  the report prints that the measure widened, because a number that moves
+  because its definition moved is not a trend.
+- That page was also missing from `CONTENT_PREFIXES` entirely, so the content
+  table could not show whether the page built for the head query drew anybody.
+
+### 2026-09-21 (four discovery fixes, one of them a live bug)
+
+- **The seed cron could not see the third holder index, so BNB Chain stayed
+  retired a day after its import path came back.** `getContractHolders` has
+  served bsc through the third index since 2026-09-20, but the discovery gate
+  asked only `hasSecondHolderIndex`, whose provider does not serve that chain.
+  Nine named BNB tokens were left holding the zero-holder row they recorded
+  before the rescue, and nothing could clear it: a candidate skipped at
+  discovery never updates `last_seeded_at`, so the row could not age past
+  `FAILURE_RETRY_DAYS`, and the weekly report re-read each stalled row as a
+  fresh failure every Monday. New `hasThirdHolderIndex` predicate, a rung per
+  index, asserted both ways in `check-invariants.ts`.
+- Verified live before the change rather than inferred from the ladder:
+  PancakeSwap answered 1,912,112 holders through the third index while
+  discovery was still refusing the chain. ENS, Clanker, GNS, Optimism and
+  Aavegotchi all resolve too, which is why the other nine contracts in that
+  report were stale rows awaiting a retry slot and not a second defect.
+- **The sitemap stopped borrowing the hub's listing.** It had asked Google to
+  index all 186 holder reports at one flat priority, and Search Console
+  answered with 83 "Discovered, currently not indexed" and 46 "Crawled,
+  currently not indexed". New `SITEMAP_MIN_REACHABLE` floor at 100 reachable
+  people, and priority banded by the size of the finding instead of 0.7 for
+  everything. No page is withdrawn or de-listed: the hub still links every
+  collection that clears the listing floor.
+- **Two comparison pages, `/vs/nansen` and `/vs/absolute-labs`**, every
+  competitor claim read live on 2026-09-21 and dated in the copy. The `/vs`
+  pages are the only ones on the site earning search impressions today.
+  Wired into the hub, the footer, `llms.txt`, the sitemap and the related-page
+  navs, and added to the 99.9% figure registry.
+- **The house-style gate now reads the Apify Actor's page**, which is
+  published marketing copy and had been outside it. It caught two real
+  violations on its first run: "labelled" in the README and an em dash in the
+  input schema, both rendering on apify.com today. The Actor is also now
+  linked from the repo README and `llms.txt`, the two surfaces that already
+  outrank the site.
+
 ### 2026-09-21 (robots.txt declares what may be done with the content, not just who may read it)
 
 - **`/robots.txt` now carries a `Content-Signal` line, and `app/robots.ts` is

@@ -90,16 +90,11 @@ export async function POST(request: NextRequest) {
 
   // Derived from the account, never taken from the request body. A
   // caller-supplied plan would let a Pro account request 'enterprise' limits.
-  const plan = apiPlanForAccount(auth.identity.tier, auth.identity.hasCredits);
-  if (!plan) {
-    return NextResponse.json(
-      {
-        error: 'API access needs credits. Buy a pack to get a key.',
-        upgradeRequired: true,
-      },
-      { status: 403 }
-    );
-  }
+  //
+  // Every signed-in account resolves to a plan now, so the 403 that stood here
+  // is gone: see `apiPlanForAccount` for why holding a key and being able to
+  // spend are different questions, and which one still refuses.
+  const plan = apiPlanForAccount(auth.identity.tier);
 
   const db = getDb();
   if (!db) {

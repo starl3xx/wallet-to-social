@@ -32,6 +32,7 @@ import { sql } from 'drizzle-orm';
 import {
   getContractHolders,
   hasSecondHolderIndex,
+  hasThirdHolderIndex,
   secondIndexIsOnlyHolderSource,
   usesMeteredHolderIndex,
   type HolderResult,
@@ -1055,12 +1056,23 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
      * neither.
      *
      * The condition keeps yesterday's refusal for every case where the rescue
-     * cannot happen: **BNB Chain**, which the second index's provider does not
-     * serve, and any deploy missing the index's key. Both walk into the same
-     * certain 401 the retirement existed to stop, so they stay refused at
+     * cannot happen: a deploy missing both metered keys walks into the same
+     * certain 401 the retirement existed to stop, so it stays refused at
      * discovery, where a candidate never selected spends no slot, writes no
      * attempt marker, and cannot leave a zero-holder row that locks a healthy
      * token out for FAILURE_RETRY_DAYS.
+     *
+     * **BNB Chain is no longer one of those cases, and this gate was the last
+     * thing still treating it as one.** The third metered index landed in
+     * `getContractHolders` on 2026-09-20 and has served the chain since, but
+     * the gate asked only `hasSecondHolderIndex`, whose provider does not
+     * serve BNB Chain, so discovery went on skipping it. Nine named BNB tokens
+     * were left holding the zero-holder row they recorded before the rescue,
+     * with nothing able to retry them: a skipped candidate never updates
+     * `last_seeded_at`, so the row could not age out, and the weekly report
+     * read each stalled row as a fresh failure every Monday. Verified live on
+     * 2026-09-21 before widening this: PancakeSwap answered 1,912,112 holders
+     * through the third index while discovery was still refusing the chain.
      *
      * The second clause covers the chain the metered predicate cannot see:
      * HyperEVM is not metered, so a keyless deploy sailed past the first
@@ -1074,7 +1086,8 @@ export async function runDailySeed(): Promise<SeedRunResult[]> {
      */
     if (
       (usesMeteredHolderIndex(chain) || secondIndexIsOnlyHolderSource(chain)) &&
-      !hasSecondHolderIndex(chain)
+      !hasSecondHolderIndex(chain) &&
+      !hasThirdHolderIndex(chain)
     ) {
       console.log(
         `ERC-20 seeding skipped on ${chain}: no holder index can serve it ` +

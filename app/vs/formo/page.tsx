@@ -745,6 +745,16 @@ export default function FormoComparison() {
                   <Link href="/vs/cookie3">vs Cookie3</Link>
                 </Button>
               </li>
+              <li>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/absolute-labs">vs Absolute Labs</Link>
+                </Button>
+              </li>
+              <li>
+                <Button asChild variant="link" size="inline">
+                  <Link href="/vs/nansen">vs Nansen</Link>
+                </Button>
+              </li>
             </ul>
           </nav>
         </article>

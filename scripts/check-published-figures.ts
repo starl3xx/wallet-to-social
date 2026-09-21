@@ -567,10 +567,12 @@ export const CLAIMS: Claim[] = [
       // The comparison pages carry the same claim in their own words; they
       // were outside the list when the 2026-08-22 Sybil import moved the
       // measured share, and drifted unguarded.
+      'app/vs/absolute-labs/page.tsx',
       'app/vs/addressable/page.tsx',
       'app/vs/airstack/page.tsx',
       'app/vs/blaze/page.tsx',
       'app/vs/holder/page.tsx',
+      'app/vs/nansen/page.tsx',
       'content/published/walletlink-vs-addressable.md',
       'content/published/walletlink-vs-blaze.md',
     ],

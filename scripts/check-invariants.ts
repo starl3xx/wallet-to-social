@@ -4050,6 +4050,45 @@ async function main() {
       'the cap is enforced only once a code has actually been issued',
       authorize.indexOf('enforceGrantCap(') > lost
     );
+
+    /**
+     * Both doors to a key agree about who may hold one.
+     *
+     * They did not between the day OAuth shipped and 2026-09-21.
+     * `mintAccessToken` wrote an `api_keys` row on `CREDIT_API_PLAN` with no
+     * credit test, while `POST /api/developer/keys` answered 403 to any
+     * account on the free allowance, and the Apify listing our own repo
+     * publishes sent strangers to the door that refused them. Nothing failed:
+     * each route was internally consistent and no test compared them.
+     *
+     * Asserted as the property rather than as the absence of one string, and
+     * from the direction that can actually regress: re-adding a credit test
+     * to the REST door while the OAuth door keeps minting freely.
+     */
+    ok(
+      'the OAuth door mints a key without asking about credits',
+      /plan: CREDIT_API_PLAN/.test(grants) &&
+        !/hasPaidAccess|onFreeAllowance/.test(grants)
+    );
+    const keysRoute = readFileSync('app/api/developer/keys/route.ts', 'utf8');
+    ok(
+      'and so the REST door does not refuse one for the lack of them',
+      !/upgradeRequired/.test(keysRoute) &&
+        !/needs credits/.test(keysRoute) &&
+        /apiPlanForAccount\(auth\.identity\.tier\)/.test(keysRoute)
+    );
+    {
+      const { apiPlanForAccount, CREDIT_API_PLAN } =
+        await import('@/lib/api-plans');
+      ok(
+        'a free account resolves to a real API plan, through the function itself',
+        apiPlanForAccount('free') === CREDIT_API_PLAN
+      );
+      ok(
+        'and a legacy tier still wins where it is higher',
+        apiPlanForAccount('unlimited') !== CREDIT_API_PLAN
+      );
+    }
   }
 
   // ------------------------------------------------- the source field shape
@@ -5628,9 +5667,16 @@ async function main() {
      * alone let a keyless deploy seed it straight into
      * OPENSEA_NOT_CONFIGURED, the exact poison row this gate exists to
      * prevent, on the one chain whose only ERC-20 source is that key.
+     *
+     * **The rescue half must name every rung of the ladder.** It named one
+     * rung from 2026-09-19 to 2026-09-21 while `getContractHolders` grew a
+     * second, so BNB Chain stayed refused at discovery for a day after its
+     * import path came back, and the nine named BNB tokens could not retry
+     * the row they had failed on. Asserted below rather than commented,
+     * because that is the shape this file exists to catch.
      */
     const seedGate =
-      /if \(\s*\(usesMeteredHolderIndex\(chain\) \|\|\s*secondIndexIsOnlyHolderSource\(chain\)\)\s*&&\s*!hasSecondHolderIndex\(chain\)\s*\) \{[\s\S]{0,400}?continue;/.exec(
+      /if \(\s*\(usesMeteredHolderIndex\(chain\) \|\|\s*secondIndexIsOnlyHolderSource\(chain\)\)\s*&&\s*!hasSecondHolderIndex\(chain\)\s*&&\s*!hasThirdHolderIndex\(chain\)\s*\) \{[\s\S]{0,400}?continue;/.exec(
         seed
       );
     ok(
@@ -5640,7 +5686,7 @@ async function main() {
           seed.indexOf('if (!ERC20_SUPPORTED_CHAINS.includes(chain)) {')
     );
     {
-      const { secondIndexIsOnlyHolderSource } =
+      const { secondIndexIsOnlyHolderSource, hasThirdHolderIndex } =
         await import('@/lib/contract-holders');
       ok(
         'hyperevm is the chain the keyless refusal exists for, and robinhood is untouched by it',
@@ -5648,6 +5694,33 @@ async function main() {
           !secondIndexIsOnlyHolderSource('robinhood') &&
           !secondIndexIsOnlyHolderSource('bsc')
       );
+
+      /**
+       * Go through the predicate, never around it, and assert the refusal.
+       *
+       * The key is read at call time, so the two answers are taken by moving
+       * the real environment variable rather than by recomputing what the
+       * function does. BNB Chain is the whole point of the third rung: with a
+       * key it must stop being refused, and without one it must still be
+       * refused, because a keyless deploy has nowhere left to ask and would
+       * write the zero-holder row this gate exists to prevent.
+       */
+      const chainbaseKey = process.env.CHAINBASE_API_KEY;
+      try {
+        process.env.CHAINBASE_API_KEY = 'test-key-not-a-real-credential';
+        ok(
+          'the third index rescues BNB Chain, which the second cannot serve',
+          hasThirdHolderIndex('bsc') && !hasThirdHolderIndex('hyperevm')
+        );
+        delete process.env.CHAINBASE_API_KEY;
+        ok(
+          'a deploy with no third-index key still refuses BNB Chain at discovery',
+          !hasThirdHolderIndex('bsc')
+        );
+      } finally {
+        if (chainbaseKey === undefined) delete process.env.CHAINBASE_API_KEY;
+        else process.env.CHAINBASE_API_KEY = chainbaseKey;
+      }
     }
 
     // ------------------------------------------- the holder walk (2026-09-20)

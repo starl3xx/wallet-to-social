@@ -201,6 +201,25 @@ The searchable surface is uncapped from 22: of the 42 recognized ERC-20
 contracts, the 31 on rescued chains (plus Robinhood's 2, which never stopped)
 can seed again, and the 9 on BSC stay out, knowingly.
 
+**BNB Chain came back on 2026-09-20 and the seed cron did not notice until
+2026-09-21.** A third metered index landed in `getContractHolders` that day and
+serves bsc, which is the chain the second index's provider does not cover. The
+import path worked from that moment. Discovery did not: its gate asked
+`hasSecondHolderIndex` and nothing else, so it went on refusing the chain for a
+day, and the nine BNB tokens kept the zero-holder row they had recorded before
+either rescue existed. A skipped candidate writes no attempt marker, so
+`last_seeded_at` never moved and the row could not age past
+`FAILURE_RETRY_DAYS`; the weekly report then read each frozen row as a fresh
+failure, every Monday, which is how one gate produced twenty names on an alarm
+built to show two.
+
+Fixed with a predicate per rung, `hasThirdHolderIndex`, so the gate has to be
+widened when a fourth arrives rather than silently under-reporting. Verified
+live first: PancakeSwap answered 1,912,112 holders through the third index
+while discovery was still refusing the chain. **So the 9 BSC contracts are no
+longer knowingly out**, and the only ERC-20 contracts still excluded are ones a
+provider genuinely cannot serve.
+
 **2026-09-20: coverage became monotonic.** `seeded_contracts.resume_state`
 bookmarks each unfinished holder walk, so a re-seed continues down the
 balance-sorted list instead of re-importing the same top 2,000 forever.
@@ -288,15 +307,32 @@ which is why they still need their own submissions.
 
 ### Developer marketplaces
 
-Where the head consumer query already resolves, and where the product is not.
+Where the head consumer query already resolves.
 
-| Surface  | Why it matters                                                 |
-| -------- | -------------------------------------------------------------- |
-| Apify    | Owns "find twitter account from ethereum wallet address" today |
-| RapidAPI | Where API buyers browse rather than search                     |
+| Surface  | Status 2026-09-21                                               |
+| -------- | --------------------------------------------------------------- |
+| Apify    | **Live** since 2026-09-17, and unusable by its own instructions |
+| RapidAPI | Absent. Where API buyers browse rather than search              |
 
-Apify is the sharpest one. A competing Actor wins that query with tweet scraping
+Its 8 runs and 2 users are not a demand signal. The Actor told every visitor to
+fetch a free API key, and the endpoint refused one to any account without a
+pack, so the documented path never completed for anybody. Fixed 2026-09-21, see
+the log entry. Read the usage numbers from that date rather than from the
+listing's lifetime.
+
+Apify was the sharpest one and the Actor shipped in PR #261:
+`apify.com/starl3xx/wallet-to-twitter-farcaster-lookup`, free to run, taking the
+caller's own key. A competing Actor still wins that query with tweet scraping
 and confidence scores, which is the weaker method the product is sold against.
+
+**Being listed is not being found, and the numbers say which we are.** Checked
+2026-09-21: the Actor does not appear in Apify's own store search for "wallet
+twitter" or for "farcaster", because that search ranks on usage and one user in
+thirty days ranks nowhere. So the store slot is not the asset. The asset is the
+Actor's page, which sits on a domain that already outranks walletlink.social
+for the head query, and the lever on it is the README and the links pointing at
+it. Both were worked on 2026-09-21; neither is a thing that pays inside a
+month.
 
 ### Code and list surfaces
 
@@ -330,6 +366,111 @@ generating revenue before spending. Free surfaces only.
 
 Newest first. One row per intervention, with what it was expected to move, so a
 later reader can check whether it did.
+
+### 2026-09-21 — the Apify funnel never worked, and the report could not see it
+
+Found in review of the change below, and it invalidates the premise PR #261
+shipped on ("installs funnel into the 100-match free allowance"). They never
+could. `POST /api/developer/keys` refused a key to any account on the free
+allowance, so a stranger following the Actor's own instructions signed up, went
+to fetch a key, and got a 403. The Actor has said "get a free API key" since
+2026-09-17.
+
+The rule was also only half enforced. `mintAccessToken` in
+`lib/oauth/grants.ts` writes an `api_keys` row on the same plan with no credit
+test, so any free account connecting an OAuth client had a working key already.
+Two doors, opposite rules, nothing comparing them.
+
+**Decided by Jake 2026-09-21: align the gate with what OAuth already did.** Any
+signed-in account may hold a key; the free allowance decides what it can draw.
+A key is not a spend, and `trackApiUsage` was always the thing protecting
+revenue.
+
+Expected to move: the Apify Actor's install-to-first-run rate, which cannot be
+read from this report because those arrivals land on apify.com. The figure
+visible here is signups, which should rise if the Actor sends anybody, and the
+free-to-paid step, which is now reachable from the Actor for the first time.
+The honest statement is that the Actor has had **zero working installs by the
+documented route** since 2026-09-17, so its 8 runs and 1 user are not evidence
+about demand.
+
+Two measurement fixes shipped with it, both of which were understating the
+pages this month's work is about:
+
+- **`CONTENT_PREFIXES` omitted `/find-twitter-account-from-wallet-address`**,
+  the free tool at the exact-match URL for the head query and a sitemap 0.9.
+  The content table could not show whether it drew anybody.
+- **Activation counted `lookup_started` alone**, so that page's free
+  single-wallet lookup and the app's reverse lookup both counted as bounces.
+  Widened to one `ACTIVATION_EVENTS` list across all four query sites. **This
+  breaks comparability with the 2026-09-16 baseline**, and the report says so
+  in its own output rather than leaving a reader to infer it.
+
+### 2026-09-21 — the bottleneck moved, and four things shipped against it
+
+Search Console, 28 days to 2026-09-19: **1 click, 488 impressions, CTR 0.2%,
+average position 32.5**. Against the 2026-08-28 baseline of 4 clicks and 379
+impressions over three months at position 50.1, impressions per day are up
+roughly fourfold and average position has improved eighteen places. Clicks have
+not moved, because position 32.5 is page four.
+
+So the September diagnosis is out of date. "No impressions" was the problem;
+"impressions that convert to nothing" is the problem now, and it has two
+separate causes, which is why four changes shipped rather than one.
+
+**Cause one: 129 pages are not in the index.** Coverage on 2026-09-21 is 148
+indexed against 145 not indexed, and the refusals split 83 "Discovered,
+currently not indexed" and 46 "Crawled, currently not indexed", plus 12 blocked
+by robots.txt and 3 redirects. The first bucket is Google declining to spend a
+crawl at all.
+
+**Cause two: the pages that do earn impressions are the comparisons**, and
+there were six of them. The top queries are `token launch referral` (33),
+`addressable` (24), `formo vs addressable…` (17) and `chainlink holders` (13),
+every one at zero clicks.
+
+One thing that was checked and changed the plan. The original intervention was
+"cut the holder sitemap to the contracts a person would search by name". The
+report earning the most impressions today is **Rare Friends Genesis at 185
+reachable**, well under the median of 243, found by people searching its bare
+contract address across three query spellings. A cut by name recognition or by
+median would have removed the one holder page with measured demand, so the
+floor was set at 100 and the ordering signal did the rest.
+
+What shipped, and what each is expected to move:
+
+1. **The third holder index reaches the discovery gate.** Not an SEO change:
+   the programmatic surface cannot grow into the searches it answers while a
+   ninth of the named list is locked out. Expected to move the report's
+   "attempted this week and imported nothing" line from 20 toward the two
+   Robinhood transients, over two to three weeks as retry slots come round.
+   If it stalls above 11, something else is wrong and it is not the gate.
+2. **A sitemap floor at 100 reachable, and banded priority.** Expected to move
+   "Discovered, currently not indexed" down from 83. It should NOT move clicks
+   inside a month, and if the indexed count falls instead, the floor was set
+   too high and 100 is one constant to change.
+3. **`/vs/nansen` and `/vs/absolute-labs`.** Expected to move impressions, not
+   clicks, and not for six to eight weeks. The figure to watch is whether
+   either competitor's name appears in the query table at all.
+4. **The Apify Actor linked from the README and `llms.txt`.** The Actor is live
+   and invisible: 8 runs and 1 user in 30 days, and it does not surface in
+   Apify's own store search. Its value is the page, which sits on a domain that
+   already outranks us for the head query. Expected to move nothing measurable
+   here, because arrivals through it land on apify.com. The test is whether
+   the Actor's page starts appearing for the head query by November.
+
+Two things found while measuring that are not interventions and are recorded so
+the next reader does not rediscover them:
+
+- **`npm run growth:report` fails locally**: the `DATABASE_URL` in `.env.local`
+  is stale and answers `password authentication failed for user
+'neondb_owner'`. CI has the working credential, so the weekly job is
+  unaffected and the local path needs the password refreshed.
+- **The Monday 09:00 UTC slot had not fired at 15:39 UTC**, and neither had
+  `holder-fallback`, which shares it. `published-figures` at 08:00 fired at
+  14:45, six hours and forty-five minutes late, so GitHub is delaying this
+  repo's Monday crons rather than dropping them. Worth moving both off the
+  top of the hour if the delay persists.
 
 ### 2026-09-16 — ten collections, because the NFT queue was empty
 
