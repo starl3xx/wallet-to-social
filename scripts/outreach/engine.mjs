@@ -387,12 +387,13 @@ export async function tick(
     for (const message of lead.messages.filter((m) =>
       ['sending', 'uncertain'].includes(m.status)
     )) {
-      const receipt = await provider.findSent(message.rfcId);
+      const receipt = await provider.findSent(message.rfcId, { lead, message });
       if (receipt) {
         message.status = 'sent';
         message.sentAt = receipt.sentAt;
         message.providerId = receipt.id;
         message.threadId = receipt.threadId;
+        message.providerRfcId = receipt.rfcId;
         audit(
           state,
           'reconciled',
@@ -447,6 +448,7 @@ export async function tick(
       continue;
     }
     message.rfcId = `<${message.id}@${state.config.sender.split('@')[1]}>`;
+    message.deliveryId = message.id;
     message.status = 'sending';
     message.attemptedAt = now;
     audit(

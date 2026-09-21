@@ -15,6 +15,10 @@ export function mime(lead, message, index) {
     `To: ${lead.email}`,
     `Subject: =?UTF-8?B?${Buffer.from(message.subject).toString('base64')}?=`,
     `Message-ID: ${message.rfcId}`,
+    `Date: ${new Date(message.attemptedAt ?? lead.createdAt).toUTCString()}`,
+    ...(message.deliveryId
+      ? [`X-WalletLink-Delivery-ID: ${message.deliveryId}`]
+      : []),
     `Reply-To: ${message.from}`,
     'MIME-Version: 1.0',
     'Content-Type: text/plain; charset=UTF-8',
@@ -151,39 +155,117 @@ export class Gmail {
   }
 
   async send(lead, message, index) {
-    const previous = lead.messages[index - 1];
+    // Read canonical IDs before sending a follow-up. A failure here sends nothing.
+    const previousMessages = [];
+    let threadId;
+    for (const previous of lead.messages.slice(0, index)) {
+      const receipt = await this.findSent(previous.rfcId, {
+        lead,
+        message: previous,
+      });
+      if (!receipt)
+        throw new Error('Previous message is not verified in Sent Mail');
+      previousMessages.push({ ...previous, rfcId: receipt.rfcId });
+      threadId = receipt.threadId;
+    }
     return this.request('/messages/send', {
       method: 'POST',
       body: JSON.stringify({
-        raw: mime(lead, message, index),
-        ...(previous?.threadId ? { threadId: previous.threadId } : {}),
+        raw: mime(
+          { ...lead, messages: [...previousMessages, message] },
+          message,
+          index
+        ),
+        ...(threadId ? { threadId } : {}),
       }),
     });
   }
 
-  async findSent(rfcId) {
+  async findSent(rfcId, { lead, message: expected } = {}) {
     if (!rfcId)
       throw new Error('Cannot reconcile a message without its stable ID');
-    const query = `in:sent rfc822msgid:${rfcId.replace(/[<>]/g, '')}`;
-    const result = await this.request(
-      `/messages?${new URLSearchParams({ q: query, maxResults: '2' })}`
+    const address = (value) =>
+      (value?.match(/<([^>]+)>/)?.[1] || value || '').trim().toLowerCase();
+    const inspect = async (id, byProviderId = false) => {
+      const found = await this.request(
+        `/messages/${encodeURIComponent(id)}?format=metadata`
+      );
+      if (!found.labelIds?.includes('SENT')) return null;
+      if (
+        lead &&
+        (address(header(found, 'To')) !== lead.email ||
+          address(header(found, 'From')) !== expected.from)
+      )
+        return null;
+      const actualId = header(found, 'Message-ID');
+      const markerMatches =
+        expected?.deliveryId &&
+        header(found, 'X-WalletLink-Delivery-ID') === expected.deliveryId;
+      if (!byProviderId && actualId !== rfcId && !markerMatches) return null;
+      const sentAt = Number(found.internalDate);
+      if (
+        !found.id ||
+        !found.threadId ||
+        !Number.isFinite(sentAt) ||
+        sentAt <= 0 ||
+        !/^<[^<>\s]+@[^<>\s]+>$/.test(actualId || '')
+      )
+        throw new Error('Invalid delivery receipt');
+      return {
+        id: found.id,
+        threadId: found.threadId,
+        sentAt,
+        rfcId: actualId,
+      };
+    };
+    if (expected?.providerId) {
+      const receipt = await inspect(expected.providerId, true);
+      if (!receipt)
+        throw new Error(
+          'Stored provider receipt does not match the sent message'
+        );
+      return receipt;
+    }
+    const matches = new Map();
+    const inspected = new Set();
+    const collect = async (result) => {
+      for (const item of result.messages || []) {
+        if (inspected.has(item.id)) continue;
+        inspected.add(item.id);
+        const receipt = await inspect(item.id);
+        if (receipt) matches.set(receipt.id, receipt);
+      }
+      if (matches.size > 1)
+        throw new Error(
+          'Multiple delivery receipts require manual reconciliation'
+        );
+    };
+    const exact = await this.request(
+      `/messages?${new URLSearchParams({ q: `in:sent rfc822msgid:${rfcId.replace(/[<>]/g, '')}`, maxResults: '2' })}`
     );
-    if (!result.messages?.length) return null;
-    if (result.messages.length !== 1)
+    await collect(exact);
+    if (exact.nextPageToken)
       throw new Error(
         'Multiple delivery receipts require manual reconciliation'
       );
-    const message = await this.request(
-      `/messages/${encodeURIComponent(result.messages[0].id)}?format=metadata`
-    );
-    const sentAt = Number(message.internalDate);
-    if (
-      !message.id ||
-      !message.threadId ||
-      !Number.isFinite(sentAt) ||
-      sentAt <= 0
-    )
-      throw new Error('Invalid delivery receipt');
-    return { id: message.id, threadId: message.threadId, sentAt };
+    // Gmail may rewrite Message-ID. Search a bounded time window and inspect
+    // exact custom markers, never infer delivery from subject/body similarity.
+    if (expected?.deliveryId && Number.isFinite(expected.attemptedAt) && lead) {
+      let pageToken;
+      for (let page = 0; page < 5; page++) {
+        const query = `in:sent after:${Math.floor(expected.attemptedAt / 1000) - 60} before:${Math.ceil(expected.attemptedAt / 1000) + 86400}`;
+        const params = new URLSearchParams({ q: query, maxResults: '100' });
+        if (pageToken) params.set('pageToken', pageToken);
+        const result = await this.request(`/messages?${params}`);
+        await collect(result);
+        pageToken = result.nextPageToken;
+        if (!pageToken) break;
+        if (page === 4)
+          throw new Error(
+            'Sent Mail scan limit reached; manual reconciliation required'
+          );
+      }
+    }
+    return [...matches.values()][0] || null;
   }
 }

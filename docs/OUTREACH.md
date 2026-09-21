@@ -3,7 +3,10 @@
 Status as of September 21, 2026: Gmail OAuth is connected and the sending
 alias is verified. The local runner remains paused, with no worker installed
 and no outreach sent. Existing-account exclusion access is connected and the
-first sync passed. Live delivery and reply-detection checks remain outstanding.
+first sync passed. Owner-mailbox delivery and same-thread reply detection
+passed. Lost-response delivery recovery also passed against an operator-approved
+live test with a rewritten Message-ID and zero resends. Separate-thread reply
+and bounce checks still need live verification.
 The existing Resend welcome and nonbuyer campaigns remain live and unchanged.
 
 starl3xx chose this policy on September 21, 2026: approve each initial message,
@@ -207,11 +210,19 @@ an unavoidable race; the next tick will stop further messages.
 
 ## Delivery recovery
 
-The stable RFC Message-ID and `sending` state are committed before Gmail is
-called. A timeout or a crash leaves an uncertain attempt. Later ticks search
-Sent Mail for that exact ID and reconcile a matching receipt. Until then,
-all sending remains blocked. There is no blind retry, including after a
-provider error; this favors avoiding duplicate outreach.
+The RFC Message-ID, separate delivery marker, attempt timestamp and `sending`
+state are committed before Gmail is called. MIME includes a Date header.
+Gmail can rewrite Message-ID, so recovery must not assume it survives.
+When a provider ID is available, recovery reads and verifies that exact Sent
+message. Otherwise it searches the original Message-ID and scans Sent Mail
+around the attempt for the exact `X-WalletLink-Delivery-ID` header, validating
+the sender and recipient. The scan is bounded to 500 messages; duplicate
+matches or an incomplete scan require manual reconciliation. Metadata is
+read, not message bodies. A missing match leaves all sending blocked.
+
+Follow-ups fetch the verified canonical IDs from Gmail before constructing
+References and In-Reply-To. No uncertain attempt is automatically resubmitted,
+including after an empty search result or provider error.
 
 If a receipt never appears, investigate the provider and mailbox before
 manually recovering the state. Do not clear an uncertain record just to

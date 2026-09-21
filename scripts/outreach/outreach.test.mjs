@@ -585,3 +585,120 @@ test('refreshing evidence resets approval without changing identity or reviving 
   stop(state, lead.id, 'unsubscribed', NOW + DAY);
   assert.throws(() => refreshEvidence(state, lead.id, prospect, NOW + DAY));
 });
+
+function recoveryFixture() {
+  const { lead } = fixture();
+  const message = lead.messages[0];
+  message.rfcId = '<original@example.com>';
+  message.deliveryId = message.id;
+  message.attemptedAt = NOW;
+  const remote = {
+    id: 'gmail-id',
+    threadId: 'gmail-thread',
+    internalDate: String(NOW),
+    labelIds: ['SENT'],
+    payload: {
+      headers: [
+        { name: 'Message-ID', value: '<rewritten@mail.gmail.com>' },
+        { name: 'X-WalletLink-Delivery-ID', value: message.deliveryId },
+        { name: 'From', value: `Operator <${config.sender}>` },
+        { name: 'To', value: lead.email },
+      ],
+    },
+  };
+  return { lead, message, remote };
+}
+
+test('MIME includes a persisted Date and separate delivery marker', () => {
+  const { lead, message } = recoveryFixture();
+  const raw = Buffer.from(mime(lead, message, 0), 'base64url').toString();
+  assert.ok(raw.includes(`Date: ${new Date(NOW).toUTCString()}`));
+  assert.ok(raw.includes(`X-WalletLink-Delivery-ID: ${message.deliveryId}`));
+});
+
+test('recovery finds a rewritten ID by exact delivery marker without resending', async () => {
+  const { lead, message, remote } = recoveryFixture();
+  const { client, calls } = gmailMock([
+    { access_token: 'token' },
+    {},
+    { messages: [{ id: remote.id }] },
+    remote,
+  ]);
+  const receipt = await client.findSent(message.rfcId, { lead, message });
+  assert.equal(receipt.rfcId, '<rewritten@mail.gmail.com>');
+  assert.equal(receipt.id, remote.id);
+  assert.ok(calls.every((c) => !c.url.endsWith('/messages/send')));
+});
+
+test('recovery uses provider ID directly when available', async () => {
+  const { lead, message, remote } = recoveryFixture();
+  message.providerId = remote.id;
+  const { client, calls } = gmailMock([{ access_token: 'token' }, remote]);
+  assert.equal(
+    (await client.findSent(message.rfcId, { lead, message })).id,
+    remote.id
+  );
+  assert.equal(calls.length, 2);
+});
+
+test('recovery refuses unrelated markers, wrong recipients and non-Sent messages', async () => {
+  for (const change of [
+    (r) => (r.payload.headers[1].value = 'unrelated'),
+    (r) => (r.payload.headers[3].value = 'someone-else@example.org'),
+    (r) => (r.labelIds = ['INBOX']),
+  ]) {
+    const { lead, message, remote } = recoveryFixture();
+    change(remote);
+    const { client } = gmailMock([
+      { access_token: 'token' },
+      {},
+      { messages: [{ id: remote.id }] },
+      remote,
+    ]);
+    assert.equal(await client.findSent(message.rfcId, { lead, message }), null);
+  }
+});
+
+test('duplicate delivery markers block reconciliation', async () => {
+  const { lead, message, remote } = recoveryFixture();
+  const second = { ...remote, id: 'second' };
+  const { client } = gmailMock([
+    { access_token: 'token' },
+    {},
+    { messages: [{ id: remote.id }, { id: second.id }] },
+    remote,
+    second,
+  ]);
+  await assert.rejects(
+    client.findSent(message.rfcId, { lead, message }),
+    /Multiple/
+  );
+});
+
+test('recovery will not treat an incomplete scan as proof of a unique delivery', async () => {
+  const { lead, message } = recoveryFixture();
+  const pages = Array.from({ length: 5 }, () => ({ nextPageToken: 'next' }));
+  const { client } = gmailMock([{ access_token: 'token' }, {}, ...pages]);
+  await assert.rejects(
+    client.findSent(message.rfcId, { lead, message }),
+    /scan limit/
+  );
+});
+
+test('follow-up references use Gmail canonical IDs after rewriting', async () => {
+  const { lead, message, remote } = recoveryFixture();
+  message.providerId = remote.id;
+  const followup = lead.messages[1];
+  followup.rfcId = '<next@example.com>';
+  followup.attemptedAt = NOW + 4 * DAY;
+  const { client, calls } = gmailMock([
+    { access_token: 'token' },
+    remote,
+    { id: 'next', threadId: remote.threadId },
+  ]);
+  await client.send(lead, followup, 1);
+  const sent = JSON.parse(calls.at(-1).options.body);
+  const raw = Buffer.from(sent.raw, 'base64url').toString();
+  assert.match(raw, /In-Reply-To: <rewritten@mail.gmail.com>/);
+  assert.equal(sent.threadId, remote.threadId);
+});

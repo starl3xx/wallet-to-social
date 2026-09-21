@@ -62,8 +62,9 @@ operator runbook is [OUTREACH.md](OUTREACH.md). It requires initial-message
 approval, checks replies before sending, and automates at most two follow-ups.
 Existing Resend lifecycle campaigns are unchanged. As of September 21, 2026, Gmail authorization and the restricted read-only
 account-exclusion connection are verified. The first exclusion sync passed.
-The runner remains paused with no background schedule installed; live delivery
-and reply checks are still pending. Runtime prospects and SQLite state stay outside the public repo.
+The runner remains paused with no background schedule installed. Owner-mailbox
+delivery, same-thread reply detection and lost-response recovery passed;
+separate-thread reply and bounce checks remain pending. Runtime prospects and SQLite state stay outside the public repo.
 
 ## Right to removal: the operator runbook (stage 1)
 
