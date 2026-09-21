@@ -6,12 +6,14 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 /**
- * Daily read of the whole Ethos dataset.
+ * The identity-platform sweep, onchain since 2026-09-20.
  *
- * About 80 requests and well under a minute for the entire base, against a
- * public API with no key and no metering, so unlike the Farcaster sweep and the
- * holder index this consults no budget: there is no allowance to protect and
- * nothing a heavy day could exhaust.
+ * Daily runs are incremental: attestation events since the checkpoint, with
+ * the frontier held for anything unresolved. `?full=1` (the weekly cron
+ * entry) re-scans the whole event history and re-reads every active
+ * profile's addresses, because connecting a wallet to an existing profile
+ * emits no attestation event, so only a full pass sees it: the onchain
+ * equivalent of the REST era's daily re-enumeration.
  *
  * It fills X handles where we hold none, attaches the numeric X account id
  * wherever the handle it belongs to is the one we already store, and records
@@ -33,7 +35,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const stats = await sweepEthos();
+    const full = request.nextUrl.searchParams.get('full') === '1';
+    const stats = await sweepEthos(undefined, { full });
 
     /**
      * `ok` decided BEFORE the event is written, by the same expression that
@@ -48,20 +51,19 @@ export async function GET(request: NextRequest) {
      * One expression, used twice, so the status code and the record can never
      * disagree.
      */
-    const ok = stats.links > 0;
+    /**
+     * Under the REST sweep zero links meant the read failed, because every
+     * run re-read the whole base. An incremental run finishes a quiet window
+     * with zero links as a matter of course, so "ok" is now "the run
+     * completed": a throw is the failure signal, and `frontierHeld` in the
+     * record says a range is waiting on the resolver without being an error
+     * (caught in review, on the exact day the meaning of zero changed).
+     */
+    const ok = true;
 
     trackEvent('lookup_completed', {
-      metadata: { eventSubtype: 'ethos_sweep', ok, ...stats },
+      metadata: { eventSubtype: 'ethos_sweep', ok, full, ...stats },
     }).catch(console.error);
-
-    // A sweep that read no pages is a failure that returns 200 otherwise, and
-    // this runs unattended, so say so in the status code.
-    if (!ok) {
-      return NextResponse.json(
-        { message: 'Ethos sweep read no links', ...stats },
-        { status: 502 }
-      );
-    }
 
     return NextResponse.json({ message: 'ok', ...stats });
   } catch (error) {

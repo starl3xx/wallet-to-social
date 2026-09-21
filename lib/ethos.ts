@@ -109,6 +109,16 @@ const DEAD_AFTER_ATTEMPTS = 5;
 /** Resolver credits one run may spend, unless the env var says otherwise. */
 const DEFAULT_RESOLVE_CREDITS = 900;
 
+/**
+ * The most blocks one run may scan, so the range is bounded whatever the
+ * checkpoint says. The full backfill's 26.4M blocks scanned in about two
+ * minutes over a keyed RPC, so 10M is a comfortable slice of the cron's
+ * 300s; a held frontier or a fresh deploy just takes a few runs to walk
+ * forward instead of gambling one oversized scan against the timeout,
+ * which would also starve the denial ledger that unsticks the frontier.
+ */
+const MAX_BLOCKS_PER_RUN = 10_000_000;
+
 function getProvider(): ethers.JsonRpcProvider {
   const endpoint = process.env.ALCHEMY_KEY
     ? `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_KEY}`
@@ -275,7 +285,11 @@ async function multicallAdaptive(
 async function walletsForProfiles(
   provider: ethers.JsonRpcProvider,
   profileIds: bigint[],
-  stats: EthosSweepStats
+  stats: EthosSweepStats,
+  /** Profiles whose reads FAILED (not archived, not empty): the caller must
+   *  hold the frontier for their ids, or a flaky call silently drops links
+   *  forever (caught in review). */
+  failed: Set<string>
 ): Promise<Map<string, string[]>> {
   const out = new Map<string, string[]>();
   const BATCH = 200;
@@ -298,7 +312,10 @@ async function walletsForProfiles(
     for (let j = 0; j < batch.length; j++) {
       const existsRes = results[j * 2];
       const addrRes = results[j * 2 + 1];
-      if (!existsRes.success || !addrRes.success) continue;
+      if (!existsRes.success || !addrRes.success) {
+        failed.add(batch[j].toString());
+        continue;
+      }
       try {
         const [exists, archived] = profileIface.decodeFunctionResult(
           'profileExistsAndArchivedForId',
@@ -319,7 +336,8 @@ async function walletsForProfiles(
           );
         if (wallets.length > 0) out.set(batch[j].toString(), wallets);
       } catch {
-        // A profile this interface cannot decode is skipped, not guessed at.
+        // Undecodable is a failed read, not an empty profile: hold, retry.
+        failed.add(batch[j].toString());
       }
     }
   }
@@ -376,6 +394,7 @@ async function knownHandles(ids: string[]): Promise<Map<string, string>> {
       FROM social_graph
       WHERE twitter_user_id = ANY(${sql.param(batch)}::text[])
         AND twitter_handle IS NOT NULL
+      ORDER BY twitter_user_id, last_updated_at DESC NULLS LAST
     `)) as unknown as {
       rows: Array<{ twitter_user_id: string; twitter_handle: string }>;
     };
@@ -440,13 +459,33 @@ async function abandonedIds(ids: string[]): Promise<Set<string>> {
  * unabandoned, so tomorrow's run re-offers it.
  */
 export async function sweepEthos(
-  onProgress?: (msg: string) => void
+  onProgress?: (msg: string) => void,
+  options?: {
+    /**
+     * Re-scan the whole event history and re-read every active profile's
+     * addresses. The incremental run only reads profiles that emitted an
+     * attestation event in its window, so a wallet CONNECTED to an existing
+     * profile later never appears in any window; the REST sweep re-read
+     * everyone daily and caught those. The weekly full pass is that
+     * re-read, onchain (caught in review).
+     */
+    full?: boolean;
+  }
 ): Promise<EthosSweepStats> {
+  const full = options?.full === true;
   const provider = getProvider();
   const head = await provider.getBlockNumber();
-  const target = head - 20;
   const checkpoint = await getCheckpoint();
-  const fromBlock = checkpoint !== null ? checkpoint + 1 : DEPLOY_BLOCK;
+  const fromBlock = full
+    ? DEPLOY_BLOCK
+    : checkpoint !== null
+      ? checkpoint + 1
+      : DEPLOY_BLOCK;
+  // A full pass ignores the cap: it exists to re-read every profile, and it
+  // is dispatched on the weekly schedule where the budget is minutes.
+  const target = full
+    ? head - 20
+    : Math.min(head - 20, fromBlock + MAX_BLOCKS_PER_RUN - 1);
 
   const stats: EthosSweepStats = {
     blocksScanned: Math.max(0, target - fromBlock + 1),
@@ -521,7 +560,23 @@ export async function sweepEthos(
   // Wallets for the profiles whose ids we can actually name.
   const resolvable = activeIds.filter(([id]) => handles.has(id));
   const profileIds = [...new Set(resolvable.map(([, s]) => s.profileId))];
-  const wallets = await walletsForProfiles(provider, profileIds, stats);
+  const failedProfiles = new Set<string>();
+  const wallets = await walletsForProfiles(
+    provider,
+    profileIds,
+    stats,
+    failedProfiles
+  );
+  // A failed profile read holds the frontier exactly as an unresolved id
+  // does: the link is not skippable, only not-yet-readable.
+  if (failedProfiles.size > 0) {
+    for (const [, s] of resolvable) {
+      if (failedProfiles.has(s.profileId.toString())) {
+        checkpointTo = Math.min(checkpointTo, s.firstBlock - 1);
+      }
+    }
+    stats.frontierHeld = checkpointTo < target;
+  }
 
   const links: AttestedLink[] = [];
   for (const [id, s] of resolvable) {
