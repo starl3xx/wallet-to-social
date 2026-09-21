@@ -96,7 +96,7 @@ Every pack includes the same features; packs differ only in how many matches the
 
 Three doors into the same index, drawing the same match balance. The full reference, including credit costs, rate limits and error codes, is at **[docs.walletlink.social](https://docs.walletlink.social/api-reference/introduction)**; the README does not restate it.
 
-**REST.** Keys are self-serve from the account menu for any account holding credits. A call draws credits only for wallets that resolve.
+**REST.** Keys are self-serve from the account menu for any signed-in account, including one on the free allowance. A call draws credits only for wallets that resolve, so the key and the balance are separate questions.
 
 ```bash
 curl https://walletlink.social/api/v1/wallet/0xd8da...96045 \
@@ -108,6 +108,8 @@ curl https://walletlink.social/api/v1/wallet/0xd8da...96045 \
 **The skill file.** `https://walletlink.social/skill.md`, for an agent that installs a capability from a URL rather than a config block: the tools, what each costs, how to authenticate, how to read a result. Generated from the same constants and canonical sentences as everything else, so it cannot quote a price the product does not charge.
 
 **Onchain rail.** `POST /api/x402/buy` sells a $1 Agent pack for USDC on Base with no account, no card and no email: pay, and the response carries a fresh API key. `/api/x402/recover` reissues a key to the wallet that paid, on a signed challenge.
+
+**Apify.** [Wallet to Twitter & Farcaster Lookup](https://apify.com/starl3xx/wallet-to-twitter-farcaster-lookup) wraps the REST API as a marketplace Actor, for people who buy tooling by browsing rather than by reading docs. Free to run, and it takes the caller’s own key, so it spends the same free allowance and the same packs. Source in `integrations/apify-actor/`.
 
 ---
 

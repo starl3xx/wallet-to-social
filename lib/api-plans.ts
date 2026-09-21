@@ -212,16 +212,36 @@ export function apiPlanForTier(tier: string): string | null {
 }
 
 /**
- * The plan for an account, from either entitlement.
+ * The plan for an account. Every signed-in account has one.
  *
  * A legacy tier wins where it is higher, so an Unlimited account that also buys
  * a pack keeps `startup` rather than being quietly demoted to `developer`.
+ *
+ * ## Why this no longer refuses an account with no pack
+ *
+ * It took a `hasCredits` flag until 2026-09-21 and returned null without it,
+ * which made a key something you bought rather than something you held. The
+ * reasoning recorded in `lib/developer-auth.ts` was that the free allowance
+ * would "let every signup mint a key", and that was already true through a
+ * door nobody checked: `mintAccessToken` in `lib/oauth/grants.ts` writes an
+ * `api_keys` row on this very plan with no credit test at all, so any free
+ * account connecting an OAuth client has had a working key all along. One
+ * product, two doors, opposite rules, and the REST door was the one our own
+ * marketplace listing told strangers to use.
+ *
+ * **A key is not a spend, and this function was never the thing protecting
+ * revenue.** What a key can draw is decided per call by `trackApiUsage`
+ * against the same balance the app uses: 100 matches per rolling 30 days on
+ * the free allowance, then NO_CREDITS. A minted key on an empty balance can
+ * resolve nothing it could not already resolve by pasting the addresses into
+ * the web app. What the refusal actually bought was a paywall in front of the
+ * Apify Actor, whose own page had been promising a free key since 2026-09-17.
+ *
+ * So the rule is now the one the product already half-implemented: any
+ * account may hold a key, and the allowance decides what the key can do.
  */
-export function apiPlanForAccount(
-  tier: string,
-  hasCredits: boolean
-): string | null {
-  return apiPlanForTier(tier) ?? (hasCredits ? CREDIT_API_PLAN : null);
+export function apiPlanForAccount(tier: string): string {
+  return apiPlanForTier(tier) ?? CREDIT_API_PLAN;
 }
 
 /** Daily request allowance for a tier, or null if it has no API access. */

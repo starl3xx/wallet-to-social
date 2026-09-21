@@ -148,10 +148,12 @@ export function SiteFooter() {
               footer that offers a comparison with a dead product tells a
               visitor we have not looked lately. */}
           <FooterColumn title="Compare">
+            <FooterLink href="/vs/absolute-labs">vs Absolute Labs</FooterLink>
             <FooterLink href="/vs/addressable">vs Addressable</FooterLink>
             <FooterLink href="/vs/holder">vs Holder</FooterLink>
             <FooterLink href="/vs/cookie3">vs Cookie3</FooterLink>
             <FooterLink href="/vs/formo">vs Formo</FooterLink>
+            <FooterLink href="/vs/nansen">vs Nansen</FooterLink>
           </FooterColumn>
 
           {/* The MCP link is first and internal, ahead of the three that leave

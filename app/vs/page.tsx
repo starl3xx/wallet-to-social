@@ -59,6 +59,12 @@ interface Comparison {
 
 const LIVE: Comparison[] = [
   {
+    slug: 'absolute-labs',
+    name: 'Absolute Labs',
+    blurb:
+      'A wallet relationship management platform, sold by demo. No price is published anywhere on the site.',
+  },
+  {
     slug: 'addressable',
     name: 'Addressable',
     blurb:
@@ -75,6 +81,12 @@ const LIVE: Comparison[] = [
     name: 'Formo',
     blurb:
       'Product analytics and attribution for DeFi apps. Wallet profiles carry social handles as a feature inside it.',
+  },
+  {
+    slug: 'nansen',
+    name: 'Nansen',
+    blurb:
+      'Wallet intelligence for traders and funds. Its address API returns behavior and labels, and no social account.',
   },
 ];
 

@@ -224,7 +224,7 @@ export const metadata: Metadata = {
 const FAQ: { q: string; a: string }[] = [
   {
     q: 'How do I connect an AI agent to walletlink.social?',
-    a: `Add ${MCP_URL} to any MCP client. A client that supports OAuth needs nothing else: the first tool call opens a consent screen, you approve, and the call continues where it left off. A client that does not takes an Authorization header carrying a walletlink.social API key, self-serve from the account menu for any account holding credits. Tool discovery needs no credential at all, so an agent can list what is on offer before anything is bought.`,
+    a: `Add ${MCP_URL} to any MCP client. A client that supports OAuth needs nothing else: the first tool call opens a consent screen, you approve, and the call continues where it left off. A client that does not takes an Authorization header carrying a walletlink.social API key, self-serve from the account menu for any signed-in account, free allowance included. Tool discovery needs no credential at all, so an agent can list what is on offer before anything is bought.`,
   },
   {
     q: 'Can an agent pay without an account?',

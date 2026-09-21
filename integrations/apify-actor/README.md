@@ -15,7 +15,7 @@ This Actor reads the opposite direction. Every match comes from something the ow
 - an attested social sign-in
 - a manually verified record
 
-Each row is labelled with which class of evidence it came from, so you can set your own confidence bar instead of trusting a score somebody else assigned. Over 99.9% of the X handles in the index arrive by one of the first two routes.
+Each row is labeled with which class of evidence it came from, so you can set your own confidence bar instead of trusting a score somebody else assigned. Over 99.9% of the X handles in the index arrive by one of the first two routes.
 
 ## Handles that no longer reach anybody
 
@@ -25,9 +25,17 @@ Of 473,215 distinct X handles resolved against X itself: **70.1% are live, 20.1%
 
 An empty `x_reachability` means the handle was not checked. It never means nobody is behind it.
 
+## How to find the Twitter account behind an Ethereum wallet address
+
+One address or ten thousand, the method is the same and it takes about a minute.
+
+Paste the address into `walletAddresses`, leave `lookupMode` on `wallets`, add your API key, and run. The dataset comes back with the X handle, the Farcaster username, the evidence class behind each one, and whether the X handle still reaches a person. If the owner never published an account, the row says `found: false` and you were not charged for it.
+
+Going the other way is one field: set `lookupMode` to `x_handle`, put the handle in `handle`, and you get the wallets that account is attested to.
+
 ## How to use it
 
-1. Get a free API key at [walletlink.social](https://walletlink.social). The free allowance is 100 matches every 30 days.
+1. Get a free API key at [walletlink.social](https://walletlink.social). Sign in and take one from the account menu: no card, and no pack needed. The free allowance is 100 matches every 30 days.
 2. Choose a lookup mode: wallets to social accounts, or a handle back to its wallets.
 3. Paste your addresses, or a whole CSV column. Anything shaped like an EVM address is picked out.
 4. Run it, then export the dataset as CSV, JSON or Excel.

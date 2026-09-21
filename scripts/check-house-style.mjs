@@ -696,10 +696,22 @@ for (const file of walk('app', [], ['.tsx', '.ts']).concat(
   }
 }
 
-for (const file of walk('docs-site', [], ['.mdx', '.md', '.json']).concat([
-  'README.md',
-  'PROJECT_OVERVIEW.md',
-])) {
+/**
+ * The Apify Actor's README is its published page on apify.com, not a note
+ * about one, so it is marketing copy under the same rules as the site.
+ *
+ * It was outside this list until 2026-09-21 and had drifted exactly where an
+ * unchecked surface does: it said "labelled", the one spelling this repo has
+ * already corrected in 23 published places. The Actor's page is also the
+ * surface most likely to be read by somebody who has never seen the site,
+ * because it ranks for a query the site does not. Its `.actor/*.json` files
+ * carry the title and the input labels the Actor's page renders, so they are
+ * read too.
+ */
+for (const file of walk('docs-site', [], ['.mdx', '.md', '.json']).concat(
+  walk('integrations/apify-actor/.actor', [], ['.json']),
+  ['README.md', 'PROJECT_OVERVIEW.md', 'integrations/apify-actor/README.md']
+)) {
   let raw;
   try {
     raw = readFileSync(file, 'utf8');
@@ -773,7 +785,7 @@ for (const file of walk('content/social', [], ['.json'])) {
 
 if (!hits.length) {
   console.log(
-    `house style ok: ${RULES.length} rules over UI copy (quoted and template literals), docs-site, the social queue, README and PROJECT_OVERVIEW`
+    `house style ok: ${RULES.length} rules over UI copy (quoted and template literals), docs-site, the social queue, README, PROJECT_OVERVIEW and the Apify Actor’s page`
   );
   process.exit(0);
 }

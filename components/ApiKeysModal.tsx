@@ -36,8 +36,6 @@ interface ApiKeysModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tier: UserTier;
-  /** Whether credits back this account. See lib/use-credits.ts. */
-  entitled?: boolean;
   onUpgradeClick?: () => void;
 }
 
@@ -109,7 +107,6 @@ export function ApiKeysModal({
   open,
   onOpenChange,
   tier,
-  entitled = false,
   onUpgradeClick,
 }: ApiKeysModalProps) {
   const [keys, setKeys] = useState<ApiKey[]>([]);
@@ -160,10 +157,11 @@ export function ApiKeysModal({
   const [revealedKey, setRevealedKey] = useState<string | null>(null);
 
   // apiPlanForAccount, not apiPlanForTier: a pack buyer's tier is `free`, and
-  // the description two hundred lines below already tells them API access comes
-  // with credits. The gate has to agree with the copy.
-  const planId = apiPlanForAccount(tier, entitled);
-  const plan = planId ? API_PLANS[planId] : null;
+  // a legacy tier still wins where it is higher. Since 2026-09-21 it answers
+  // for every account, so `hasApiAccess` is true for everyone signed in: the
+  // free allowance decides what a key can draw, not whether one exists.
+  const planId = apiPlanForAccount(tier);
+  const plan = API_PLANS[planId] ?? null;
   const hasApiAccess = !!plan;
 
   const activeKeys = keys.filter((k) => k.is_active);

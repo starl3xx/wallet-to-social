@@ -38,6 +38,46 @@ import { RECOGNIZED_CONTRACTS } from '@/lib/recognized-contracts';
  * Every count below uses that definition so the rates divide honestly.
  */
 
+/**
+ * The events that mean a session did the thing the site is for.
+ *
+ * One list, because it is read in four places and a definition of
+ * "activated" that drifts between the weekly table, the named-source table,
+ * the per-page table and the headline is worse than no definition at all.
+ *
+ * It was `lookup_started` alone until 2026-09-21, which quietly graded two
+ * whole products as bounces. `wallet_preview_lookup` is the free single-wallet
+ * lookup on /find-twitter-account-from-wallet-address, the page built for the
+ * head query: a visitor who arrives there, resolves an address and leaves has
+ * done exactly what that page exists for, and was counted as having done
+ * nothing. `reverse_lookup` is the app's other direction, handle to wallets,
+ * which never raises `lookup_started` either.
+ *
+ * **This breaks comparability with anything measured before 2026-09-21.** The
+ * activated counts in earlier reports and in the 2026-09-16 baseline are a
+ * narrower quantity, and they will look lower than they should against these.
+ * A number that changes because its definition changed is not a trend, and
+ * the report says so in prose rather than leaving a reader to infer it.
+ */
+const ACTIVATION_EVENTS = [
+  'lookup_started',
+  'wallet_preview_lookup',
+  'reverse_lookup',
+] as const;
+
+/**
+ * `event_type IN (…)` with each name bound on its own.
+ *
+ * The same reason the path prefixes below are an OR of bound LIKE clauses:
+ * drizzle expands a JS array into a parameter list rather than one array
+ * parameter, so building this by hand keeps every value a parameter instead
+ * of string-built SQL.
+ */
+const activated = sql`event_type IN (${sql.join(
+  ACTIVATION_EVENTS.map((e) => sql`${e}`),
+  sql`, `
+)})`;
+
 /** One channel or one named source, with what its sessions went on to do. */
 export interface GrowthRow {
   channel: Channel;
@@ -117,7 +157,7 @@ export async function getChannelTrend(weeks = 8): Promise<ChannelTrend> {
       acted AS (
         SELECT
           session_id,
-          bool_or(event_type = 'lookup_started') AS ran,
+          bool_or(${activated}) AS ran,
           bool_or(
             event_type IN ('checkout_started', 'checkout_redirected')
           ) AS checkout
@@ -247,7 +287,7 @@ export async function getChannelSources(days = 30): Promise<ChannelSources> {
       acted AS (
         SELECT
           session_id,
-          bool_or(event_type = 'lookup_started') AS ran,
+          bool_or(${activated}) AS ran,
           bool_or(
             event_type IN ('checkout_started', 'checkout_redirected')
           ) AS checkout
@@ -379,7 +419,7 @@ export async function getContentPerformance(
         ORDER BY session_id, created_at
       ),
       acted AS (
-        SELECT session_id, bool_or(event_type = 'lookup_started') AS ran
+        SELECT session_id, bool_or(${activated}) AS ran
         FROM growth_page_events
         WHERE session_id IS NOT NULL
           AND created_at >= ${start}::timestamp
@@ -495,7 +535,7 @@ async function windowTotals(
     ran AS (
       SELECT DISTINCT session_id
       FROM growth_page_events
-      WHERE event_type = 'lookup_started'
+      WHERE ${activated}
         AND session_id IS NOT NULL
         AND created_at >= ${a}::timestamp
         AND created_at < ${b}::timestamp

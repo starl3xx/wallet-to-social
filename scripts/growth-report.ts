@@ -139,6 +139,18 @@ const CONTENT_PREFIXES = [
   '/check',
   '/pricing',
   '/mcp',
+  /**
+   * The free tool at the exact-match URL for the head query, which this list
+   * omitted until 2026-09-21.
+   *
+   * It is the clearest case of "a path that exists to bring strangers in"
+   * there is: the sitemap ranks it 0.9, alongside /check and /pricing and
+   * above every other content page, precisely because it is the one page a
+   * stranger can act on in one click. Leaving it out meant the weekly table
+   * could not show whether the page built for the head query drew anybody,
+   * which is the single question that page exists to answer.
+   */
+  '/find-twitter-account-from-wallet-address',
 ] as const;
 
 async function main() {
@@ -162,7 +174,7 @@ async function main() {
     [
       ['Sessions', delta(c.sessions, p.sessions), p.sessions],
       [
-        'Sessions that ran a lookup',
+        'Sessions that ran something',
         delta(c.lookupSessions, p.lookupSessions),
         p.lookupSessions,
       ],
@@ -175,6 +187,16 @@ async function main() {
       ],
     ]
   );
+
+  say();
+  say(
+    `**“Ran something” widened on 2026-09-21** and is not comparable with ` +
+      `earlier reports. It counts a batch lookup, the free single-wallet ` +
+      `lookup on /find-twitter-account-from-wallet-address, and a reverse ` +
+      `lookup. It used to count only the first, which graded the other two ` +
+      `as bounces on the pages built for them.`
+  );
+  say();
 
   // The onchain rail is a different funnel with a different buyer, so it sits
   // beside this table rather than inside it. Printed whenever it is non-zero,
@@ -236,7 +258,7 @@ async function main() {
     say('## Named sources, last 30 days');
     say();
     table(
-      ['Channel', 'Source', 'Sessions', 'Ran a lookup', 'Checkout', 'Signups'],
+      ['Channel', 'Source', 'Sessions', 'Ran something', 'Checkout', 'Signups'],
       sources.rows.map((r) => [
         CHANNEL_LABELS[r.channel],
         r.name,
@@ -262,7 +284,7 @@ async function main() {
     );
     say();
     table(
-      ['Path', 'Entries', 'Views', 'Ran a lookup'],
+      ['Path', 'Entries', 'Views', 'Ran something'],
       rows
         .sort((a, b) => b.entries - a.entries || b.views - a.views)
         .slice(0, 30)

@@ -70,6 +70,50 @@ export const LISTING_MIN_REACHABLE = 20;
 export const LISTING_MIN_RATE = 0.05;
 
 /**
+ * The sitemap's own floor, which sits above the listing floor.
+ *
+ * A sitemap is a request to index, not a list of what exists, and the two
+ * had been the same list. On 2026-09-21 Search Console held 148 indexed URLs
+ * against 145 not indexed, and the refusals fell into two buckets that say
+ * different things: 83 "Discovered, currently not indexed", where Google has
+ * the URL and declines to spend a crawl on it, and 46 "Crawled, currently
+ * not indexed", where it looked and judged the page not worth keeping. Both
+ * are what a low-authority domain gets for submitting 186 near-identical
+ * URLs at one flat priority.
+ *
+ * So the sitemap asks for the reports that have something on them. Below
+ * this many reachable people a report is mostly empty rows, and asking for
+ * it teaches the crawler that the pattern is thin, which is paid for by
+ * every other report sharing the template.
+ *
+ * **The pages are not withdrawn and nothing is de-listed.** Every collection
+ * clearing the listing floor stays on the hub, one hop from a crawlable
+ * page, keeps its canonical and stays live at its own URL. This changes
+ * which of them the sitemap argues for, and nothing else. That distinction
+ * is the whole design: the report earning the most search impressions today
+ * is Rare Friends Genesis at 185 reachable, well under the median of 243 and
+ * found by people searching its bare contract address, so a floor set to
+ * prune the long tail by name recognition or by median would have cut the
+ * one page with measured demand.
+ */
+export const SITEMAP_MIN_REACHABLE = 100;
+
+/**
+ * Sitemap priority for a report, banded by the size of its finding.
+ *
+ * Priority is a weak hint and a widely ignored one, but it is the only
+ * ordering the protocol offers, and it was unused: all 186 reports declared
+ * 0.7, which tells a crawler rationing its budget nothing at all. The top
+ * band keeps the 0.7 the reports have always carried, so this only ever
+ * demotes, never promotes above the marketing pages.
+ */
+export function holderSitemapPriority(reachable: number): number {
+  if (reachable >= 500) return 0.7;
+  if (reachable >= 250) return 0.6;
+  return 0.5;
+}
+
+/**
  * The minimum shared holders a counterparty needs before its overlap row is
  * published.
  *

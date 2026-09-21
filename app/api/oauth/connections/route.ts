@@ -7,11 +7,15 @@
  * grant is `/api/oauth/revoke`, which is a different endpoint for a different
  * caller.
  *
- * Not behind `requireDeveloperAccess`, deliberately. That guard also requires
- * live credits, which is right for minting an API key and wrong here: somebody
- * on the free allowance can connect Claude, so they must be able to disconnect
- * it, and an account whose credits ran out must not lose the ability to cut off
- * an application it no longer trusts.
+ * Not behind `requireDeveloperAccess`, which until 2026-09-21 also required
+ * live credits: somebody on the free allowance can connect Claude, so they
+ * must be able to disconnect it, and an account whose credits ran out must
+ * not lose the ability to cut off an application it no longer trusts.
+ *
+ * That credit requirement is gone, so the two routes no longer disagree. This
+ * one still resolves its own session rather than borrowing the guard, because
+ * the guard's ownership check is written around an email a caller passes and
+ * there is nothing to pass here.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';

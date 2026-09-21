@@ -1,6 +1,10 @@
 import type { MetadataRoute } from 'next';
 import { getAllPosts } from '@/lib/blog';
-import { listHolderCollections } from '@/lib/holder-pages';
+import {
+  holderSitemapPriority,
+  listHolderCollections,
+  SITEMAP_MIN_REACHABLE,
+} from '@/lib/holder-pages';
 
 /**
  * Regenerate hourly, on the same cadence as the holder pages themselves.
@@ -29,13 +33,23 @@ export const revalidate = 3600;
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://walletlink.social';
 
+  /**
+   * The hub's listing, narrowed by the sitemap's own floor.
+   *
+   * `listHolderCollections` answers "which reports are publishable", which is
+   * the hub's question. The sitemap asks a different one, "which are worth a
+   * crawl", and it had been borrowing the answer to the first. See
+   * SITEMAP_MIN_REACHABLE for what Search Console said about that.
+   */
   const holderCollections = await listHolderCollections();
-  const holderEntries: MetadataRoute.Sitemap = holderCollections.map((c) => ({
-    url: `${baseUrl}/holders/${c.chain}/${c.address}`,
-    lastModified: new Date(c.lastSeenAt),
-    changeFrequency: 'weekly',
-    priority: 0.7,
-  }));
+  const holderEntries: MetadataRoute.Sitemap = holderCollections
+    .filter((c) => c.reachableAny >= SITEMAP_MIN_REACHABLE)
+    .map((c) => ({
+      url: `${baseUrl}/holders/${c.chain}/${c.address}`,
+      lastModified: new Date(c.lastSeenAt),
+      changeFrequency: 'weekly',
+      priority: holderSitemapPriority(c.reachableAny),
+    }));
 
   const posts = getAllPosts();
   const blogEntries: MetadataRoute.Sitemap = posts.map((post) => ({
@@ -109,6 +123,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     },
     {
+      url: `${baseUrl}/vs/absolute-labs`,
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
       url: `${baseUrl}/vs/addressable`,
       changeFrequency: 'monthly',
       priority: 0.8,
@@ -132,6 +151,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/vs/formo`,
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/vs/nansen`,
       changeFrequency: 'monthly',
       priority: 0.8,
     },
@@ -177,9 +201,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...blogEntries,
     {
       // The hub over the per-collection reports; the reports themselves
-      // follow at 0.7.
+      // follow, banded from 0.7 down by how much each one found.
       url: `${baseUrl}/holders`,
-      lastModified: newest(holderEntries),
+      /**
+       * Dated from every collection the hub lists, not from the subset the
+       * sitemap carries below. The hub's page really does change when a
+       * report under the sitemap floor refreshes, and a lastmod computed
+       * from the filtered set would understate that, which is the same
+       * dishonesty this file's header refuses for `new Date()`.
+       */
+      lastModified: newest(
+        holderCollections.map((c) => ({
+          url: `${baseUrl}/holders/${c.chain}/${c.address}`,
+          lastModified: new Date(c.lastSeenAt),
+        }))
+      ),
       changeFrequency: 'weekly',
       priority: 0.8,
     },
