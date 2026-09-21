@@ -1198,6 +1198,17 @@ discovery documents are: the App Router will not route a dot-prefixed segment.
 Reasoning, and the two deliberate omissions (`status`, and `service-desc` on
 the rail), are in `docs/AGENT-SYSTEM.md` under L4.
 
+**Six pages answer markdown when a client asks for it.** `Accept:
+text/markdown` on `/`, `/pricing`, `/blog`, `/blog/<slug>`, `/holders` or
+`/holders/<chain>/<address>` returns `text/markdown; charset=utf-8` with
+`Vary: Accept` and a canonical `Link` naming the HTML page; everything else is
+unchanged. The list lives once as `MARKDOWN_NEGOTIABLE` in `next.config.ts`
+and is dispatched in `app/api/markdown`. A page is on it only where its
+markdown projects from the same source the HTML renders from, which is why
+`/vs/*` and `/privacy` are not: their content is writing, and a twin of
+writing is a second copy. Mechanics and the two silent failure modes are in
+`docs/AGENT-SYSTEM.md` under L4.
+
 **What an agent may do with what it reads is declared separately from what it
 may read.** `/robots.txt` carries `Content-Signal: search=yes, ai-input=yes,
 ai-train=yes` above the Cloudflare Content Signals Policy verbatim. `Allow` and

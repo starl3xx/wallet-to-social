@@ -60,6 +60,58 @@ All notable changes to walletlink.social. Newest first.
   comparison pages still spell it out and were left alone, since a redirect
   costs a clicking human nothing.
 
+### 2026-09-21 (six pages answer markdown when a client asks for it)
+
+- **`Accept: text/markdown` on `/`, `/pricing`, `/blog`, `/blog/<slug>`,
+  `/holders` and `/holders/<chain>/<address>` now returns markdown**, typed
+  `text/markdown; charset=utf-8`, carrying `Vary: Accept` and a
+  `Link: rel="canonical"` naming the HTML page. Every other client, and every
+  other path, gets exactly what it got before. `/skill.md` and `llms.txt`
+  assume an agent that knows where to look; this one assumes only that it has
+  a page URL from a search result.
+- **A page is negotiable only where its markdown projects from the same
+  source the HTML renders from**, which is what keeps the list at six. `/` is
+  the `llms.txt` body, now one builder at two URLs rather than two documents.
+  `/pricing` reads `lib/packs.ts` and `lib/api-plans.ts` and takes
+  `MATCH_SENTENCE` from `lib/canonical-sentences.ts` rather than restating it,
+  and leaves the page's FAQ behind as a link because it is editorial prose
+  with no source but the page. The holder documents call the same
+  `holderBasis`, `holderBasisCaveat`, `measurementInProgress` and `isNamed`
+  predicates the report component calls, so the two representations cannot
+  disagree about what was measured or about whether the report may be
+  indexed. `/vs/*` and `/privacy` are deliberately absent: a twin of writing
+  is a second copy of writing.
+- **The rewrites had to move to `beforeFiles`, and that was found by sending
+  the header rather than by reasoning about it.** An array returned from
+  `rewrites()` becomes `afterFiles`, which Next consults only once nothing in
+  the app has answered. Every negotiable path is a page, so the rules
+  compiled into `.next/dev/routes-manifest.json` with the correct regex and
+  the correct `has`, and never ran: `/pricing` with `Accept: text/markdown`
+  answered `text/html` with nothing anywhere to say why.
+- **The Accept matcher is `.*text/markdown.*`, and the wildcards are the
+  load-bearing part.** Next compiles a `has` value as
+  `new RegExp('^' + value + '$')`, anchored at both ends, so a bare
+  `text/markdown` matches only a request whose entire Accept header is those
+  fourteen characters. No agent and no library sends that. It would have
+  failed closed: HTML to everyone, forever, silently.
+- **`/blog/<slug>.md` moved into `beforeFiles` above the negotiation rules**,
+  because `/blog/:slug` matches `/blog/a-post.md` with the slug "a-post.md".
+  In the other order, the one client careful enough to send both the explicit
+  markdown URL and the Accept header is the one that gets a 404.
+- Six new mutations in `check-invariants-guard.ts` cover all of it, and the
+  guard earned its keep immediately: the first version of the header
+  assertion passed while `Vary` had been deleted from the markdown response,
+  because the 404 branch four lines below carries the same string and
+  satisfied the test on its own. The assertion now matches the three headers
+  as one ordered block.
+- `Vary: Accept` is also configured on the HTML half through `headers()`.
+  Measured in `next dev`: the config entry applies (a probe header beside it
+  arrives) and the App Router then overwrites `Vary` with its own. The
+  guarantee the site actually rests on is the `Vary: Accept` on the markdown
+  response, plus Vercel's CDN keying on `Accept` by default, which is the
+  direction that matters: it is what stops a shared cache replaying one
+  agent's markdown to the next person's browser.
+
 ### 2026-09-21 (the cron minute was never the problem)
 
 - **Measured the scheduler lag instead of acting on the first reading of it.**

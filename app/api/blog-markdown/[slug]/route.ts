@@ -1,5 +1,6 @@
 import { getAllSlugs, getPostBySlug } from '@/lib/blog';
 import { PRODUCTION_URL } from '@/lib/site-url';
+import { blogPostMarkdown } from '../../markdown/documents';
 
 export const runtime = 'nodejs';
 
@@ -13,9 +14,6 @@ export const revalidate = 3600;
 export function generateStaticParams() {
   return getAllSlugs().map((slug) => ({ slug }));
 }
-
-/** A JSON string is a valid YAML double-quoted scalar. */
-const scalar = (value: string) => JSON.stringify(value);
 
 /**
  * Every published post as markdown, served at /blog/{slug}.md.
@@ -43,22 +41,16 @@ const scalar = (value: string) => JSON.stringify(value);
  *
  * ## What it returns
  *
+ * `app/api/markdown/documents.ts` builds the document, and this route no
+ * longer builds one of its own. The same post is reachable two ways now, at
+ * /blog/<slug>.md and at /blog/<slug> with `Accept: text/markdown`, and two
+ * builders for one document is the drift this repo keeps paying for
+ * elsewhere. The frontmatter rules, and why `stripLeadingH1` is not applied,
+ * are recorded with the builder.
+ *
  * `lib/blog.ts` already parses every post with gray-matter and keeps the raw
- * body on `BlogPost.content`, so this is a projection of an existing loader
- * and is not a second copy of anything.
- *
- * `stripLeadingH1` is deliberately NOT applied. The page component strips it
- * because the page renders its own title from the frontmatter and would
- * otherwise ship two h1s; here the body is the whole document, and its own
- * heading is the only title in it.
- *
- * The frontmatter gray-matter removed is restored rather than prepended as
- * prose, for the same reason: a second `# Title` above the body's own would
- * give the document two top-level headings. Values go through
- * `JSON.stringify`, which emits a valid YAML double-quoted scalar. Titles
- * carry colons ("The priority score formula: finding your most valuable
- * holders") and a bare colon ends a plain scalar, so an unquoted line would
- * parse as something else or fail to parse at all.
+ * body on `BlogPost.content`, so the document is a projection of an existing
+ * loader and is not a second copy of anything.
  */
 export async function GET(
   _request: Request,
@@ -74,27 +66,19 @@ export async function GET(
     });
   }
 
-  const canonical = `${PRODUCTION_URL}/blog/${post.slug}`;
-
-  const frontmatter = [
-    '---',
-    `title: ${scalar(post.title)}`,
-    ...(post.description ? [`description: ${scalar(post.description)}`] : []),
-    `date: ${scalar(post.publishedAt)}`,
-    // Carried when the post has one, for the same reason the HTML page emits
-    // dateModified only then: a twin that publishes only the original date
-    // tells a reader the post has never been revised, while the page beside
-    // it says otherwise. Absent on an unrevised post, which is the honest
-    // answer rather than a stand-in.
-    ...(post.updatedAt ? [`updated_date: ${scalar(post.updatedAt)}`] : []),
-    `canonical_url: ${scalar(canonical)}`,
-    '---',
-  ].join('\n');
-
-  return new Response(`${frontmatter}\n\n${post.content.trim()}\n`, {
+  return new Response(blogPostMarkdown(post), {
     headers: {
       'Content-Type': 'text/markdown; charset=utf-8',
-      Link: `<${canonical}>; rel="canonical"`,
+      Link: `<${PRODUCTION_URL}/blog/${post.slug}>; rel="canonical"`,
+      /**
+       * Declared although nothing here varies: this URL always answers
+       * markdown, whatever the client asks for. It is here because the same
+       * document is now also reachable by negotiation at /blog/<slug>, and a
+       * cache that holds one of the two should hold it under a key that says
+       * which representation it is. Vercel's CDN keys on Accept regardless,
+       * so this costs nothing and tells every cache downstream the truth.
+       */
+      Vary: 'Accept',
     },
   });
 }

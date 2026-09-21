@@ -81,7 +81,7 @@ export const revalidate = 86400;
  * Never name a data provider in this file. Describe capability and evidence
  * class instead (CLAUDE.md).
  */
-export function GET(): Response {
+export function llmsTxtBody(): string {
   const chains = SUPPORTED_CHAINS.map((c) => CHAIN_LABELS[c]);
   const chainList = `${chains.slice(0, -1).join(', ')} and ${chains[chains.length - 1]}`;
   const packLine = PACK_IDS.map(
@@ -306,7 +306,21 @@ walletlink.social is operated by ${LEGAL_ENTITY}. The application is open source
 - [Support](mailto:help@walletlink.social): help@walletlink.social. A person reads it.
 `;
 
-  return new Response(body, {
+  return body;
+}
+
+/**
+ * Served as `text/plain`, which is a decision rather than an oversight.
+ *
+ * The body is markdown and `text/markdown` would describe it more exactly,
+ * but this URL is one people paste into a browser, and a browser downloads
+ * `text/markdown` instead of displaying it. The markdown media type belongs
+ * on the negotiated variant, where the client asked for it: a request for
+ * `/` carrying `Accept: text/markdown` is answered with this same body,
+ * typed `text/markdown`, by `app/api/markdown`.
+ */
+export function GET(): Response {
+  return new Response(llmsTxtBody(), {
     headers: { 'Content-Type': 'text/plain; charset=utf-8' },
   });
 }
