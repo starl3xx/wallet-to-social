@@ -7881,6 +7881,67 @@ async function main() {
         layout
       )
     );
+
+    /**
+     * The other half of section 3, for the client that never reads a body.
+     *
+     * Asserted by running the real `headers()` rather than by matching the
+     * literal, because the thing that has to be true is what a client
+     * receives: one entry scoped to `/`, carrying every relation, parsed out
+     * of the value the config actually produces.
+     */
+    interface HeaderRule {
+      source: string;
+      headers: { key: string; value: string }[];
+    }
+    const { default: nextConfig } = await import('../next.config');
+    const headerRules = (await nextConfig.headers!()) as HeaderRule[];
+    const homepage = headerRules.filter((rule) => rule.source === '/');
+    ok(
+      'the homepage declares exactly one Link header rule',
+      homepage.length === 1 &&
+        homepage[0].headers.filter((h) => h.key === 'Link').length === 1
+    );
+
+    const linkValue =
+      homepage[0]?.headers.find((h) => h.key === 'Link')?.value ?? '';
+    for (const relation of [
+      'api-catalog',
+      'describedby',
+      'service-desc',
+      'service-doc',
+    ]) {
+      ok(
+        `the homepage Link header carries the ${relation} relation`,
+        new RegExp(`rel="${relation}"`).test(linkValue)
+      );
+    }
+
+    /**
+     * The catalog link is relative on purpose, and it is the one that must
+     * stay that way.
+     *
+     * RFC 8288 resolves a relative reference against the request URL, so
+     * this names whichever host served the page. Made absolute, a preview
+     * deployment would hand a discovery client production's catalog, which
+     * is the same class of defect as a machine-to-machine URL that
+     * redirects: it resolves, it returns 200, and it describes the wrong
+     * deployment.
+     */
+    ok(
+      'the catalog is linked relatively, so a preview names its own catalog',
+      linkValue.includes('</.well-known/api-catalog>; rel="api-catalog"')
+    );
+
+    /**
+     * The cross-origin links have no such choice, and a relative reference
+     * there would resolve against walletlink.social and 404.
+     */
+    ok(
+      'the docs links are absolute, since a relative one would resolve to this origin',
+      new RegExp(`<${DOCS_URL}/[^>]+>; rel="service-desc"`).test(linkValue) &&
+        new RegExp(`<${DOCS_URL}/[^>]+>; rel="service-doc"`).test(linkValue)
+    );
   }
 
   // ------------------------------------------- preview builds and Neon

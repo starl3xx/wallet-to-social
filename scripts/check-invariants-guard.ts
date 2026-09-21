@@ -1545,6 +1545,23 @@ const MUTATIONS: Mutation[] = [
     to: "const ALLOW = ['/api/public-stats', '/'];",
   },
   {
+    // The homepage Link header is how a client that issues a HEAD, and never
+    // receives a body to parse, finds the catalog at all.
+    name: 'the homepage stops advertising the catalog in a Link header',
+    file: 'next.config.ts',
+    from: '              \'</.well-known/api-catalog>; rel="api-catalog"\',\n',
+    to: '',
+  },
+  {
+    // RFC 8288 resolves a relative reference against the request URL. Made
+    // absolute, a preview deployment hands a discovery client production's
+    // catalog: it resolves, it returns 200, it describes another deployment.
+    name: 'the catalog link becomes absolute, so a preview advertises production',
+    file: 'next.config.ts',
+    from: '              \'</.well-known/api-catalog>; rel="api-catalog"\',',
+    to: '              \'<https://walletlink.social/.well-known/api-catalog>; rel="api-catalog"\',',
+  },
+  {
     // RFC 9264 requires a relation's value to be an array "even if there is
     // only one link target object". Written as the object it obviously is,
     // the document still parses, still reads correctly to a person, and is

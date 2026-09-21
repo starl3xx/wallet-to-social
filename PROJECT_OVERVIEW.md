@@ -1187,9 +1187,12 @@ it ships, and must not restate a fact whose authority lives in another layer.
 
 **Three APIs, one place to find them.** `/.well-known/api-catalog` publishes an
 RFC 9727 catalog of the REST API, the MCP server and the x402 credit rail,
-served as `application/linkset+json` with the RFC 9727 profile, and every page
-carries `<link rel="api-catalog">` so a client holding only the origin follows
-a link instead of guessing a path. The handler is `app/api/api-catalog`, mapped
+served as `application/linkset+json` with the RFC 9727 profile. It is pointed
+at two ways, because they reach different clients: the homepage answers with a
+`Link` header carrying `api-catalog`, `describedby`, `service-desc` and
+`service-doc` (for a client that issues a HEAD and never reads a body), and
+every page carries `<link rel="api-catalog">` in its markup (for one that
+parses HTML). The handler is `app/api/api-catalog`, mapped
 onto the well-known URI by a rewrite for the same reason the three OAuth
 discovery documents are: the App Router will not route a dot-prefixed segment.
 Reasoning, and the two deliberate omissions (`status`, and `service-desc` on

@@ -10,9 +10,26 @@ All notable changes to walletlink.social. Newest first.
   description, `service-doc` for the human one, and `service-meta` on the MCP
   entry for its OAuth protected resource metadata. Served as
   `application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"`,
-  which is a MUST and a SHOULD respectively in section 4.2. Every page also
-  carries `<link rel="api-catalog">`, which is section 3's other half: a
-  client holding only the origin follows a link rather than guessing a path.
+  which is a MUST and a SHOULD respectively in section 4.2.
+- **Finding the catalog is its own problem, and it has two answers**, because
+  they reach different clients. The homepage answers with a `Link` header
+  carrying `api-catalog`, `describedby` (`/llms.txt`), `service-desc` and
+  `service-doc`, which is what a client that issues a HEAD and never receives
+  a body can see. Every page carries `<link rel="api-catalog">` in its markup,
+  which is what an HTML parser sees. RFC 9727 section 3 shows both.
+- **A correction, recorded because the wrong version was written first.** This
+  work initially claimed a `Link` response header could not be set on an App
+  Router page, generalizing from the config `Vary` that the App Router really
+  does overwrite. Measured instead of reasoned: the homepage answers with two
+  `Link` lines, ours and Next's font preloads, which is exactly how RFC 8288
+  expects multiple links to arrive. `Vary` is the special case, not `Link`.
+- **The catalog link is relative and the docs links are absolute**, each for
+  its own reason. RFC 8288 resolves a relative reference against the request
+  URL, so `</.well-known/api-catalog>` names whichever host served the page:
+  on a preview deployment that is the preview's own catalog, where an absolute
+  URL would hand a discovery client production's. The docs live on another
+  origin and have no choice. Both are asserted, and the guard reintroduces the
+  absolute form as a defect.
 - **The three APIs were discoverable three different ways and none of them
   from the origin**: the REST API from the docs site, the MCP server from a
   registry row, the x402 rail from a sentence in the agent pack.

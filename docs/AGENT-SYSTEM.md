@@ -198,6 +198,21 @@ rule again, in link form: the catalog **points at** L4's existing projections
 and restates none of them. The REST entry's `service-desc` is the OpenAPI file
 the docs already publish; the MCP entry's is `/skill.md`.
 
+**Finding the catalog is its own problem, and it has two answers.** The
+homepage answers with a `Link` header carrying `api-catalog`, `describedby`
+(`/llms.txt`), `service-desc` and `service-doc`, which is what a client that
+issues a HEAD and never reads a body can see. Every page carries
+`<link rel="api-catalog">` in its markup, which is what an HTML parser sees.
+RFC 9727 section 3 shows both, and they reach different clients.
+
+One correction is recorded here because the wrong version was written down
+first. A `Link` response header set from `headers()` in `next.config.ts` **does
+survive** on an App Router page: the homepage answers with two `Link` lines,
+ours and Next's font preloads, which is how RFC 8288 expects multiple links to
+arrive. The claim that it could not was generalized from the config `Vary` that
+the App Router really does overwrite, without testing the other field. `Vary`
+is the special case.
+
 Two omissions are decisions, not gaps. There is **no `status` relation**,
 because there is no public health endpoint and `/api/public-stats` reports
 index coverage rather than service health, so pointing `status` at it would

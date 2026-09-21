@@ -1,4 +1,10 @@
 import type { NextConfig } from 'next';
+/**
+ * Relative, not `@/lib/site-url`. This file is loaded by Next's own config
+ * loader rather than compiled with the app, and the `@/` alias is a tsconfig
+ * path the app's compiler resolves. A relative specifier needs nobody's help.
+ */
+import { DOCS_URL } from './lib/site-url';
 
 const nextConfig: NextConfig = {
   /**
@@ -86,6 +92,59 @@ const nextConfig: NextConfig = {
       {
         source: '/.well-known/api-catalog',
         destination: '/api/api-catalog',
+      },
+    ];
+  },
+  /**
+   * `Link` headers on the homepage, RFC 8288 and RFC 9727 section 3.
+   *
+   * The catalog is only discoverable if something points at it, and the two
+   * ways to point are the response header and the markup. Both ship: the
+   * header serves a client that issues a HEAD and never parses a body, and
+   * the `<link>` in `app/layout.tsx` serves one that parses HTML. The RFC's
+   * own example carries both.
+   *
+   * ## This survives, and `Vary` in the same position does not
+   *
+   * Worth stating because the opposite was written down first and was wrong.
+   * The markdown negotiation work measured a config `Vary` being overwritten
+   * by the App Router's own, and that was generalized to `Link` without
+   * testing it. It does not hold: measured in `next dev` on 2026-09-21, the
+   * homepage answers with TWO `Link` lines, this one and the font preloads
+   * Next emits, and a repeated field line is exactly how RFC 8288 expects
+   * multiple links to arrive. `Vary` is the special case, not this.
+   *
+   * ## Homepage only, deliberately
+   *
+   * Every relation below is a statement about the origin rather than about a
+   * page, and the homepage is the origin's representation. Repeating them on
+   * 165 URLs would add bytes to every holder report to say something already
+   * true of the site, and the site-wide half of the job is already done by
+   * the `<link>` tag in the layout.
+   *
+   * ## Relative for our own paths, absolute for the docs host
+   *
+   * RFC 8288 resolves a relative reference against the request URL, so
+   * `</.well-known/api-catalog>` points at whichever host served the page.
+   * That is the behavior we want: on a preview deployment it names the
+   * preview's own catalog, where an absolute URL would send a client to
+   * production. The docs live on another origin and have no choice.
+   */
+  async headers() {
+    return [
+      {
+        source: '/',
+        headers: [
+          {
+            key: 'Link',
+            value: [
+              '</.well-known/api-catalog>; rel="api-catalog"',
+              '</llms.txt>; rel="describedby"; type="text/plain"',
+              `<${DOCS_URL}/openapi.yaml>; rel="service-desc"; type="text/yaml"`,
+              `<${DOCS_URL}/api-reference/introduction>; rel="service-doc"; type="text/html"`,
+            ].join(', '),
+          },
+        ],
       },
     ];
   },
