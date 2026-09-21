@@ -11121,25 +11121,35 @@ async function main() {
      * anybody, on every run.
      *
      * Asserted positionally, because the defect is placement rather than
-     * absence: the component was present the whole time. It must appear
-     * BEFORE the first state branch, which is what "mounted unconditionally"
-     * looks like in this file. The `runNarration` region above it carries the
-     * same requirement for the same reason and is the precedent.
+     * absence: the component was present the whole time, so an assertion that
+     * it exists would have passed throughout.
      *
-     * Both markers must exist before the comparison means anything, so a
+     * It must appear before EVERY state branch, and the `upload` one carries
+     * the real requirement rather than merely completing the set: that is the
+     * state a callback lands in, and everything that branch renders (the
+     * hero, the three input methods, the starter collections, the reverse
+     * lookup, the recent wins, the lookup history) is above the fold of a
+     * screen somebody has just been returned to the top of. Mounting this
+     * unconditionally but below them is the halfway version of the same bug,
+     * and it is the one that looks fixed.
+     *
+     * Every marker must exist before the comparisons mean anything, so a
      * rename fails loudly here rather than passing over a check it never
      * performed.
      */
     {
       const statusMount = homeSrc.indexOf('<XListStatus />');
-      const firstStateBranch = homeSrc.indexOf("{state === 'processing'");
+      const uploadBranch = homeSrc.indexOf("{state === 'upload'");
+      const processingBranch = homeSrc.indexOf("{state === 'processing'");
       const completeBranch = homeSrc.indexOf("{state === 'complete'");
       ok(
-        'the X list outcome is mounted outside the result branches, so a callback can show it',
+        'the X list outcome is mounted above every state branch, so a callback return shows it first',
         statusMount > 0 &&
-          firstStateBranch > 0 &&
+          uploadBranch > 0 &&
+          processingBranch > 0 &&
           completeBranch > 0 &&
-          statusMount < firstStateBranch &&
+          statusMount < uploadBranch &&
+          statusMount < processingBranch &&
           statusMount < completeBranch
       );
     }
