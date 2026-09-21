@@ -28,6 +28,37 @@ until a redeploy; the sitemap had also never been submitted in Search Console.
 
 **August 2026 update:** The dataset grew from ~5k to 4.7M wallets with complete Farcaster coverage and full reverse lookup (any Farcaster handle → wallets). Two dead-competitor migration pages went live: `/vs/holder` (Holder sunset June 2024) and `/vs/airstack` (Airstack deprecated its API, pivoted to Senpi), and `/vs/blaze` was rewritten as a migration page (Blaze left web3; withblaze.app is dead).
 
+**September 2026 update, measured rather than planned.** Search Console over
+the 28 days to 2026-09-19: 1 click, 488 impressions, CTR 0.2%, average position
+32.5. Impressions per day are about four times the August baseline and average
+position has improved eighteen places, from 50.1. Clicks have not moved, which
+is what page four looks like.
+
+Two findings from that window change what this document should be read for.
+
+**The sitemap now carries a floor of its own.** Index coverage on 2026-09-21
+was 148 indexed against 145 not indexed, with 83 "Discovered, currently not
+indexed" and 46 "Crawled, currently not indexed". That is the response a
+low-authority domain gets for submitting 186 near-identical holder reports at
+one flat priority, so `SITEMAP_MIN_REACHABLE` (100) and
+`holderSitemapPriority` in `lib/holder-pages.ts` decide which reports the
+sitemap argues for and in what order. Nothing is withdrawn: the hub still links
+every collection clearing the listing floor, and the pages keep their
+canonicals. Raising that constant further is the obvious next lever and it
+should be judged on the "Discovered, currently not indexed" count, not on
+clicks.
+
+**Holder reports are found by contract address, not by collection name.** Three
+spellings of `0x116eaa62…` drew 26 impressions in that window, all to Rare
+Friends Genesis on Robinhood Chain, which carries 185 reachable people and sits
+below the median of 243. That is the page with the most measured demand on the
+whole `/holders` tree, and any pruning rule based on brand recognition would
+have deleted it. Do not write one.
+
+**The comparison pages are the only pages earning impressions**, which is the
+argument for `/vs/nansen` and `/vs/absolute-labs` (both 2026-09-21) and for the
+next ones after them.
+
 **Twitter coverage, corrected 2026-08-13:** it is **over 1 million wallets**, not the ~41k this document previously stated. The sweep had been discarding the verified X handles Neynar returns alongside Farcaster profiles; recovering them took the figure from 43,704 to 1,070,442. Nearly all are owner-attested: most from an X account verified on Farcaster, the rest from onchain ENS records.
 
 The old guidance here said "never market Twitter coverage as millions". That is now wrong and should not be followed. The claim to protect was never the size, it was the **provenance**: every match carries the class of evidence behind it, versus a competitor's probabilistic fingerprinting. Market that, and keep the two figures distinct, since 4.7M is Farcaster coverage and Twitter is its own number.
@@ -74,6 +105,20 @@ The old guidance here said "never market Twitter coverage as millions". That is 
 | `token holder marketing`     | Use case         | Medium     | Medium   |
 | `find nft collectors social` | Solution seeking | Low        | Medium   |
 | `defi protocol marketing`    | Use case         | Medium     | Medium   |
+
+### Live-Competitor Comparison Keywords
+
+Measured 2026-09-19: `addressable` drew 24 impressions and
+`formo vs addressable for wallet segmentation and growth analytics` drew 17,
+both at zero clicks. Competitor names are the only non-brand queries reaching
+the site at any volume, which is why this table grows rather than the blog.
+
+| Keyword                          | Search Intent | Landing Page        | Priority |
+| -------------------------------- | ------------- | ------------------- | -------- |
+| `nansen alternative`             | Comparison    | `/vs/nansen`        | **HIGH** |
+| `absolute labs alternative`      | Comparison    | `/vs/absolute-labs` | **HIGH** |
+| `wallet relationship management` | Category      | `/vs/absolute-labs` | Medium   |
+| `nansen wallet labels`           | Capability    | `/vs/nansen`        | Medium   |
 
 ### Dead-Competitor Migration Keywords (High Intent, Low Competition)
 

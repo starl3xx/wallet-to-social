@@ -2,6 +2,42 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (four discovery fixes, one of them a live bug)
+
+- **The seed cron could not see the third holder index, so BNB Chain stayed
+  retired a day after its import path came back.** `getContractHolders` has
+  served bsc through the third index since 2026-09-20, but the discovery gate
+  asked only `hasSecondHolderIndex`, whose provider does not serve that chain.
+  Nine named BNB tokens were left holding the zero-holder row they recorded
+  before the rescue, and nothing could clear it: a candidate skipped at
+  discovery never updates `last_seeded_at`, so the row could not age past
+  `FAILURE_RETRY_DAYS`, and the weekly report re-read each stalled row as a
+  fresh failure every Monday. New `hasThirdHolderIndex` predicate, a rung per
+  index, asserted both ways in `check-invariants.ts`.
+- Verified live before the change rather than inferred from the ladder:
+  PancakeSwap answered 1,912,112 holders through the third index while
+  discovery was still refusing the chain. ENS, Clanker, GNS, Optimism and
+  Aavegotchi all resolve too, which is why the other nine contracts in that
+  report were stale rows awaiting a retry slot and not a second defect.
+- **The sitemap stopped borrowing the hub's listing.** It had asked Google to
+  index all 186 holder reports at one flat priority, and Search Console
+  answered with 83 "Discovered, currently not indexed" and 46 "Crawled,
+  currently not indexed". New `SITEMAP_MIN_REACHABLE` floor at 100 reachable
+  people, and priority banded by the size of the finding instead of 0.7 for
+  everything. No page is withdrawn or de-listed: the hub still links every
+  collection that clears the listing floor.
+- **Two comparison pages, `/vs/nansen` and `/vs/absolute-labs`**, every
+  competitor claim read live on 2026-09-21 and dated in the copy. The `/vs`
+  pages are the only ones on the site earning search impressions today.
+  Wired into the hub, the footer, `llms.txt`, the sitemap and the related-page
+  navs, and added to the 99.9% figure registry.
+- **The house-style gate now reads the Apify Actor's page**, which is
+  published marketing copy and had been outside it. It caught two real
+  violations on its first run: "labelled" in the README and an em dash in the
+  input schema, both rendering on apify.com today. The Actor is also now
+  linked from the repo README and `llms.txt`, the two surfaces that already
+  outrank the site.
+
 ### 2026-09-21 (NFT import stops being a single-index bet)
 
 - **A second NFT-owner index behind the first** (`fetchNftOwnersInsight`),

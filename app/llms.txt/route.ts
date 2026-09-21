@@ -209,6 +209,8 @@ Tool discovery needs neither: a client can connect and list the tools before buy
 
 The skill file is at https://walletlink.social/skill.md, which is a URL a person can hand to an agent directly: what the tools are, what each costs, how to authenticate, and how to read a result. It is generated from the same constants and canonical sentences as this file, so it cannot drift from what the product actually charges or claims.
 
+There is also an Apify Actor at https://apify.com/starl3xx/wallet-to-twitter-farcaster-lookup, which wraps the same REST API for a scraping marketplace. It is free to run and takes the caller’s own key, so it draws the same free allowance and the same packs rather than a second balance.
+
 ## For agents: buying credits with USDC, no account
 
 An agent can buy its own credits over x402, with no account, no card and no email. POST to https://walletlink.social/api/x402/buy and it answers 402 with a payment challenge; pay ${agentPrice} in USDC on Base and the response carries a fresh API key with ${agentMatches} match credits behind it. That is roughly ${agentAddresses} resolvable addresses at our measured rate, or one full batch call, at about $${agentPerAddress} an address.
@@ -247,10 +249,12 @@ Individual holder reports live at /holders/{chain}/{contract address}, for examp
 
 Claim-by-claim comparisons with the alternatives, maintained and dated:
 
-- [All comparisons](https://walletlink.social/vs): the hub over the six pages below, split by whether the service still exists.
+- [All comparisons](https://walletlink.social/vs): the hub over the eight pages below, split by whether the service still exists.
+- [walletlink vs Absolute Labs](https://walletlink.social/vs/absolute-labs): a wallet relationship management platform sold by demo, with no price published anywhere on its site. Different purchase.
 - [walletlink vs Addressable](https://walletlink.social/vs/addressable): deterministic and owner-attested against probabilistic fingerprinting, and self-serve against a sales call.
 - [walletlink vs Cookie3](https://walletlink.social/vs/cookie3): their wallet-to-X matching caps at ten thousand accounts on every tier a person can buy. Cookie3 is not Cookie.fun; the page says so explicitly.
 - [walletlink vs Formo](https://walletlink.social/vs/formo): Formo is product analytics for your own app, billed per request whether or not an address resolves. Different purchase.
+- [walletlink vs Nansen](https://walletlink.social/vs/nansen): Nansen answers what a wallet does; its address API returns behavior and labels and no social account. We answer who published it.
 - [walletlink vs Holder](https://walletlink.social/vs/holder): Holder sunset in June 2024. A migration page, with no subscription to replace.
 - [walletlink vs Blaze](https://walletlink.social/vs/blaze): Blaze is no longer available. The page records the comparison for the searches that still land on it.
 - [walletlink vs Airstack](https://walletlink.social/vs/airstack): Airstack is no longer available, and its Farcaster APIs were deprecated before that. Same treatment.

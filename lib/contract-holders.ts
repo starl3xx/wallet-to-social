@@ -295,6 +295,26 @@ export function secondIndexIsOnlyHolderSource(chain: SupportedChain): boolean {
 }
 
 /**
+ * Can the third metered index serve this chain's ERC-20 holders right now?
+ *
+ * The same shape as `hasSecondHolderIndex` and for the same caller: the seed
+ * cron's discovery gate, which must know whether a metered chain has anything
+ * left to ask before it spends a slot.
+ *
+ * It exists because the gate was written when the ladder was two rungs deep
+ * and nobody widened it when the third arrived on 2026-09-20. `getContractHolders`
+ * has served BNB Chain through this index since that day, and the gate went on
+ * refusing the chain at discovery because it asked only about the second one.
+ * The nine BNB tokens in the named list therefore sat on the failed attempt
+ * they recorded before the rescue shipped, never retried, and the weekly report
+ * counted each of them as a fresh failure every Monday. A predicate per rung,
+ * so a fourth cannot repeat it.
+ */
+export function hasThirdHolderIndex(chain: SupportedChain): boolean {
+  return chain in CHAINBASE_CHAIN_IDS && !!process.env.CHAINBASE_API_KEY;
+}
+
+/**
  * Does a spent metered allowance still have somewhere to go on this chain?
  *
  * Exported so the import route can tell the customer something true. Reaching

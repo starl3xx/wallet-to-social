@@ -109,6 +109,8 @@ curl https://walletlink.social/api/v1/wallet/0xd8da...96045 \
 
 **Onchain rail.** `POST /api/x402/buy` sells a $1 Agent pack for USDC on Base with no account, no card and no email: pay, and the response carries a fresh API key. `/api/x402/recover` reissues a key to the wallet that paid, on a signed challenge.
 
+**Apify.** [Wallet to Twitter & Farcaster Lookup](https://apify.com/starl3xx/wallet-to-twitter-farcaster-lookup) wraps the REST API as a marketplace Actor, for people who buy tooling by browsing rather than by reading docs. Free to run, and it takes the caller’s own key, so it spends the same free allowance and the same packs. Source in `integrations/apify-actor/`.
+
 ---
 
 ## Architecture

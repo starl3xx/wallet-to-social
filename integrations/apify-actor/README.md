@@ -15,7 +15,7 @@ This Actor reads the opposite direction. Every match comes from something the ow
 - an attested social sign-in
 - a manually verified record
 
-Each row is labelled with which class of evidence it came from, so you can set your own confidence bar instead of trusting a score somebody else assigned. Over 99.9% of the X handles in the index arrive by one of the first two routes.
+Each row is labeled with which class of evidence it came from, so you can set your own confidence bar instead of trusting a score somebody else assigned. Over 99.9% of the X handles in the index arrive by one of the first two routes.
 
 ## Handles that no longer reach anybody
 
@@ -24,6 +24,14 @@ Having an account and reaching a person are different claims, and most tools con
 Of 473,215 distinct X handles resolved against X itself: **70.1% are live, 20.1% are suspended, and 9.8% were never claimed**. Close to a third of the handles on a typical holder list reach nobody at all. Where the check has been run, each row carries an `x_reachability` value of `live`, `suspended`, `unclaimed` or `reassigned`, so you can drop the dead ones before you spend anything on reach.
 
 An empty `x_reachability` means the handle was not checked. It never means nobody is behind it.
+
+## How to find the Twitter account behind an Ethereum wallet address
+
+One address or ten thousand, the method is the same and it takes about a minute.
+
+Paste the address into `walletAddresses`, leave `lookupMode` on `wallets`, add your API key, and run. The dataset comes back with the X handle, the Farcaster username, the evidence class behind each one, and whether the X handle still reaches a person. If the owner never published an account, the row says `found: false` and you were not charged for it.
+
+Going the other way is one field: set `lookupMode` to `x_handle`, put the handle in `handle`, and you get the wallets that account is attested to.
 
 ## How to use it
 
