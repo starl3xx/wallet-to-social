@@ -816,16 +816,23 @@ async function fetchNftOwnersInsight(
         `Second NFT index returned no data array: ${JSON.stringify(json).slice(0, 200)}`
       );
     }
-    let pageAddresses = 0;
+    /**
+     * The end test counts RAW entries, tokens as the provider paginates
+     * them, never the valid-owner subset: a full page carrying one
+     * malformed owner would otherwise read as short, end the walk early,
+     * and return a partial labeled complete, which is the exact failure
+     * this function exists to refuse (caught in review).
+     */
+    let rawEntries = 0;
     for (const row of json.data) {
       for (const raw of row.owner_addresses ?? []) {
+        rawEntries++;
         const addr = raw.toLowerCase();
         if (!/^0x[0-9a-f]{40}$/.test(addr)) continue;
-        pageAddresses++;
         counts.set(addr, (counts.get(addr) ?? 0) + 1);
       }
     }
-    if (pageAddresses < PAGE) {
+    if (rawEntries < PAGE) {
       ended = true;
       break;
     }
