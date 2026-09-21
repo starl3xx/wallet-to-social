@@ -378,7 +378,7 @@ Legacy tiers and the whitelist:
 - `getUserAccess(email, wallet)`: Returns tier (`free` | `pro` | `unlimited`), the per-lookup limit and the ENS flag; a whitelisted account reports as `unlimited`
 - `effectiveTierForUserId(userId)`: The same answer by id, whitelist-aware
 - `TIER_LIMITS`: Per-lookup wallet limits, legacy only. `free` (500) applies to anonymous callers and to the free allowance; `pro` (5,000) to the one legacy account; credits supersede it
-- `normalizeTier()`: Anything unrecognised, including the retired `starter`, is `free`
+- `normalizeTier()`: Anything unrecognized, including the retired `starter`, is `free`
 - `walletsUsed` is a lifetime record of work run and gates nothing
 
 ### `components/ResultsTable.tsx`
@@ -1184,6 +1184,18 @@ form of its model:
 
 A new agent-surface feature names its layer in `docs/AGENT-SYSTEM.md` before
 it ships, and must not restate a fact whose authority lives in another layer.
+
+**What an agent may do with what it reads is declared separately from what it
+may read.** `/robots.txt` carries `Content-Signal: search=yes, ai-input=yes,
+ai-train=yes` above the Cloudflare Content Signals Policy verbatim. `Allow` and
+`Disallow` govern access; the signal governs use after access. `ai-input` is
+the one that decides whether an assistant may ground an answer in this site at
+query time, so it is a projection of the same decision `llms.txt` and
+`/skill.md` make in prose. It is served from `app/robots.txt/route.ts`, a Route
+Handler rather than the Next `robots.ts` metadata convention, because that
+convention's serializer discards any directive it does not recognize. An
+omitted signal grants and restricts nothing, so a label is never deleted; only
+its value changes. Reasoning in `docs/SEO-STRATEGY.md`.
 
 ## Files to Update on Changes
 
