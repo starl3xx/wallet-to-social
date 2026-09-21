@@ -47,6 +47,18 @@ All notable changes to walletlink.social. Newest first.
   next refresh is worse than not having the feature, because the mount restore
   bails on `lookup=` by design and would reopen a lookup the person had moved
   on from instead of resuming the job in progress.
+- **The rule keys on `currentLookupId`, and a new run now clears it.** That
+  variable claimed to mean "the results on screen are this saved lookup" and
+  did not: it survived a new run, so Rename and Add addresses stayed bound to a
+  lookup nobody was looking at. Making it true is what lets one condition cover
+  every case, including growing a lookup, which goes to `processing` and is
+  still the same lookup.
+- **The deep-link guard is read during the first render, not set in an effect.**
+  The clearing effect runs on mount and the deep-link effect waits for the
+  session, so a flag set there is set too late: the parameter was deleted
+  before anything could read it, which made every dashboard row a silent
+  no-op. That is the bug this change exists to fix, reintroduced by its own
+  fix, and caught in review rather than by me.
 - **That rule replaced a list, after the list was shown to be incomplete.** The
   first version called a helper from reset, a new lookup and a starter
   collection; review found a fourth exit it had missed the same day ("Create

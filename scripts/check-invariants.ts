@@ -11275,16 +11275,44 @@ async function main() {
        * somebody had gone back to patching exits one at a time.
        */
       const clears = [...homeSrc.matchAll(/forgetLookupParam\(\);/g)].length;
-      const ruleEffect =
-        /if \(lookupDeepLinkPending\.current\) return;\s*if \(state === 'complete' && currentLookupId\) return;\s*forgetLookupParam\(\);\s*\}, \[state, currentLookupId\]\);/.test(
-          homeSrc.replace(/\s+/g, ' ').replace(/ /g, ' ')
-        ) ||
-        /lookupDeepLinkPending\.current[\s\S]{0,200}state === 'complete' && currentLookupId[\s\S]{0,120}forgetLookupParam\(\);[\s\S]{0,80}\[state, currentLookupId\]/.test(
-          homeSrc
-        );
+      const flat = homeSrc.replace(/\s+/g, ' ');
       ok(
         'the lookup parameter is dropped by one rule about what is on screen, not per exit',
-        clears === 2 && ruleEffect
+        clears === 2 &&
+          flat.includes(
+            'if (lookupDeepLinkPending.current) return; if (currentLookupId) return; forgetLookupParam(); }, [currentLookupId]);'
+          )
+      );
+
+      /**
+       * The flag that guards it is read during render, not set in an effect.
+       *
+       * This effect runs on mount and the deep-link effect waits for the
+       * session first, so a flag set there is set too late: the parameter is
+       * deleted before anything reads it and every dashboard row becomes a
+       * silent no-op, which is the bug this whole change exists to fix. The
+       * earlier version did exactly that.
+       */
+      ok(
+        'the deep-link guard is armed from the URL before any effect runs',
+        /const lookupDeepLinkPending = useRef\(\s*typeof window !== 'undefined' &&\s*new URLSearchParams\(window\.location\.search\)\.has\('lookup'\)\s*\)/.test(
+          homeSrc
+        )
+      );
+
+      /**
+       * And a new run stops claiming to be the saved lookup it replaced.
+       *
+       * `currentLookupId` is what the rule above reads, and it is also what
+       * gates Rename and Add addresses. Until this it survived a new run, so
+       * both stayed bound to a lookup nobody was looking at and the URL went
+       * on naming it. Three sites clear it: reset, a new lookup, and a starter
+       * collection. Growing a lookup deliberately does not, because the same
+       * lookup is still on screen, and that is the case the rule has to keep.
+       */
+      ok(
+        'a new run stops claiming the saved lookup it replaced',
+        [...homeSrc.matchAll(/setCurrentLookupId\(null\);/g)].length >= 4
       );
     }
 

@@ -892,6 +892,10 @@ export default function Home() {
     setInputSource('text_input');
     setSourceContract(null);
     setSourceFileName(null);
+    // Opting out of growing the saved lookup means the page stops being about
+    // it: the id goes, and the rule below drops it from the URL.
+    setCurrentLookupId(null);
+    setCurrentLookupName(null);
     setState('ready');
     setShowPasteInput(false);
   }, [pasteText]);
@@ -1112,6 +1116,12 @@ export default function Home() {
     const submittedName = typedName || derivedName;
     submittedNameRef.current = submittedName;
 
+    // A new run is not the saved lookup that was on screen. Until this, the id
+    // survived, so Rename and Add addresses stayed bound to the old lookup
+    // while new results were displayed, and the URL went on naming it.
+    setCurrentLookupId(null);
+    setCurrentLookupName(null);
+
     setState('processing');
     setResults([]);
     setCacheHits(0);
@@ -1221,6 +1231,10 @@ export default function Home() {
       if (collection.name) {
         submittedNameRef.current = `Holders of ${collection.name}`;
       }
+
+      // A new run, same reason as startLookup.
+      setCurrentLookupId(null);
+      setCurrentLookupName(null);
 
       setState('processing');
       setResults([]);
@@ -1841,7 +1855,10 @@ export default function Home() {
    * settles. The clearing effect below reads it so a deep link is not stripped
    * from the URL before the thing it names has had a chance to open.
    */
-  const lookupDeepLinkPending = useRef(false);
+  const lookupDeepLinkPending = useRef(
+    typeof window !== 'undefined' &&
+      new URLSearchParams(window.location.search).has('lookup')
+  );
 
   useEffect(() => {
     if (lookupDeepLinkRead.current) return;
@@ -1895,23 +1912,35 @@ export default function Home() {
    * refresh reopen a lookup somebody had moved on from instead of resuming the
    * job they had started.
    *
-   * Keyed on what is displayed rather than called from each exit, and that is
-   * the whole point. The first version of this called `forgetLookupParam()`
-   * from reset, a new lookup and a starter collection, and review immediately
-   * found a fourth exit it had missed ("Create new lookup instead"), with the
-   * contract importer and the paste path behind it. A list of the ways to
-   * leave a screen is never finished; the condition for being on it is.
+   * Keyed on `currentLookupId`, which is the one value that means "the results
+   * on this screen are that saved lookup". Not on a list of exits: the first
+   * version called a helper from three of them and review found a fourth the
+   * same day, with two more behind it. A list of the ways to leave a screen is
+   * never finished; the condition for being on it is.
    *
-   * `lookupDeepLinkPending` is why this cannot simply run on mount: a deep
-   * link arrives with `state` still `upload`, so without it this would strip
-   * the parameter before the fetch it describes had resolved. A failed fetch
-   * clears it, which is correct, since nothing was opened.
+   * It is not keyed on `state` either, which the version before this one got
+   * wrong: growing a lookup goes to `processing` and is still that lookup, so
+   * a `state === 'complete'` term dropped the URL of the thing still on
+   * screen. `currentLookupId` survives the merge and says so.
+   *
+   * That only works because a new run now clears the id, which it did not
+   * before. The variable claimed to mean this and did not: after viewing a
+   * saved lookup and starting another, it kept pointing at the old one, which
+   * left Rename and Add addresses bound to a lookup nobody was looking at.
+   *
+   * `lookupDeepLinkPending` starts true when the URL arrives carrying the
+   * parameter, read during the first render rather than in an effect. It has
+   * to: this effect runs on mount, the deep-link effect waits for the session
+   * first, and a flag set there would be set too late. The earlier version was
+   * exactly that, and it deleted the parameter before anything could read it,
+   * which made every dashboard row a silent no-op: the bug this whole change
+   * exists to fix, reintroduced by its fix.
    */
   useEffect(() => {
     if (lookupDeepLinkPending.current) return;
-    if (state === 'complete' && currentLookupId) return;
+    if (currentLookupId) return;
     forgetLookupParam();
-  }, [state, currentLookupId]);
+  }, [currentLookupId]);
 
   // Handle adding addresses to existing lookup
   const handleAddToLookup = useCallback(
