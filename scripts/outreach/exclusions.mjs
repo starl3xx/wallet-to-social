@@ -11,7 +11,7 @@ export async function syncExistingAccounts(state, now, query) {
       );
     const { neon } = await import('@neondatabase/serverless');
     const sql = neon(process.env.OUTREACH_DATABASE_URL);
-    query = () => sql`SELECT email FROM users WHERE email IS NOT NULL`;
+    query = () => sql`SELECT email FROM public.users WHERE email IS NOT NULL`;
   }
   const rows = await query();
   if (!Array.isArray(rows))

@@ -173,12 +173,15 @@ export function digest(lead) {
         sourceUrl: lead.sourceUrl,
         contactSourceUrl: lead.contactSourceUrl,
         observation: lead.observation,
-        messages: lead.messages.map(({ subject, body, from, delayDays }) => ({
-          subject,
-          body,
-          from,
-          delayDays,
-        })),
+        messages: lead.messages.map(
+          ({ subject, body, from, senderName, delayDays }) => ({
+            subject,
+            body,
+            from,
+            senderName,
+            delayDays,
+          })
+        ),
       })
     )
     .digest('hex');
@@ -215,6 +218,7 @@ export function plan(state, now) {
     lead.messages = bodies.map((body, index) => ({
       id: randomUUID(),
       from: state.config.sender,
+      senderName: state.config.senderName,
       subject,
       body,
       delayDays: [0, 4, 7][index],

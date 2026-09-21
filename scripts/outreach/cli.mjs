@@ -149,6 +149,7 @@ if (!command || command === 'help' || command === '--help') {
               lines.push(
                 `### Message ${i + 1}`,
                 '',
+                `From: ${message.senderName || ''} <${message.from}>`,
                 `Subject: ${message.subject}`,
                 '',
                 message.body,

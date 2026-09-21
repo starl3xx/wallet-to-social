@@ -9,7 +9,9 @@ const header = (message, name) =>
 export function mime(lead, message, index) {
   const previous = lead.messages[index - 1];
   const headers = [
-    `From: ${message.from}`,
+    message.senderName
+      ? `From: =?UTF-8?B?${Buffer.from(message.senderName).toString('base64')}?= <${message.from}>`
+      : `From: ${message.from}`,
     `To: ${lead.email}`,
     `Subject: =?UTF-8?B?${Buffer.from(message.subject).toString('base64')}?=`,
     `Message-ID: ${message.rfcId}`,

@@ -905,6 +905,18 @@ All notable changes to walletlink.social. Newest first.
   linked from the repo README and `llms.txt`, the two surfaces that already
   outrank the site.
 
+### 2026-09-21 (reviewed revenue outreach)
+
+- Added a private local prospect research, qualification, draft review and
+  outreach runner with per-sequence approval and two timed follow-ups.
+- Gmail reply checks, existing-account exclusions, opt-out stops, volume
+  limits and delivery reconciliation keep the queue bounded and recoverable.
+- Added campaign revenue tracking, a five-minute worker, mocked-provider tests
+  and an operator runbook. The local mailbox and exclusion connection are
+  verified; the sender remains paused and no prospect mail has been sent.
+- Preserve the reviewed sender display name in email headers and bind it to
+  approval. Query the explicit users schema for reliable exclusion syncs.
+
 ### 2026-09-21 (robots.txt declares what may be done with the content, not just who may read it)
 
 - **`/robots.txt` now carries a `Content-Signal` line, and `app/robots.ts` is
@@ -939,15 +951,6 @@ All notable changes to walletlink.social. Newest first.
   bites, including the one Cloudflare's own robots.txt gets wrong, emitting
   the line outside any group so it scopes to whichever crawler happens to
   precede it.
-
-### 2026-09-21 (reviewed revenue outreach)
-
-- Added a private local prospect research, qualification, draft review and
-  outreach runner with per-sequence approval and two timed follow-ups.
-- Gmail reply checks, existing-account exclusions, opt-out stops, volume
-  limits and delivery reconciliation keep the queue bounded and recoverable.
-- Added campaign revenue tracking, a five-minute worker, mocked-provider tests
-  and an operator runbook. No live mail, infrastructure changes or deployment.
 
 ### 2026-09-21 (NFT import stops being a single-index bet)
 

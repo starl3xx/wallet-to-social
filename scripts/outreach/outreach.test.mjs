@@ -185,13 +185,16 @@ test('revising approved copy requires fresh approval', async () => {
   assert.ok(!f.calls.includes('send'));
 });
 
-test('approval also binds the recipient and sender', async () => {
+test('approval also binds the recipient, sender address and display name', async () => {
   for (const edit of [
     (lead) => {
       lead.email = 'changed@example.org';
     },
     (lead) => {
       lead.messages[0].from = 'changed@example.com';
+    },
+    (lead) => {
+      lead.messages[0].senderName = 'Changed name';
     },
   ]) {
     const f = fixture();
@@ -471,6 +474,11 @@ test('MIME encodes UTF-8 and preserves reply references', () => {
     mime(lead, lead.messages[1], 1),
     'base64url'
   ).toString();
+  assert.ok(
+    raw.includes(
+      `From: =?UTF-8?B?${Buffer.from(config.senderName).toString('base64')}?= <${config.sender}>`
+    )
+  );
   assert.match(raw, /In-Reply-To: <first@example.com>/);
   assert.match(raw, /References: <first@example.com>/);
   assert.match(raw, /Subject: =\?UTF-8\?B\?/);

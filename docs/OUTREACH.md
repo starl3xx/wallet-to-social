@@ -1,9 +1,12 @@
 # Revenue outreach
 
-Status: implemented for local evaluation; not connected, running, or sending.
+Status as of September 21, 2026: Gmail OAuth is connected and the sending
+alias is verified. The local runner remains paused, with no worker installed
+and no outreach sent. Existing-account exclusion access is connected and the
+first sync passed. Live delivery and reply-detection checks remain outstanding.
 The existing Resend welcome and nonbuyer campaigns remain live and unchanged.
 
-Jake chose this policy on September 21, 2026: approve each initial message,
+starl3xx chose this policy on September 21, 2026: approve each initial message,
 then automate follow-ups until a reply. This runner implements a bounded
 sequence: the approved initial message, a follow-up four days later, and a
 final follow-up seven days after that. The review shows all three messages.
@@ -51,8 +54,9 @@ published, or attached to public issues.
 
 Copy `scripts/outreach/config.example.json` to a private location. Set the
 real receiving Gmail account, a verified sending address, sender name and
-signature. `gm@walletlink.social` is a suggested alias, not a newly created
-mailbox. Check the address's actual sending configuration before using it.
+signature. The selected identity is `starl3xx <starl3xx@walletlink.social>`,
+with `gm@walletlink.social` as the primary Workspace mailbox. Confirm the
+send-as identity is configured in Gmail before enabling the runner.
 
 ```sh
 npm run outreach -- init /private/path/config.json
@@ -94,18 +98,22 @@ npm run outreach -- approve PROSPECT_ID REVIEW_SHA256
 
 ## Sender and reply integration
 
-The existing infrastructure uses Resend for customer lifecycle mail and
-Cloudflare to forward incoming WalletLink mail to Gmail, as documented in
-`docs/DOCS-SITE.md`. Cloudflare routing alone does not configure Gmail's
-outbound sending identity.
+Resend continues to handle customer lifecycle mail. Google Workspace now
+receives root-domain mail through Google's MX record. The primary mailbox
+is `gm@walletlink.social`; `starl3xx@walletlink.social` is its verified,
+default sending alias. Workspace routing retains incoming messages in the
+mailbox and also forwards them to the existing personal Gmail destination.
+Google SPF and DKIM are configured; live delivery checks remain outstanding.
 
 The new adapter uses Gmail's API for both sending and reply checks. It checks
 the connected primary mailbox and verifies that the configured sender is an
 accepted Gmail send-as alias. It refuses a known Resend SMTP alias because
 [Resend explicitly prohibits cold outreach](https://resend.com/legal/acceptable-use).
 The actual outbound service behind any alias still needs to support the
-intended use. No DNS, routing rule, mailbox, or sending alias was changed by
-this implementation.
+intended use. Mailbox setup was performed separately from the code changes;
+the OAuth client credentials and refresh token are stored only in the private
+local runtime directory. The read-only `doctor` check passed for the configured
+mailbox and sender.
 
 Configure a Google OAuth client for the receiving mailbox with these scopes:
 
@@ -128,7 +136,10 @@ OUTREACH_DATA_DIR=
 ```
 
 `OUTREACH_DATABASE_URL` should use a dedicated role with only `SELECT(email)`
-on `users`. Before every live tick, the runner excludes all existing
+on `public.users`. The dedicated outreach role is connected; live privilege
+checks confirmed email-column access without full-table reads or user-table
+writes. The query names the schema explicitly so pooled connection search
+paths cannot select a different table. Before every live tick, the runner excludes all existing
 WalletLink accounts, including opted-out accounts, to avoid overlapping the
 welcome and nonbuyer campaigns. A failed query stops that tick. This is a
 read-only query; no owner credentials or schema changes are needed. Manual

@@ -1,7 +1,7 @@
 {
-  "sender": "gm@walletlink.social",
-  "mailbox": "replace-with-receiving-mailbox@example.com",
-  "senderName": "Jake",
+  "sender": "starl3xx@walletlink.social",
+  "mailbox": "gm@walletlink.social",
+  "senderName": "starl3xx",
   "signature": "WalletLink | https://walletlink.social",
   "timezone": "America/Chicago",
   "dailyLimit": 5,
