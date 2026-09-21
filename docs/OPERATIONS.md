@@ -57,14 +57,16 @@ here.
 
 ## Revenue outreach runner
 
-Implemented for local evaluation, paused by default and not deployed. The
-operator runbook is [OUTREACH.md](OUTREACH.md). It requires initial-message
-approval, checks replies before sending, and automates at most two follow-ups.
-Existing Resend lifecycle campaigns are unchanged. As of September 21, 2026, Gmail authorization and the restricted read-only
-account-exclusion connection are verified. The first exclusion sync passed.
-The runner remains paused with no background schedule installed. Owner-mailbox
-delivery, same-thread reply detection and lost-response recovery passed;
-separate-thread reply and bounce checks remain pending. Runtime prospects and SQLite state stay outside the public repo.
+As of September 21, 2026, the owner approved all three reviewed pilot sequences
+and enabled the local worker. One initial prospect message is verified sent;
+the remaining two wait behind the 15-minute spacing rule. Follow-ups stop on
+replies and are capped at two. The operator runbook is [OUTREACH.md](OUTREACH.md).
+Gmail authorization, restricted account exclusions and lost-response recovery
+are verified. Delivery and reply checks passed against the operator's mailbox;
+live bounce behavior remains unverified, with automated coverage in place.
+The worker runs under local macOS supervision and depends on the Mac being
+awake, logged in and online. Runtime prospects and credentials stay private.
+Existing Resend lifecycle campaigns are unchanged.
 
 ## Right to removal: the operator runbook (stage 1)
 

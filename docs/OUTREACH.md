@@ -1,12 +1,13 @@
 # Revenue outreach
 
-Status as of September 21, 2026: Gmail OAuth is connected and the sending
-alias is verified. The local runner remains paused, with no worker installed
-and no prospect outreach sent. Existing-account exclusion access is connected and the
-first sync passed. Owner-mailbox delivery and same-thread reply detection
-passed. Lost-response delivery recovery also passed against an operator-approved
-live test with a rewritten Message-ID and zero resends. Separate-thread reply
-and bounce checks still need live verification.
+Status as of September 21, 2026: the owner approved all three reviewed pilot
+sequences and the live local worker is running. The first prospect's initial
+message is verified in Sent Mail; two initial messages are queued behind the
+15-minute spacing rule. Follow-ups remain bounded to two and stop on a reply.
+Gmail authorization and account exclusions are verified. Owner-mailbox delivery,
+same-thread reply detection, sender-based lookup without thread IDs and
+lost-response recovery passed. A real bounce has not been induced; its stop
+path is covered by automated tests.
 The existing Resend welcome and nonbuyer campaigns remain live and unchanged.
 
 starl3xx chose this policy on September 21, 2026: approve each initial message,
@@ -190,7 +191,10 @@ node --env-file=/private/path/outreach.env scripts/outreach/worker.mjs --send
 Without `--send`, the worker only previews due messages and makes no network
 requests. It does not install itself as a service. To run unattended, use
 one persistent host with process supervision and the same private data
-directory. No background process or schedule has been installed yet.
+directory. The pilot now runs under a macOS LaunchAgent using a private snapshot of the
+reviewed runner. It restarts after process failure and at user login. This is
+a local service: sleep, shutdown or loss of connectivity delays delivery.
+A new runner release requires deliberately updating the service snapshot.
 
 ```sh
 npm run outreach -- pause
