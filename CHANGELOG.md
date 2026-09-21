@@ -2,6 +2,35 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (the identity-platform sweep moves onchain)
+
+- **`lib/ethos.ts` reads chain state instead of the platform's API.** Their
+  terms (§4.3) forbid republishing any part of the Services, and serving
+  API data to customers is arguably exactly that; the same facts are
+  written onchain by their own attest mechanism, where the service and the
+  NUMERIC account id are plain strings (probed before building), and chain
+  state has no terms to accept. Same source id, same class, same quality:
+  the evidence is unchanged, only where it is read from.
+- The clanker sweep's shape, deliberately: event scan with a block
+  checkpoint, ids into handles from the graph first and the resolver
+  within a budget, unresolved ids holding the frontier, and the two sweeps
+  share the denial ledger because a resolver denial is a fact about the
+  id, not about who asked. Events only DISCOVER attestation ids; the state
+  ingested is read back from `attestationById` at sweep time (review
+  killed a last-writer-wins replay that a capped or rewound window could
+  feed intermediate history), archived attestations and profiles are
+  skipped, and addresses their owner flagged as compromised are dropped.
+  Daily runs are capped at 10M blocks; the weekly `?full=1` cron entry
+  re-reads every active profile, because connecting a wallet to an
+  existing profile emits no event, and never touches the incremental
+  checkpoint.
+- **Backfill run and cross-validated before shipping**: 91,062 events over
+  the contract's whole history produced 87,148 links, of which 86,235
+  agree with what the REST-era sweep had already written: the chain
+  independently reproduces the corpus. 37,294 of 37,312 ids cost nothing
+  to name (the graph already held them), 15 cost 180 resolver credits, 3
+  were denied and hold the frontier until the ledger retires them.
+
 ### 2026-09-21 (what the union driver actually buys, measured)
 
 - **GitHub does not honor `merge=union`.** Measured rather than assumed: with
