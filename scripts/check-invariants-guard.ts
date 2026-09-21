@@ -1545,6 +1545,82 @@ const MUTATIONS: Mutation[] = [
     to: "const ALLOW = ['/api/public-stats', '/'];",
   },
   {
+    // The state this shipped in for one round of testing. The rules compile
+    // into the manifest with the right regex and the right `has`, and never
+    // run: a page always answers first, so afterFiles is never consulted.
+    name: 'the negotiation rewrites move after the filesystem, where every page beats them',
+    file: 'next.config.ts',
+    from: '      beforeFiles: [',
+    to: '      afterFiles: [',
+  },
+  {
+    // Next anchors a `has` value at both ends, so the bare media type matches
+    // only a request whose whole Accept header is those fourteen characters.
+    // Fails closed, silently, for every real client.
+    name: 'the Accept matcher loses the wildcards that let a real Accept header match',
+    file: 'next.config.ts',
+    from: "  value: '.*text/markdown.*',",
+    to: "  value: 'text/markdown',",
+  },
+  {
+    // /blog/:slug matches /blog/a-post.md with the slug "a-post.md", so
+    // without this rule above it the explicit markdown URL 404s for exactly
+    // the client careful enough to send both the path and the header.
+    name: 'the explicit /blog/<slug>.md rewrite is dropped, leaving the path to the negotiated rule',
+    file: 'next.config.ts',
+    from: "          source: '/blog/:slug.md',\n",
+    to: '',
+  },
+  {
+    name: 'a markdown body is served typed as plain text, which is not negotiation',
+    file: 'app/api/markdown/[[...path]]/route.ts',
+    from: "      'Content-Type': 'text/markdown; charset=utf-8',\n      Vary: 'Accept',",
+    to: "      'Content-Type': 'text/plain; charset=utf-8',\n      Vary: 'Accept',",
+  },
+  {
+    // Without it a shared cache can replay one agent's markdown to the next
+    // person who opens the page in a browser.
+    name: 'the negotiated response stops declaring that it varies by Accept',
+    file: 'app/api/markdown/[[...path]]/route.ts',
+    from: "      Vary: 'Accept',\n      Link:",
+    to: '      Link:',
+  },
+  {
+    // The HTML report noindexes a placeholder-named collection. A twin that
+    // does not is the same page, indexable, at a second representation.
+    name: 'the markdown holder report keeps an index invitation the page refuses',
+    file: 'app/api/markdown/[[...path]]/route.ts',
+    from: '      noindex: !holderReportIsIndexable(collection),\n',
+    to: '',
+  },
+  {
+    // `meetsListingFloor` is two conditions, and the count is the
+    // non-binding one on any large holder set: at the import cap the rate
+    // floor is 100 reachable, not 20. Stating one floor teaches an agent to
+    // expect reports that will never appear. Bugbot, PR #353.
+    name: 'the holders twin states one listing floor where the rule has two',
+    file: 'app/api/markdown/documents.ts',
+    from: 'A collection is listed here once it clears both floors: at least ${LISTING_MIN_REACHABLE} reachable holders, and reachable holders at least ${Math.round(LISTING_MIN_RATE * 100)}% of the ones measured. The second is the binding one on any large holder set.',
+    to: 'A collection appears here once at least ${LISTING_MIN_REACHABLE} of its holders are reachable.',
+  },
+  {
+    // `lib/blog.ts` fills an unset description with '', not null, so a filter
+    // that drops only null publishes `description: ""`: a declared field
+    // asserting the post has no description. Bugbot, PR #353.
+    name: 'an unset frontmatter field is published as an empty value instead of omitted',
+    file: 'app/api/markdown/documents.ts',
+    from: '    .filter((entry): entry is [string, string] => Boolean(entry[1]))',
+    to: '    .filter((entry): entry is [string, string] => entry[1] !== null)',
+  },
+  {
+    // A rewrite with no branch behind it answers 404 to a client that asked
+    // politely for markdown, and nothing else changes.
+    name: 'a negotiable path loses the handler branch that answers it',
+    file: 'app/api/markdown/[[...path]]/route.ts',
+    from: "  if (segments.length === 1 && first === 'pricing') {",
+    to: "  if (segments.length === 1 && first === 'prices') {",
+  },
+  {
     // Paragraph (c) of the policy makes deletion the dangerous edit: an
     // omitted signal is a refusal to answer, not a quiet no, so this reads
     // as tidying and is a withdrawal.

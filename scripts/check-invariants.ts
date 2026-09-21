@@ -7758,6 +7758,193 @@ async function main() {
     );
   }
 
+  // ------------------------------------------- markdown content negotiation
+  // Three of the four things that can break this break it silently, in the
+  // direction where every page still answers correctly to a browser and the
+  // feature simply never happens. Nothing throws, no log line appears, and
+  // the only way to notice is to send the header and read the content type.
+  {
+    const config = withoutComments(readFileSync('next.config.ts', 'utf8'));
+    const handler = withoutComments(
+      readFileSync('app/api/markdown/[[...path]]/route.ts', 'utf8')
+    );
+    const documents = withoutComments(
+      readFileSync('app/api/markdown/documents.ts', 'utf8')
+    );
+
+    /**
+     * The failure this shipped with for one round of testing.
+     *
+     * An array returned from `rewrites()` becomes `afterFiles`, which is
+     * consulted only when nothing in the app answered the request. Every
+     * negotiable path IS a page, so the rules compiled into the manifest with
+     * the right regex and the right `has`, and never once ran. `/pricing`
+     * with `Accept: text/markdown` answered `text/html` with nothing
+     * anywhere to say why.
+     */
+    ok(
+      'the negotiation rewrites run before the filesystem, where a page cannot beat them',
+      /beforeFiles: \[[\s\S]*?MARKDOWN_NEGOTIABLE\.map/.test(config)
+    );
+
+    /**
+     * Next compiles a `has` value as `new RegExp(`^${value}$`)`, anchored at
+     * both ends (`matchHas` in
+     * `next/dist/shared/lib/router/utils/prepare-destination.js`). A bare
+     * `text/markdown` matches only a request whose entire Accept header is
+     * those fourteen characters, which no agent and no library sends. It
+     * fails closed: HTML to everybody, forever, quietly.
+     *
+     * Asserted on the wildcards rather than on the whole string, so tightening
+     * the pattern in some other correct way is still allowed and dropping the
+     * anchoring escape is not.
+     */
+    ok(
+      'the Accept matcher allows for the rest of a real Accept header on both sides',
+      /value: '\.\*text\/markdown\.\*'/.test(config)
+    );
+
+    /**
+     * `/blog/:slug` matches `/blog/a-post.md` with the slug "a-post.md", so
+     * the explicit markdown URL has to be claimed first. A careful client
+     * sends both the `.md` path and the Accept header, and that is exactly
+     * the request the wrong order 404s.
+     */
+    const blogMd = config.indexOf("source: '/blog/:slug.md'");
+    const negotiation = config.indexOf('MARKDOWN_NEGOTIABLE.map');
+    ok(
+      'the explicit /blog/<slug>.md rewrite is matched before the negotiated /blog/:slug',
+      blogMd !== -1 && negotiation !== -1 && blogMd < negotiation
+    );
+
+    /**
+     * One list in two files. A rewrite with no branch answers 404 to a client
+     * that asked politely; a branch with no rewrite is unreachable code that
+     * reads like a shipped feature. Both halves are checked, so neither can
+     * grow alone.
+     */
+    const negotiable = (
+      config.match(/const MARKDOWN_NEGOTIABLE = \[([\s\S]*?)\];/)?.[1] ?? ''
+    )
+      .split(',')
+      .map((entry) => entry.trim().replace(/^'|'$/g, ''))
+      .filter(Boolean);
+    ok(
+      'the negotiable list is read, not assumed empty by a regex that stopped matching',
+      negotiable.length >= 4 && negotiable.includes('/')
+    );
+    for (const path of negotiable) {
+      // '/' is the empty-segment branch; the rest name their first segment.
+      const segment = path.split('/')[1] ?? '';
+      ok(
+        `the handler has a branch for the negotiable path ${path}`,
+        path === '/'
+          ? /segments\.length === 0/.test(handler)
+          : new RegExp(`first === '${segment}'`).test(handler)
+      );
+    }
+
+    /**
+     * The three response headers the feature IS. A markdown body typed
+     * `text/html` is not content negotiation, a missing `Vary` lets a shared
+     * cache replay one client's markdown to the next person's browser, and a
+     * twin with no canonical is a duplicate of the page in an index.
+     */
+    /**
+     * Matched as one ordered block, not as three independent regexes.
+     *
+     * The three-regex form passed while `Vary` had been deleted from the
+     * markdown response, because the 404 branch four lines below also carries
+     * `Vary: 'Accept'` and satisfied the test on its own. Caught by
+     * `check-invariants-guard.ts` on the first run, which is what that script
+     * is for.
+     */
+    ok(
+      'a negotiated markdown response is typed, varied and pointed at its page',
+      /'Content-Type': 'text\/markdown; charset=utf-8',\s*Vary: 'Accept',\s*Link: `<\$\{doc\.canonical\}>; rel="canonical"`/.test(
+        handler
+      )
+    );
+
+    /**
+     * Both representations of one page have to agree about whether it may be
+     * indexed. The HTML report carries `robots: { index: false }` for a
+     * placeholder-named collection; the twin has to carry the same refusal,
+     * decided by the same predicate rather than by a second reading of the
+     * name.
+     */
+    ok(
+      'a holder report that the page noindexes is noindexed in markdown too',
+      /noindex: !holderReportIsIndexable\(collection\)/.test(handler) &&
+        /'X-Robots-Tag': 'noindex'/.test(handler) &&
+        /return isNamed\(collection\.name\);/.test(documents)
+    );
+
+    /**
+     * "Aggregates only, by rule: no wallet list, no handle list." The HTML
+     * report keeps that rule by never fetching one. The twin keeps it the
+     * same way, so the assertion is that the loaders which return rows are
+     * not in scope here at all: `getHolderStats` and `getHolderOverlap` both
+     * return counts, and nothing in this file reaches past them.
+     */
+    ok(
+      'the holder twin publishes no wallet list and no handle list',
+      !/resolveWallets|social_graph|twitter_handle|wallets\b/.test(documents)
+    );
+
+    /**
+     * The listing rule is two floors, and stating one of them is worse than
+     * stating neither.
+     *
+     * `meetsListingFloor` requires `reachable >= LISTING_MIN_REACHABLE` AND
+     * `reachable >= holderCount * LISTING_MIN_RATE`. The twin said only the
+     * first, which is the non-binding one on any large holder set: at the
+     * import cap of 2,000 the rate floor is 100 reachable, not 20, so an
+     * agent reading it learned a rule that is wrong in the direction of
+     * expecting reports that will never appear. Found by Bugbot on PR #353.
+     *
+     * Asserted against the rendered document, because the defect is what the
+     * sentence says and not which constants happen to be imported.
+     */
+    const { holdersIndexMarkdown } =
+      await import('@/app/api/markdown/documents');
+    const { LISTING_MIN_REACHABLE, LISTING_MIN_RATE } =
+      await import('@/lib/holder-pages');
+    const listing = holdersIndexMarkdown([]);
+    ok(
+      'the holders twin states both listing floors, not only the count',
+      listing.includes(`${LISTING_MIN_REACHABLE} reachable holders`) &&
+        listing.includes(`${Math.round(LISTING_MIN_RATE * 100)}% of the ones`)
+    );
+
+    /**
+     * Asserted through the builder rather than against the filter, because
+     * the defect is what comes out, not how it is spelled.
+     *
+     * `lib/blog.ts` types `description` as `string` and fills it with
+     * `data.meta_description || ''`, so a post that never set one is `''`
+     * and not nullish. A filter dropping only `null` published
+     * `description: ""`: a declared field asserting the post has no
+     * description, where saying nothing would have been true. Found by
+     * Bugbot on PR #353.
+     */
+    const { blogPostMarkdown } = await import('@/app/api/markdown/documents');
+    const bare = blogPostMarkdown({
+      slug: 'a-post',
+      title: 'A post',
+      // The shape `lib/blog.ts` really produces for a post with no
+      // meta_description: the empty string, never null and never absent.
+      description: '',
+      content: '# A post\n',
+      html: '<h1>A post</h1>',
+      publishedAt: '2026-01-01',
+    });
+    ok(
+      'an unset frontmatter field is omitted rather than published as an empty value',
+      !/^description:/m.test(bare) && /^title: "A post"$/m.test(bare)
+    );
+  }
+
   // ------------------------------------------- preview builds and Neon
   // docs/CI.md promises two things at once: a preview deployment never reads
   // the database at build time, and production behaves as if the frozen
