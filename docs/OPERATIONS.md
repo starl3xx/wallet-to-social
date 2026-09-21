@@ -152,15 +152,24 @@ stated 30-day retention.
    guaranteed conflict is what switches the gates above off, on every second
    PR.
 
-   `.gitattributes` marks that file `merge=union`, which **verifiably** removes
-   the hand-resolution when you merge the base branch in locally: both entries
-   survive and no marker is written. Whether GitHub's own mergeability
-   computation honors a merge driver is a different question, it runs on
-   GitHub's servers rather than in your git, and the reported behavior is that
-   it does not. So assume a second PR touching this file is still shown as
-   CONFLICTING until somebody measures otherwise, and keep doing what this step
-   already says. The protections that do not depend on it are `pr:status` and
-   `main-guard.yml`.
+   `.gitattributes` marks that file `merge=union`, and **it buys less than it
+   looks like it should.** Measured on 2026-09-21, on the first two PRs to
+   follow it onto `main`:
+   - **GitHub ignores it.** #342 still went `CONFLICTING` against a `main`
+     carrying a sibling entry. Mergeability is computed on GitHub's servers and
+     does not read `.gitattributes`, so a second PR touching this file is still
+     shown as conflicting and its workflows still do not run. The union driver
+     does not fix the dangerous half. Nothing does, short of not putting every
+     PR's entry at the top of one file.
+   - **Locally it works from the second merge onward.** Git reads attributes
+     from the branch being merged INTO, so the merge that first delivers the
+     file still conflicts, because the branch does not have it yet. Do not read
+     that conflict as the driver being broken.
+
+   So this step is unchanged in practice: merge the base branch in, and expect
+   to resolve `CHANGELOG.md` by hand exactly once per branch. What protects
+   against merging a stale-green PR is branch protection and `pr:status`, not
+   this.
 
 6. **A merged PR is not a checked commit, and nothing checks `main`.** Every
    gate here is `pull_request`-only, so what CI tested was the computed merge
