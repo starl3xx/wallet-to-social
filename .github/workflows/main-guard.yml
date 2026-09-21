@@ -5,9 +5,13 @@ name: main-guard
 # ## The hole this closes
 #
 # Every quality gate in this repository is `pull_request`-only. Nothing has
-# ever run against main. That is fine while a PR cannot merge without its
-# checks, and this repository has no branch protection, so main is exactly as
-# verified as whoever merged chose to be.
+# ever run against main.
+#
+# Branch protection was turned on the same day as this job and does most of
+# the work, but it cannot do all of it: only `format`, `invariants` and `guard`
+# can be required, because every other gate is path-filtered and a required
+# check that does not run leaves a PR pending forever. So a PR can still merge
+# with a red `figures` or a red `house-style`, and this job is what notices.
 #
 # Two things then make the gap invisible rather than merely present. A
 # CONFLICTING PR triggers no workflows at all, because GitHub builds

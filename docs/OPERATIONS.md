@@ -201,13 +201,38 @@ stated 30-day retention.
 8. `CHANGELOG.md` gets a dated entry; `PROJECT_OVERVIEW.md` when architecture,
    schema, endpoints, env vars or pricing moved; this file when posture moved.
 
-**One thing this protocol cannot do for itself.** Every rule above is a habit,
-because `main` has no branch protection: nothing requires a check to pass,
-nothing requires a branch to be current, and nothing prevents a direct push.
-Turning on "Require status checks to pass" and "Require branches to be up to
-date before merging" would make most of steps 3 to 7 unnecessary rather than
-merely written down. It is a repository setting, so it is not in this file, and
-it is the single highest-value change available to this list.
+## Branch protection on `main`
+
+Enabled 2026-09-21. Until then every rule above was a habit: nothing required a
+check to pass, nothing required a branch to be current, and nothing stopped a
+direct push. It is a repository setting rather than a file, so it cannot be
+read out of the repo; this section is the record of what is set and why.
+
+- **Required checks: `format`, `invariants`, `guard`.** Only three, and the
+  reason is a footgun rather than modesty. A required check that does not run
+  leaves a PR pending forever, and most gates here are path-filtered:
+  `design-tokens` (`palette`, `og-palette`, `design-language`, `contrast`,
+  `control-height`), `house-style`, `figures` and the social-queue check all
+  trigger on paths, and `docs-freshness` skips its jobs outright. Requiring any
+  of those would deadlock the first PR that legitimately did not touch their
+  paths. These three run on every pull request and never skip.
+- **Require branches to be up to date (`strict`).** This is the one that closes
+  the hole steps 5 and 6 describe: a branch behind `main` can no longer be
+  merged on checks that passed against an older base.
+- **Force pushes and deletions are refused**, which makes the never-force-push
+  rule structural rather than remembered.
+- **Admins are not enforced**, deliberately. This is a solo repository and
+  locking the owner out of their own emergency is a worse failure than the one
+  being prevented. It means protection is a guard rail, not a wall: a red
+  `figures` still needs a human to decline to merge, because it cannot be
+  required without the deadlock above.
+- **Reviews are not required**, for the same reason: there is no second
+  reviewer, and requiring one would stop all work.
+
+Two settings deliberately left off, both defensible to turn on later:
+`required_conversation_resolution`, which would force Bugbot's review comments
+to be resolved rather than merely read, and `required_linear_history`, which
+the squash-merge habit already produces.
 
 ## Standing constraints
 

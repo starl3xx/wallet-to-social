@@ -20,6 +20,15 @@ All notable changes to walletlink.social. Newest first.
   honors a merge driver, which runs on its servers rather than in your git and
   reportedly does not. The protections against a stale-green PR are `pr:status`
   and `main-guard.yml`, and neither depends on the answer.
+- **Branch protection is on `main`** as of 2026-09-21, which is what turns most
+  of the PR protocol from a habit into a rule: required checks (`format`,
+  `invariants`, `guard`), required up-to-date branches, and no force pushes or
+  deletions. Only three checks are required because every other gate is
+  path-filtered, and a required check that never runs leaves a PR pending
+  forever. Admins are not enforced and reviews are not required: this is a solo
+  repository, and locking the owner out of an emergency is a worse failure than
+  the one being prevented. Recorded in `docs/OPERATIONS.md`, since a repository
+  setting cannot be read out of the repo.
 - **`main-guard.yml` runs `npm run preflight` on every push to `main`.** Every
   gate here was `pull_request`-only, so nothing had ever checked `main` itself:
   what CI tested was the computed merge commit, never the squash that landed,
