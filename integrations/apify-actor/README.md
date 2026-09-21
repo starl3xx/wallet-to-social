@@ -35,7 +35,7 @@ Going the other way is one field: set `lookupMode` to `x_handle`, put the handle
 
 ## How to use it
 
-1. Get a free API key at [walletlink.social](https://walletlink.social). The free allowance is 100 matches every 30 days.
+1. Get a free API key at [walletlink.social](https://walletlink.social). Sign in and take one from the account menu: no card, and no pack needed. The free allowance is 100 matches every 30 days.
 2. Choose a lookup mode: wallets to social accounts, or a handle back to its wallets.
 3. Paste your addresses, or a whole CSV column. Anything shaped like an EVM address is picked out.
 4. Run it, then export the dataset as CSV, JSON or Excel.

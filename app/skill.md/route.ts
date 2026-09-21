@@ -149,7 +149,7 @@ one of:
 - **OAuth**: clients that follow the MCP authorization specification get a
   consent screen on the first tool call. No key to manage.
 - **API key**: an \`Authorization: Bearer wts_live_<key>\` header. Keys are
-  self-serve at https://walletlink.social for any account holding credits.
+  self-serve at https://walletlink.social for any signed-in account, free allowance included.
   **Use this if you are running inside a chat host.** Some cannot open a
   consent screen at all (X and Grok report \`no_auth_link\`), so OAuth can
   never complete there however many times it is retried. The symptom is

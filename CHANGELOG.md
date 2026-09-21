@@ -2,6 +2,39 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (a key is not a spend, and the report could not see two products)
+
+- **Any signed-in account may now hold an API key.** The REST door refused one
+  to anybody on the free allowance while `mintAccessToken` in
+  `lib/oauth/grants.ts` had been writing `api_keys` rows on the same
+  `CREDIT_API_PLAN` with no credit test at all, so every free account that
+  connected an OAuth client already held a working key. One product, two
+  doors, opposite rules, and the refusing door was the one our own Apify
+  listing told strangers to use: the Actor has said "get a free API key" since
+  2026-09-17 and the endpoint answered 403.
+- The refusal protected nothing. What a key may draw is decided per call by
+  `trackApiUsage` against the same balance the web app uses, so a key on an
+  empty balance resolves 100 matches per rolling 30 days and then answers
+  NO_CREDITS. `apiPlanForAccount` lost its `hasCredits` parameter,
+  `requireDeveloperAccess` lost its tier gate, and the dashboard stopped
+  hiding usage from free accounts. `hasPaidAccess` still decides everything
+  that really is a spend.
+- Asserted from the direction that can regress: both doors are now compared in
+  `check-invariants.ts`, which nothing did before, which is why they disagreed
+  for as long as they did.
+- Copy corrected on the six surfaces that stated the old rule (README,
+  `docs-site/mcp-server.mdx`, `llms.txt` twice, `/mcp`, `skill.md`) and in
+  `server.json`, now **v1.4.0 and needing a registry publish**.
+- **The weekly report graded two products as bounces.** Activation counted
+  `lookup_started` alone, so the free single-wallet lookup on
+  `/find-twitter-account-from-wallet-address` and the app's reverse lookup
+  both registered as sessions that did nothing. One `ACTIVATION_EVENTS` list
+  now feeds all four query sites. The column is relabeled "Ran something" and
+  the report prints that the measure widened, because a number that moves
+  because its definition moved is not a trend.
+- That page was also missing from `CONTENT_PREFIXES` entirely, so the content
+  table could not show whether the page built for the head query drew anybody.
+
 ### 2026-09-21 (four discovery fixes, one of them a live bug)
 
 - **The seed cron could not see the third holder index, so BNB Chain stayed

@@ -309,10 +309,16 @@ which is why they still need their own submissions.
 
 Where the head consumer query already resolves.
 
-| Surface  | Status 2026-09-21                                                 |
-| -------- | ----------------------------------------------------------------- |
-| Apify    | **Live** since 2026-09-17. 8 runs, 2 users, 1 in the last 30 days |
-| RapidAPI | Absent. Where API buyers browse rather than search                |
+| Surface  | Status 2026-09-21                                               |
+| -------- | --------------------------------------------------------------- |
+| Apify    | **Live** since 2026-09-17, and unusable by its own instructions |
+| RapidAPI | Absent. Where API buyers browse rather than search              |
+
+Its 8 runs and 2 users are not a demand signal. The Actor told every visitor to
+fetch a free API key, and the endpoint refused one to any account without a
+pack, so the documented path never completed for anybody. Fixed 2026-09-21, see
+the log entry. Read the usage numbers from that date rather than from the
+listing's lifetime.
 
 Apify was the sharpest one and the Actor shipped in PR #261:
 `apify.com/starl3xx/wallet-to-twitter-farcaster-lookup`, free to run, taking the
@@ -360,6 +366,45 @@ generating revenue before spending. Free surfaces only.
 
 Newest first. One row per intervention, with what it was expected to move, so a
 later reader can check whether it did.
+
+### 2026-09-21 — the Apify funnel never worked, and the report could not see it
+
+Found in review of the change below, and it invalidates the premise PR #261
+shipped on ("installs funnel into the 100-match free allowance"). They never
+could. `POST /api/developer/keys` refused a key to any account on the free
+allowance, so a stranger following the Actor's own instructions signed up, went
+to fetch a key, and got a 403. The Actor has said "get a free API key" since
+2026-09-17.
+
+The rule was also only half enforced. `mintAccessToken` in
+`lib/oauth/grants.ts` writes an `api_keys` row on the same plan with no credit
+test, so any free account connecting an OAuth client had a working key already.
+Two doors, opposite rules, nothing comparing them.
+
+**Decided by Jake 2026-09-21: align the gate with what OAuth already did.** Any
+signed-in account may hold a key; the free allowance decides what it can draw.
+A key is not a spend, and `trackApiUsage` was always the thing protecting
+revenue.
+
+Expected to move: the Apify Actor's install-to-first-run rate, which cannot be
+read from this report because those arrivals land on apify.com. The figure
+visible here is signups, which should rise if the Actor sends anybody, and the
+free-to-paid step, which is now reachable from the Actor for the first time.
+The honest statement is that the Actor has had **zero working installs by the
+documented route** since 2026-09-17, so its 8 runs and 1 user are not evidence
+about demand.
+
+Two measurement fixes shipped with it, both of which were understating the
+pages this month's work is about:
+
+- **`CONTENT_PREFIXES` omitted `/find-twitter-account-from-wallet-address`**,
+  the free tool at the exact-match URL for the head query and a sitemap 0.9.
+  The content table could not show whether it drew anybody.
+- **Activation counted `lookup_started` alone**, so that page's free
+  single-wallet lookup and the app's reverse lookup both counted as bounces.
+  Widened to one `ACTIVATION_EVENTS` list across all four query sites. **This
+  breaks comparability with the 2026-09-16 baseline**, and the report says so
+  in its own output rather than leaving a reader to infer it.
 
 ### 2026-09-21 — the bottleneck moved, and four things shipped against it
 

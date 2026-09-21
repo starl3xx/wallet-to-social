@@ -4050,6 +4050,45 @@ async function main() {
       'the cap is enforced only once a code has actually been issued',
       authorize.indexOf('enforceGrantCap(') > lost
     );
+
+    /**
+     * Both doors to a key agree about who may hold one.
+     *
+     * They did not between the day OAuth shipped and 2026-09-21.
+     * `mintAccessToken` wrote an `api_keys` row on `CREDIT_API_PLAN` with no
+     * credit test, while `POST /api/developer/keys` answered 403 to any
+     * account on the free allowance, and the Apify listing our own repo
+     * publishes sent strangers to the door that refused them. Nothing failed:
+     * each route was internally consistent and no test compared them.
+     *
+     * Asserted as the property rather than as the absence of one string, and
+     * from the direction that can actually regress: re-adding a credit test
+     * to the REST door while the OAuth door keeps minting freely.
+     */
+    ok(
+      'the OAuth door mints a key without asking about credits',
+      /plan: CREDIT_API_PLAN/.test(grants) &&
+        !/hasPaidAccess|onFreeAllowance/.test(grants)
+    );
+    const keysRoute = readFileSync('app/api/developer/keys/route.ts', 'utf8');
+    ok(
+      'and so the REST door does not refuse one for the lack of them',
+      !/upgradeRequired/.test(keysRoute) &&
+        !/needs credits/.test(keysRoute) &&
+        /apiPlanForAccount\(auth\.identity\.tier\)/.test(keysRoute)
+    );
+    {
+      const { apiPlanForAccount, CREDIT_API_PLAN } =
+        await import('@/lib/api-plans');
+      ok(
+        'a free account resolves to a real API plan, through the function itself',
+        apiPlanForAccount('free') === CREDIT_API_PLAN
+      );
+      ok(
+        'and a legacy tier still wins where it is higher',
+        apiPlanForAccount('unlimited') !== CREDIT_API_PLAN
+      );
+    }
   }
 
   // ------------------------------------------------- the source field shape

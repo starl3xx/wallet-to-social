@@ -26,14 +26,19 @@ import type { CreditsView } from '@/lib/use-credits';
 /**
  * The developer surface: plan, usage and the way into keys.
  *
- * ## Compute access first, fetch second
+ * ## There is no longer an access gate to compute first
  *
- * `requireDeveloperAccess` defaults `requireApiTier` to true and no call site
- * overrides it, so the 403 covers listing keys and reading usage, not just
- * minting. An account inside its free window is refused all of them. Fetching
- * anyway would hand this panel a refusal body where it expects a payload, so
- * access is decided from `entitled` before a request is made. That is the
- * same order `ApiKeysModal` uses.
+ * `requireDeveloperAccess` used to default `requireApiTier` to true, so one
+ * 403 covered listing keys and reading usage as well as minting, and an
+ * account inside its free window was refused all three. This panel therefore
+ * decided access from `entitled` before making a request, to avoid being
+ * handed a refusal body where it expects a payload.
+ *
+ * That refusal is gone (2026-09-21, see `lib/api-plans.ts`): every signed-in
+ * account holds a plan, and the free allowance decides what a key can draw
+ * rather than whether one exists. So the usage read runs for everybody, and
+ * `entitled` is back to meaning what its name says, which is whether a pack
+ * is backing the account.
  *
  * ## Connected applications are not a paid feature
  *
@@ -93,21 +98,17 @@ export function DeveloperPanel({
    * Developer here. That is why the qualifying sentence below stays on the
    * Developer case rather than being deleted as solved.
    */
-  const basePlanId = apiPlanForAccount(tier, entitled);
-  const planId = basePlanId
-    ? ladderedPlanId(
-        basePlanId,
-        (credits.lots ?? []).map((l) => l.pack)
-      )
-    : null;
+  const basePlanId = apiPlanForAccount(tier);
+  const planId = ladderedPlanId(
+    basePlanId,
+    (credits.lots ?? []).map((l) => l.pack)
+  );
   const plan = planId ? API_PLANS[planId] : null;
 
   useEffect(() => {
-    // The gate is the reason for the guard, not an optimization: without it
-    // this asks a route that answers 403 for a free-allowance account.
-    // Nothing is cleared here, because a setState in an effect body is the
+    // No guard: the route answers every signed-in account now. Nothing is
+    // cleared here either, because a setState in an effect body is the
     // cascading render React objects to; the cleanup below forgets instead.
-    if (!entitled) return;
     let cancelled = false;
     fetch('/api/developer/usage?period=month')
       .then((r) => {
@@ -115,8 +116,8 @@ export function DeveloperPanel({
          * A 404 here is an answer, not a failure.
          *
          * The route answers 404 with "No API keys found for this user" when
-         * the account holds none, which an entitled account that has not
-         * minted one yet is in. Treating every non-2xx as a failed read told
+         * the account holds none, which any account that has not minted one
+         * yet is in. Treating every non-2xx as a failed read told
          * that account we could not reach its usage, when the truthful answer
          * is that it has not spent anything. Zeros say that; a failure notice
          * says something false about the request.
@@ -145,7 +146,7 @@ export function DeveloperPanel({
       setTotals(null);
       setUsageFailed(false);
     };
-  }, [entitled]);
+  }, []);
 
   return (
     <>
@@ -238,7 +239,6 @@ export function DeveloperPanel({
       </Card>
 
       <ApiKeysModal
-        entitled={entitled}
         open={keysOpen}
         onOpenChange={setKeysOpen}
         tier={tier}

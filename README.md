@@ -96,7 +96,7 @@ Every pack includes the same features; packs differ only in how many matches the
 
 Three doors into the same index, drawing the same match balance. The full reference, including credit costs, rate limits and error codes, is at **[docs.walletlink.social](https://docs.walletlink.social/api-reference/introduction)**; the README does not restate it.
 
-**REST.** Keys are self-serve from the account menu for any account holding credits. A call draws credits only for wallets that resolve.
+**REST.** Keys are self-serve from the account menu for any signed-in account, including one on the free allowance. A call draws credits only for wallets that resolve, so the key and the balance are separate questions.
 
 ```bash
 curl https://walletlink.social/api/v1/wallet/0xd8da...96045 \

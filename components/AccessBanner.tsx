@@ -340,10 +340,10 @@ export function AccessBanner({ trailing }: AccessBannerProps) {
       {renderAuthSection()}
       {/* Rendered outside renderAuthSection: that helper returns early while
           the session is loading, which would unmount an open modal mid-use. */}
-      {/* Credits unlock a key, not a tier. `entitled` excludes the free
-          allowance deliberately: those features were never part of free. */}
+      {/* Any signed-in account may hold a key since 2026-09-21; what it can
+          draw is decided per call against the same balance. So no entitlement
+          is passed here. See lib/api-plans.ts. */}
       <ApiKeysModal
-        entitled={credits.entitled}
         open={apiKeysOpen}
         onOpenChange={setApiKeysOpen}
         tier={tier}
