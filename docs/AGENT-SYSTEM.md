@@ -183,6 +183,40 @@ asserts the table holds exactly the set the MCP server registers, the same way
 the `/mcp` page is asserted, so a ninth tool fails there rather than being
 found missing by whoever pasted the URL into their agent.
 
+**Markdown content negotiation (2026-09-21) is the projection for an agent
+that was handed nothing at all.** `/skill.md` and `llms.txt` both assume the
+agent knows this site exists and knows where to look. This one assumes only
+that it has a page URL, from a search result or a citation. A request for an
+ordinary page carrying `Accept: text/markdown` answers markdown; everything
+else answers HTML exactly as before.
+
+The set is `/`, `/pricing`, `/blog`, `/blog/:slug`, `/holders` and
+`/holders/:chain/:address`, listed once as `MARKDOWN_NEGOTIABLE` in
+`next.config.ts` and dispatched in `app/api/markdown`. It is a short list on
+purpose, and the layer rule is what shortens it: **a page is negotiable only
+where its markdown can be projected from the same source the HTML renders
+from.** `/` is the `llms.txt` body, one builder at two URLs. `/pricing` is
+`lib/packs.ts` and `lib/api-plans.ts`, with `MATCH_SENTENCE` taken from L1
+rather than restated, and the page's FAQ deliberately left behind as a link
+because it is editorial prose with no source but the page. The holder
+documents call the same `holderBasis`, `holderBasisCaveat`,
+`measurementInProgress` and `isNamed` predicates the report component calls,
+so the two representations cannot disagree about what was measured or about
+whether the report may be indexed.
+
+`/vs/*` and `/privacy` are absent for the same rule read the other way. Their
+content is writing, not data, so a twin would be a second copy, and this layer
+has already paid once for a fifth hand-maintained copy.
+
+Two mechanics are worth keeping because both fail silently and in the
+direction where everything still looks fine. The rewrites live in
+`beforeFiles`: an array returned from `rewrites()` becomes `afterFiles`, which
+is consulted only when nothing in the app answered, and every negotiable path
+is a page, so the rules compiled correctly into the manifest and never once
+ran. And the `has` matcher is `.*text/markdown.*`, because Next anchors a
+`has` value at both ends, so the bare media type would match only a client
+whose entire Accept header is those fourteen characters.
+
 ---
 
 ## The physics
