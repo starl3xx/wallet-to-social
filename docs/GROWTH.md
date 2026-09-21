@@ -82,6 +82,39 @@ week, named sources, per-page entries, and a watchlist. It never fails on the
 numbers. A red build has to mean something is broken or the signal is trained
 away inside a month.
 
+**It will not run at 09:00, and nothing is wrong when it does not.** GitHub's
+scheduler is hours behind for this repository, on every workflow, and a cron
+line here is a lower bound rather than a time. Measured 2026-09-21 across four
+consecutive weeks and several daily jobs:
+
+| Workflow            | Cron            | Actually ran               | Late by |
+| ------------------- | --------------- | -------------------------- | ------- |
+| `daily-cast`        | `35 17 * * *`   | 19:40, 19:32, 19:54        | ~2h     |
+| `snapshot-harvest`  | `0 6 * * 0`     | 10:27, 10:57, 10:07        | ~4.5h   |
+| `db-backup`         | `0 8 * * *`     | 14:57, 12:57, 12:21        | ~4.5h   |
+| `ud-domain-harvest` | `15 2,14 * * *` | 07:55                      | 5h40    |
+| `published-figures` | `0 8 * * 1`     | 14:45, 14:38, 13:52, 15:44 | 6-8h    |
+| `holder-fallback`   | `0 9 * * 1`     | 15:42, 15:42, 14:50, 16:45 | 6-8h    |
+
+**The obvious read of that table is wrong.** Five of the six sit on `:00` or
+`:15` and the first diagnosis was congestion at the top of the hour, with
+"move them off `:00`" as the fix. `ud-domain-harvest` at `15 2` is 5h40 late
+and `daily-cast` at `35 17` is two hours late, so the minute is not the
+variable; the lag is repo-wide and looks worse in the UTC morning, which is
+where most of these sit. Changing a cron minute would have produced a commit,
+a PR and no effect at all.
+
+So do not chase it. Every job here is a report, a probe or a harvest, and none
+of them cares about the hour: the weekly report summarises a 28-day window and
+the harvests are idempotent. The one job where lateness is visible to anybody
+is `daily-cast`, which posts about two hours after its slot, consistently.
+
+If punctuality ever does matter for one of these, the lever is not the cron
+line. It is an external trigger calling `workflow_dispatch` through the API on
+a schedule something else keeps, which is the same conclusion the memory note
+about GitHub Actions versus session crons already reaches from the other
+direction.
+
 **Weekly, by hand.** Read it, pick the one intervention the numbers argue for,
 ship it as its own PR, and add a dated row to the log below naming what was
 shipped and what it was expected to move. An intervention with no expected
@@ -462,15 +495,13 @@ What shipped, and what each is expected to move:
 Two things found while measuring that are not interventions and are recorded so
 the next reader does not rediscover them:
 
-- **`npm run growth:report` fails locally**: the `DATABASE_URL` in `.env.local`
-  is stale and answers `password authentication failed for user
-'neondb_owner'`. CI has the working credential, so the weekly job is
-  unaffected and the local path needs the password refreshed.
-- **The Monday 09:00 UTC slot had not fired at 15:39 UTC**, and neither had
-  `holder-fallback`, which shares it. `published-figures` at 08:00 fired at
-  14:45, six hours and forty-five minutes late, so GitHub is delaying this
-  repo's Monday crons rather than dropping them. Worth moving both off the
-  top of the hour if the delay persists.
+- **`npm run growth:report` failed locally** on a stale `DATABASE_URL` in
+  `.env.local` (`password authentication failed for user 'neondb_owner'`). CI
+  always had the working credential, so the weekly job was never affected.
+  Refreshed 2026-09-21.
+- **Every scheduled workflow in this repo runs hours late, and the minute is
+  not the reason.** Recorded below, because the first reading of it was wrong
+  and cost a change that would have done nothing.
 
 ### 2026-09-16 — ten collections, because the NFT queue was empty
 
