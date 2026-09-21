@@ -83,8 +83,18 @@ function frontmatter(fields: Record<string, string | null>): string {
    * recorded in `scripts/check-house-style.mjs`, and cheaper to write around
    * than to widen a guard for.
    */
+  /**
+   * An empty string is an absent field, not a field whose value is nothing.
+   *
+   * Dropping only `null` was the first version, and `lib/blog.ts` defines
+   * `description: string` filled with `data.meta_description || ''`, so a
+   * post that never set one arrives here as `''` rather than nullish. It
+   * published `description: ""` into the frontmatter: a declared field
+   * asserting the post has no description, where saying nothing would have
+   * been true. Caught by Bugbot on PR #353.
+   */
   const lines = Object.entries(fields)
-    .filter((entry): entry is [string, string] => entry[1] !== null)
+    .filter((entry): entry is [string, string] => Boolean(entry[1]))
     .map(([key, value]) => `${key}: ${scalar(value)}`)
     .join('\n');
   return `---\n${lines}\n---`;

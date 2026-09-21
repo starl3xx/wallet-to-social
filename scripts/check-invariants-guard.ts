@@ -1594,6 +1594,15 @@ const MUTATIONS: Mutation[] = [
     to: '',
   },
   {
+    // `lib/blog.ts` fills an unset description with '', not null, so a filter
+    // that drops only null publishes `description: ""`: a declared field
+    // asserting the post has no description. Bugbot, PR #353.
+    name: 'an unset frontmatter field is published as an empty value instead of omitted',
+    file: 'app/api/markdown/documents.ts',
+    from: '    .filter((entry): entry is [string, string] => Boolean(entry[1]))',
+    to: '    .filter((entry): entry is [string, string] => entry[1] !== null)',
+  },
+  {
     // A rewrite with no branch behind it answers 404 to a client that asked
     // politely for markdown, and nothing else changes.
     name: 'a negotiable path loses the handler branch that answers it',

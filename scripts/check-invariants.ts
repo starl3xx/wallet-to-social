@@ -7891,6 +7891,33 @@ async function main() {
       'the holder twin publishes no wallet list and no handle list',
       !/resolveWallets|social_graph|twitter_handle|wallets\b/.test(documents)
     );
+
+    /**
+     * Asserted through the builder rather than against the filter, because
+     * the defect is what comes out, not how it is spelled.
+     *
+     * `lib/blog.ts` types `description` as `string` and fills it with
+     * `data.meta_description || ''`, so a post that never set one is `''`
+     * and not nullish. A filter dropping only `null` published
+     * `description: ""`: a declared field asserting the post has no
+     * description, where saying nothing would have been true. Found by
+     * Bugbot on PR #353.
+     */
+    const { blogPostMarkdown } = await import('@/app/api/markdown/documents');
+    const bare = blogPostMarkdown({
+      slug: 'a-post',
+      title: 'A post',
+      // The shape `lib/blog.ts` really produces for a post with no
+      // meta_description: the empty string, never null and never absent.
+      description: '',
+      content: '# A post\n',
+      html: '<h1>A post</h1>',
+      publishedAt: '2026-01-01',
+    });
+    ok(
+      'an unset frontmatter field is omitted rather than published as an empty value',
+      !/^description:/m.test(bare) && /^title: "A post"$/m.test(bare)
+    );
   }
 
   // ------------------------------------------- preview builds and Neon
