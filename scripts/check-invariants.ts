@@ -7893,6 +7893,31 @@ async function main() {
     );
 
     /**
+     * The listing rule is two floors, and stating one of them is worse than
+     * stating neither.
+     *
+     * `meetsListingFloor` requires `reachable >= LISTING_MIN_REACHABLE` AND
+     * `reachable >= holderCount * LISTING_MIN_RATE`. The twin said only the
+     * first, which is the non-binding one on any large holder set: at the
+     * import cap of 2,000 the rate floor is 100 reachable, not 20, so an
+     * agent reading it learned a rule that is wrong in the direction of
+     * expecting reports that will never appear. Found by Bugbot on PR #353.
+     *
+     * Asserted against the rendered document, because the defect is what the
+     * sentence says and not which constants happen to be imported.
+     */
+    const { holdersIndexMarkdown } =
+      await import('@/app/api/markdown/documents');
+    const { LISTING_MIN_REACHABLE, LISTING_MIN_RATE } =
+      await import('@/lib/holder-pages');
+    const listing = holdersIndexMarkdown([]);
+    ok(
+      'the holders twin states both listing floors, not only the count',
+      listing.includes(`${LISTING_MIN_REACHABLE} reachable holders`) &&
+        listing.includes(`${Math.round(LISTING_MIN_RATE * 100)}% of the ones`)
+    );
+
+    /**
      * Asserted through the builder rather than against the filter, because
      * the defect is what comes out, not how it is spelled.
      *

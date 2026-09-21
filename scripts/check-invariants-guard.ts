@@ -1594,6 +1594,16 @@ const MUTATIONS: Mutation[] = [
     to: '',
   },
   {
+    // `meetsListingFloor` is two conditions, and the count is the
+    // non-binding one on any large holder set: at the import cap the rate
+    // floor is 100 reachable, not 20. Stating one floor teaches an agent to
+    // expect reports that will never appear. Bugbot, PR #353.
+    name: 'the holders twin states one listing floor where the rule has two',
+    file: 'app/api/markdown/documents.ts',
+    from: 'A collection is listed here once it clears both floors: at least ${LISTING_MIN_REACHABLE} reachable holders, and reachable holders at least ${Math.round(LISTING_MIN_RATE * 100)}% of the ones measured. The second is the binding one on any large holder set.',
+    to: 'A collection appears here once at least ${LISTING_MIN_REACHABLE} of its holders are reachable.',
+  },
+  {
     // `lib/blog.ts` fills an unset description with '', not null, so a filter
     // that drops only null publishes `description: ""`: a declared field
     // asserting the post has no description. Bugbot, PR #353.

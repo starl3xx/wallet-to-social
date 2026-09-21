@@ -50,6 +50,7 @@ import {
   measurementInProgress,
   standardLabel,
   LISTING_MIN_REACHABLE,
+  LISTING_MIN_RATE,
   type HolderCollection,
   type HolderOverlap,
   type HolderStats,
@@ -252,7 +253,7 @@ export function holdersIndexMarkdown(
 
 Aggregates only. No wallet list and no handle list is published on any report, here or on the reports themselves.
 
-A collection appears here once at least ${LISTING_MIN_REACHABLE} of its holders are reachable. Below that, the number would be reporting how little measuring has happened rather than anything about the collection, so it is withheld rather than published as a finding. A report stays live at its own URL whether or not it is listed here.
+A collection is listed here once it clears both floors: at least ${LISTING_MIN_REACHABLE} reachable holders, and reachable holders at least ${Math.round(LISTING_MIN_RATE * 100)}% of the ones measured. The second is the binding one on any large holder set. The contract must also report a real name, rather than the placeholder written when every name read failed. Below the floors a number would report how little measuring has happened rather than anything about the collection, so it is withheld rather than published as a finding. A report stays live at its own URL whether or not it is listed here.
 
 | Collection | Chain | Reachable holders |
 | --- | --- | --- |
