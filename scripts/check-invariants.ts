@@ -11109,6 +11109,51 @@ async function main() {
       /<span className="sr-only">X<\/span>/.test(homeSrc)
     );
 
+    /**
+     * The X list outcome is mounted where the callback can actually reach it.
+     *
+     * `/api/x/callback` redirects to the site root carrying `x_list`, and the
+     * homepage boots there in `upload` with `results` empty. `XListStatus`
+     * sat inside the `state === 'complete' && results.length > 0` branch,
+     * which reads correctly beside the results it describes and cannot ever
+     * run: the round trip discards that state on its way through x.com. A
+     * list job takes about sixteen minutes and then reported nothing to
+     * anybody, on every run.
+     *
+     * Asserted positionally, because the defect is placement rather than
+     * absence: the component was present the whole time, so an assertion that
+     * it exists would have passed throughout.
+     *
+     * It must appear before EVERY state branch, and the `upload` one carries
+     * the real requirement rather than merely completing the set: that is the
+     * state a callback lands in, and everything that branch renders (the
+     * hero, the three input methods, the starter collections, the reverse
+     * lookup, the recent wins, the lookup history) is above the fold of a
+     * screen somebody has just been returned to the top of. Mounting this
+     * unconditionally but below them is the halfway version of the same bug,
+     * and it is the one that looks fixed.
+     *
+     * Every marker must exist before the comparisons mean anything, so a
+     * rename fails loudly here rather than passing over a check it never
+     * performed.
+     */
+    {
+      const statusMount = homeSrc.indexOf('<XListStatus />');
+      const uploadBranch = homeSrc.indexOf("{state === 'upload'");
+      const processingBranch = homeSrc.indexOf("{state === 'processing'");
+      const completeBranch = homeSrc.indexOf("{state === 'complete'");
+      ok(
+        'the X list outcome is mounted above every state branch, so a callback return shows it first',
+        statusMount > 0 &&
+          uploadBranch > 0 &&
+          processingBranch > 0 &&
+          completeBranch > 0 &&
+          statusMount < uploadBranch &&
+          statusMount < processingBranch &&
+          statusMount < completeBranch
+      );
+    }
+
     ok(
       'anonymous daily throughput is capped below the uncapped per-job product',
       anonPerDay < jobsPerHour * 24 * anonPerJob

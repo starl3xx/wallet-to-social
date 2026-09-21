@@ -2,6 +2,37 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-20 (an X list job can report that it finished)
+
+- **The X list outcome is mounted where the callback can reach it.**
+  `/api/x/callback` redirects to the site root carrying `x_list`, and the
+  homepage boots there in `upload` with `results` empty. `XListStatus` sat
+  inside the `state === 'complete' && results.length > 0` branch, which reads
+  correctly beside the results it describes and can never run: the round trip
+  through x.com discards that state on the way. So a list job ran for about
+  sixteen minutes and then reported nothing to anybody, on every run, including
+  every failure. The component moves to the first position in the content
+  stack, above every state branch.
+- **Above the upload branch, not merely outside it.** Mounting it
+  unconditionally is necessary and is not sufficient: below that branch it
+  renders under the hero, the three input methods, the starter collections, the
+  reverse lookup, the recent wins and the lookup history, and a callback lands
+  at the top of the page. On screen and off the fold reports a finished job
+  about as well as not rendering did. This is the halfway version of the same
+  bug and it is the one that looks fixed.
+- Nothing else changes. It reads the same two parameters, still strips them
+  once read so a refresh cannot replay a one-time outcome, and still renders
+  nothing on an ordinary visit, which is what its own comment always claimed it
+  did.
+- **Asserted positionally**, because the defect was placement rather than
+  absence and the component was present the whole time, so an assertion that it
+  exists would have passed throughout. `scripts/check-invariants.ts` requires
+  the mount to appear before every state branch. The `upload` marker carries
+  the real requirement rather than completing the set: `processing` and
+  `complete` are states a returning visitor is never in, so naming only those
+  would pass over the halfway arrangement. Checked by trying both regressions,
+  not by watching it pass.
+
 ### 2026-09-20 (owner-set handles from the social protocol's account metadata)
 
 - **`lens_profile`**: a cursor walk of the social protocol's accounts

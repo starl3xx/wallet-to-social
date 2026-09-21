@@ -2082,6 +2082,32 @@ export default function Home() {
       />
 
       <div className="space-y-6">
+        {/* The X list outcome, first in the stack and outside every state
+            branch, because the person it is for arrives from somewhere else
+            and lands at the top of the page.
+
+            It used to sit inside the `complete` branch, beside the results it
+            describes, which reads correctly and cannot work: the callback
+            returns from x.com to the site root, and the page boots there in
+            `upload` with `results` empty, so the branch holding this never
+            rendered and the `x_list` parameter was never read. A list job runs
+            for about sixteen minutes and then reported nothing to anybody, on
+            every run, because the one component that reports it was mounted
+            behind state the round trip had already discarded.
+
+            Mounting it unconditionally is necessary and was not sufficient:
+            below the upload branch it renders under the hero, the three input
+            methods, the starter collections, the reverse lookup, the recent
+            wins and the lookup history, which is off the bottom of a screen
+            somebody has just been returned to the top of. Above them it is the
+            first thing on the page, which is what the original comment asked
+            for when it said "above the stats".
+
+            Nothing else moves: it reads the same parameters, still strips them
+            once read, and still renders nothing when there is no outcome in
+            the URL, which is every other visit. */}
+        <XListStatus />
+
         {/* Upload State */}
         {state === 'upload' && (
           <div className="space-y-6">
@@ -2889,11 +2915,6 @@ export default function Home() {
                 }}
               />
             )}
-            {/* Above the stats because it is about something in flight, and
-                the thing a person who has just come back from x.com is looking
-                for. It renders nothing at all when there is no list outcome in
-                the URL, which is every other visit. */}
-            <XListStatus />
             {/* Outside OverflowMenu deliberately: see XListAction's header.
                 A dialog inside the menu panel is unmounted by the click that
                 opens it, and the symptom is a menu row that does nothing. */}
