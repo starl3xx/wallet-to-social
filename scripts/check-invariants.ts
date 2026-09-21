@@ -11154,7 +11154,7 @@ async function main() {
      * the real requirement rather than merely completing the set: that is the
      * state a callback lands in, and everything that branch renders (the
      * hero, the three input methods, the starter collections, the reverse
-     * lookup, the recent wins, the lookup history) is above the fold of a
+     * lookup, the recent wins) is above the fold of a
      * screen somebody has just been returned to the top of. Mounting this
      * unconditionally but below them is the halfway version of the same bug,
      * and it is the one that looks fixed.
@@ -11163,6 +11163,74 @@ async function main() {
      * rename fails loudly here rather than passing over a check it never
      * performed.
      */
+    /**
+     * The saved-lookups list has one home, and nothing links to its old one.
+     *
+     * It used to be mounted on the homepage behind `id="my-lookups"`, and both
+     * `/success` and `/dashboard` routed to that anchor. The list moved to
+     * `/dashboard` and a saved lookup opens at `/?lookup=<id>`; the anchor is
+     * gone.
+     *
+     * Asserted as the refusal, because a dead in-page anchor is the quietest
+     * failure in a browser: the hash changes, the page scrolls nowhere, and
+     * nothing errors. The `/success` link is the expensive one, since it is
+     * what a buyer sees immediately after paying to unlock a gated lookup.
+     *
+     * The second half is what keeps the card from quietly acquiring two homes
+     * again, which is the state this change ended: if `app/page.tsx` imports
+     * it, somebody has remounted it there.
+     */
+    {
+      const sources = readdirSync('app', { recursive: true })
+        .map(String)
+        .filter((f) => f.endsWith('.tsx') || f.endsWith('.ts'))
+        .map((f) => `app/${f}`)
+        .concat(
+          readdirSync('components', { recursive: true })
+            .map(String)
+            .filter((f) => f.endsWith('.tsx'))
+            .map((f) => `components/${f}`)
+        );
+
+      /**
+       * Comments are stripped first. Two of the files that used to link here
+       * now explain in prose that they no longer do, and a check that cannot
+       * tell an explanation from a link is a check people learn to silence.
+       * `withoutComments` is the same tool the rest of this file uses for it.
+       */
+      const linkers = sources.filter((f) =>
+        withoutComments(readFileSync(f, 'utf8')).includes('my-lookups')
+      );
+      ok(
+        'nothing links or scrolls to the retired #my-lookups anchor',
+        sources.length > 50 && linkers.length === 0
+      );
+
+      ok(
+        'the homepage does not mount the saved-lookups card',
+        !homeSrc.includes('LookupHistory')
+      );
+
+      const dashSrc = readFileSync('app/dashboard/page.tsx', 'utf8');
+      ok(
+        'the dashboard mounts the saved-lookups card, which is now its only home',
+        dashSrc.includes('<LookupHistory') &&
+          dashSrc.includes("from '@/components/LookupHistory'")
+      );
+
+      /**
+       * And a row opens the lookup rather than a list of lookups. The old
+       * handler pushed an anchor and discarded the id it had been handed,
+       * which is exactly what made the click a no-op once the anchor went.
+       */
+      ok(
+        'a dashboard row opens a saved lookup by id',
+        /router\.push\(`\/\?lookup=\$\{encodeURIComponent\(lookupId\)\}`\)/.test(
+          dashSrc
+        )
+      );
+    }
+
     {
       const statusMount = homeSrc.indexOf('<XListStatus />');
       const uploadBranch = homeSrc.indexOf("{state === 'upload'");

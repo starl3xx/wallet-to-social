@@ -45,10 +45,16 @@ import type { UserTier } from '@/lib/access';
  *
  * ## Why opening a lookup leaves the page
  *
- * There is no URL that opens a saved lookup: results are in-app state on the
- * homepage. Carrying a selection across would mean lifting that state machine
- * out too, so a row sends you to the homepage's own list. This is the known
- * deferral, named rather than quietly dropped.
+ * The results view is a 13k-row virtualized working surface entangled with
+ * `app/page.tsx`, and a dashboard that also renders it would be two products
+ * sharing a URL. So a row opens `/?lookup=<id>` and the existing view renders
+ * it there.
+ *
+ * That query parameter is what made this page's list worth having. It used to
+ * push `/#my-lookups`, an anchor on the homepage's own copy of this card, so a
+ * row scrolled you to the same list on a different page. The homepage card is
+ * gone and this is the only one; a saved lookup has an address now, which is
+ * the deferral this closes rather than restates.
  *
  * ## Signed out
  *
@@ -63,13 +69,27 @@ export default function DashboardPage() {
   const [authOpen, setAuthOpen] = useState(false);
 
   /**
-   * Saved results arrive here already fetched, and this page has nowhere to
-   * put them. Sending the reader to the homepage's list is the honest move
-   * until a saved lookup has a URL of its own.
+   * Open the lookup, rather than send somebody to a list of them.
+   *
+   * This used to push `/#my-lookups`, an anchor on the homepage's own copy of
+   * this card, which meant clicking a row here scrolled you to the same list
+   * somewhere else. That card is gone and a saved lookup has a URL now, so a
+   * row goes to the thing it names.
+   *
+   * The rows this receives are discarded on purpose. The component fetches
+   * them to hand over, and the results view on `/` fetches them again from
+   * the id; paying one redundant request buys an address that survives a
+   * refresh and can be copied, which state handed across a navigation cannot.
+   * The fetch to drop is the component's, and removing it is a change to the
+   * component rather than to this page.
    */
-  const handleLoadLookup = useCallback(() => {
-    router.push('/#my-lookups');
-  }, [router]);
+  const handleLoadLookup = useCallback(
+    (_results: unknown, lookupId?: string) => {
+      if (!lookupId) return;
+      router.push(`/?lookup=${encodeURIComponent(lookupId)}`);
+    },
+    [router]
+  );
 
   if (authLoading) {
     return (

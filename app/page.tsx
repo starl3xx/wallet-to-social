@@ -16,7 +16,7 @@ import { reachableHandlesInPriorityOrder } from '@/lib/reachable-handles';
 import { ShareButtons } from '@/components/ShareButtons';
 import { StatsCards } from '@/components/StatsCards';
 import { NoMatchesFound } from '@/components/NoMatchesFound';
-import { LookupHistory } from '@/components/LookupHistory';
+
 import { ReverseLookup, type ReverseMeta } from '@/components/ReverseLookup';
 import {
   StarterCollections,
@@ -464,7 +464,8 @@ export default function Home() {
    * domain, so every abandoned checkout also lost the result.
    *
    * Only the anonymous rail needs it. A signed-in buyer already gets back
-   * through /#my-lookups and the gate stored on the saved lookup.
+   * through the saved-lookups list on /dashboard, which opens a lookup by id
+   * and carries the gate stored on it.
    */
   const GATED_KEY = 'gatedJobId';
   const GATED_AT_KEY = 'gatedJobSavedAt';
@@ -1768,23 +1769,62 @@ export default function Home() {
     []
   );
 
-  // Handle opening the add addresses modal
-  const handleOpenAddAddresses = useCallback(async (lookupId: string) => {
-    // Fetch the existing results for this lookup
-    try {
-      const res = await fetch(`/api/history/${lookupId}`);
-      if (!res.ok) throw new Error('Failed to fetch lookup');
-      const data = await res.json();
-      const existingWallets = (data.results as WalletSocialResult[]).map(
-        (r) => r.wallet
-      );
-      setAddAddressesLookupId(lookupId);
-      setAddAddressesExistingWallets(existingWallets);
-      setShowAddAddressesModal(true);
-    } catch (err) {
-      console.error('Failed to load lookup for add addresses:', err);
-    }
-  }, []);
+  /**
+   * `/?lookup=<id>` opens a saved lookup.
+   *
+   * This is what replaced the homepage's saved-lookups card. The list lives on
+   * `/dashboard` now, and a list whose rows cannot open anything is not a
+   * list, so the rows link here. It is also the thing this page was missing:
+   * results were in-app state with no URL, which is why a row used to have to
+   * scroll somebody to a card on this page rather than open anything.
+   *
+   * Same shape as the contract deep link above and for the same reason: the
+   * page is statically rendered, so this reads `window.location` in an effect
+   * rather than through `useSearchParams`, which would force a Suspense
+   * boundary and push the whole route to dynamic for one query string.
+   *
+   * It does NOT clear the URL, and that is the difference from the contract
+   * link. There the value is a payload that must not replay; here it IS the
+   * address of the thing on screen, so a refresh should reopen it and the link
+   * should survive being copied. Nothing leaks by keeping it: `/api/history/[id]`
+   * is session-scoped and answers 404 for a lookup that is missing and for one
+   * that is not yours, without distinguishing them.
+   */
+  const lookupDeepLinkRead = useRef(false);
+
+  useEffect(() => {
+    if (lookupDeepLinkRead.current) return;
+    // Wait for the session. History is session-scoped, so firing before
+    // `useAuth` resolves asks for a lookup as nobody and gets a 401.
+    if (authLoading) return;
+    lookupDeepLinkRead.current = true;
+
+    const id = new URLSearchParams(window.location.search).get('lookup');
+    if (!id) return;
+
+    let cancelled = false;
+    fetch(`/api/history/${id}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('not found'))))
+      .then((data) => {
+        if (cancelled) return;
+        handleLoadHistory(
+          data.results,
+          id,
+          data.name ?? null,
+          data.enrichedWallets ?? [],
+          data.jobId ?? null
+        );
+      })
+      .catch(() => {
+        // A lookup that is gone, or was never yours, leaves the page as it
+        // was: the upload view, which is a working page rather than an error.
+        // Saying more would distinguish "not found" from "not yours", which
+        // the endpoint deliberately does not.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, handleLoadHistory]);
 
   // Handle adding addresses to existing lookup
   const handleAddToLookup = useCallback(
@@ -2098,7 +2138,7 @@ export default function Home() {
             Mounting it unconditionally is necessary and was not sufficient:
             below the upload branch it renders under the hero, the three input
             methods, the starter collections, the reverse lookup, the recent
-            wins and the lookup history, which is off the bottom of a screen
+            wins, which is off the bottom of a screen
             somebody has just been returned to the top of. Above them it is the
             first thing on the page, which is what the original comment asked
             for when it said "above the stats".
@@ -2127,7 +2167,7 @@ export default function Home() {
                 pasteActive={showPasteInput}
                 // Yielding to open dialogs is handled inside the component by
                 // asking the DOM, not enumerated here: dialogs also open from
-                // the access banner and lookup history, which this file does
+                // the access banner, which this file does
                 // not track, and any list would go stale on the next one added
                 contractLocked={!entitled}
                 onContractClick={handleContractCardClick}
@@ -2189,9 +2229,8 @@ export default function Home() {
                   file: a signed-in account with no history saw an empty page
                   and had to go and find data before it could find out what
                   this does. */}
-            {/* Named, so the zero-match panel can send somebody here. Same
-                plumbing as `#my-lookups`: `scroll-mt-24` keeps the heading
-                clear of the sticky header. */}
+            {/* Named, so the zero-match panel can send somebody here.
+                `scroll-mt-24` keeps the heading clear of the sticky header. */}
             <div id="starter-collections" className="scroll-mt-24">
               <StarterCollections onRun={runStarterCollection} />
             </div>
@@ -2223,21 +2262,6 @@ export default function Home() {
             </p>
 
             <RecentWins />
-            {/* `entitled`, not the tier: a pack buyer's tier stays 'free', and
-                  history depth and growing a lookup are included in every
-                  pack. The server applies the same rule on the write. */}
-            {/* The anchor /success sends a buyer to. A gated lookup is
-                reached through this panel and nowhere else: saved lookups are
-                in-app state, so there is no URL that opens one directly, and
-                an anchor is the honest amount of plumbing for a one-line
-                routing fix. */}
-            <div id="my-lookups" className="scroll-mt-24">
-              <LookupHistory
-                onLoadLookup={handleLoadHistory}
-                entitled={entitled}
-                onAddAddresses={handleOpenAddAddresses}
-              />
-            </div>
           </div>
         )}
 

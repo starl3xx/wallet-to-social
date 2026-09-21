@@ -43,12 +43,18 @@ interface LookupHistoryProps {
   /**
    * What to render instead of nothing when there is no history to show.
    *
-   * The default is silence, which is right on the homepage: this is the last
+   * The default is silence, which was right on the homepage: this was the last
    * card under a hero and three ways to start a lookup, so an empty card there
-   * is noise about an absence the visitor can already see. On a dashboard it is
-   * the opposite case, because for a new account this is the first thing on the
-   * page and rendering nothing leaves it blank. A caller that has no hero above
-   * it passes what to say.
+   * was noise about an absence the visitor could already see. On a dashboard it
+   * is the opposite case, because for a new account this is the first thing on
+   * the page and rendering nothing leaves it blank.
+   *
+   * `/dashboard` is the only caller now and it always passes one, so the silent
+   * default is unreached. It stays optional rather than being made required,
+   * because the argument for it was about the caller's surroundings and not
+   * about this component: the next caller with a hero above it wants the same
+   * silence, and making it required would ask them to pass an empty node to get
+   * it.
    */
   emptyState?: React.ReactNode;
 }

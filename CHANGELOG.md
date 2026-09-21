@@ -2,6 +2,36 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-21 (saved lookups have one home, and an address)
+
+- **The homepage no longer lists saved lookups.** `/dashboard` renders that
+  card, so the homepage carried a second copy of it behind an
+  `id="my-lookups"` anchor. Removed, along with the handler that existed only
+  to serve it.
+- **A saved lookup has a URL: `/?lookup=<id>`.** This is what the removal
+  forced rather than an extra. The homepage card was the only surface in the
+  product that could display a saved lookup, and both `/success` and
+  `/dashboard` routed to its anchor rather than to a lookup, so deleting it
+  alone would have left saved lookups unopenable anywhere. A dashboard row now
+  opens the thing it names.
+- **`/success` sends a buyer to `/dashboard`.** Its "Open your lookups" button
+  pointed at the deleted anchor, and that is the highest-cost link in the set:
+  it is what somebody sees immediately after paying to unlock a match-gated
+  lookup. A dead in-page anchor does not error, it scrolls nowhere.
+- `/api/history/[id]` returns the lookup's `name`. It used to arrive from the
+  list, which had it in hand; a page that opens a lookup from a URL has an id
+  and nothing else.
+- **Three assertions, each checked against its own regression** rather than
+  against passing code: nothing links to the retired anchor (comments stripped
+  first, so an explanation of the removal is not mistaken for a link), the
+  homepage does not mount the card, and a dashboard row opens a lookup by id.
+  Re-linking `/success` at the anchor, re-importing the card on the homepage,
+  and reverting the row to an anchor push each fail exactly one of them.
+- The deep link is read in an effect on the statically rendered homepage, the
+  same shape as `/?contract=`, and deliberately **not** cleared from the URL:
+  there the parameter is a payload that must not replay, here it is the address
+  of what is on screen. Ownership is unchanged and server-side.
+
 ### 2026-09-21 (what the union driver actually buys, measured)
 
 - **GitHub does not honor `merge=union`.** Measured rather than assumed: with
