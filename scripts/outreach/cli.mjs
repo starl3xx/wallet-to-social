@@ -31,6 +31,7 @@ research sources.json         Inspect up to 20 selected public company/contact p
 import prospects.json         Validate and deduplicate researched business prospects
 exclude emails.json           Suppress existing customers, opt-outs or other contacts
 sync-existing                 Refresh exclusions from existing WalletLink accounts
+draft-discovery ID REASON     Draft one reviewed discovery prospect without claiming qualification
 plan                          Score prospects and draft qualified sequences
 list                          Show prospect IDs, scores and status
 review                        Write private review.md and editable sequence JSON files
@@ -100,6 +101,11 @@ if (!command || command === 'help' || command === '--help') {
         case 'sync-existing':
           output(await syncExistingAccounts(state, now));
           break;
+        case 'draft-discovery':
+          output({
+            drafted: plan(state, now, { id: args[0], reason: args[1] }),
+          });
+          break;
         case 'plan':
           output({ drafted: plan(state, now) });
           break;
@@ -138,6 +144,10 @@ if (!command || command === 'help' || command === '--help') {
               `Prospect: ${lead.id}`,
               `Recipient: ${lead.email}`,
               `Score: ${lead.score}`,
+              `Outreach type: ${lead.discoveryReview ? 'discovery (buying intent unverified)' : 'qualified'}`,
+              ...(lead.discoveryReview
+                ? [`Discovery rationale: ${lead.discoveryReview.reason}`]
+                : []),
               `Evidence: ${lead.sourceUrl}`,
               `Published contact: ${lead.contactSourceUrl}`,
               `Observed: ${new Date(lead.observedAt).toISOString()}`,

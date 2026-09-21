@@ -2,7 +2,7 @@
 
 Status as of September 21, 2026: Gmail OAuth is connected and the sending
 alias is verified. The local runner remains paused, with no worker installed
-and no outreach sent. Existing-account exclusion access is connected and the
+and no prospect outreach sent. Existing-account exclusion access is connected and the
 first sync passed. Owner-mailbox delivery and same-thread reply detection
 passed. Lost-response delivery recovery also passed against an operator-approved
 live test with a rewritten Message-ID and zero resends. Separate-thread reply
@@ -89,7 +89,12 @@ Do not guess addresses from naming conventions.
 The qualification score gives agencies 30 points, campaign teams 25,
 developers 20 and researchers 10. An existing wallet audience adds 30, a
 near-term project adds 25, and a budget owner adds 15. Drafting requires at
-least 70 and an existing wallet audience. These weights are initial
+least 70 and an existing wallet audience. For a discovery experiment, an
+operator can instead run `draft-discovery ID "evidence-based rationale"`
+for one fresh, unsent, unsuppressed prospect. This records the reason for
+contact without changing the score or claiming buying intent; the rationale
+and all messages are bound to the subsequent approval. Existing suppressions
+and sending limits still apply. These weights are initial
 heuristics; report outcomes by segment before adjusting them.
 
 `review` produces `review.md` and editable message JSON files. Review the

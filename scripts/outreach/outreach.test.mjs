@@ -702,3 +702,68 @@ test('follow-up references use Gmail canonical IDs after rewriting', async () =>
   assert.match(raw, /In-Reply-To: <rewritten@mail.gmail.com>/);
   assert.equal(sent.threadId, remote.threadId);
 });
+
+test('explicit discovery drafts one prospect without inventing qualification or authorizing a send', async () => {
+  const state = freshState(config);
+  importLeads(
+    state,
+    [
+      {
+        ...prospect,
+        nearTermProject: false,
+        budgetOwner: false,
+        hasWalletAudience: false,
+      },
+      {
+        ...prospect,
+        email: 'other@example.org',
+        nearTermProject: false,
+        budgetOwner: false,
+        hasWalletAudience: false,
+      },
+    ],
+    NOW
+  );
+  assert.equal(plan(state, NOW), 0);
+  const lead = state.leads[0];
+  assert.equal(
+    plan(state, NOW, {
+      id: lead.id,
+      reason:
+        'Published agency services fit audience research; budget and dataset unknown.',
+    }),
+    1
+  );
+  assert.equal(lead.score, 30);
+  assert.equal(lead.nearTermProject, false);
+  assert.equal(lead.status, 'review');
+  assert.equal(state.leads[1].status, 'new');
+  assert.equal(candidates(state, NOW).length, 0);
+  approve(state, lead.id, digest(lead), NOW);
+  assert.equal(candidates(state, NOW).length, 1);
+  lead.discoveryReview.reason = 'Changed rationale';
+  assert.equal(candidates(state, NOW).length, 0);
+});
+
+test('discovery cannot revive stopped, excluded, stale or already reviewed prospects', () => {
+  for (const variant of [
+    'stopped',
+    'excluded',
+    'stale',
+    'reviewed',
+    'empty-reason',
+  ]) {
+    const state = freshState(config);
+    importLeads(state, [prospect], NOW);
+    const lead = state.leads[0];
+    if (variant === 'stopped') stop(state, lead.id, 'unsubscribed', NOW);
+    if (variant === 'excluded') state.exclusions.push(lead.email);
+    if (variant === 'reviewed') plan(state, NOW);
+    assert.throws(() =>
+      plan(state, variant === 'stale' ? NOW + 31 * DAY : NOW, {
+        id: lead.id,
+        reason: variant === 'empty-reason' ? '' : 'Verified service relevance',
+      })
+    );
+  }
+});

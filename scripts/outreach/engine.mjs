@@ -173,6 +173,7 @@ export function digest(lead) {
         sourceUrl: lead.sourceUrl,
         contactSourceUrl: lead.contactSourceUrl,
         observation: lead.observation,
+        discoveryReview: lead.discoveryReview,
         messages: lead.messages.map(
           ({ subject, body, from, senderName, delayDays }) => ({
             subject,
@@ -187,16 +188,38 @@ export function digest(lead) {
     .digest('hex');
 }
 
-export function plan(state, now) {
+export function plan(state, now, discovery) {
+  let selected;
+  if (discovery) {
+    selected = getLead(state, discovery.id);
+    text(discovery.reason, 'discovery rationale', 1000);
+    if (
+      selected.status !== 'new' ||
+      state.exclusions.includes(selected.email) ||
+      selected.messages.length ||
+      now - selected.observedAt > 30 * DAY
+    )
+      throw new Error(
+        'Discovery requires a fresh, unsent, unsuppressed prospect'
+      );
+  }
   let count = 0;
-  for (const lead of state.leads) {
+  for (const lead of selected ? [selected] : state.leads) {
     if (
       lead.status !== 'new' ||
-      lead.score < 70 ||
-      !lead.hasWalletAudience ||
+      (!selected && (lead.score < 70 || !lead.hasWalletAudience)) ||
       now - lead.observedAt > 30 * DAY
     )
       continue;
+    if (selected) {
+      lead.discoveryReview = { reason: discovery.reason.trim(), at: now };
+      audit(
+        state,
+        'discovery-reviewed',
+        { leadId: lead.id, reason: lead.discoveryReview.reason },
+        now
+      );
+    }
     const link = new URL('https://walletlink.social/');
     link.searchParams.set('utm_source', 'outreach');
     link.searchParams.set('utm_medium', 'email');
@@ -289,6 +312,7 @@ export function refreshEvidence(state, id, input, now) {
   importLeads(temporary, [{ ...input, email: lead.email }], now);
   const refreshed = temporary.leads[0];
   Object.assign(lead, refreshed, { id, createdAt: lead.createdAt });
+  delete lead.discoveryReview;
   audit(state, 'evidence-refreshed', { leadId: id }, now);
 }
 

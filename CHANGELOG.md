@@ -916,6 +916,8 @@ All notable changes to walletlink.social. Newest first.
   verified; the sender remains paused and no prospect mail has been sent.
 - Recover Gmail-rewritten message IDs using verified provider receipts and
   exact delivery markers; use canonical IDs for follow-up threading.
+- Add individually reviewed discovery drafts without inventing buying intent
+  or bypassing suppression and exact-message approval.
 - Shorten generated outreach into casual notes with clear questions.
 - Preserve the reviewed sender display name in email headers and bind it to
   approval. Query the explicit users schema for reliable exclusion syncs.
