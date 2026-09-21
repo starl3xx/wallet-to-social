@@ -53,7 +53,7 @@ export const INDEXED_WALLETS_LONG = '4.85 million';
  * no longer reach anybody, which is reported per record rather than folded into
  * this number: see `lib/handle-reachability.ts`.
  */
-export const WALLETS_WITH_X = '1.17 million';
+export const WALLETS_WITH_X = '1.20 million';
 
 /**
  * Wallets carrying a Farcaster identity.

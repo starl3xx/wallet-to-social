@@ -1,0 +1,81 @@
+name: main-guard
+
+# Runs the secretless gates against main itself, after every merge.
+#
+# ## The hole this closes
+#
+# Every quality gate in this repository is `pull_request`-only. Nothing has
+# ever run against main.
+#
+# Branch protection was turned on the same day as this job and does most of
+# the work, but it cannot do all of it: only `format`, `invariants` and `guard`
+# can be required, because every other gate is path-filtered and a required
+# check that does not run leaves a PR pending forever. So a PR can still merge
+# with a red `figures` or a red `house-style`, and this job is what notices.
+#
+# Two things then make the gap invisible rather than merely present. A
+# CONFLICTING PR triggers no workflows at all, because GitHub builds
+# `pull_request` runs from the computed merge commit, and the checks still
+# shown are whatever ran on an older head: green, and describing code that is
+# no longer there. And a squash merge produces a commit nothing has ever
+# tested, since the tested artifact was the merge commit, not the squash.
+#
+# So unverified content can land on main, and because nothing watches main,
+# it stays there silently until an unrelated PR fails and reads as that
+# author's fault. That is not hypothetical: on 2026-09-21 `docs/OPERATIONS.md`
+# reached main unformatted, and since `format.yml` runs `prettier --check .`
+# over the whole repository, it failed the format job on every open PR,
+# including ones that had not touched a markdown file. The first person to see
+# it reasonably read the red as their own.
+#
+# ## Why it does not block anything
+#
+# This runs after the merge, so it cannot prevent a bad landing. That is the
+# point: it is a smoke alarm, not a lock. The lock is branch protection, which
+# is a repository setting rather than a file, and this job is the thing that
+# says out loud that main needs attention on the day it happens rather than
+# on whoever's PR happens to be next.
+#
+# ## Why `preflight` and not the individual jobs
+#
+# `preflight` is defined as every gate needing no database, no Chrome and no
+# secrets, in CI order, so this stays honest as gates are added: a new check
+# wired into preflight is covered here for free. The two gates deliberately
+# outside it are `figures`, which needs database credentials and already has
+# its own Monday schedule for exactly this reason, and `control-height`, which
+# needs a browser.
+
+on:
+  push:
+    branches: [main]
+  # So the alarm can be tested, and re-run after a fix without an empty commit.
+  workflow_dispatch:
+
+jobs:
+  main-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # The pinned toolchain from the lockfile, the same argument format.yml
+      # makes: two Prettier versions disagree about line breaks, and a job that
+      # installed whatever was newest would report drift nobody introduced.
+      - name: Install
+        run: npm ci
+
+      - name: Main still passes every secretless gate
+        run: |
+          set -euo pipefail
+
+          if npm run preflight; then
+            exit 0
+          fi
+
+          echo
+          echo "::error::main is failing a gate that every PR is required to pass. Something landed without being checked, most likely through a PR whose workflows never ran because it was CONFLICTING, or through a squash commit nothing tested. Fix it on main promptly: until it is fixed, every open PR fails this gate for a reason that is not theirs."
+          exit 1

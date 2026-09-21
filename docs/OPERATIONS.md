@@ -146,14 +146,93 @@ stated 30-day retention.
 
    Resolve it by merging the base branch **in**. A rebase needs a force-push.
 
-6. Merge (squash, delete branch) when Bugbot has passed and every check is
+   **The usual cause is `CHANGELOG.md`.** Every PR adds an entry at the top of
+   it, so any two open PRs edit the same region and the second to merge
+   conflicts, on the one file whose resolution is never in doubt. That
+   guaranteed conflict is what switches the gates above off, on every second
+   PR.
+
+   `.gitattributes` marks that file `merge=union`, which **verifiably** removes
+   the hand-resolution when you merge the base branch in locally: both entries
+   survive and no marker is written. Whether GitHub's own mergeability
+   computation honors a merge driver is a different question, it runs on
+   GitHub's servers rather than in your git, and the reported behavior is that
+   it does not. So assume a second PR touching this file is still shown as
+   CONFLICTING until somebody measures otherwise, and keep doing what this step
+   already says. The protections that do not depend on it are `pr:status` and
+   `main-guard.yml`.
+
+6. **A merged PR is not a checked commit, and nothing checks `main`.** Every
+   gate here is `pull_request`-only, so what CI tested was the computed merge
+   commit, never the squash that actually landed, and `main` has no branch
+   protection, so it is exactly as verified as whoever merged chose to be.
+
+   `main-guard.yml` runs `npm run preflight` on every push to `main` for that
+   reason. It cannot block a bad landing, it announces one: a red there means
+   something reached `main` unchecked, and **every open PR is now failing a
+   gate for a reason that is not theirs.** Fix it on `main` first, before
+   telling an author their red is their diff.
+
+   That is not hypothetical. On 2026-09-21 `docs/OPERATIONS.md` reached `main`
+   unformatted, and `format.yml` runs `prettier --check .` over the whole
+   repository, so it failed on PRs that had touched no markdown at all.
+
+7. Merge (squash, delete branch) when Bugbot has passed and every check is
    green. Do not merge over a red Vercel preview without diagnosing it: the
    once-known benign cause (two concurrent preview builds starving each
    other’s build-time DB reads) is structurally closed, since preview builds
    no longer touch Neon (see `docs/CI.md`); if it still appears, stagger the
    pushes and report it.
-7. `CHANGELOG.md` gets a dated entry; `PROJECT_OVERVIEW.md` when architecture,
+
+   **`gh pr merge` from a worktree fails after the merge, not before it.** It
+   tries to check the base branch out locally on the way to deleting the
+   branch, and `main` is already checked out in the root working copy, so it
+   exits on `fatal: 'main' is already used by worktree`. The merge itself has
+   already happened at that point. Confirm with
+   `gh pr view <n> --json state,mergedAt` rather than re-running it, and note
+   the remote branch is left behind: `git push origin --delete <branch>`.
+
+   **Merge siblings one at a time and re-check the second.** Merging the first
+   moves `main`, which leaves the second behind it. A PR that is behind is
+   still shown with the checks it passed against the older base, so bring
+   `main` in, let CI and Bugbot run again, and read `pr:status` on the new head
+   before merging it.
+
+8. `CHANGELOG.md` gets a dated entry; `PROJECT_OVERVIEW.md` when architecture,
    schema, endpoints, env vars or pricing moved; this file when posture moved.
+
+## Branch protection on `main`
+
+Enabled 2026-09-21. Until then every rule above was a habit: nothing required a
+check to pass, nothing required a branch to be current, and nothing stopped a
+direct push. It is a repository setting rather than a file, so it cannot be
+read out of the repo; this section is the record of what is set and why.
+
+- **Required checks: `format`, `invariants`, `guard`.** Only three, and the
+  reason is a footgun rather than modesty. A required check that does not run
+  leaves a PR pending forever, and most gates here are path-filtered:
+  `design-tokens` (`palette`, `og-palette`, `design-language`, `contrast`,
+  `control-height`), `house-style`, `figures` and the social-queue check all
+  trigger on paths, and `docs-freshness` skips its jobs outright. Requiring any
+  of those would deadlock the first PR that legitimately did not touch their
+  paths. These three run on every pull request and never skip.
+- **Require branches to be up to date (`strict`).** This is the one that closes
+  the hole steps 5 and 6 describe: a branch behind `main` can no longer be
+  merged on checks that passed against an older base.
+- **Force pushes and deletions are refused**, which makes the never-force-push
+  rule structural rather than remembered.
+- **Admins are not enforced**, deliberately. This is a solo repository and
+  locking the owner out of their own emergency is a worse failure than the one
+  being prevented. It means protection is a guard rail, not a wall: a red
+  `figures` still needs a human to decline to merge, because it cannot be
+  required without the deadlock above.
+- **Reviews are not required**, for the same reason: there is no second
+  reviewer, and requiring one would stop all work.
+
+Two settings deliberately left off, both defensible to turn on later:
+`required_conversation_resolution`, which would force Bugbot's review comments
+to be resolved rather than merely read, and `required_linear_history`, which
+the squash-merge habit already produces.
 
 ## Standing constraints
 
