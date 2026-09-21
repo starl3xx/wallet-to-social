@@ -1,0 +1,38 @@
+# Append-only files merge by union rather than by conflict.
+#
+# ## The problem this removes
+#
+# Every PR adds a dated entry to the top of CHANGELOG.md, because CLAUDE.md
+# asks it to. Two open PRs therefore always edit the same region of the same
+# file, so the second one to be merged conflicts every single time, on a file
+# where the correct resolution is never in doubt: keep both entries.
+#
+# That is tedious on its own and it is not the real cost. A conflicting PR is
+# not merely inconvenient here, it is dangerous, because GitHub runs
+# `pull_request` workflows against the computed merge commit: a CONFLICTING PR
+# triggers nothing at all. No queued run, no failed run, and the checks still
+# shown on the page are whatever ran on an older head, all green and all
+# describing code that is no longer there. docs/OPERATIONS.md records an hour
+# lost to reading that as an Actions outage. So the guaranteed conflict on a
+# file nobody disagrees about was silently switching off every quality gate in
+# the repository, on every second PR, until somebody noticed and merged main
+# in by hand.
+#
+# `union` is a built-in git merge driver: on a conflicting hunk it keeps the
+# lines from both sides instead of writing markers. For a file that is only
+# ever prepended to, that is exactly the resolution a person would make.
+#
+# ## What union costs, stated rather than discovered
+#
+# A union merge never reports a conflict, so if two branches edit the SAME
+# existing line, both versions survive and nothing asks. That is the wrong
+# answer for source code and an acceptable one for a log of dated entries,
+# where an edit to an already-published entry is rare and a duplicate is
+# visible in review rather than silently wrong at runtime.
+#
+# This is why the list below is short and stays short. A file belongs here
+# only when it is append-only by construction and its merge has one obvious
+# answer. Source files, config and anything a guard reads do NOT belong here:
+# for those a conflict is information, and silencing it would hide a real
+# disagreement about behavior.
+CHANGELOG.md merge=union
