@@ -1540,9 +1540,36 @@ const MUTATIONS: Mutation[] = [
   },
   {
     name: 'robots.txt blocks the stylesheet, fonts and JavaScript every page renders with',
-    file: 'app/robots.ts',
-    from: "      allow: ['/api/public-stats', '/_next/static', '/_next/image', '/'],",
-    to: "      allow: ['/api/public-stats', '/'],",
+    file: 'app/robots.txt/route.ts',
+    from: "const ALLOW = ['/api/public-stats', '/_next/static', '/_next/image', '/'];",
+    to: "const ALLOW = ['/api/public-stats', '/'];",
+  },
+  {
+    // Paragraph (c) of the policy makes deletion the dangerous edit: an
+    // omitted signal is a refusal to answer, not a quiet no, so this reads
+    // as tidying and is a withdrawal.
+    name: 'a content signal is deleted rather than answered, which withdraws the preference',
+    file: 'app/robots.txt/route.ts',
+    from: "const CONTENT_SIGNAL = 'search=yes, ai-input=yes, ai-train=yes';",
+    to: "const CONTENT_SIGNAL = 'search=yes, ai-input=yes';",
+  },
+  {
+    // Cloudflare's own robots.txt makes exactly this mistake. The line still
+    // appears in the file and still reads correctly; it is simply scoped to
+    // nothing, or to whichever group happens to precede it.
+    name: 'the content signal is emitted outside the group, so it scopes to no crawler',
+    file: 'app/robots.txt/route.ts',
+    from: "    'User-Agent: *',\n    `Content-Signal: ${CONTENT_SIGNAL}`,\n",
+    to: "    'User-Agent: *',\n",
+  },
+  {
+    // Without the definition the signal is a token nobody has agreed a
+    // meaning for, and the Article 4 reservation, the only part with legal
+    // weight, is gone. A paraphrase looks like an improvement.
+    name: 'the content signals policy is paraphrased, dropping the Article 4 reservation',
+    file: 'app/robots.txt/route.ts',
+    from: '# ANY RESTRICTIONS EXPRESSED VIA CONTENT SIGNALS ARE EXPRESS RESERVATIONS OF RIGHTS UNDER ARTICLE 4 OF THE EUROPEAN UNION DIRECTIVE 2019/790 ON COPYRIGHT AND RELATED RIGHTS IN THE DIGITAL SINGLE MARKET.',
+    to: '# Restrictions expressed above are a reservation of rights.',
   },
   {
     name: 'a source that reported no total has its zero published as a holder count',

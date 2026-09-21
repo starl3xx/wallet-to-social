@@ -31,7 +31,7 @@
  *
  * Run: npx tsx scripts/check-invariants.ts
  */
-import { readdirSync, readFileSync } from 'fs';
+import { existsSync, readdirSync, readFileSync } from 'fs';
 import { execSync } from 'child_process';
 import { execFileSync } from 'child_process';
 import { DrizzleQueryError } from 'drizzle-orm/errors';
@@ -134,7 +134,7 @@ async function main() {
     const wrapped = new DrizzleQueryError('insert ...', [], driver);
 
     ok(
-      'a unique violation is recognised through the Drizzle wrapper',
+      'a unique violation is recognized through the Drizzle wrapper',
       isUniqueViolation(wrapped)
     );
     ok(
@@ -1472,7 +1472,7 @@ async function main() {
       }
 
       ok(
-        'an unrecognised intent is refused rather than read as a claim',
+        'an unrecognized intent is refused rather than read as a claim',
         // The value decides which act the resulting signature can be spent
         // on, so coercing a typo to the more powerful of the two is the
         // wrong direction to fail in.
@@ -6712,7 +6712,7 @@ async function main() {
      */
     /**
      * The import cap exists twice: once in the seeding pipeline that enforces
-     * it, once in `lib/holder-pages.ts` so a rendered route can recognise a
+     * it, once in `lib/holder-pages.ts` so a rendered route can recognize a
      * reported total that is really the cap without importing the ingest.
      *
      * Two copies of a number drift, and this one decides whether a machine
@@ -7013,7 +7013,7 @@ async function main() {
     );
   }
 
-  // ------------------------------------------------ the recognised seed prefix
+  // ------------------------------------------------ the recognized seed prefix
   // lib/recognized-contracts.ts says "do not add an entry from memory". That
   // instruction is the only thing standing between this file and a page about
   // the wrong asset, and an instruction in a comment enforces nothing.
@@ -7023,7 +7023,7 @@ async function main() {
     const { SUPPORTED_CHAINS } = await import('@/lib/chains');
 
     ok(
-      'every recognised address is a lowercase 40-hex contract address',
+      'every recognized address is a lowercase 40-hex contract address',
       RECOGNIZED_CONTRACTS.every((c) => /^0x[0-9a-f]{40}$/.test(c.address))
     );
     ok(
@@ -7032,13 +7032,13 @@ async function main() {
         .size === RECOGNIZED_CONTRACTS.length
     );
     ok(
-      'every recognised contract names a supported chain',
+      'every recognized contract names a supported chain',
       RECOGNIZED_CONTRACTS.every((c) => SUPPORTED_CHAINS.includes(c.chain))
     );
     // A zero address, a burn address or the chain's own predeploy range would
     // pass the hex check and publish a page about nothing.
     ok(
-      'no recognised entry is the zero or burn address',
+      'no recognized entry is the zero or burn address',
       !RECOGNIZED_CONTRACTS.some(
         (c) =>
           c.address === `0x${'0'.repeat(40)}` ||
@@ -7597,23 +7597,91 @@ async function main() {
     );
 
     /**
-     * Blocking the resources a page renders with is the one edit to robots.ts
-     * that fails silently: the HTML still serves, every check still passes,
-     * and Googlebot quietly judges the site on a build with no stylesheet and
-     * no fonts. Search Console reports it against `/_next/static/...` URLs,
-     * which look like machinery rather than pages, so it reads as noise.
+     * Blocking the resources a page renders with is the one edit to
+     * robots.txt that fails silently: the HTML still serves, every check
+     * still passes, and Googlebot quietly judges the site on a build with no
+     * stylesheet and no fonts. Search Console reports it against
+     * `/_next/static/...` URLs, which look like machinery rather than pages,
+     * so it reads as noise.
      *
      * Anchored on the pairing, not on either list alone. `Disallow: /_next/`
      * is correct and should stay; what must never exist is that disallow
      * WITHOUT the two allows that carve the render path back out of it.
      */
-    const robotsFile = withoutComments(readFileSync('app/robots.ts', 'utf8'));
-    const blocksNext = /disallow: \[[^\]]*'\/_next\/'/.test(robotsFile);
+    const robotsFile = withoutComments(
+      readFileSync('app/robots.txt/route.ts', 'utf8')
+    );
+    const blocksNext = /const DISALLOW = \[[^\]]*'\/_next\/'/.test(robotsFile);
     ok(
-      'robots.ts cannot block /_next/ without allowing the resources pages render with',
+      'robots.txt cannot block /_next/ without allowing the resources pages render with',
       !blocksNext ||
-        (/allow: \[[^\]]*'\/_next\/static'/.test(robotsFile) &&
-          /allow: \[[^\]]*'\/_next\/image'/.test(robotsFile))
+        (/const ALLOW = \[[^\]]*'\/_next\/static'/.test(robotsFile) &&
+          /const ALLOW = \[[^\]]*'\/_next\/image'/.test(robotsFile))
+    );
+
+    /**
+     * Two files can serve /robots.txt and only one of them carries content
+     * signals.
+     *
+     * `app/robots.ts` is the Next metadata convention, and its serializer
+     * emits User-Agent, Allow, Disallow, Crawl-delay, Host and Sitemap and
+     * nothing else. Re-adding it is the natural thing to do when someone
+     * wants to change an Allow rule and finds the framework's documented way
+     * of doing it, and the result either collides at build time or shadows
+     * the route handler with a file that has no way to express a signal.
+     */
+    ok(
+      'the Next metadata convention has not come back alongside the route handler',
+      !existsSync('app/robots.ts')
+    );
+
+    /**
+     * Absence is not denial, which makes deleting a signal the dangerous
+     * edit rather than the safe one.
+     *
+     * Paragraph (c) of the policy this file serves says an omitted signal
+     * neither grants nor restricts. So trimming `ai-train=yes` out of the
+     * line does not quietly become a `no`; it withdraws the site's answer
+     * and leaves a crawler free to read the silence either way. All three
+     * labels are asserted present with an explicit value, and the value
+     * itself is deliberately NOT asserted: changing a yes to a no is a
+     * decision someone can make, and deleting the label is not.
+     */
+    for (const label of ['search', 'ai-input', 'ai-train']) {
+      ok(
+        `the ${label} content signal states a value rather than being omitted`,
+        new RegExp(`CONTENT_SIGNAL = '[^']*\\b${label}=(yes|no)\\b`).test(
+          robotsFile
+        )
+      );
+    }
+
+    /**
+     * `Content-Signal` is group-scoped, like `Allow`, not standalone like
+     * `Sitemap`. Emitted outside a group it attaches to whichever group
+     * precedes it, or to none; Cloudflare's own robots.txt makes exactly
+     * that mistake. There is one group here, so the line has to sit under
+     * its `User-Agent`.
+     */
+    ok(
+      'the content signal is emitted inside the group, under its User-Agent',
+      /'User-Agent: \*',\s*`Content-Signal: \$\{CONTENT_SIGNAL\}`/.test(
+        robotsFile
+      )
+    );
+
+    /**
+     * The signal is a token; the policy is what the token means. Shipping
+     * the first without the second publishes a word nobody has agreed a
+     * definition for, and drops the Article 4 reservation that is the only
+     * part of this with any legal weight. Asserted on the two load-bearing
+     * lines, so a paraphrase fails rather than passing quietly.
+     */
+    ok(
+      'the machine-readable signal ships with the policy text that defines it',
+      robotsFile.includes(
+        '# ANY RESTRICTIONS EXPRESSED VIA CONTENT SIGNALS ARE EXPRESS RESERVATIONS OF RIGHTS UNDER ARTICLE 4'
+      ) && robotsFile.includes('# ai-train: training or fine-tuning AI models.')
     );
   }
 
@@ -9110,7 +9178,7 @@ async function main() {
         parseBatchByIds(errorBody).resolved.size === 0
     );
     ok(
-      'a success body with no users array is an unrecognised shape, not an empty answer',
+      'a success body with no users array is an unrecognized shape, not an empty answer',
       parseBatchByIds(unknownShape).answered === false
     );
     ok(
