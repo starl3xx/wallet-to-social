@@ -50,6 +50,7 @@ interface Composition {
   topline: Topline;
   sources: SourceRow[];
   xByStatus: Record<string, number>;
+  kyc: { attested: number; in_graph: number };
   generatedAt: string;
 }
 
@@ -99,7 +100,7 @@ export function GraphComposition({ password }: { password: string }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <Stat
           label="Wallets"
           value={nf.format(t.total)}
@@ -125,6 +126,12 @@ export function GraphComposition({ password }: { password: string }) {
           label="Live X handles"
           value={nf.format(live)}
           note={`of ${nf.format(live + unavailable + notFound)} distinct handles checked`}
+        />
+        <Stat
+          label="KYC-attested wallets"
+          value={nf.format(data.kyc.in_graph)}
+          attested
+          note={`in the graph, of ${nf.format(data.kyc.attested)} attested onchain`}
         />
       </div>
 

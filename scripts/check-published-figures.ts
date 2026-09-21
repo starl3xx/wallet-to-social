@@ -599,7 +599,7 @@ export const CLAIMS: Claim[] = [
       const attested = await one(sql`
         SELECT count(*)::int FROM social_graph
         WHERE twitter_handle IS NOT NULL
-          AND sources && ARRAY['farcaster_sweep','neynar','ens_onchain','ens','ethos','eas','clanker','manual','debank_tweet','sybil_list','snapshot_profile','opensea_profile','ud_profile','basename_record','owner_attested']`);
+          AND sources && ARRAY['farcaster_sweep','neynar','ens_onchain','ens','ethos','eas','clanker','manual','debank_tweet','sybil_list','snapshot_profile','lens_profile','opensea_profile','ud_profile','basename_record','owner_attested']`);
       const total = await one(
         sql`SELECT count(*)::int FROM social_graph WHERE twitter_handle IS NOT NULL`
       );

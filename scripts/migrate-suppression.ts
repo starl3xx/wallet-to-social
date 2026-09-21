@@ -572,6 +572,18 @@ const ATTACHMENTS: Attachment[] = [
     args: `'twitter=handle'`,
   },
 
+  // The KYC-attested wallet set (2026-09-20). Keyed on the wallet, nothing
+  // to blank: the row's whole content is "a regulated exchange vouched for
+  // this wallet", which is precisely the assertion a removed person asked
+  // us to stop keeping. Skip semantics carry no x_list_jobs-style hazard
+  // here, because the only UPDATEs are the weekly sweep's upserts and a
+  // silently refused re-insert is the designed outcome.
+  {
+    table: 'cb_verified_wallets',
+    fn: 'suppression_guard_skip',
+    args: `'wallet=wallet'`,
+  },
+
   // handle_conflicts holds wallet + two handles in one row: the erased edge,
   // twice over. `platform` defaults to 'twitter' but is not constrained to it,
   // so both handle kinds are checked against both columns. Deletion alone is

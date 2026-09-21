@@ -1399,6 +1399,23 @@ export type NewOauthGrant = typeof oauthGrants.$inferInsert;
  * suppressed remains at rest, and a backup restored without this table would
  * un-remove every person who asked to be gone.
  */
+/**
+ * The KYC-attested wallet set (2026-09-20): one row per wallet with a live
+ * verified-account attestation from the exchange's onchain attester on
+ * Base. A quality signal, never an identity link: no handle, nothing near
+ * the attested-links machinery. Fully resynced weekly by
+ * `scripts/sweep-cb-verified.ts` (rows a complete walk did not see are
+ * deleted, so revocations leave); guarded by the suppression skip trigger
+ * and erased by `eraseIdentifier`, like every other wallet-bearing table.
+ * Created by `scripts/migrate-add-cb-verified.ts`, never by drizzle-kit.
+ */
+export const cbVerifiedWallets = pgTable('cb_verified_wallets', {
+  wallet: text('wallet').primaryKey(),
+  uid: text('uid').notNull(),
+  attestedAt: timestamp('attested_at', { withTimezone: true }).notNull(),
+  sweptAt: timestamp('swept_at', { withTimezone: true }).notNull(),
+});
+
 export const suppressedIdentifiers = pgTable(
   'suppressed_identifiers',
   {
