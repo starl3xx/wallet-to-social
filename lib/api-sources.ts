@@ -129,6 +129,14 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   snapshot_profile: 'attested-social',
 
   /**
+   * A social-protocol account whose metadata attributes carry a handle the
+   * owner set. The account-to-owner half is onchain; the handle half is
+   * owner-set text nobody checked: the same shape as the governance profile
+   * above, so the same class and the same caveat.
+   */
+  lens_profile: 'attested-social',
+
+  /**
    * A marketplace account where the wallet is the login and the social
    * account is attached by OAuth sign-in: both halves owner-established.
    */
