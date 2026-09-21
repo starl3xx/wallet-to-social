@@ -260,3 +260,60 @@ start the worker on a persistent host. Discovery currently gathers evidence
 from supplied company URLs; open-web prospect sourcing and qualification
 remain operator or research-agent work. Revenue recording is manual until
 payment attribution is validated; it is not inferred from a link click.
+
+## Jev prospect qualification pilot
+
+The standalone `scripts/outreach/qualify.mjs` command evaluates **selected public
+research excerpts** in shadow mode. It does not open the outreach database,
+import leads, generate approvals, read Gmail, or alter the running worker.
+Run an offline preview first to inspect exactly what will be submitted:
+
+```sh
+node scripts/outreach/qualify.mjs /private/path/research.json /private/path/jev-preview.json
+node --env-file=/private/path/outreach.env scripts/outreach/qualify.mjs /private/path/research.json /private/path/jev-results.json --run
+```
+
+Live execution requires `TYPESAFE_API_KEY` in that private environment file.
+Do not commit keys or research reports. Output files are created with mode 0600
+and must not already exist. Each invocation accepts 1–20 records; records use
+the existing research output fields `company`, `sourceUrl`, `observedAt`, and
+`excerpt`. Only these allowlisted fields and optional public-source claims are
+submitted. URLs must omit query strings and fragments. Input is operator-selected
+public material; the tool cannot determine whether arbitrary pasted text is private.
+Research currently keeps only the first 5,000 characters of a page, so missing
+signals mean insufficient supplied evidence, not proof a company lacks a service.
+
+Optional `claims` contains up to ten `{ "text": "proposed factual claim",
+"quote": "exact supporting excerpt" }` objects per record. Split a personalized
+opening into individual factual claims; the tool does not check an entire email
+unless its claims are supplied. A quote absent from the excerpt is rejected locally.
+The model checks present quotes for full support, contradiction, or missing evidence.
+
+The pinned model is `jev-1.13.0`, rubric `walletlink-prospect-v1`. The first call
+selects exact source spans for three signals: relevant services, explicit EVM work,
+and a wallet-audience use case. A second call checks selected passages and supplied
+claims in full excerpt context. Both calls use the same model, so this is not
+independent corroboration. Every result remains `human-review-required`.
+`SupportedSignals` (serialized as `supportedSignals`) counts model-supported
+signals for review, not buying probability or production qualification.
+Confidence is retained for evaluation, not treated as correctness or an approval
+threshold. No claim of mailbox deliverability is made. Source text can contain
+prompt injections; constrained output and human review do not make the model immune.
+
+Evidence older than 30 days, future dates, failed research, and malformed provider
+responses fail closed. Observation dates reflect retrieval, not when an activity
+occurred. Reports preserve excerpt, URL, dates, model/rubric, input hash, distributions,
+and reported token usage. Provider failure stops the batch without automatic retries
+and preserves completed results. Run remaining records into a new output file.
+
+Before using results operationally, label 100–200 real public records with expected
+signal and claim verdicts. Reserve 20–30% before adjusting the rubric. Include vague
+web3 descriptions, non-EVM work, historical cases, missing evidence, and injected
+instructions. Compare against manual review and existing rules: supported shortlist
+precision, unsupported claims missed, abstentions, and review minutes. Synthetic
+unit tests validate mechanics only; they do not establish model accuracy. Keep send
+approval and existing exclusion/bounce checks in their current deterministic flow.
+
+API contract: https://docs.typesafe.ai/api
+Confidence: https://docs.typesafe.ai/confidence
+Limitations: https://docs.typesafe.ai/model-jaggedness/jev-1.13
