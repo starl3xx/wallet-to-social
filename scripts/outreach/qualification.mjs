@@ -104,10 +104,13 @@ export function validateResponse(response, questions) {
     const ps = keys.map((key) => a.probabilities[key]);
     if (
       ps.some((p) => !Number.isFinite(p) || p < 0 || p > 1) ||
-      Math.abs(ps.reduce((sum, p) => sum + p, 0) - 1) > 0.01 ||
+      // Provider rounds probabilities; allow floating-point noise at the 1% boundary.
+      Math.abs(ps.reduce((sum, p) => sum + p, 0) - 1) > 0.01 + 1e-9 ||
       a.probabilities[a.choice] < Math.max(...ps)
     )
-      throw new Error(`Invalid TypeSafe probabilities: ${id}`);
+      throw new Error(
+        `Invalid TypeSafe probabilities: ${id} (sum=${ps.reduce((sum, p) => sum + p, 0)}, selected=${a.probabilities[a.choice]}, max=${Math.max(...ps)})`
+      );
   }
   return response;
 }

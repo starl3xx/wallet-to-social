@@ -183,3 +183,19 @@ test('offline CLI works without key, keeps output private, refuses overwrite', (
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('accepts a rounded 0.99 distribution at the 1% tolerance boundary', () => {
+  const request = prepare(record, now).request;
+  const r = response(request, () => 'none');
+  const alternative = Object.keys(request.questions.evm.criteria).find(
+    (k) => k !== 'none'
+  );
+  r.answers.evm.probabilities.none = 0.55;
+  r.answers.evm.probabilities[alternative] = 0.44;
+  assert.doesNotThrow(() => validateResponse(r, request.questions));
+  r.answers.evm.probabilities[alternative] = 0.47;
+  assert.throws(
+    () => validateResponse(r, request.questions),
+    /Invalid TypeSafe probabilities/
+  );
+});

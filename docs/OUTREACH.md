@@ -1,13 +1,13 @@
 # Revenue outreach
 
 Status as of September 21, 2026: the owner approved all three reviewed pilot
-sequences and the live local worker is running. The first prospect's initial
-message is verified in Sent Mail; two initial messages are queued behind the
-15-minute spacing rule. Follow-ups remain bounded to two and stop on a reply.
-Gmail authorization and account exclusions are verified. Owner-mailbox delivery,
-same-thread reply detection, sender-based lookup without thread IDs and
-lost-response recovery passed. A real bounce has not been induced; its stop
-path is covered by automated tests.
+sequences and the live local worker is running. Each initial message has been
+submitted; two prospects remain active and one is suppressed after a hard bounce.
+Follow-ups remain bounded to two and stop on a reply. Gmail authorization and
+account exclusions are verified. Owner-mailbox delivery, same-thread reply
+detection, sender-based lookup without thread IDs and lost-response recovery
+passed. A real separate-thread bounce was observed and the contact is stopped.
+Jev research evaluation is a separate operator tool and does not change this queue.
 The existing Resend welcome and nonbuyer campaigns remain live and unchanged.
 
 starl3xx chose this policy on September 21, 2026: approve each initial message,
@@ -317,3 +317,65 @@ approval and existing exclusion/bounce checks in their current deterministic flo
 API contract: https://docs.typesafe.ai/api
 Confidence: https://docs.typesafe.ai/confidence
 Limitations: https://docs.typesafe.ai/model-jaggedness/jev-1.13
+
+### Reproducible labeled evaluation
+
+Use `scripts/outreach/evaluate.mjs` for frozen, pre-labeled datasets. It validates
+labels before any API call, keeps each company group in one split, and never sends
+expected labels, split names, or annotation rationale to Jev. Public examples,
+extraction-limited pages, and synthetic challenges have separate metrics.
+
+```sh
+node scripts/outreach/evaluate.mjs /private/path/labeled.json /private/path/results.json --preview
+node --env-file=/private/path/outreach.env scripts/outreach/evaluate.mjs /private/path/labeled.json /private/path/results.json --run
+node --env-file=/private/path/outreach.env scripts/outreach/evaluate.mjs /private/path/labeled.json /private/path/results.json --resume
+```
+
+The dataset shape is `{version: 1, annotationMethod, cases: [...]}`. Each case has
+`id`, `group` (company or synthetic scenario family), `split` (`development` or
+`holdout`), `kind` (`public`, `extraction-limited`, or `synthetic`), `rationale`,
+`record` (the research/claims input), and `expected`. Expected labels contain
+`signals: {services, evm, useCase}` with `supported` or `unsupported` values, plus
+`claims`, an ordered array of `supported`, `unsupported`, `contradicted`, or
+`missing-quote` labels corresponding exactly to the input claims. Supported means
+established by the supplied excerpt, not an independently proven company fact.
+
+A dataset hash binds the labels and source snapshots; a checkpoint also binds the
+model and rubric. Resume skips completed evaluations and refuses a different
+dataset. Atomic private checkpoint writes preserve completed work; a sidecar lock
+prevents simultaneous writers. After a crash, remove a leftover `.lock` only after
+confirming its recorded process is no longer running. Provider failure stops the
+batch. Explicit resume retries only the unfinished case (which may incur another
+API charge), not previously completed cases. The generated `results.json.md` is a
+review companion and is regenerated on resume.
+
+Reports include per-signal precision and recall, false positives and negatives,
+a simple lexical baseline, binary claim acceptance accuracy, exact verdict
+agreement, and disagreements. Missing results are explicitly counted and excluded
+from accuracy denominators. The keyword baseline is deliberately simple and does
+not represent the existing outreach commercial-fit scorer. Do not equate signal
+accuracy with sales qualification, time saved, revenue lift, or mailbox validity.
+
+The September 21 expansion used 20 company examples (three with only extracted
+titles) and ten separate synthetic challenges, totaling 150 labeled judgments.
+Six company groups were held out before model calls. Labels were authored by
+Codex before evaluation, not independent human ground truth. Public cases were
+convenience sampled; eight needed reader-recovered excerpts rather than the basic
+collector. This is not a 100–200-company validation set. The rubric was not tuned
+on holdout outcomes. Preserve those outcomes if revising the rubric; evaluated
+holdout cases become diagnostic material and a later version needs a fresh holdout.
+
+All 40 public-company claim acceptance/rejection decisions matched the labels,
+with two differences between `unsupported` and `contradicted`. Held-out company
+signal decisions matched 15/18 labels (eight true positives, three false negatives,
+seven true negatives). The lexical baseline matched 12/18. One development example
+accepted a sample UI chain label as proof of EVM work. Some disagreements expose
+rubric ambiguity: historical work versus current services, chain support versus
+client delivery, and holder datasets versus audience-analysis use cases. Keep
+qualification advisory; do not auto-reject leads based on missing signals. Private
+source snapshots, labels, results, and research priorities remain outside Git.
+
+A live API response exposed a floating-point validation boundary: rounded
+probabilities summing to 0.99 could be rejected by the intended 1% tolerance.
+Validation now permits floating-point noise at that boundary, while rejecting
+larger normalization errors. A regression test covers both cases.
