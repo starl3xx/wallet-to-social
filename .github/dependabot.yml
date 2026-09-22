@@ -27,6 +27,25 @@ updates:
       time: '09:00'
       timezone: Etc/UTC
     open-pull-requests-limit: 3
+    # Majors that were tried on 2026-09-22 and cannot land yet (from #363).
+    # Each one names what unblocks it; remove the entry when that happens.
+    ignore:
+      # typescript-eslint refuses to load on TypeScript 7 ("does not support
+      # TS 7.0"), so `npm run lint` stops outright. Unblocked when
+      # typescript-eslint supports 7.
+      - dependency-name: typescript
+        versions: ['>=7']
+      # ESLint 10 removed `context.getFilename()`, and the eslint-plugin-react
+      # bundled in eslint-config-next still calls it, so every lint run
+      # crashes. Unblocked when eslint-config-next supports ESLint 10.
+      - dependency-name: eslint
+        versions: ['>=10']
+      # Types must not be newer than the oldest runtime, or code can call a
+      # Node API that does not exist in production. Vercel runs Node 24 and the
+      # GitHub Actions jobs (sweeps, harvests) run Node 22, so 22 is the floor.
+      # Raise this with the Actions `node-version`, not before.
+      - dependency-name: '@types/node'
+        versions: ['>=23']
     groups:
       # Patch and minor together: these are the ones that are usually safe to
       # take as a batch, and they are where the security fixes land.
