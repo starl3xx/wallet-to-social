@@ -1,0 +1,58 @@
+# Keeps the dependency tree from going stale on its own.
+#
+# WHY THIS EXISTS. On 2026-09-22 a third-party MCP marketplace published a
+# security report rating this server "High Risk" over its dependencies, and it
+# was right: `npm audit` found 56 advisories, 2 critical and 20 high, including
+# unauthenticated remote code execution in the Next.js image optimizer and SQL
+# injection in drizzle-orm. Every one had a published fix and a non-major
+# upgrade path, and none of them arrived in a diff. Nothing in this repo was
+# watching, so the first party to notice was a stranger, in public, on a page
+# prospective users read before installing.
+#
+# That is the same shape as the published-figures gate: drift with no commit,
+# no diff and no pull request. The answer is the same too, something on a
+# schedule rather than a PR check.
+#
+# Grouped deliberately. Ungrouped npm updates on a tree this size open a dozen
+# PRs a week, each burning the full CI suite, and the repo learns to ignore
+# them. One grouped PR per ecosystem per week is a thing a person actually
+# reads.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+      time: '09:00'
+      timezone: Etc/UTC
+    open-pull-requests-limit: 3
+    groups:
+      # Patch and minor together: these are the ones that are usually safe to
+      # take as a batch, and they are where the security fixes land.
+      routine:
+        patterns: ['*']
+        update-types: ['minor', 'patch']
+      # Majors arrive on their own, because they need reading.
+      major:
+        patterns: ['*']
+        update-types: ['major']
+    commit-message:
+      prefix: 'deps'
+    labels:
+      - dependencies
+      # Dependency bumps do not change the public API surface, and
+      # docs-freshness would otherwise block every one of them on a docs edit
+      # that has nothing to write.
+      - no-docs-needed
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: 'deps'
+    labels:
+      - dependencies
+      - no-docs-needed

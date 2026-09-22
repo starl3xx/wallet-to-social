@@ -1,0 +1,62 @@
+# Fails when a critical or high advisory is open against our dependencies.
+#
+# WHY THIS IS SCHEDULED AND NOT A PR CHECK. An advisory is published against
+# code that already merged. The dependency does not change, the lockfile does
+# not change, and no pull request exists to gate: a tree that was clean on
+# Monday is critical on Tuesday because somebody else wrote a CVE. That is
+# invisible to every PR check in this repo, which is exactly how 56 advisories
+# accumulated unnoticed until a third-party marketplace published them in
+# public on 2026-09-22.
+#
+# It is ALSO a PR check, on a narrow path filter. The schedule catches the
+# world moving; the PR trigger catches a dependency edit that introduces a
+# known-vulnerable version deliberately, which the schedule would not report
+# until the following morning.
+#
+# WHY IT FAILS ONLY ON CRITICAL AND HIGH. A gate that fires on every moderate
+# advisory in a dev-only toolchain gets muted, and a muted gate is worse than
+# no gate. Four moderate advisories are open and accepted right now, all in the
+# drizzle-kit/esbuild dev chain, none reachable from the deployed app, and the
+# only "fix" npm offers for them is a downgrade of a tool this repo already
+# refuses to run. Those must not turn this red every morning.
+#
+# A failure here is not necessarily a bug in our code. It usually means an
+# upstream package published an advisory and wants upgrading. Dependabot opens
+# the grouped PR that normally fixes it; this says whether it is urgent.
+name: dependency-audit
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Monday 09:00 UTC, alongside the other weekly gates
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/dependency-audit.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      # `npm audit` exits non-zero for ANY advisory at or above the level, so
+      # the level is the whole policy. --omit=dev is deliberately NOT set: a
+      # build-time dependency still runs on a machine holding our secrets.
+      # Instead the level is what filters, so a high in a dev tool is still a
+      # failure and a moderate in one is not.
+      - name: Audit for critical and high advisories
+        run: npm audit --audit-level=high
+      # Runs whatever the outcome, so a red build still prints the tally that
+      # explains it rather than only the first failing line.
+      - name: Summarize
+        if: always()
+        run: npm audit --json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const v=JSON.parse(s).metadata.vulnerabilities;console.log('advisories:',JSON.stringify(v));})"

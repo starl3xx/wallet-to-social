@@ -2,6 +2,29 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-22 (something now watches the dependency tree)
+
+- **Dependabot on a weekly grouped schedule, plus a `dependency-audit` gate**
+  that fails on critical and high advisories. Scheduled Mondays, and
+  PR-triggered when `package.json` or the lockfile changes.
+- **The point is the gap it closes, not the tooling.** An advisory is
+  published against code that already merged: the dependency does not change,
+  the lockfile does not change, and no pull request exists to gate. A tree that
+  was clean on Monday is critical on Tuesday because somebody else wrote a CVE.
+  Every PR check in this repo is blind to that, which is how 56 advisories
+  accumulated until a third party published them on a page prospective users
+  read before installing. Same shape as published-figures: drift with no
+  commit, no diff, no PR, so the answer is a schedule rather than a gate.
+- **It fails at high and above, deliberately.** A gate that fires on every
+  moderate advisory in a dev-only toolchain gets muted, and a muted gate is
+  worse than none. Four moderate advisories are open and accepted, all in the
+  `drizzle-kit`/`esbuild` dev chain and unreachable from the deployed app.
+- **Updates are grouped** into one routine PR for minor and patch, with majors
+  on their own. Ungrouped npm updates on a tree this size open a dozen PRs a
+  week, each burning the full CI suite, and the repo learns to ignore them.
+  Both carry `no-docs-needed`, since a dependency bump has no API surface for
+  docs-freshness to want documented.
+
 ### 2026-09-22 (the dependency tree, brought current)
 
 - **`next` 16.1.1 to 16.3.5, `drizzle-orm` to 0.45.2, `sharp` to 0.35.4**, plus
