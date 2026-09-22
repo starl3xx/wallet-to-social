@@ -163,6 +163,7 @@ wallet-to-social/
 │   ├── credits.ts            # The match ledger: balance, canSubmit, charge
 │   ├── access.ts             # Legacy tiers, whitelist, per-lookup limits
 │   ├── stripe.ts             # Stripe checkout (tier and pack sessions)
+│   ├── stripe-version.ts     # The pinned Stripe API version every client sends
 │   ├── cache.ts              # 7-day wallet cache
 │   ├── social-graph.ts       # Permanent social data storage (normalises source; see below)
 │   ├── analytics.ts          # Event tracking
