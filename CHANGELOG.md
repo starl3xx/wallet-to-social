@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-22 (the dependency tree, brought current)
+
+- **`next` 16.1.1 to 16.3.5, `drizzle-orm` to 0.45.2, `sharp` to 0.35.4**, plus
+  the transitive set `npm audit fix` resolves without breaking changes.
+  **56 advisories to 4: both criticals and all 20 highs are gone.**
+- **What was actually exposed.** Unauthenticated remote code execution in the
+  Next.js image optimizer, request smuggling in rewrites, server-side request
+  forgery in Server Actions, arbitrary code execution in `protobufjs`, and SQL
+  injection in `drizzle-orm` via improperly escaped SQL identifiers. Every one
+  had a published fix and a non-major upgrade path.
+- **The four that remain are deliberate.** All moderate, all in the
+  `drizzle-kit`/`esbuild` dev chain, none reachable from the deployed app. The
+  fix npm offers is `drizzle-kit@0.18.1`, a downgrade, for a tool this repo
+  already refuses to run: `db:push` is disabled on purpose and `db:generate`
+  was abandoned in January. Taking a downgrade to silence a dev-only advisory
+  would be the worse trade.
+- **`sharp` was two copies.** It was a direct dependency at `^0.34.5` while
+  Next pulled its own 0.35.4; bumping the direct range deduplicates to one.
+  Only `resize`, `png`, `webp`, `rotate`, `toBuffer` and `metadata` are used,
+  all unchanged across the bump, and `scripts/check-identity-hero.ts` exercises
+  them and passes.
+- **One reported finding was not real.** A third-party scan flagged
+  `inngest` for CVE-2026-42047 by reading the declared range `^3.49.1` rather
+  than the installed 3.54.2, which already carries the fix. A version range is
+  not a version.
+
 ### 2026-09-21 (a missing row does not say why it is missing)
 
 - **The daily seed run now logs the chain order it chose**, and warns with any
