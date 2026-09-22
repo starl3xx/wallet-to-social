@@ -62,8 +62,9 @@ export const walletLookup = inngest.createFunction(
     },
     // Retry on failure
     retries: 3,
+    // inngest v4 moved triggers into the options object.
+    triggers: { event: 'wallet/lookup.requested' },
   },
-  { event: 'wallet/lookup.requested' },
   async ({ event, step }) => {
     const { jobId } = event.data;
 

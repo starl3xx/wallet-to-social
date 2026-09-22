@@ -2,6 +2,31 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-22 (inngest 4, the last of #363)
+
+- **`inngest` 3 to 4, with one code change.** Version 4 removed the
+  three-argument `createFunction(options, trigger, handler)`; the lookup
+  function's trigger moves to `options.triggers`. That was the only compiler
+  error.
+- **The runtime changes in the v3 to v4 migration guide, checked one by one:**
+  - Cloud mode is now the default and needs a signing key. Production has
+    `INNGEST_SIGNING_KEY` and `INNGEST_EVENT_KEY`. Local runs need
+    `INNGEST_DEV=1`.
+  - Checkpointing is on by default. For `serve` the default `maxRuntime` is
+    10 seconds, after which the run hands back to Inngest. That fits inside a
+    Vercel function, so there is no config to add.
+  - Optimized parallelism changes `Promise.race` over steps. The one
+    `Promise.all` in the function runs inside a `step.run`, on plain API calls,
+    so it is not affected.
+  - `event.user`, `EventSchemas`, `logLevel`, middleware, `step.invoke` with
+    string ids and `streaming`: none is used here.
+- **Smoke test through the local Inngest dev server:** the v4 handler registers
+  in dev mode with one function. A `wallet/lookup.requested` event for an
+  already completed job runs `load-job` and returns `already_completed` in one
+  checkpointed request, with no write.
+- **This closes #363.** Its eight majors landed in #365 (three, and three held
+  in `dependabot.yml`), #368 (`stripe`) and here.
+
 ### 2026-09-22 (Stripe moves to dahlia, on purpose)
 
 - **`stripe` 20 to 22, and the API version from `2025-12-15.clover` to
