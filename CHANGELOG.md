@@ -2,6 +2,31 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-22 (Stripe moves to dahlia, on purpose)
+
+- **`stripe` 20 to 22, and the API version from `2025-12-15.clover` to
+  `2026-08-26.dahlia`.** The second part is the real change. `new Stripe(key)`
+  was unpinned, so it sent whatever version the installed SDK was built for:
+  #363 would have moved every checkout, webhook read and revenue report to a
+  new API version with no line of code changing.
+- **The version is now pinned in `lib/stripe-version.ts`**, and all three
+  clients (`lib/stripe.ts` and the two pack scripts) send it. stripe-node types
+  `apiVersion` as exactly its own version, so the next SDK major that moves it
+  fails the typecheck. Measured: pinning clover on stripe 22 gives three type
+  errors, one per client.
+- **Nothing this repo does is in dahlia's breaking list.** The Checkout
+  `ui_mode` rename only breaks code that passes `ui_mode`, and ours does not.
+  The rest is Connect, Issuing, Billing and Stripe.js. SDK 21 now throws when
+  `constructEvent` gets a v2 thin event; this endpoint receives v1 snapshot
+  events only.
+- **Checked on dahlia, read-only against the live account:** the four pack
+  prices agree with `lib/packs.ts`, and payment intents with the expanded
+  charge keep every field `listPayments` reads. A signed
+  `checkout.session.completed` verifies and a forged signature is rejected.
+- **The webhook endpoint stays on clover for now.** Its version is set on the
+  endpoint in Stripe, not by the SDK, so it did not move. That is safe, since no
+  dahlia breaking change touches a field the webhook reads.
+
 ### 2026-09-22 (the first of #363's majors, split out)
 
 - **`read-excel-file` 6 to 9, with the one code change it needs.** Version 9
