@@ -1,10 +1,13 @@
 import Stripe from 'stripe';
 import { getSiteUrl } from '@/lib/site-url';
 import { PACKS, isPackId, type PackId } from '@/lib/packs';
+import { STRIPE_API_VERSION } from '@/lib/stripe-version';
 
 // Initialize Stripe with secret key
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-const stripe = stripeSecretKey ? new Stripe(stripeSecretKey) : null;
+const stripe = stripeSecretKey
+  ? new Stripe(stripeSecretKey, { apiVersion: STRIPE_API_VERSION })
+  : null;
 
 export type CheckoutTier = 'pro' | 'unlimited';
 

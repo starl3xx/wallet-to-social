@@ -36,6 +36,7 @@
  */
 import Stripe from 'stripe';
 import { PACKS, PACK_IDS } from '../lib/packs';
+import { STRIPE_API_VERSION } from '../lib/stripe-version';
 
 async function main() {
   const key =
@@ -59,7 +60,7 @@ async function main() {
     process.exit(1);
   }
 
-  const stripe = new Stripe(key);
+  const stripe = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
   const env: string[] = [];
 
   for (const id of PACK_IDS) {

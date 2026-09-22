@@ -25,6 +25,7 @@
  */
 import Stripe from 'stripe';
 import { PACKS, PACK_IDS } from '../lib/packs';
+import { STRIPE_API_VERSION } from '../lib/stripe-version';
 
 async function main() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -41,7 +42,7 @@ async function main() {
     `Checking against the ${key.startsWith('sk_live') ? 'LIVE' : 'TEST'} Stripe account.\n`
   );
 
-  const stripe = new Stripe(key);
+  const stripe = new Stripe(key, { apiVersion: STRIPE_API_VERSION });
   let problems = 0;
 
   for (const id of PACK_IDS) {
