@@ -150,8 +150,7 @@ export function quantityFrom(body: unknown): number | null {
 /** The payer's address from a payload, for the account the pack belongs to. */
 export function payerFrom(payload: unknown): string | null {
   const p = payload as
-    | { payload?: { authorization?: { from?: unknown } } }
-    | undefined;
+    { payload?: { authorization?: { from?: unknown } } } | undefined;
   const from = p?.payload?.authorization?.from;
   return typeof from === 'string' ? from.toLowerCase() : null;
 }

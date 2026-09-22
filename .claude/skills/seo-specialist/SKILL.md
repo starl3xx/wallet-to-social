@@ -34,8 +34,9 @@ For each file, check:
 ### 3. Report Findings
 
 Present a summary table:
+
 | File | Issues Found | Recommended Updates |
-|------|--------------|---------------------|
+| ---- | ------------ | ------------------- |
 
 ### 4. Make Updates
 

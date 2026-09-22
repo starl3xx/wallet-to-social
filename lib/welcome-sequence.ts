@@ -158,8 +158,7 @@ interface WelcomeEmail {
    * rolling free allowance).
    */
   content:
-    | LifecycleEmailContent
-    | ((ctx: WelcomeContext) => LifecycleEmailContent);
+    LifecycleEmailContent | ((ctx: WelcomeContext) => LifecycleEmailContent);
 }
 
 /** Resolve an email's copy for one reader. */

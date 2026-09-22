@@ -104,10 +104,7 @@ export function issueChallenge(
 }
 
 export type RecoveryFailure =
-  | 'not_configured'
-  | 'bad_token'
-  | 'expired'
-  | 'bad_signature';
+  'not_configured' | 'bad_token' | 'expired' | 'bad_signature';
 
 /**
  * Whether this signature proves the wallet signed a challenge we issued, now.

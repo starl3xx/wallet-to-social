@@ -2,6 +2,25 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-22 (the first Dependabot week, reviewed)
+
+- **Twenty-one routine bumps and two Actions majors**, from Dependabot PRs
+  #360, #361 and #362 combined. `react` and `react-dom` 19.2.3 to 19.3.0,
+  `viem` to 2.56.8, `zod` to 4.6.5, `@x402/core` and `@x402/evm` to 2.26.0,
+  `eslint-config-next` to 16.3.5 and `prettier` to 3.9.8, plus minor and patch
+  releases elsewhere. `actions/setup-node` and `actions/upload-artifact` move
+  from v4 to v7; the inputs this repo passes (`node-version`, `cache`, `name`,
+  `path`, `retention-days`) are unchanged across those majors.
+- **Prettier 3.9 reformats 14 files, layout only.** A markdown table that
+  follows a bold line gains a blank line and aligned columns, and a short union
+  return type now fits on one line. This is why #362 failed `format` alone.
+- **Why one PR and not three.** Bugbot does not review a pull request a bot
+  opened, and a Dependabot PR does not get the repository's Actions secrets, so
+  `published-figures` failed on #361 with no `DATABASE_URL`. Neither result
+  said anything about the change. Opened by a person, the same commits get a
+  review and a real CI run. Expect to do this for every Dependabot PR until
+  bot authors are enabled in the Bugbot dashboard.
+
 ### 2026-09-22 (something now watches the dependency tree)
 
 - **Dependabot on a weekly grouped schedule, plus a `dependency-audit` gate**

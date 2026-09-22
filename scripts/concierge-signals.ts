@@ -472,8 +472,7 @@ async function fromFarcaster(limit: number, now: Date): Promise<Candidate[]> {
       };
       for (const c of json.result?.casts ?? []) {
         const author = c.author as
-          | { username?: string; followerCount?: number }
-          | undefined;
+          { username?: string; followerCount?: number } | undefined;
         const text = String(c.text ?? '').replace(/\s+/g, ' ');
         const ts = freshCastTime(c.timestamp, now, FARCASTER_MAX_AGE_DAYS);
         if (!ts) {

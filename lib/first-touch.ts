@@ -356,13 +356,7 @@ export function aiAssistantFrom(
  * wrong.
  */
 export type Channel =
-  | 'ai'
-  | 'search'
-  | 'social'
-  | 'referral'
-  | 'campaign'
-  | 'direct'
-  | 'unknown';
+  'ai' | 'search' | 'social' | 'referral' | 'campaign' | 'direct' | 'unknown';
 
 export interface OriginChannel {
   channel: Channel;
