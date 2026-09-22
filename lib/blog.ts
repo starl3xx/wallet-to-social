@@ -17,7 +17,7 @@ const PUBLISHED_DIR = path.join(CONTENT_DIR, 'published');
  * so the table gets its own scroll box here, at the one place every post's
  * HTML is produced, rather than a wrapper hand-placed in 26 markdown files.
  *
- * marked v17 calls a renderer override with `this` bound to the live renderer,
+ * marked (v17 and v18) calls a renderer override with `this` bound to the live renderer,
  * and the default `table` needs that renderer's `parser` to render the cells,
  * so the default is reached through the prototype with `this` kept.
  *

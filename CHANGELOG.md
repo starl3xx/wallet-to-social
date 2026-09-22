@@ -2,6 +2,27 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-22 (the first of #363's majors, split out)
+
+- **`read-excel-file` 6 to 9, with the one code change it needs.** Version 9
+  has no root entry, so `import readXlsxFile from 'read-excel-file'` no longer
+  resolves and the build fails. Since version 8 the default export returns
+  every sheet; the old first-sheet reader is now `readSheet`, imported from
+  `read-excel-file/browser`. A two-sheet workbook parses to the same result on
+  6 and 9: first sheet only, header row detected, non-address rows dropped.
+- **`marked` 17 to 18.** All 29 published posts render byte-identical HTML,
+  tables included, so the table override in `lib/blog.ts` still holds.
+- **`@vercel/analytics` 1 to 2.** Its breaking changes are the license (MPL to
+  MIT) and Nuxt; nothing here uses Nuxt.
+- **`@types/node` from `^20` to `^22`, not to 26.** Types must not be newer than
+  the oldest runtime. Vercel runs Node 24, but the GitHub Actions jobs run
+  Node 22, so 22 is the floor. The old `^20` was already behind both.
+- **Dependabot now ignores three majors from #363**, each with the reason and
+  what unblocks it in `.github/dependabot.yml`: TypeScript 7 (typescript-eslint
+  refuses to load on it), ESLint 10 (the eslint-plugin-react inside
+  eslint-config-next calls a removed API) and `@types/node` above 22. `inngest`
+  4 and `stripe` 22 each get their own PR.
+
 ### 2026-09-22 (the first Dependabot week, reviewed)
 
 - **Twenty-one routine bumps and two Actions majors**, from Dependabot PRs

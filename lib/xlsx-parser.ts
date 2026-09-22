@@ -1,4 +1,4 @@
-import readXlsxFile from 'read-excel-file';
+import { readSheet } from 'read-excel-file/browser';
 import type { ParseResult, WalletRow } from './csv-parser';
 
 function isValidEthAddress(address: string): boolean {
@@ -35,8 +35,9 @@ function detectWalletColumn(rows: unknown[][]): number {
 
 export async function parseXLSX(buffer: ArrayBuffer): Promise<ParseResult> {
   try {
-    // read-excel-file reads first sheet by default
-    const rows = await readXlsxFile(buffer);
+    // readSheet reads the first sheet when no sheet is named. Since
+    // read-excel-file 8 the default export returns every sheet instead.
+    const rows = await readSheet(buffer);
 
     if (rows.length === 0) {
       return { rows: [], headers: [], error: 'Empty spreadsheet' };
