@@ -31,9 +31,7 @@ function getPoolerUrl(url: string): string {
 }
 
 export function getDb():
-  | NeonHttpDatabase<typeof schema>
-  | NeonDatabase<typeof schema>
-  | null {
+  NeonHttpDatabase<typeof schema> | NeonDatabase<typeof schema> | null {
   if (!process.env.DATABASE_URL) {
     return null;
   }

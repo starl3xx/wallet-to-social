@@ -22,11 +22,7 @@
 
 /** Evidence classes exposed on the public API. */
 export type PublicSource =
-  | 'onchain'
-  | 'farcaster'
-  | 'attested-social'
-  | 'aggregated'
-  | 'manual';
+  'onchain' | 'farcaster' | 'attested-social' | 'aggregated' | 'manual';
 
 const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
   // Onchain ENS text records — self-published by the address owner.

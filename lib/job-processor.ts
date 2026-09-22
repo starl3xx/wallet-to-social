@@ -861,8 +861,8 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     }
 
     // Calculate stats for this chunk
-    const chunkResults = walletsToProcess.map(
-      (w) => results.get(w.toLowerCase())!
+    const chunkResults = walletsToProcess.map((w) =>
+      results.get(w.toLowerCase())!
     );
     const twitterFound =
       job.twitterFound + chunkResults.filter((r) => r.twitter_handle).length;
@@ -1581,8 +1581,7 @@ export async function getJobResultsPage(
   // itself. Read both shapes rather than guessing which client built db.
   const raw = rows as unknown as { rows?: unknown[] } | unknown[];
   const first = (Array.isArray(raw) ? raw[0] : raw.rows?.[0]) as
-    | { wallets: string[]; rows: WalletSocialResult[] }
-    | undefined;
+    { wallets: string[]; rows: WalletSocialResult[] } | undefined;
   if (!first) return null;
   return { wallets: first.wallets ?? [], rows: first.rows ?? [] };
 }
@@ -1622,8 +1621,7 @@ export async function countMatchedBefore(
 
   const raw = rows as unknown as { rows?: unknown[] } | unknown[];
   const first = (Array.isArray(raw) ? raw[0] : raw.rows?.[0]) as
-    | { n: number }
-    | undefined;
+    { n: number } | undefined;
   return first?.n ?? 0;
 }
 

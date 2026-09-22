@@ -86,12 +86,13 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 **Words to use:** holders, reachable, attested, evidence, match, onchain (one word, always).
 **Words to avoid:** provider names (never name a data source anywhere public); "all", "every", "complete" unless the figure is in `lib/public-figures.ts`; "on-chain"; inferred-match language ("probably", "likely their account"); em dashes.
 **Glossary:**
-| Term | Meaning |
-|------|---------|
-| Match | A wallet resolved to an X handle or Farcaster account; the billing unit |
-| Attested | The account owner published the wallet link themselves |
+
+| Term           | Meaning                                                                                   |
+| -------------- | ----------------------------------------------------------------------------------------- |
+| Match          | A wallet resolved to an X handle or Farcaster account; the billing unit                   |
+| Attested       | The account owner published the wallet link themselves                                    |
 | Evidence class | The public label for how a match was established (onchain, farcaster, manual, aggregated) |
-| Reachability | Whether a resolved X handle is live, suspended, or not held |
+| Reachability   | Whether a resolved X handle is live, suspended, or not held                               |
 
 ## Brand Voice
 
@@ -105,11 +106,12 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 **Customers:** (gap: none citable yet)
 **Testimonials:** (gap: none yet; the first paying customers should be asked)
 **Value themes:**
-| Theme | Proof |
-|-------|-------|
-| Honesty | Two-number coverage, per-chain figures, reachability breakdown published |
-| Completeness where it is possible | Farcaster coverage complete and verified against production |
-| Evidence | Every match labelled with its evidence class and reachability |
+
+| Theme                             | Proof                                                                    |
+| --------------------------------- | ------------------------------------------------------------------------ |
+| Honesty                           | Two-number coverage, per-chain figures, reachability breakdown published |
+| Completeness where it is possible | Farcaster coverage complete and verified against production              |
+| Evidence                          | Every match labelled with its evidence class and reachability            |
 
 ## Goals
 

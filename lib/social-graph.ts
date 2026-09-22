@@ -33,12 +33,7 @@ const BASE_RETRY_DELAY_MS = 1000; // 1 second
 // 'negative' means the wallet was checked recently and has no socials — trusted
 // like 'high', but the trusted answer is "nothing here".
 export type DataQuality =
-  | 'high'
-  | 'medium'
-  | 'low'
-  | 'stale'
-  | 'missing'
-  | 'negative';
+  'high' | 'medium' | 'low' | 'stale' | 'missing' | 'negative';
 
 export interface SocialGraphQualityResult {
   wallet: string;

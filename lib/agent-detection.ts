@@ -26,10 +26,7 @@ export interface AgentDetectionResult {
    */
   agent_twitter_handle?: string;
   agent_detection_source:
-    | 'known_list'
-    | 'bio_keyword'
-    | 'onchain_heuristic'
-    | 'manual';
+    'known_list' | 'bio_keyword' | 'onchain_heuristic' | 'manual';
   agent_verified: boolean;
 }
 

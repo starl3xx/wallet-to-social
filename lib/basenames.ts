@@ -507,11 +507,7 @@ const reverseNode = (wallet: string): string =>
 // ============================================================================
 
 export type RecordRejection =
-  | 'empty'
-  | 'numeric'
-  | 'malformed'
-  | 'tooShort'
-  | 'reservedPath';
+  'empty' | 'numeric' | 'malformed' | 'tooShort' | 'reservedPath';
 
 /**
  * Paths on `x.com` that are not profiles.
@@ -588,8 +584,7 @@ const X_RESERVED_PATHS = new Set([
 const MIN_HANDLE_LENGTH = 4;
 
 export type NormalisedRecord =
-  | { handle: string; reject: null }
-  | { handle: null; reject: RecordRejection };
+  { handle: string; reject: null } | { handle: null; reject: RecordRejection };
 
 /**
  * Turn a raw `com.twitter` text record into a handle, or refuse it.
