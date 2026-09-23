@@ -32,8 +32,17 @@
 
 import { neon } from '@neondatabase/serverless';
 import { randomBytes } from 'node:crypto';
-import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  accessSync,
+  chmodSync,
+  constants,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { homedir } from 'node:os';
+import { dirname } from 'node:path';
 
 const ROLE = 'ud_harvester';
 const TABLES = ['social_graph', 'handle_conflicts', 'ingest_state'];
@@ -41,6 +50,17 @@ const PRIVILEGES = ['INSERT', 'SELECT', 'UPDATE'];
 const ENV_FILE =
   process.env.UD_HARVEST_ENV ??
   `${homedir()}/.config/walletlink/ud-harvest.env`;
+
+/**
+ * Makes sure the env file can be written BEFORE the role's password changes.
+ * The password is generated here and never printed, so a write that fails
+ * after CREATE/ALTER ROLE would leave the only copy nowhere.
+ */
+function prepareEnvFile() {
+  mkdirSync(dirname(ENV_FILE), { recursive: true, mode: 0o700 });
+  if (existsSync(ENV_FILE)) accessSync(ENV_FILE, constants.W_OK);
+  else writeFileSync(ENV_FILE, '', { mode: 0o600 });
+}
 
 function savePassword(ownerUrl: string, password: string) {
   const url = new URL(ownerUrl);
@@ -71,6 +91,7 @@ async function main() {
   const exists =
     (await sql`SELECT 1 FROM pg_roles WHERE rolname = ${ROLE}`).length > 0;
   if (!exists || rotate) {
+    prepareEnvFile();
     // base64url is [A-Za-z0-9_-], so it needs no quoting in SQL or a URL.
     const password = randomBytes(32).toString('base64url');
     const verb = exists ? 'ALTER' : 'CREATE';
@@ -80,7 +101,15 @@ async function main() {
     console.log(`${exists ? 'rotated the password of' : 'created'} ${ROLE}`);
     // Saved before anything else can fail: a password that changed but was
     // not written down would lock the agents out.
-    savePassword(ownerUrl, password);
+    try {
+      savePassword(ownerUrl, password);
+    } catch (err) {
+      console.error(
+        `\nThe ${ROLE} password changed but could not be written to ${ENV_FILE}.` +
+          ' Fix the path, then re-run with --rotate-password.'
+      );
+      throw err;
+    }
   } else {
     console.log(`${ROLE} exists; password unchanged`);
   }
