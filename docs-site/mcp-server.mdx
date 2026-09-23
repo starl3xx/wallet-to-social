@@ -35,6 +35,21 @@ Both register as public clients, so PKCE with `S256` is required and no client
 secret is issued. Discovery starts at
 [`/.well-known/oauth-protected-resource`](https://walletlink.social/.well-known/oauth-protected-resource).
 
+The consent screen always says where the reply goes: the host of the redirect
+in the request you are approving. When that host is this computer, it says so
+and asks you to approve only a connection you started yourself. That warning
+is normal for Claude Code and MCP Inspector, which receive their reply on a
+local port.
+
+**For client developers.** A `redirect_uri` must match one the client declared,
+character for character, except that a loopback redirect (`localhost`,
+`127.0.0.1` or `[::1]`, over `http`) may use any port. An error, or a person
+declining, is sent back to the client's callback only when that callback is on
+loopback or on claude.ai. For any other callback the answer is shown on the
+consent page instead, and the client should stop waiting when the person
+closes it. Repeated OAuth parameters are refused, except `resource`, which may
+repeat as long as every value is this server.
+
 <Note>
   A connection can spend match credits, so it is worth knowing what it can
   reach. It can resolve wallets in both directions, run a background job, and

@@ -21,9 +21,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getOrCreateUser } from '@/lib/access';
-import { loadPendingRequest, issueCode } from '@/lib/oauth/requests';
+import {
+  loadPendingRequest,
+  issueCode,
+  declineRequest,
+} from '@/lib/oauth/requests';
 import { createGrant, enforceGrantCap, revokeGrant } from '@/lib/oauth/grants';
-import { resolveClient, redirectUriAllowed } from '@/lib/oauth/clients';
+import {
+  resolveClient,
+  redirectUriAllowed,
+  redirectIsTrusted,
+  connectionLabel,
+} from '@/lib/oauth/clients';
 import { issuer } from '@/lib/oauth/metadata';
 
 export const runtime = 'nodejs';
@@ -90,6 +99,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   if (!input.approve) {
+    // Answered first, so a reload cannot turn this refusal into an approval.
+    // False means an approval got there first: say so, not "declined".
+    if (!(await declineRequest(pending.id))) {
+      return fail('This authorization request was already answered.', 409);
+    }
+    /**
+     * A decline goes back to the client only at a trusted callback. Anywhere
+     * else it would be a redirect a stranger chose, sent without the person
+     * choosing it (RFC 9700 section 4.11.2), so the page says so instead.
+     */
+    if (!redirectIsTrusted(pending.redirectUri)) {
+      return NextResponse.json({ declined: true });
+    }
     return NextResponse.json({
       redirect: clientRedirect(pending.redirectUri, {
         error: 'access_denied',
@@ -105,9 +127,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const grant = await createGrant({
     userId: account.id,
     clientId: pending.clientId,
-    clientLabel: client.isCimd
-      ? (client.claimedName ?? client.displayHost)
-      : `${client.displayHost} (unverified)`,
+    // Host first, never a self-declared name on its own: see connectionLabel.
+    clientLabel: connectionLabel(client, pending.redirectUri),
     scope: pending.scope,
     resource: pending.resource,
   });

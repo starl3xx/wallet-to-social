@@ -12,8 +12,9 @@
  *
  * **Dynamic client registration.** RFC 7591. Anybody may post metadata and
  * receive a `client_id`. Nothing about the result is verified, including the
- * name, which is why a registered client is labeled by its redirect host and
- * marked unverified on the consent screen rather than trusted to name itself.
+ * name and every URI in its list, which is why the consent screen labels a
+ * registered client by the host of the reply address in the request being
+ * approved, marks it unverified, and never lets it name itself.
  *
  * Kept because a client that implements neither mechanism has no other way in,
  * and the MCP specification still lists it.
@@ -38,7 +39,9 @@ export interface ResolvedClient {
    *
    * For a metadata-document client this is the host of the `client_id` URL,
    * never the `client_name` field, because the field is self-asserted and the
-   * host is not. For a registered client there is nothing verified to show.
+   * host is not. For a registered client there is nothing verified to show, so
+   * it is a constant: the consent screen names such a client by the reply host
+   * of the request itself (see `consentView`), never by an entry in its list.
    */
   displayHost: string;
   /** The self-asserted name, shown only alongside the host, never instead of it. */
@@ -49,8 +52,35 @@ export interface ResolvedClient {
 
 // --- redirect URI matching --------------------------------------------------
 
-function isLoopbackHost(host: string): boolean {
-  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+/**
+ * A loopback redirect, in the one shape accepted: `http`, a lowercase loopback
+ * host, an optional port, and a path with no fragment. No userinfo, no
+ * uppercase, no shortened IP form. Group 1 is the host, group 2 the path.
+ *
+ * One definition serves registration, the metadata-document check, matching
+ * and the consent screen. Two looser ones used to disagree, so a URI could be
+ * "loopback" at registration and not at matching.
+ */
+const LOOPBACK_REDIRECT =
+  /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::(\d{1,5}))?(\/[^#]*)?$/;
+
+/**
+ * A loopback redirect with its port removed, or null for anything else.
+ *
+ * The whole URI must parse, which also bounds the port at 65535:
+ * a string that passes here is later rebuilt with `new URL`, and one that
+ * cannot be would fail there, after the gate, as a server error.
+ */
+function loopbackKey(uri: string): string | null {
+  const m = LOOPBACK_REDIRECT.exec(uri);
+  if (!m) return null;
+  // WHATWG URL refuses a port past 65535, so the parse is the port bound.
+  try {
+    new URL(uri);
+  } catch {
+    return null;
+  }
+  return `http://${m[1]}${m[3] ?? ''}`;
 }
 
 /**
@@ -58,15 +88,7 @@ function isLoopbackHost(host: string): boolean {
  * receives its authorization code.
  */
 export function isLoopbackRedirect(uri: string): boolean {
-  try {
-    const u = new URL(uri);
-    return (
-      u.protocol === 'http:' &&
-      isLoopbackHost(u.hostname === '::1' ? '[::1]' : u.hostname)
-    );
-  } catch {
-    return false;
-  }
+  return loopbackKey(uri) !== null;
 }
 
 /**
@@ -80,38 +102,179 @@ export function isLoopbackRedirect(uri: string): boolean {
  * port-agnostic rule is applied to `localhost` even though section 8.3
  * discourages the name form.
  *
- * The carve-out is scheme, host and path: a loopback match still requires all
- * three to be equal, so `http://localhost:9/evil` does not match
- * `http://localhost/callback`. Only the port is free.
+ * Only the port is free: everything else, path and query included, must be the
+ * same string (RFC 9700 section 2.1; OAuth 2.1 section 2.3.1). So
+ * `http://localhost:9/evil`, `http://localhost:9/callback?x=1` and
+ * `http://localhost:9/callback/` do not match `http://localhost/callback`.
  */
 export function redirectUriAllowed(
   requested: string,
   declared: string[]
 ): boolean {
   if (declared.includes(requested)) return true;
+  const key = loopbackKey(requested);
+  return key !== null && declared.some((c) => loopbackKey(c) === key);
+}
 
-  let want: URL;
+/**
+ * Callbacks an error or a decline may be sent to without a person choosing
+ * it. Loopback always qualifies: it is this computer, not a page somebody
+ * else controls, and a native client left without an answer hangs until it
+ * times out. Otherwise only these origins, whatever a client registered or
+ * published: a metadata document on evil.example proves only that somebody
+ * controls evil.example (RFC 9700 section 4.11.2).
+ */
+export const TRUSTED_REDIRECT_ORIGINS: readonly string[] = [
+  'https://claude.ai',
+];
+
+export function redirectIsTrusted(uri: string): boolean {
+  if (isLoopbackRedirect(uri)) return true;
   try {
-    want = new URL(requested);
+    const u = new URL(uri);
+    return (
+      !u.username &&
+      !u.password &&
+      !u.hash &&
+      TRUSTED_REDIRECT_ORIGINS.includes(u.origin)
+    );
   } catch {
     return false;
   }
-  if (!isLoopbackRedirect(requested)) return false;
+}
 
-  return declared.some((candidate) => {
-    if (!isLoopbackRedirect(candidate)) return false;
-    let have: URL;
-    try {
-      have = new URL(candidate);
-    } catch {
-      return false;
-    }
-    return (
-      have.protocol === want.protocol &&
-      have.hostname === want.hostname &&
-      have.pathname === want.pathname
-    );
-  });
+/**
+ * Whether a host resolves to this computer, for the consent warning only.
+ * Broader than the redirect rule on purpose: a registered client may use
+ * https to `foo.localhost`, `127.0.0.2`, `0.0.0.0` or a mapped IPv6 loopback,
+ * which browsers and operating systems deliver locally. Matching and trust
+ * stay strict; this decides only whether the person is warned.
+ */
+export function isLocalHostname(hostname: string): boolean {
+  const h = hostname.toLowerCase().replace(/\.$/, '');
+  if (h === 'localhost' || h.endsWith('.localhost')) return true;
+  if (h === '[::1]' || h === '[::]') return true;
+  if (/^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/.test(h)) return true;
+  if (h === '0.0.0.0') return true;
+  return /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(h);
+}
+
+/**
+ * A self-declared client name, made safe to show: control, bidirectional
+ * and zero-width characters removed, unusual spaces made ordinary, runs of
+ * space collapsed, and at most 60 characters. Empty becomes null. The name
+ * is still only a claim; this keeps it from hiding or rearranging what sits
+ * next to it.
+ */
+export function cleanClaimedName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const cleaned = raw
+    .replace(
+      /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g,
+      ''
+    )
+    .replace(/[\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60)
+    .trim();
+  return cleaned || null;
+}
+
+/**
+ * What a connection is called under Connected applications. The verified
+ * part comes first, so a long or crafted name cannot push it out of a
+ * one-line row: the host for a metadata-document client, the reply host for
+ * a registered one, whose own name is never used.
+ */
+export function connectionLabel(
+  client: ResolvedClient,
+  redirectUri: string
+): string {
+  if (client.isCimd) {
+    return client.claimedName
+      ? `${client.displayHost} (calls itself ${client.claimedName})`
+      : client.displayHost;
+  }
+  const reply = consentView(client, redirectUri)?.replyHost;
+  return `${reply ?? 'an unverified application'} (unverified)`;
+}
+
+/**
+ * Why a redirect in a metadata document is refused, or null. A loopback
+ * redirect passes on the shared rule, which already excludes a fragment and
+ * userinfo; anything else must parse, sit on the document's own origin, and
+ * carry no fragment and no userinfo.
+ */
+export function cimdRedirectProblem(
+  uri: string,
+  origin: string
+): string | null {
+  if (isLoopbackRedirect(uri)) return null;
+  let candidate: URL;
+  try {
+    candidate = new URL(uri);
+  } catch {
+    return 'client_id document declares an unparseable redirect_uri';
+  }
+  if (candidate.origin !== origin) {
+    return 'client_id document declares a redirect_uri on another origin';
+  }
+  if (candidate.hash || candidate.username || candidate.password) {
+    return 'client_id document declares a redirect_uri with a fragment or userinfo';
+  }
+  return null;
+}
+
+/** What the consent screen may say about the request being approved. */
+export interface ConsentView {
+  /** Who is asking: a verified host, or for anything else the reply host. */
+  subject: string;
+  /** A metadata document's self-declared name; always null for a registered client. */
+  claimedName: string | null;
+  verified: boolean;
+  /** The host the authorization code will be sent to. */
+  replyHost: string;
+  /** The same with its port, which is what tells two local programs apart. */
+  replyAuthority: string;
+  /** The reply goes to this computer rather than to a website. */
+  local: boolean;
+}
+
+/**
+ * The facts a consent screen may show for one request, taken from the
+ * redirect in THAT request, never from the client's registered list. The MCP
+ * specification says the authorization server "MUST clearly display the
+ * redirect URI hostname", and a registered client can list anybody's host.
+ *
+ * Only WHATWG `URL.hostname` is used: it drops userinfo, lowercases, and
+ * spells an internationalized host in punycode, so `https://claude.ai@x.example`
+ * shows `x.example` and a lookalike Cyrillic host shows as `xn--`.
+ */
+export function consentView(
+  client: ResolvedClient,
+  redirectUri: string
+): ConsentView | null {
+  let reply: URL;
+  try {
+    reply = new URL(redirectUri);
+  } catch {
+    return null;
+  }
+  const replyHost = reply.hostname;
+  const local = isLoopbackRedirect(redirectUri) || isLocalHostname(replyHost);
+  return {
+    subject: client.isCimd
+      ? client.displayHost
+      : local
+        ? 'An application on this computer'
+        : replyHost,
+    claimedName: client.isCimd ? client.claimedName : null,
+    verified: client.isCimd,
+    replyHost,
+    replyAuthority: reply.host,
+    local,
+  };
 }
 
 // --- fetching a metadata document -------------------------------------------
@@ -250,26 +413,14 @@ export async function fetchCimdClient(
     throw new Error('client_id document declares no redirect_uris');
   }
   for (const uri of redirectUris) {
-    if (isLoopbackRedirect(uri)) continue;
-    let candidate: URL;
-    try {
-      candidate = new URL(uri);
-    } catch {
-      throw new Error(
-        'client_id document declares an unparseable redirect_uri'
-      );
-    }
-    if (candidate.origin !== url.origin) {
-      throw new Error(
-        'client_id document declares a redirect_uri on another origin'
-      );
-    }
+    const problem = cimdRedirectProblem(uri, url.origin);
+    if (problem) throw new Error(problem);
   }
 
   const resolved: ResolvedClient = {
     clientId,
     displayHost: url.host,
-    claimedName: typeof meta.client_name === 'string' ? meta.client_name : null,
+    claimedName: cleanClaimedName(meta.client_name),
     redirectUris,
     isCimd: true,
   };
@@ -307,24 +458,18 @@ function fromRow(row: OauthClient): ResolvedClient {
     return {
       clientId: row.clientId,
       displayHost: new URL(row.clientId).host,
-      claimedName: row.clientName,
+      claimedName: cleanClaimedName(row.clientName),
       redirectUris: row.redirectUris,
       isCimd: true,
     };
   }
-  // A registered client has no host that proved anything, so the consent
-  // screen is shown the one host it will actually send the code to.
-  let host = 'an unverified application';
-  try {
-    const first = row.redirectUris.find((u) => !isLoopbackRedirect(u));
-    if (first) host = new URL(first).host;
-  } catch {
-    /* leave the fallback */
-  }
+  // A registered client has no host that proved anything, and its list may
+  // name any host at all, so nothing in it labels the client. The consent
+  // screen names the reply host of the request being approved instead.
   return {
     clientId: row.clientId,
-    displayHost: host,
-    claimedName: row.clientName,
+    displayHost: 'an unverified application',
+    claimedName: cleanClaimedName(row.clientName),
     redirectUris: row.redirectUris,
     isCimd: false,
   };

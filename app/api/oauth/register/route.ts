@@ -10,8 +10,9 @@
  * The result is worth being clear-eyed about: this endpoint mints a
  * `client_id` for anybody who asks, and nothing it stores has been verified.
  * That is what RFC 7591 is. The consequence is carried at the consent screen,
- * which shows a registered client's redirect host and marks it unverified,
- * rather than showing the name it gave itself.
+ * which shows the redirect host of the request being approved and marks it
+ * unverified, rather than showing the name it gave itself or any host from
+ * its registered list.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';

@@ -12,7 +12,15 @@
  * instead would let anybody who can serve JSON call themselves anything.
  *
  * A client that registered dynamically earned nothing at all, so it is marked
- * as unverified and identified by where it will send the reply.
+ * as unverified and identified by where THIS request will send the reply, not
+ * by anything in its registered list, which can name anybody's host.
+ *
+ * ## Where the reply goes
+ *
+ * Always shown. The MCP specification says the authorization server "MUST
+ * clearly display the redirect URI hostname", and when that host is this
+ * computer (a native client such as Claude Code, or MCP Inspector) the screen
+ * says so: any program running here can ask in a known application's name.
  *
  * ## Signing in happens here
  *
@@ -29,20 +37,27 @@ import { originTag } from '@/lib/first-touch';
 
 export function ConsentScreen({
   requestId,
-  displayHost,
+  subject,
   claimedName,
   verified,
+  replyHost,
+  replyAuthority,
+  local,
   email,
   keepsAccess,
 }: {
   requestId: string;
-  displayHost: string;
+  subject: string;
   claimedName: string | null;
   verified: boolean;
+  replyHost: string;
+  replyAuthority: string;
+  local: boolean;
   email: string | null;
   keepsAccess: boolean;
 }) {
   const [busy, setBusy] = useState(false);
+  const [declined, setDeclined] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState('');
   const [sent, setSent] = useState(false);
@@ -58,8 +73,15 @@ export function ConsentScreen({
       });
       const data = (await response.json()) as {
         redirect?: string;
+        declined?: boolean;
         error?: string;
       };
+      // A decline at an address we do not send browsers to ends here.
+      if (response.ok && data.declined) {
+        setDeclined(true);
+        setBusy(false);
+        return;
+      }
       if (!response.ok || !data.redirect) {
         setError(data.error ?? 'That did not work. Try connecting again.');
         setBusy(false);
@@ -111,12 +133,34 @@ export function ConsentScreen({
         </Eyebrow>
 
         <h1 className="mt-3 text-xl font-semibold tracking-[var(--tracking-title)]">
-          {displayHost} wants to use your walletlink.social account
+          {subject} wants to use your walletlink.social account
         </h1>
 
         {claimedName && verified && (
           <p className="mt-1 text-sm text-muted-foreground">
             It calls itself {claimedName}.
+          </p>
+        )}
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          It will send its reply to{' '}
+          <span
+            data-consent="reply-host"
+            className="font-medium text-foreground"
+          >
+            {local ? replyAuthority : replyHost}
+          </span>
+          {local ? ', a program on this computer.' : '.'}
+        </p>
+
+        {local && (
+          <p
+            data-consent="loopback-warning"
+            className="mt-3 text-sm text-caution"
+          >
+            {verified
+              ? `The reply goes to a program on this computer, not a website, and any program running here can ask in ${subject}’s name. Approve only if you started this yourself just now.`
+              : 'The reply goes to a program on this computer, not a website. Approve only if you started this yourself just now.'}
           </p>
         )}
 
@@ -157,7 +201,11 @@ export function ConsentScreen({
             : 'Access lasts one hour and then stops. You can end it sooner from your account.'}
         </p>
 
-        {email ? (
+        {declined ? (
+          <p className="mt-5 text-sm text-muted-foreground">
+            You declined. Nothing was shared. You can close this page.
+          </p>
+        ) : email ? (
           <>
             <p className="mt-5 text-sm text-muted-foreground">
               Signed in as <span className="text-foreground">{email}</span>.
