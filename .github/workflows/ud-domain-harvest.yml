@@ -15,11 +15,17 @@
 # granted to sweep_runner). Optional: ALCHEMY_KEY — without it the log scan
 # falls back to public RPC endpoints, which cap getLogs harder and slow the
 # enumeration, not the profile reads.
+#
+# NOT SCHEDULED HERE ANY MORE (2026-09-23). Since the evening of 2026-09-20
+# the UD profile endpoint answers 406 to GitHub's runner IPs while answering
+# the same names with 200 from a home network in the same minute, so every
+# scheduled run failed at the circuit breaker. The schedule now lives in a
+# launchd agent on Jake's Mac (scripts/ops/ud-harvest-local.sh, installed by
+# scripts/ops/install-ud-harvest-agents.sh). Dispatch stays, as the cheap way
+# to test whether runners get through again.
 name: ud-domain-harvest
 
 on:
-  schedule:
-    - cron: '15 2,14 * * *' # 02:15 and 14:15 UTC, clear of the morning cron train
   workflow_dispatch:
     inputs:
       max_reads:

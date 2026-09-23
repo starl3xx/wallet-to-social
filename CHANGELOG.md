@@ -2,6 +2,36 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-23 (the UD harvest moves to where the endpoint answers)
+
+- **Both Unstoppable Domains harvests now run from launchd agents on Jake's
+  Mac, not GitHub Actions.** Since the evening of 2026-09-20 the keyless
+  profile endpoint has answered 406 to GitHub's runner IPs. It is an IP block,
+  not an outage: `bitcoinhacienda.crypto`, refused on a runner at 18:28Z
+  today, answered 200 from the Mac, and a 300-read dry run from the Mac got 0
+  refusals. So `ud-domain-harvest` had failed every scheduled run since
+  2026-09-21, twice a day, and waiting would never have fixed it.
+- **`scripts/ops/ud-harvest-local.sh`** runs one harvest: it takes a lock,
+  moves a dedicated detached worktree (`~/.walletlink-harvest`) to
+  `origin/main`, runs `npm ci` when the lockfile changed, runs the harvest
+  with the same flags the workflows used, and posts a macOS notification on
+  failure. It refuses to run from a checkout on a branch, so it never moves a
+  working copy.
+- **It connects as `sweep_runner`, never the owner role.** Credentials come
+  from `~/.config/walletlink/ud-harvest.env` (chmod 600), not `.env.local`,
+  which connects as `neondb_owner`. The wrapper refuses the owner role, so a
+  scheduled job on a laptop holds no more than the workflow did.
+- **`scripts/ops/install-ud-harvest-agents.sh`** creates the worktree and the
+  env file, and loads the agents: the domain harvest daily at 09:15 and 21:15
+  local, the profile walk Sundays at 02:45 local (the old crons in CDT).
+  `--uninstall` removes them.
+- **The workflows keep `workflow_dispatch` only**, as the cheap way to test
+  whether runners get through again.
+- **The yield is still worth it.** The dry run read 269 domains of the 2019
+  CNS cohort with 0 verified handles, in line with that cohort's measured
+  0.35%. The 2021 Polygon cohort measured 1.85%, about 18 links per 1,000
+  reads, and roughly 4.2M domains remain.
+
 ### 2026-09-22 (inngest 4, the last of #363)
 
 - **`inngest` 3 to 4, with one code change.** Version 4 removed the
