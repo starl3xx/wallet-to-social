@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-23 (the UD harvest gets its own database role)
+
+- **The Mac agents connect as a new role, `ud_harvester`, not
+  `sweep_runner`.** `sweep_runner`'s password lives only in the GitHub secret,
+  which cannot be read back, and resetting it would break every scheduled
+  workflow that shares that secret. It is also too wide for a laptop: it reads
+  credit ledgers, OAuth grants and growth data, deletes from `social_graph` and
+  creates tables.
+- **`ud_harvester` holds exactly what the ingest touches:** `SELECT`,
+  `INSERT` and `UPDATE` on `social_graph`, `handle_conflicts` and
+  `ingest_state`, and `USAGE` on the schema. The suppression guard triggers are
+  `SECURITY DEFINER`, so it needs no read on `suppressed_identifiers`.
+  Probed live: those three tables read, insert and update; `DELETE` on them,
+  `CREATE TABLE`, and reads on `users`, `api_keys`, `credit_ledger`,
+  `oauth_grants`, `suppressed_identifiers` and `x_accounts` are all refused.
+- **`scripts/migrate-create-ud-harvester.ts`** creates the role, applies and
+  verifies the grants, and writes the connection string straight into
+  `~/.config/walletlink/ud-harvest.env`, so the password is never printed or
+  pasted. It is idempotent; `--rotate-password` rotates it, and writes the new
+  password before anything else can fail.
+- The wrapper, the installer and `docs/OPERATIONS.md` now name `ud_harvester`.
+
 ### 2026-09-23 (the UD harvest moves to where the endpoint answers)
 
 - **Both Unstoppable Domains harvests now run from launchd agents on Jake's

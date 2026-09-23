@@ -9,7 +9,7 @@
 #   ~/.walletlink-harvest                    a detached worktree of origin/main
 #                                            that only the agents use, so a run
 #                                            never moves a checkout you work in
-#   ~/.config/walletlink/ud-harvest.env      DATABASE_URL (sweep_runner) and
+#   ~/.config/walletlink/ud-harvest.env      DATABASE_URL (ud_harvester) and
 #                                            ALCHEMY_KEY, chmod 600
 #   ~/Library/LaunchAgents/social.walletlink.ud-domain-harvest.plist
 #                                            daily at 09:15 and 21:15 local
@@ -61,13 +61,14 @@ if [ ! -f "$ENV_FILE" ]; then
   umask 077
   cat >"$ENV_FILE" <<'EOF'
 # Credentials for the UD harvest agents (scripts/ops/ud-harvest-local.sh).
-# DATABASE_URL must connect as sweep_runner, the role the harvest workflows
-# used, never neondb_owner. The wrapper refuses the owner role.
+# DATABASE_URL connects as ud_harvester, never neondb_owner (the wrapper
+# refuses the owner role). Fill it with, from ~/wallet-to-social:
+#   npx tsx --env-file=.env.local scripts/migrate-create-ud-harvester.ts
 DATABASE_URL=
 # Optional: without it the log scan uses public RPC endpoints, which is slower.
 ALCHEMY_KEY=
 EOF
-  echo "created $ENV_FILE: fill in DATABASE_URL before the first run"
+  echo "created $ENV_FILE: run scripts/migrate-create-ud-harvester.ts to fill DATABASE_URL"
 fi
 chmod 600 "$ENV_FILE"
 
