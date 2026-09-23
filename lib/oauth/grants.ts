@@ -51,7 +51,7 @@ import { hashApiKey } from '@/lib/api-keys';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
 import { sha256 } from '@/lib/oauth/requests';
 import { MCP_SCOPE, OFFLINE_SCOPE } from '@/lib/oauth/metadata';
-import { isOurResource, sameResource } from '@/lib/oauth/params';
+import { isOurResource, resourcesAreOurs } from '@/lib/oauth/params';
 
 /**
  * The access-token prefix, distinct from `wts_live_` on purpose.
@@ -363,12 +363,13 @@ async function rotateAndMint(input: {
  * An absent `client_id` is accepted (OAuth 2.1 section 3.2.2 makes it
  * optional for this request). A grant made for some other server answers
  * `invalid_grant`, so the client starts over; a request naming a different
- * resource for a good grant answers `invalid_target`.
+ * resource for a good grant, in any one of its values, answers
+ * `invalid_target`.
  */
 export async function refreshGrant(input: {
   refreshToken: string;
   clientId: string | null;
-  resource: string | null;
+  resources: string[];
 }): Promise<RefreshResult> {
   const db = getDb();
   if (!db) return { ok: false, reason: 'invalid' };
@@ -389,7 +390,7 @@ export async function refreshGrant(input: {
   if (!isOurResource(row.resource)) {
     return { ok: false, reason: 'wrong_grant_resource' };
   }
-  if (input.resource !== null && !sameResource(input.resource, row.resource!)) {
+  if (!resourcesAreOurs(input.resources, row.resource!)) {
     return { ok: false, reason: 'wrong_resource' };
   }
 

@@ -4478,18 +4478,38 @@ async function main() {
     );
     const rotateSql =
       templates.find((t) => t.includes('UPDATE oauth_grants')) ?? '';
+    const rotatedCte = rotateSql.slice(
+      rotateSql.indexOf('WITH rotated AS ('),
+      rotateSql.indexOf('retired AS (')
+    );
+    const mintedCte = rotateSql.slice(rotateSql.indexOf('minted AS ('));
+    ok(
+      'the rotation matches only the current refresh token of a grant that is neither revoked nor expired',
+      rotatedCte.includes('WHERE refresh_token_hash = ${input.hash}') &&
+        rotatedCte.includes('AND revoked_at IS NULL') &&
+        rotatedCte.includes('AND refresh_expires_at > now()')
+    );
     ok(
       'old access tokens are retired only for the grant this statement rotated',
       rotateSql.includes('WHERE oauth_grant_id IN (SELECT id FROM rotated)')
     );
     ok(
       'the rotation re-checks the client inside the statement, so the binding holds under a race',
-      /IS NULL OR client_id = \$\{input\.clientId\}/.test(rotateSql)
+      /IS NULL OR client_id = \$\{input\.clientId\}/.test(rotatedCte)
     );
     ok(
-      'no JS Date crosses into the rotation; Postgres keeps the clock',
-      !/new Date\(|Date\.now\(\)/.test(rotateFn) &&
-        rotateSql.includes('now() + make_interval')
+      'the refresh token gets the refresh lifetime and the access token the access lifetime, each from Postgres',
+      rotatedCte.includes(
+        'refresh_expires_at = now() + make_interval(secs => ${refreshTtlS})'
+      ) &&
+        mintedCte.includes('now() + make_interval(secs => ${accessTtlS})') &&
+        !mintedCte.includes('refreshTtlS') &&
+        rotateFn.includes(
+          'const refreshTtlS = Math.floor(REFRESH_TOKEN_TTL_MS / 1000);'
+        ) &&
+        rotateFn.includes(
+          'const accessTtlS = Math.floor(ACCESS_TOKEN_TTL_MS / 1000);'
+        )
     );
     ok(
       'the rotation aliases need no quoting (a folded camelCase alias reads undefined)',
@@ -4501,34 +4521,87 @@ async function main() {
       grants.indexOf('export async function revokeGrant')
     );
     ok(
-      'refreshGrant no longer rotates or mints in separate statements',
+      'no JS Date crosses into the rotation, from inside it or from its caller',
+      !/new Date\(|Date\.now\(\)/.test(rotateFn + refresh)
+    );
+    ok(
+      'refreshGrant no longer rotates or mints in separate statements, in the builder or in raw SQL',
       !/\.update\(oauthGrants\)/.test(refresh) &&
+        !/UPDATE oauth_grants|INSERT INTO api_keys/i.test(refresh) &&
         !refresh.includes('mintAccessToken(') &&
         refresh.includes('await rotateAndMint(')
     );
     const at = (needle: string) => refresh.indexOf(needle);
+    const beforeRotation = refresh.slice(0, at('await rotateAndMint('));
     for (const [what, needle] of [
       ['the client binding', 'input.clientId !== row.clientId'],
       ['the grant resource', 'isOurResource(row.resource)'],
-      ['the requested resource', 'sameResource(input.resource'],
+      [
+        'every requested resource',
+        'resourcesAreOurs(input.resources, row.resource!)',
+      ],
     ] as const) {
       ok(
         `${what} is checked before anything is spent or revoked`,
-        at(needle) !== -1 &&
-          at(needle) < at('await rotateAndMint(') &&
-          at(needle) < at('revokeGrant(')
+        beforeRotation.includes(needle)
       );
     }
     ok(
-      'a refresh without client_id is still accepted (OAuth 2.1 section 3.2.2), which hosted Claude may rely on',
-      refresh.includes(
-        'input.clientId !== null && input.clientId !== row.clientId'
+      'nothing before the rotation revokes or writes, so a probe with a wrong binding ends no connection',
+      !/revokeGrant\(|revokeAccessTokens\(|\.update\(|\.insert\(|\.delete\(|\.execute\(/.test(
+        beforeRotation
       )
     );
     ok(
-      'a wrong client is refused without revoking anything',
-      /return \{ ok: false, reason: 'wrong_client' \}/.test(refresh) &&
-        !/wrong_client[\s\S]{0,120}revokeGrant/.test(refresh)
+      'a grant made for another server is recognized before the requested resource is compared, so it answers invalid_grant',
+      at('isOurResource(row.resource)') < at('resourcesAreOurs(input.resources')
+    );
+    ok(
+      'a refresh without client_id is still accepted (OAuth 2.1 section 3.2.2), which hosted Claude may rely on',
+      refresh.includes(
+        'if (input.clientId !== null && input.clientId !== row.clientId) {'
+      ) &&
+        !/input\.clientId === null|input\.clientId == null|!input\.clientId\b/.test(
+          refresh
+        )
+    );
+    ok(
+      'a wrong client is refused, as wrong_client',
+      /return \{ ok: false, reason: 'wrong_client' \}/.test(refresh)
+    );
+
+    // Reuse detection: a presented previous token revokes the grant, read from
+    // a fresh query after the rotation found nothing.
+    ok(
+      'the pre-read finds a grant by its current or its previous refresh token, so a reuse reaches the reuse branch',
+      beforeRotation.includes(
+        'sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash}`'
+      )
+    );
+    const afterRotation = refresh.slice(at('await rotateAndMint('));
+    const reusedAt = afterRotation.indexOf('const [reused]');
+    const revokeAt = afterRotation.indexOf('await revokeGrant(');
+    const reuseLookup = afterRotation.slice(reusedAt, revokeAt);
+    ok(
+      'a reuse is classified by a fresh read of the previous-token column, and only that revokes',
+      reusedAt > -1 &&
+        reusedAt < revokeAt &&
+        reuseLookup.includes(
+          'eq(oauthGrants.previousRefreshTokenHash, hash)'
+        ) &&
+        !reuseLookup.includes('eq(oauthGrants.refreshTokenHash') &&
+        refresh.split('revokeGrant(').length === 2 &&
+        /await revokeGrant\([^)]*\);\s*return \{ ok: false, reason: 'reused' \}/.test(
+          afterRotation
+        )
+    );
+    const staleAt = afterRotation.indexOf('const [stale]');
+    ok(
+      'a current token that did not rotate is read as expired, from the current-token column, without revoking',
+      staleAt > revokeAt &&
+        afterRotation
+          .slice(staleAt, afterRotation.indexOf("reason: 'expired'"))
+          .includes('eq(oauthGrants.refreshTokenHash, hash)')
     );
 
     const token = withoutComments(
@@ -4538,13 +4611,13 @@ async function main() {
       token.indexOf('async function exchangeRefresh')
     );
     ok(
-      'the refresh passes client_id and resource to the grant',
-      exchange.includes("clientId: form.get('client_id')") &&
-        exchange.includes("resource: form.get('resource')")
+      'the refresh passes client_id with an empty value as absent, and every resource value',
+      exchange.includes("clientId: form.get('client_id') || null,\n") &&
+        exchange.includes("resources: form.getAll('resource'),\n")
     );
     ok(
-      'a failure inside a refresh answers temporarily_unavailable with a 503, not a bare 500',
-      /catch \{[\s\S]{0,300}?'temporarily_unavailable'[\s\S]{0,200}?status: 503/.test(
+      'a failure inside a refresh is logged and answers 503 temporarily_unavailable with Retry-After, not a bare 500',
+      /catch \(error\) \{\s*console\.error\('[^']+', error\);[\s\S]{0,400}?'temporarily_unavailable'[\s\S]{0,200}?status: 503, headers: \{ \.\.\.NO_STORE, 'Retry-After': '5' \}/.test(
         exchange
       )
     );
@@ -4562,20 +4635,80 @@ async function main() {
         )
     );
 
-    const validate = grants.slice(
-      grants.indexOf('export async function validateAccessToken'),
-      grants.indexOf('export async function listGrants')
+    // The token endpoint: one value per parameter, and one resource rule.
+    const {
+      repeatedFormParam,
+      TOKEN_ONCE_PARAMS,
+      resourcesAreOurs,
+      sentValues,
+    } = await import('@/lib/oauth/params');
+    for (const key of TOKEN_ONCE_PARAMS) {
+      ok(
+        `a repeated ${key} on a token request is found`,
+        repeatedFormParam(new URLSearchParams(`${key}=a&${key}=b`)) === key
+      );
+    }
+    ok(
+      'every token parameter that must appear once is on the list',
+      [
+        'grant_type',
+        'code',
+        'code_verifier',
+        'redirect_uri',
+        'client_id',
+        'refresh_token',
+      ].every((k) => (TOKEN_ONCE_PARAMS as readonly string[]).includes(k))
     );
     ok(
-      'the MCP gate reads the grant resource and refuses a token for another server before calling it valid',
-      validate.includes('resource: oauthGrants.resource') &&
-        validate.indexOf('isOurResource(row.resource)') !== -1 &&
-        validate.indexOf('isOurResource(row.resource)') <
-          validate.lastIndexOf('return { ok: true')
+      'a repeated resource on a token request is allowed, and is checked value by value instead',
+      repeatedFormParam(
+        new URLSearchParams('grant_type=refresh_token&resource=a&resource=b')
+      ) === null
+    );
+    const repeatedAt = token.indexOf(
+      'const repeated = repeatedFormParam(form);'
+    );
+    ok(
+      'the token endpoint refuses a repeated parameter before either grant type is handled',
+      repeatedAt > -1 &&
+        repeatedAt < token.indexOf("if (grantType === 'authorization_code')") &&
+        /const repeated = repeatedFormParam\(form\);\s*if \(repeated\) \{\s*return oauthError\(\s*'invalid_request'/.test(
+          token
+        )
+    );
+    const codeExchange = token.slice(
+      token.indexOf('async function exchangeCode'),
+      token.indexOf('async function exchangeRefresh')
+    );
+    ok(
+      'the code exchange checks every resource value by the rule authorization and refresh use, not by exact string',
+      /!resourcesAreOurs\(form\.getAll\('resource'\), row\.resource\)\s*\) \{\s*return oauthError\(\s*'invalid_target'/.test(
+        codeExchange
+      ) && !codeExchange.includes('resource !== row.resource')
+    );
+    const page = withoutComments(
+      readFileSync('app/oauth/authorize/page.tsx', 'utf8')
+    );
+    ok(
+      'an empty resource at authorization is stored as ours, not as an empty string',
+      page.includes('resource: resource || mcpResource(),')
     );
 
     const { sameResource, isOurResource } = await import('@/lib/oauth/params');
+    const { mcpResource, issuer } = await import('@/lib/oauth/metadata');
     const ours = 'https://walletlink.social/api/mcp';
+    ok(
+      'a parameter sent without a value counts as omitted (OAuth 2.1 section 3.2)',
+      resourcesAreOurs('', ours) &&
+        resourcesAreOurs(['', ours], ours) &&
+        resourcesAreOurs(null, ours) &&
+        JSON.stringify(sentValues(['', 'a', ''])) === '["a"]'
+    );
+    ok(
+      'a refresh naming ours and another server is refused as a whole, in either order',
+      !resourcesAreOurs([ours, 'https://evil.example/mcp'], ours) &&
+        !resourcesAreOurs(['https://evil.example/mcp', ours], ours)
+    );
     ok(
       'sameResource tolerates a trailing slash, host case and the default port',
       sameResource(`${ours}/`, ours) &&
@@ -4589,11 +4722,47 @@ async function main() {
       'https://walletlink.social/v1',
       'http://walletlink.social/api/mcp',
       'https://walletlink.social/api/mcp#frag',
+      'https://walletlink.social/api/mcp#',
+      'https://walletlink.social/api/mcp?#',
+      'https://walletlink.social/api/mcp/#',
       'not a url',
     ]) {
       ok(`sameResource refuses ${r}`, !sameResource(r, ours));
     }
     ok('a grant with no resource is not ours', !isOurResource(null));
+    ok(
+      "isOurResource accepts this server's MCP endpoint, with or without a trailing slash",
+      isOurResource(mcpResource()) && isOurResource(`${mcpResource()}/`)
+    );
+    ok(
+      'isOurResource refuses another host, the bare site and a fragment',
+      !isOurResource('https://wallet-to-social-git-x.vercel.app/api/mcp') &&
+        !isOurResource(issuer()) &&
+        !isOurResource(`${mcpResource()}#`)
+    );
+
+    const validate = grants.slice(
+      grants.indexOf('export async function validateAccessToken'),
+      grants.indexOf('export async function listGrants')
+    );
+    ok(
+      'validateAccessToken reads the grant resource and refuses a token for another server before calling it valid',
+      validate.includes('resource: oauthGrants.resource') &&
+        validate.indexOf('isOurResource(row.resource)') !== -1 &&
+        validate.indexOf('isOurResource(row.resource)') <
+          validate.lastIndexOf('return { ok: true')
+    );
+    const mcp = withoutComments(readFileSync('app/api/mcp/route.ts', 'utf8'));
+    const gate = mcp.slice(
+      mcp.indexOf('const check = await validateAccessToken(bearer);')
+    );
+    const gateBody = gate.slice(0, gate.indexOf('\n}\n'));
+    ok(
+      'the MCP gate lets a token through only on check.ok, never on a failure reason',
+      /^const check = await validateAccessToken\(bearer\);\s*if \(check\.ok\) return null;/.test(
+        gate
+      ) && (gateBody.match(/return null/g) ?? []).length === 1
+    );
   }
 
   // --------------------------------------------- OAuth: the exchange ordering

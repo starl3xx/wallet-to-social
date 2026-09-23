@@ -18,6 +18,7 @@ import {
   type RefreshResult,
 } from '@/lib/oauth/grants';
 import { mcpResource } from '@/lib/oauth/metadata';
+import { repeatedFormParam, resourcesAreOurs } from '@/lib/oauth/params';
 
 export const runtime = 'nodejs';
 
@@ -71,6 +72,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       'invalid_request',
       'The request body must be application/x-www-form-urlencoded.'
     );
+  }
+
+  // Every parameter but `resource` may appear once (OAuth 2.1 section 3.2). A
+  // second client_id would otherwise pass whichever check read the first.
+  const repeated = repeatedFormParam(form);
+  if (repeated) {
+    return oauthError('invalid_request', `${repeated} may appear only once.`);
   }
 
   const grantType = form.get('grant_type');
@@ -167,10 +175,14 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
    * RFC 8707: a `resource` on the token request must name the same resource the
    * authorization request did. A client that asked to reach the MCP server and
    * then asks for a token audienced somewhere else is refused rather than
-   * quietly given the first one.
+   * quietly given the first one. Every value is checked, by the comparison the
+   * authorization request and a refresh use, so a trailing slash on one side
+   * and not the other does not strand a connection halfway.
    */
-  const resource = form.get('resource');
-  if (resource !== null && row.resource !== null && resource !== row.resource) {
+  if (
+    row.resource !== null &&
+    !resourcesAreOurs(form.getAll('resource'), row.resource)
+  ) {
     return oauthError(
       'invalid_target',
       'resource does not match the one this code was issued for.'
@@ -257,10 +269,13 @@ async function exchangeRefresh(form: URLSearchParams): Promise<NextResponse> {
   try {
     result = await refreshGrant({
       refreshToken: token,
-      clientId: form.get('client_id'),
-      resource: form.get('resource'),
+      // Sent without a value is omitted (OAuth 2.1 section 3.2): `client_id=`
+      // is a refresh with no client_id, not one from a client named ''.
+      clientId: form.get('client_id') || null,
+      resources: form.getAll('resource'),
     });
-  } catch {
+  } catch (error) {
+    console.error('Refresh failed on /api/oauth/token:', error);
     /**
      * A database failure is not the client's fault, and after the atomic
      * rotation a retry with the same refresh token is safe unless the commit
@@ -269,6 +284,10 @@ async function exchangeRefresh(form: URLSearchParams): Promise<NextResponse> {
      * used deliberately, as the 429 above already does, because the MCP SDK
      * reads it as an error to retry rather than a reason to start consent over,
      * which a bare 500 becomes.
+     *
+     * A failure that repeats keeps answering 503. Consent would not mend a
+     * token service that cannot write, so the log line above is where a
+     * persistent one is noticed, not the person's browser.
      */
     return NextResponse.json(
       {

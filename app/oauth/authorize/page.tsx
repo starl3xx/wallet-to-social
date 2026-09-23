@@ -271,7 +271,8 @@ export default async function AuthorizePage({
     redirectUri,
     codeChallenge: codeChallenge!,
     scope: granted.join(' '),
-    resource: resource ?? mcpResource(),
+    // `resource=` counts as absent (OAuth 2.1 section 3.1), as it did above.
+    resource: resource || mcpResource(),
     state,
   });
   if (!id) {

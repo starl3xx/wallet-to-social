@@ -17,6 +17,26 @@ export const ONCE_PARAMS = [
   'scope',
 ] as const;
 
+/**
+ * Parameters of a token request that may appear once (OAuth 2.1 section 3.2).
+ * `resource` may repeat, as at the authorization endpoint, and every value is
+ * checked.
+ */
+export const TOKEN_ONCE_PARAMS = [
+  'grant_type',
+  'code',
+  'code_verifier',
+  'redirect_uri',
+  'client_id',
+  'refresh_token',
+  'scope',
+] as const;
+
+/** The first parameter in TOKEN_ONCE_PARAMS sent more than once, or null. */
+export function repeatedFormParam(form: URLSearchParams): string | null {
+  return TOKEN_ONCE_PARAMS.find((key) => form.getAll(key).length > 1) ?? null;
+}
+
 /** The first parameter in ONCE_PARAMS that appears more than once, or null. */
 export function repeatedParam(
   params: Record<string, string | string[] | undefined>
@@ -37,8 +57,9 @@ export function sameResource(requested: string, ours: string): boolean {
     const a = new URL(requested);
     const b = new URL(ours);
     return (
-      // RFC 8707 section 2: a resource MUST NOT carry a fragment.
-      !a.hash &&
+      // RFC 8707 section 2: a resource MUST NOT carry a fragment. Read off the
+      // raw string: URL gives a bare trailing '#' an empty hash.
+      !requested.includes('#') &&
       a.protocol === b.protocol &&
       a.host.toLowerCase() === b.host.toLowerCase() &&
       a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '')
@@ -49,21 +70,28 @@ export function sameResource(requested: string, ours: string): boolean {
 }
 
 /**
+ * Every value of a parameter that may repeat, with empty ones dropped: a
+ * parameter sent without a value is treated as omitted (OAuth 2.1 sections
+ * 3.1 and 3.2), so `resource=` is the same request as no resource.
+ */
+export function sentValues(
+  value: string | string[] | null | undefined
+): string[] {
+  const values = value == null ? [] : Array.isArray(value) ? value : [value];
+  return values.filter((v) => v !== '');
+}
+
+/**
  * Whether every requested resource is ours. A request naming ours and
  * another server's would otherwise get a token scoped to ours while the
  * client believes it is good for both, which is the leak that audience
  * restriction exists to prevent.
  */
 export function resourcesAreOurs(
-  requested: string | string[] | undefined,
+  requested: string | string[] | null | undefined,
   ours: string
 ): boolean {
-  const values =
-    requested === undefined
-      ? []
-      : Array.isArray(requested)
-        ? requested
-        : [requested];
+  const values = sentValues(requested);
   return values.every((r) => sameResource(r, ours));
 }
 
