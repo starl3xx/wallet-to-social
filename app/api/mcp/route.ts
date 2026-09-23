@@ -381,8 +381,22 @@ const handler = createMcpHandler(
          * Idempotency-Key header for retry-safe batches; a tool call has
          * nowhere to carry one, so the honest annotation is false and the
          * description says why.
+         *
+         * `readOnlyHint: false` on every metered tool, for the same reason: a
+         * call spends the caller's match credits, which changes their
+         * account. A read-only tool may run without asking, and Claude's
+         * directory lists tools by this hint, so a lookup that bills must not
+         * sit among the free reads. Nothing is destroyed and every answer
+         * comes from walletlink's own index, hence destructive and open-world
+         * false; only walletlink_submit_job reaches live sources.
          */
-        annotations: { readOnlyHint: true, idempotentHint: false },
+        annotations: {
+          title: 'Resolve wallets to social identities',
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: false,
+        },
       },
       async ({ addresses }, ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
@@ -493,7 +507,13 @@ const handler = createMcpHandler(
             ),
         }),
         // idempotentHint false: a repeat bills again. See the resolve tool.
-        annotations: { readOnlyHint: true, idempotentHint: false },
+        annotations: {
+          title: 'Find wallets behind an X handle',
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: false,
+        },
       },
       async ({ handle, cursor }, ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
@@ -549,7 +569,13 @@ const handler = createMcpHandler(
             ),
         }),
         // idempotentHint false: a repeat bills again. See the resolve tool.
-        annotations: { readOnlyHint: true, idempotentHint: false },
+        annotations: {
+          title: 'Find wallets behind a Farcaster username',
+          readOnlyHint: false,
+          destructiveHint: false,
+          idempotentHint: false,
+          openWorldHint: false,
+        },
       },
       async ({ username, cursor }, ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
@@ -590,7 +616,12 @@ const handler = createMcpHandler(
           `COST: free on both meters. It resolves no wallet and consumes no rate limit. ${ZERO_BALANCE_SENTENCE}`,
           'addresses_with_an_identity over addresses_checked is the coverage rate. The second number is larger because it counts addresses we have looked at and found bare. The counts are refreshed daily rather than counted live; as_of says when they were taken, and asking twice in a day returns the same numbers.',
         ].join('\n\n'),
-        annotations: { readOnlyHint: true, idempotentHint: true },
+        annotations: {
+          title: 'Index coverage',
+          readOnlyHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
       },
       async (ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
@@ -626,7 +657,12 @@ const handler = createMcpHandler(
           'COST: free on both meters. Call it before a reverse lookup, which can spend up to 100 credits in one go.',
           'matches_available is the meter that stops a metered call: at zero, the resolve and reverse tools refuse, while this tool and the coverage tool keep answering, so a drained key can always read its own meter. rate_limit_units_used is a separate count of requests and is not a credit figure.',
         ].join('\n\n'),
-        annotations: { readOnlyHint: true, idempotentHint: true },
+        annotations: {
+          title: 'Match credit balance',
+          readOnlyHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
       },
       async (ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
@@ -680,9 +716,11 @@ const handler = createMcpHandler(
         // idempotent: a repeat after completion runs and bills again (a
         // repeat while one is active is refused, which is the safe half).
         annotations: {
+          title: 'Submit a background lookup job',
           readOnlyHint: false,
           destructiveHint: false,
           idempotentHint: false,
+          openWorldHint: true,
         },
       },
       async ({ addresses }, ctx) => {
@@ -736,7 +774,12 @@ const handler = createMcpHandler(
               'Result row to start from, for a completed job. Pass the next_offset from a previous call to continue. Omit for the first page.'
             ),
         }),
-        annotations: { readOnlyHint: true, idempotentHint: true },
+        annotations: {
+          title: 'Check a background job',
+          readOnlyHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
       },
       async ({ job_id, offset }, ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');
@@ -825,7 +868,12 @@ const handler = createMcpHandler(
         }),
         // Free and read-only. idempotentHint true is honest here: a repeat
         // bills nothing, it only spends rate window.
-        annotations: { readOnlyHint: true, idempotentHint: true },
+        annotations: {
+          title: 'Estimate a list before spending on it',
+          readOnlyHint: true,
+          idempotentHint: true,
+          openWorldHint: false,
+        },
       },
       async ({ addresses }, ctx) => {
         const authorization = ctx.http?.req?.headers.get('authorization');

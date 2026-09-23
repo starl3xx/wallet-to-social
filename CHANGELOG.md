@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-23 (tool annotations Claude's directory can read)
+
+- **Every MCP tool now carries `annotations.title`.** The Tools step of
+  Claude's connector submission flagged all eight tools with "Missing title
+  annotation": the directory reads the listing name from inside
+  `annotations`, and the titles lived only at the top level.
+- **The three tools that bill are no longer marked read-only.**
+  `walletlink_resolve_wallets` and both reverse lookups spend the caller's
+  match credits, so `readOnlyHint` is now false (with `destructiveHint`
+  false). A read-only tool may run without asking, and the directory lists
+  tools by this hint, so a lookup that bills no longer sits among the free
+  reads. Every tool also states `openWorldHint`: false for the seven that
+  answer from walletlink's own index, true for `walletlink_submit_job`, which
+  reaches live sources.
+- **An invariant keeps it that way:** every registration repeats its title in
+  its annotations and states every hint, and no tool whose description
+  charges match credits may be read-only. Mutation-checked: marking a billing
+  tool read-only, or dropping one title, fails the check.
+- **Hosted Claude's OAuth connection works.** Connecting the server in the
+  submission portal issued the first OAuth grant ever recorded, to Claude's
+  CIMD client, which the 2026-09-18 entry was still diagnosing.
+
 ### 2026-09-23 (the owner-attested share is over 99.8%, not over 99.9%)
 
 - **The published floor moves from "over 99.9%" to "over 99.8%"** in the 13

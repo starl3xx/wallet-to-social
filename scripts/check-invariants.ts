@@ -6850,6 +6850,57 @@ async function main() {
     );
 
     /**
+     * Every tool carries its annotations in full. Claude's connector directory
+     * reads the listing name from `annotations.title`, not the top-level
+     * title, and flags any tool without it; it also groups tools by
+     * `readOnlyHint`, and a read-only tool may run without asking. So each
+     * registration states its title inside the annotations and every hint
+     * explicitly, and a tool whose description charges match credits is
+     * never read-only: it changes the caller's balance.
+     */
+    const registrations = mcpRoute
+      .split(/server\.registerTool\(/)
+      .slice(1)
+      .map((block) => ({
+        name: /^\s*'(walletlink_[a-z_]+)'/.exec(block)?.[1] ?? '',
+        title: /\btitle:\s*'([^']+)'/.exec(block)?.[1] ?? '',
+        annotations: /annotations:\s*\{([^}]*)\}/.exec(block)?.[1] ?? '',
+        metered: /one match credit/.test(block),
+      }));
+    ok(
+      'every MCP tool registration was parsed with a name, a title and annotations',
+      registrations.length === registered.length &&
+        registrations.every((r) => r.name && r.title && r.annotations)
+    );
+    ok(
+      "every MCP tool repeats its title as annotations.title, which Claude's directory lists",
+      registrations.every((r) => r.annotations.includes(`title: '${r.title}'`))
+    );
+    ok(
+      'every MCP tool states readOnlyHint, idempotentHint and openWorldHint explicitly',
+      registrations.every((r) =>
+        ['readOnlyHint', 'idempotentHint', 'openWorldHint'].every((h) =>
+          r.annotations.includes(`${h}:`)
+        )
+      )
+    );
+    ok(
+      'every MCP tool that is not read-only also states destructiveHint',
+      registrations.every(
+        (r) =>
+          !r.annotations.includes('readOnlyHint: false') ||
+          r.annotations.includes('destructiveHint:')
+      )
+    );
+    ok(
+      'no MCP tool that charges match credits is marked read-only',
+      registrations.some((r) => r.metered) &&
+        registrations.every(
+          (r) => !r.metered || r.annotations.includes('readOnlyHint: false')
+        )
+    );
+
+    /**
      * `/skill.md` is a third surface carrying the roster, and the one handed
      * to an agent rather than read by a person.
      *
