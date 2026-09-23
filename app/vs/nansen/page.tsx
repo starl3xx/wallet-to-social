@@ -224,7 +224,7 @@ export default function NansenComparison() {
               somewhere to send a message.
             </p>
             <p className="text-muted-foreground">
-              A match here is the opposite kind of fact. Over 99.9% of the X
+              A match here is the opposite kind of fact. Over 99.8% of the X
               handles we return were published by the wallet owner themselves,
               through a Farcaster verification, an onchain ENS text record, an
               attested social sign-in or a manually verified record, and every

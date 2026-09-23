@@ -461,7 +461,7 @@ export default function AbsoluteLabsComparison() {
             </ol>
             <p className="text-muted-foreground">
               The index holds {INDEXED_WALLETS} wallets with complete Farcaster
-              protocol coverage, refreshed daily. Over 99.9% of the X handles
+              protocol coverage, refreshed daily. Over 99.8% of the X handles
               were published by the wallet owner themselves, and every match
               carries the evidence class behind it. Where we only have a
               correlation, the row says so.
