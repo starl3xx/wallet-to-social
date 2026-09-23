@@ -17,11 +17,14 @@
 # Required repository secrets: DATABASE_URL. The role behind it needs the
 # ingestLinks write set (social_graph, handle_conflicts, ingest_state) —
 # granted to sweep_runner by scripts/migrate-grant-harvest-writes.ts.
+#
+# NOT SCHEDULED HERE ANY MORE (2026-09-23). The domain reads go through the
+# same UD profile endpoint that refuses GitHub's runner IPs (see
+# ud-domain-harvest.yml), so the weekly walk moved to a launchd agent on
+# Jake's Mac with it (scripts/ops/ud-harvest-local.sh). Dispatch stays.
 name: ud-profile-harvest
 
 on:
-  schedule:
-    - cron: '45 7 * * 0' # Sunday 07:45 UTC, after the seed cron, before x-reachability
   workflow_dispatch:
     inputs:
       max_requests:
