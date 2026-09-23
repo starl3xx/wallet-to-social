@@ -3535,6 +3535,527 @@ async function main() {
     );
   }
 
+  // ------------------------------------------ OAuth: only the port is free
+  // The loopback carve-out frees the port and nothing else: RFC 9700 section
+  // 2.1 and OAuth 2.1 section 2.3.1 require an exact match otherwise. Each
+  // case below smuggled something past the old comparison, which looked only
+  // at scheme, host and path.
+  {
+    const { redirectUriAllowed } = await import('@/lib/oauth/clients');
+    const cc = ['http://localhost/callback', 'http://127.0.0.1/callback'];
+    for (const u of [
+      'http://localhost:1234/callback?state=injected',
+      'http://attacker@127.0.0.1:1/callback',
+      'http://127.0.0.1:5/callback#frag',
+      'http://127.1:5/callback',
+      'http://LOCALHOST:5/callback',
+      'http://localhost:5/callback/',
+    ]) {
+      ok(
+        `the loopback carve-out frees only the port: ${u} is refused`,
+        !redirectUriAllowed(u, cc)
+      );
+    }
+    ok(
+      'Claude Code’s shape, localhost or 127.0.0.1 on a port it chose, still matches',
+      redirectUriAllowed('http://localhost:3118/callback', cc) &&
+        redirectUriAllowed('http://127.0.0.1:51837/callback', cc)
+    );
+    ok(
+      'MCP Inspector’s shape, a registered loopback with its port, still matches',
+      redirectUriAllowed('http://localhost:6274/oauth/callback', [
+        'http://localhost:6274/oauth/callback',
+      ])
+    );
+    ok(
+      '[::1] on a port matches its portless declaration',
+      redirectUriAllowed('http://[::1]:5/callback', ['http://[::1]/callback'])
+    );
+    // The host is not free: a client that declared localhost did not declare
+    // 127.0.0.1 or [::1] (RFC 8252 treats them as different redirects).
+    const inspector = ['http://localhost:6274/oauth/callback'];
+    for (const u of [
+      'http://127.0.0.1:6274/oauth/callback',
+      'http://[::1]:6274/oauth/callback',
+    ]) {
+      ok(
+        `a loopback redirect on another loopback host is refused: ${u}`,
+        !redirectUriAllowed(u, inspector)
+      );
+    }
+    ok(
+      'and the reverse: a declared 127.0.0.1 does not admit localhost',
+      !redirectUriAllowed('http://localhost:5/callback', [
+        'http://127.0.0.1/callback',
+      ])
+    );
+    // A port past 65535 is not a port: accepting it passed the gate and then
+    // crashed the error delivery with a 500.
+    ok(
+      'a loopback port above 65535 is refused, not crashed on later',
+      !redirectUriAllowed('http://localhost:99999/callback', cc)
+    );
+    const { isLoopbackRedirect } = await import('@/lib/oauth/clients');
+    for (const u of [
+      'http://localhost/cb#x',
+      'http://LOCALHOST/cb',
+      'http://127.1/cb',
+      'http://a@localhost/cb',
+      'http://localhost:99999/cb',
+      'https://localhost/cb',
+    ]) {
+      ok(
+        `not a loopback redirect by the one shared rule: ${u}`,
+        !isLoopbackRedirect(u)
+      );
+    }
+    ok(
+      'the shared rule still accepts the shapes real clients use',
+      [
+        'http://localhost/callback',
+        'http://127.0.0.1:51837/callback',
+        'http://[::1]:5/callback',
+      ].every(isLoopbackRedirect)
+    );
+  }
+
+  // ---------------------------------- OAuth: where an error may send a browser
+  // An error or a decline is sent on to the client without a person choosing
+  // it, so only to a callback somebody vetted: loopback (this computer) or a
+  // known origin. A registered or self-published https address is anybody's
+  // page (RFC 9700 section 4.11.2).
+  {
+    const { redirectIsTrusted } = await import('@/lib/oauth/clients');
+    for (const u of [
+      'https://evil.example.com/cb',
+      'https://claude.ai.evil.example.com/api/mcp/auth_callback',
+      'https://claude.ai@evil.example.com/cb',
+      'http://claude.ai/api/mcp/auth_callback',
+      'https://claude.ai:8443/api/mcp/auth_callback',
+      'https://sub.claude.ai/cb',
+    ]) {
+      ok(`${u} gets no automatic redirect`, !redirectIsTrusted(u));
+    }
+    for (const u of [
+      'https://x@claude.ai/api/mcp/auth_callback',
+      'https://x:y@claude.ai/api/mcp/auth_callback',
+      'https://claude.ai/api/mcp/auth_callback#frag',
+    ]) {
+      ok(
+        `userinfo or a fragment on the trusted origin itself is not trusted: ${u}`,
+        !redirectIsTrusted(u)
+      );
+    }
+    ok(
+      'the hosted Claude callback still gets its error, or claude.ai hangs',
+      redirectIsTrusted('https://claude.ai/api/mcp/auth_callback')
+    );
+    ok(
+      'a loopback callback still gets its error, or Claude Code waits for a timeout',
+      redirectIsTrusted('http://localhost:3118/callback')
+    );
+
+    const page = withoutComments(
+      readFileSync('app/oauth/authorize/page.tsx', 'utf8')
+    );
+    const gate = page.indexOf(
+      'if (!redirectUriAllowed(redirectUri, client.redirectUris))'
+    );
+    const calls = [...page.matchAll(/\bredirect\(/g)];
+    ok(
+      'the page redirects nowhere before the redirect_uri gate',
+      gate > 0 && calls.every((m) => m.index! > gate)
+    );
+    ok(
+      'the page’s only redirects are the trusted error delivery and its own consent URL',
+      calls.length === 2 &&
+        page.includes('redirect(`/oauth/authorize?req=${id}`)') &&
+        /if \(redirectIsTrusted\(redirectUri\)\) \{[\s\S]{0,400}?redirect\(url\.toString\(\)\)/.test(
+          page
+        )
+    );
+    for (const key of ['client_id', 'redirect_uri']) {
+      const at = page.indexOf(`Array.isArray(params.${key})`);
+      ok(
+        `a repeated ${key} renders before any client lookup`,
+        at > -1 && at < page.indexOf('resolveClient(clientId)')
+      );
+    }
+    const { repeatedParam, resourcesAreOurs, ONCE_PARAMS } =
+      await import('@/lib/oauth/params');
+    for (const key of ONCE_PARAMS) {
+      ok(
+        `a repeated ${key} is found`,
+        repeatedParam({ [key]: ['a', 'b'] }) === key
+      );
+    }
+    ok(
+      'every parameter that must appear once is on the list',
+      [
+        'response_type',
+        'code_challenge',
+        'code_challenge_method',
+        'state',
+        'scope',
+      ].every((k) => (ONCE_PARAMS as readonly string[]).includes(k))
+    );
+    ok(
+      'a repeated resource is allowed (RFC 8707 section 2), and single values pass',
+      repeatedParam({ resource: ['a', 'b'], state: 's', scope: 'x' }) === null
+    );
+    ok(
+      'the page refuses a repeated parameter through that function',
+      /const repeated = repeatedParam\(params\);\s*if \(repeated\)\s*bounce\(/.test(
+        page
+      )
+    );
+    const ours = 'https://walletlink.social/api/mcp';
+    ok(
+      'a resource list naming ours and another server is refused as a whole',
+      !resourcesAreOurs([ours, 'https://other.example/'], ours) &&
+        !resourcesAreOurs(['https://other.example/', ours], ours)
+    );
+    ok(
+      'ours alone, repeated, with a trailing slash, or absent, is accepted',
+      resourcesAreOurs(ours, ours) &&
+        resourcesAreOurs([ours, `${ours}/`], ours) &&
+        resourcesAreOurs(undefined, ours)
+    );
+    ok(
+      'the page checks every resource value, not the first',
+      page.includes('resourcesAreOurs(params.resource, mcpResource())')
+    );
+    ok(
+      'a collected error is answered before any request is stored',
+      page.indexOf('if (problem) return deliverError(problem)') > -1 &&
+        page.indexOf('if (problem) return deliverError(problem)') <
+          page.indexOf('createAuthorizationRequest(')
+    );
+
+    const post = withoutComments(
+      readFileSync('app/api/oauth/authorize/route.ts', 'utf8')
+    );
+    const decline = post.slice(post.indexOf('if (!input.approve)'));
+    ok(
+      'a decline answers the request before anything is returned, and a lost race is a 409',
+      /if \(!\(await declineRequest\(pending\.id\)\)\) \{\s*return fail\('This authorization request was already answered\.', 409\)/.test(
+        decline
+      ) &&
+        decline.indexOf('declineRequest(pending.id)') <
+          decline.indexOf('return NextResponse.json')
+    );
+    const requestsSrc = withoutComments(
+      readFileSync('lib/oauth/requests.ts', 'utf8')
+    );
+    const declineFn = requestsSrc.slice(
+      requestsSrc.indexOf('export async function declineRequest'),
+      requestsSrc.indexOf('export async function issueCode')
+    );
+    ok(
+      'a decline writes the marker issueCode requires to be NULL, so a later approval issues nothing',
+      declineFn.includes('codeHash: `declined:${id}`') &&
+        declineFn.includes('expiresAt: sql`now()`') &&
+        !declineFn.includes('codeExpiresAt')
+    );
+    ok(
+      'a decline touches only its own unanswered request, and reports whether it did',
+      declineFn.includes('eq(oauthAuthorizationRequests.id, id)') &&
+        declineFn.includes('isNull(oauthAuthorizationRequests.codeHash)') &&
+        declineFn.includes('.returning()') &&
+        declineFn.includes('return declined.length === 1')
+    );
+    ok(
+      'issueCode still refuses a request whose code_hash is set',
+      /export async function issueCode[\s\S]*?isNull\(oauthAuthorizationRequests\.codeHash\)/.test(
+        requestsSrc
+      )
+    );
+    ok(
+      'a decline is sent back only to a trusted callback',
+      /if \(!redirectIsTrusted\(pending\.redirectUri\)\) \{\s*return NextResponse\.json\(\{ declined: true \}\)/.test(
+        decline
+      )
+    );
+  }
+
+  // ----------------------------------------- OAuth: the host the consent names
+  // The MCP specification: the authorization server "MUST clearly display the
+  // redirect URI hostname". A registered client may list any host, including
+  // claude.ai's callback beside its own, so the screen names the reply host of
+  // the request being approved and never an entry from the list.
+  {
+    const { consentView } = await import('@/lib/oauth/clients');
+    const dcr = {
+      clientId: 'wts_client_x',
+      displayHost: 'an unverified application',
+      claimedName: 'Claude',
+      redirectUris: [
+        'https://claude.ai/api/mcp/auth_callback',
+        'https://evil.example.com/cb',
+      ],
+      isCimd: false,
+    };
+    const borrowed = consentView(dcr, 'https://evil.example.com/cb');
+    ok(
+      'a registered client that listed a borrowed host first is named by the host its reply goes to',
+      borrowed?.subject === 'evil.example.com' &&
+        borrowed.replyHost === 'evil.example.com'
+    );
+    ok(
+      'a registered client’s self-declared name is never shown',
+      borrowed?.claimedName === null && borrowed.verified === false
+    );
+    ok(
+      'userinfo cannot borrow a trusted name',
+      consentView(dcr, 'https://claude.ai@evil.example.com/cb')?.replyHost ===
+        'evil.example.com'
+    );
+    ok(
+      'a lookalike internationalized host is shown in ASCII',
+      consentView(dcr, 'https://аpple.com/cb')?.replyHost === 'xn--pple-43d.com'
+    );
+    ok(
+      'an unreadable reply address gives no consent view at all',
+      consentView(dcr, 'not a url') === null
+    );
+    const claudeCode = {
+      clientId: 'https://claude.ai/oauth/claude-code-client-metadata',
+      displayHost: 'claude.ai',
+      claimedName: 'Claude Code',
+      redirectUris: ['http://localhost/callback', 'http://127.0.0.1/callback'],
+      isCimd: true,
+    };
+    const cc = consentView(claudeCode, 'http://localhost:3118/callback');
+    ok(
+      'a loopback reply is marked local, with its port, even for a verified client',
+      cc?.local === true &&
+        cc.replyAuthority === 'localhost:3118' &&
+        cc.subject === 'claude.ai'
+    );
+    const hosted = consentView(
+      {
+        ...claudeCode,
+        clientId: 'https://claude.ai/oauth/mcp-oauth-client-metadata',
+        claimedName: 'Claude',
+        redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
+      },
+      'https://claude.ai/api/mcp/auth_callback'
+    );
+    ok(
+      'the hosted Claude callback is not local, so the check above is not vacuous',
+      hosted?.local === false && hosted.replyHost === 'claude.ai'
+    );
+
+    // Rendered, because a prop computed right and dropped by the component
+    // protects nobody.
+    const { createElement } = await import('react');
+    const { renderToStaticMarkup } = await import('react-dom/server');
+    const { ConsentScreen } =
+      await import('@/app/oauth/authorize/ConsentScreen');
+    const render = (view: NonNullable<typeof cc>) =>
+      renderToStaticMarkup(
+        createElement(ConsentScreen, {
+          requestId: 'req',
+          ...view,
+          email: null,
+          keepsAccess: true,
+        })
+      );
+    const attackHtml = render(borrowed!);
+    ok(
+      'the borrowed-host attack shows the real reply host and not the borrowed one',
+      attackHtml.includes('evil.example.com') &&
+        !attackHtml.includes('claude.ai')
+    );
+    const localHtml = render(cc!);
+    ok(
+      'a loopback reply carries the warning and names the port',
+      localHtml.includes('loopback-warning') &&
+        localHtml.includes('localhost:3118')
+    );
+    const hostedHtml = render(hosted!);
+    ok(
+      'the hosted callback shows claude.ai and no loopback warning',
+      hostedHtml.includes('claude.ai') &&
+        !hostedHtml.includes('loopback-warning')
+    );
+
+    // MCP Inspector: a registered client with a loopback reply. It must not
+    // be named by what it calls itself, and it must get the warning.
+    const inspectorClient = {
+      clientId: 'wts_client_inspector',
+      displayHost: 'an unverified application',
+      claimedName: 'Claude',
+      redirectUris: ['http://localhost:6274/oauth/callback'],
+      isCimd: false,
+    };
+    const insp = consentView(
+      inspectorClient,
+      'http://localhost:6274/oauth/callback'
+    );
+    ok(
+      'a registered loopback client is "An application on this computer", never its own name',
+      insp?.subject === 'An application on this computer' &&
+        insp.claimedName === null &&
+        insp.local === true
+    );
+    const inspHtml = render(insp!);
+    ok(
+      'its screen carries the warning and the port, and never the name it gave itself',
+      inspHtml.includes('loopback-warning') &&
+        inspHtml.includes('localhost:6274') &&
+        !inspHtml.includes('Claude')
+    );
+    for (const u of [
+      'https://foo.localhost:8443/cb',
+      'https://localhost.:8443/cb',
+      'https://127.0.0.2:8443/cb',
+      'https://0.0.0.0:8443/cb',
+      'https://[::ffff:127.0.0.1]:8443/cb',
+      'https://[::1]:8443/cb',
+    ]) {
+      ok(
+        `a reply to ${u} is marked local, so the person is warned`,
+        consentView(dcr, u)?.local === true
+      );
+    }
+    ok(
+      'an ordinary https host is not local',
+      consentView(dcr, 'https://evil.example.com/cb')?.local === false
+    );
+    const evilCode = consentView(
+      {
+        clientId: 'https://evil.example/meta',
+        displayHost: 'evil.example',
+        claimedName: 'Claude Code',
+        redirectUris: ['http://localhost/callback'],
+        isCimd: true,
+      },
+      'http://localhost:3118/callback'
+    );
+    const evilHtml = render(evilCode!);
+    ok(
+      'the loopback warning names the verified host, not the name a document claimed',
+      evilHtml.includes('evil.example’s name') &&
+        !evilHtml.includes('Claude Code’s name')
+    );
+    const replyShown = (html: string) =>
+      /data-consent="reply-host"[^>]*>([^<]*)</.exec(html)?.[1];
+    ok(
+      'the reply host sits in its own marked element, and it is the real one',
+      replyShown(attackHtml) === 'evil.example.com' &&
+        replyShown(localHtml) === 'localhost:3118' &&
+        replyShown(hostedHtml) === 'claude.ai'
+    );
+
+    const page = withoutComments(
+      readFileSync('app/oauth/authorize/page.tsx', 'utf8')
+    );
+    const consent = page.slice(page.indexOf('async function renderConsent'));
+    const consentProps = consent.slice(
+      consent.indexOf('<ConsentScreen'),
+      consent.indexOf('/>', consent.indexOf('<ConsentScreen'))
+    );
+    ok(
+      'the page hands the consent screen the view whole, and none of its facts from the client',
+      consentProps.includes('{...view}') &&
+        !/\b(subject|claimedName|verified|replyHost|replyAuthority|local)=\{/.test(
+          consentProps
+        )
+    );
+    ok(
+      'the consent screen is built from the redirect in the request',
+      consent.includes('consentView(client, pending.redirectUri)')
+    );
+    ok(
+      'the redirect is checked again before a consent screen is shown',
+      consent.includes(
+        'redirectUriAllowed(pending.redirectUri, client.redirectUris)'
+      )
+    );
+    ok(
+      'no client is labeled by an entry in its registered list',
+      !withoutComments(readFileSync('lib/oauth/clients.ts', 'utf8')).includes(
+        'redirectUris.find('
+      )
+    );
+    const post = withoutComments(
+      readFileSync('app/api/oauth/authorize/route.ts', 'utf8')
+    );
+    const { connectionLabel, cleanClaimedName, cimdRedirectProblem } =
+      await import('@/lib/oauth/clients');
+    const evilCimd = {
+      clientId: 'https://evil.example/meta',
+      displayHost: 'evil.example',
+      claimedName: 'Claude (claude.ai)',
+      redirectUris: ['https://evil.example/cb'],
+      isCimd: true,
+    };
+    ok(
+      'a metadata-document label starts with its verified host, so a long name cannot push it off a one-line row',
+      connectionLabel(evilCimd, 'https://evil.example/cb').startsWith(
+        'evil.example (calls itself '
+      )
+    );
+    ok(
+      'a registered client is labeled by its reply host and never by its own name',
+      connectionLabel(dcr, 'https://evil.example.com/cb') ===
+        'evil.example.com (unverified)'
+    );
+    ok(
+      'a metadata-document client with no name is labeled by its host alone',
+      connectionLabel(
+        { ...evilCimd, claimedName: null },
+        'https://evil.example/cb'
+      ) === 'evil.example'
+    );
+    ok(
+      'the connection label is built by connectionLabel from the pending redirect',
+      post.includes('clientLabel: connectionLabel(client, pending.redirectUri)')
+    );
+    ok(
+      'a self-declared name loses its control, bidirectional and zero-width characters',
+      cleanClaimedName('Cl\u202Eaude\u200B\u0007') === 'Claude'
+    );
+    ok(
+      'padding and unusual spaces collapse, and a name is capped at 60 characters',
+      cleanClaimedName('Claude' + '\u00a0'.repeat(80) + 'x') === 'Claude x' &&
+        cleanClaimedName('a'.repeat(200))!.length === 60
+    );
+    ok(
+      'an empty or blank name is no name at all',
+      cleanClaimedName('') === null &&
+        cleanClaimedName(' \u00a0 ') === null &&
+        cleanClaimedName(42) === null
+    );
+    ok(
+      'a metadata document may not declare a redirect with a fragment or userinfo on its own origin',
+      cimdRedirectProblem(
+        'https://evil.example/cb#x',
+        'https://evil.example'
+      ) !== null &&
+        cimdRedirectProblem(
+          'https://a@evil.example/cb',
+          'https://evil.example'
+        ) !== null &&
+        cimdRedirectProblem(
+          'https://other.example/cb',
+          'https://evil.example'
+        ) !== null &&
+        cimdRedirectProblem('http://localhost/cb#x', 'https://evil.example') !==
+          null
+    );
+    ok(
+      'its own-origin redirect and a clean loopback pass, so the check is not vacuous',
+      cimdRedirectProblem('https://evil.example/cb', 'https://evil.example') ===
+        null &&
+        cimdRedirectProblem(
+          'http://localhost/callback',
+          'https://evil.example'
+        ) === null
+    );
+  }
+
   // ------------------------------------------------- OAuth: the scope refusal
   /**
    * The refusal must not contradict the metadata one hop away.

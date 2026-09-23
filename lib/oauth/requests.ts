@@ -124,6 +124,33 @@ export async function loadPendingRequest(
 }
 
 /**
+ * Answer a request with no, once. True when this call declined it; false when
+ * it had already been answered, which means an approval won the race.
+ *
+ * A decline used to leave the request pending for the rest of its half hour,
+ * so a reload showed Approve again for a request just refused. It now writes
+ * a marker into `code_hash`, the column `issueCode` requires to be NULL, so an
+ * approval that arrives even a moment later issues nothing. The marker is
+ * unique per request (the column has a unique index) and can never equal a
+ * SHA-256 hex digest, so no presented code can ever match it.
+ */
+export async function declineRequest(id: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  const declined = await db
+    .update(oauthAuthorizationRequests)
+    .set({ codeHash: `declined:${id}`, expiresAt: sql`now()` })
+    .where(
+      and(
+        eq(oauthAuthorizationRequests.id, id),
+        isNull(oauthAuthorizationRequests.codeHash)
+      )
+    )
+    .returning();
+  return declined.length === 1;
+}
+
+/**
  * Turn an approved request into a code, once.
  *
  * The `code_hash IS NULL` predicate is inside the UPDATE rather than checked

@@ -52,9 +52,10 @@ export async function GET(): Promise<NextResponse> {
     connections: grants.map((g) => ({
       id: g.id,
       label: g.clientLabel,
-      // The host of a metadata-document client, or the redirect host of a
-      // registered one. `client_id` itself is not returned: for a registered
-      // client it is an opaque string that tells a person nothing.
+      // A metadata-document client's host, with its self-declared name in
+      // front when it gave one; a registered client's reply host at approval.
+      // `client_id` itself is not returned: for a registered client it is an
+      // opaque string that tells a person nothing.
       connected_at: g.createdAt.toISOString(),
       last_used_at: g.lastUsedAt?.toISOString() ?? null,
     })),

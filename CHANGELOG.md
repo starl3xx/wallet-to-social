@@ -2,6 +2,49 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-23 (the consent screen names where the reply goes)
+
+- **The OAuth consent screen now names the host of the redirect in the
+  request being approved,** on every screen, and warns when that host is this
+  computer. The MCP authorization specification requires the first ("MUST
+  clearly display the redirect URI hostname") and recommends the second for
+  loopback redirects. A registered client is no longer labeled by anything in
+  its own list, and a self-declared name is never stored as a connection label
+  on its own.
+- **Redirect matching is exact except the port,** for loopback only (RFC 9700
+  section 2.1, OAuth 2.1 section 2.3.1), with one definition of loopback shared
+  by registration, metadata documents, matching and the consent screen.
+  Metadata documents may no longer declare a redirect with a fragment or
+  userinfo.
+- **Errors and declines go back to the client automatically only at a trusted
+  callback:** loopback, or claude.ai. Anywhere else the answer is shown on the
+  page (RFC 9700 section 4.11.2). A decline now ends the request, so reloading
+  the page cannot approve it. Repeated OAuth parameters are refused, except
+  `resource`.
+- **A connection's label puts the verified host first:** "claude.ai (calls
+  itself Claude)", not the self-declared name alone, so a long or crafted name
+  cannot push the host out of the one-line row under Connected applications.
+  Self-declared names lose control, bidirectional and zero-width characters,
+  and are capped at 60 characters. `scripts/migrate-oauth-grant-labels.ts`
+  relabels the connections made before this.
+- **The loopback warning also covers https hosts that reach this computer**
+  (`*.localhost`, `127.0.0.0/8`, `0.0.0.0`, IPv6 loopback), names a verified
+  client by its host rather than its claimed name, and a registered client
+  never by the name it gave itself.
+- **A decline that loses a race to an approval is answered 409, not
+  "declined",** and a decline marks the request in the column `issueCode`
+  checks, so an approval a moment later issues nothing. Every `resource` value
+  must be ours, not only the first. A loopback port above 65535 is refused at
+  the gate instead of failing later.
+- Hosted Claude, Claude Code and MCP Inspector connect exactly as before.
+  Claude Code and Inspector now show the loopback warning, which the MCP docs
+  explain.
+- Tests: 86 new invariants, attacker first, including renders of the consent
+  screen for hosted Claude, Claude Code, MCP Inspector and a borrowed-host
+  attack; 25 new guard mutations (one old one re-anchored). The guard catches
+  all 265. An adversarial review (50 agents) found 21 issues in the first
+  version; every one is fixed and tested here.
+
 ### 2026-09-23 (tool annotations Claude's directory can read)
 
 - **Every MCP tool now carries `annotations.title`.** The Tools step of

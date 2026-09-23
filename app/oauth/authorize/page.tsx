@@ -16,13 +16,19 @@
  *
  * ## Refusing before a redirect, and after
  *
- * A parameter error is answered one of two ways, and the distinction is the
- * single most important rule on this page. Until `redirect_uri` has been
- * checked against the client's own declared list, it is a string a stranger
- * typed, and redirecting to it would make this an open redirect that reports
- * OAuth errors. Those failures render here instead. Once the redirect is known
- * to belong to the client, an error is delivered there, because that is where
- * the client is waiting and a rendered page it never sees is a hung connection.
+ * A parameter error is answered one of three ways, and the distinction is the
+ * single most important rule on this page.
+ *
+ * 1. Until `redirect_uri` has been checked against the client's own declared
+ *    list, it is a string a stranger typed. Those failures render here.
+ * 2. A redirect the client declared but nobody vetted still renders here.
+ *    Anybody can register a client, or publish a metadata document, naming
+ *    their own page, and sending a browser there without a person choosing it
+ *    is the redirect attack RFC 9700 section 4.11.2 describes.
+ * 3. A declared redirect that is trusted (`redirectIsTrusted`: loopback, or a
+ *    known origin such as claude.ai) gets the error delivered there, because
+ *    that is where the client is waiting and a page it never sees is a hung
+ *    connection.
  */
 import { redirect } from 'next/navigation';
 import { cookies } from 'next/headers';
@@ -32,6 +38,8 @@ import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import {
   resolveClient,
   redirectUriAllowed,
+  redirectIsTrusted,
+  consentView,
   type ResolvedClient,
 } from '@/lib/oauth/clients';
 import {
@@ -45,6 +53,7 @@ import {
   mcpResource,
   issuer,
 } from '@/lib/oauth/metadata';
+import { repeatedParam, resourcesAreOurs } from '@/lib/oauth/params';
 import { ConsentScreen } from './ConsentScreen';
 
 export const runtime = 'nodejs';
@@ -61,28 +70,6 @@ function one(params: Params, key: string): string | null {
   const value = params[key];
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
-}
-
-/**
- * Compare a requested `resource` against ours.
- *
- * RFC 8707 section 2 makes the resource a URI, so a trailing slash and the case
- * of the scheme and host are not differences a client should be refused over,
- * while the path is. A user who typed the MCP URL with a trailing slash gets a
- * working connection; a token requested for some other server does not.
- */
-function sameResource(requested: string, ours: string): boolean {
-  try {
-    const a = new URL(requested);
-    const b = new URL(ours);
-    return (
-      a.protocol === b.protocol &&
-      a.host.toLowerCase() === b.host.toLowerCase() &&
-      a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '')
-    );
-  } catch {
-    return false;
-  }
 }
 
 function Refusal({ title, detail }: { title: string; detail: string }) {
@@ -110,6 +97,18 @@ export default async function AuthorizePage({
 }) {
   const params = await searchParams;
   const requestId = one(params, 'req');
+
+  // A repeated client_id or redirect_uri leaves no single answer to which
+  // application is asking or where the reply goes, so it renders before any
+  // client is looked up (OAuth 2.1 section 3.1: parameters MUST NOT repeat).
+  if (Array.isArray(params.client_id) || Array.isArray(params.redirect_uri)) {
+    return (
+      <Refusal
+        title="This connection request is ambiguous"
+        detail="It named the application, or the address to reply to, more than once. There is no safe way to choose between them."
+      />
+    );
+  }
 
   if (requestId) return renderConsent(requestId);
 
@@ -168,14 +167,38 @@ export default async function AuthorizePage({
     );
   }
 
+  /**
+   * Errors are collected, not thrown: the first one found is answered below,
+   * before anything is stored. `redirect()` used to end the function on the
+   * spot; a collector does not, which is why `if (problem) return` has to come
+   * before the request is written.
+   */
+  type Problem = { error: string; description: string };
+  let problem = null as Problem | null;
   const bounce = (error: string, description: string) => {
-    const url = new URL(redirectUri);
-    url.searchParams.set('error', error);
-    url.searchParams.set('error_description', description);
-    url.searchParams.set('iss', issuer());
-    if (state) url.searchParams.set('state', state);
-    redirect(url.toString());
+    problem ??= { error, description };
   };
+  const deliverError = (p: Problem) => {
+    if (redirectIsTrusted(redirectUri)) {
+      const url = new URL(redirectUri);
+      url.searchParams.set('error', p.error);
+      url.searchParams.set('error_description', p.description);
+      url.searchParams.set('iss', issuer());
+      if (state) url.searchParams.set('state', state);
+      redirect(url.toString());
+    }
+    return (
+      <Refusal
+        title="This connection request could not be completed"
+        detail={`${p.description} (${p.error}) We send a browser on to an application automatically only at addresses we know, and ${new URL(redirectUri).hostname} is not one of them, so the answer is shown here.`}
+      />
+    );
+  };
+
+  // Every parameter but `resource` may appear once; `resource` may repeat
+  // (RFC 8707 section 2), and every value is checked below.
+  const repeated = repeatedParam(params);
+  if (repeated) bounce('invalid_request', `${repeated} may appear only once.`);
 
   if (responseType !== 'code') {
     bounce(
@@ -195,7 +218,7 @@ export default async function AuthorizePage({
       'code_challenge_method must be S256. The plain method is not accepted.'
     );
   }
-  if (resource && !sameResource(resource, mcpResource())) {
+  if (!resourcesAreOurs(params.resource, mcpResource())) {
     bounce(
       'invalid_target',
       `This server issues tokens for ${mcpResource()} only.`
@@ -241,6 +264,8 @@ export default async function AuthorizePage({
     );
   }
 
+  if (problem) return deliverError(problem);
+
   const id = await createAuthorizationRequest({
     clientId,
     redirectUri,
@@ -250,10 +275,11 @@ export default async function AuthorizePage({
     state,
   });
   if (!id) {
-    bounce(
-      'server_error',
-      'The authorization request could not be recorded. Try again.'
-    );
+    return deliverError({
+      error: 'server_error',
+      description:
+        'The authorization request could not be recorded. Try again.',
+    });
   }
 
   redirect(`/oauth/authorize?req=${id}`);
@@ -280,6 +306,26 @@ async function renderConsent(requestId: string) {
     );
   }
 
+  // Checked again before anything is shown: a metadata document can change
+  // in the half hour a request waits, and the POST refuses that case anyway.
+  if (!redirectUriAllowed(pending.redirectUri, client.redirectUris)) {
+    return (
+      <Refusal
+        title="That reply address does not belong to this application"
+        detail="The address this request asked us to send the result to is not one the application published. That is what a stolen authorization code looks like, so nothing was issued."
+      />
+    );
+  }
+  const view = consentView(client, pending.redirectUri);
+  if (!view) {
+    return (
+      <Refusal
+        title="That reply address could not be read"
+        detail="The address this request asked us to send the result to is not a valid URL, so nothing was issued."
+      />
+    );
+  }
+
   const sessionToken = (await cookies()).get(SESSION_COOKIE_NAME)?.value;
   const session = sessionToken ? await validateSession(sessionToken) : null;
 
@@ -287,9 +333,7 @@ async function renderConsent(requestId: string) {
     <PageShell>
       <ConsentScreen
         requestId={requestId}
-        displayHost={client.displayHost}
-        claimedName={client.claimedName}
-        verified={client.isCimd}
+        {...view}
         email={session?.user?.email ?? null}
         keepsAccess={pending.scope.split(' ').includes(OFFLINE_SCOPE)}
       />
