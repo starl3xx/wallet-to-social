@@ -4453,6 +4453,149 @@ async function main() {
     );
   }
 
+  // ----------------------------------- OAuth: a refresh is one statement, bound
+  // A refresh used to rotate, retire and mint in three statements. A mint that
+  // failed after the rotation committed left the client holding the "previous"
+  // token, and its retry revoked the connection. The rotation and the mint are
+  // one statement now, and the refresh is bound to its client and resource
+  // before anything is spent or revoked.
+  {
+    const grants = withoutComments(readFileSync('lib/oauth/grants.ts', 'utf8'));
+    const rotateFn = grants.slice(
+      grants.indexOf('async function rotateAndMint'),
+      grants.indexOf('export async function refreshGrant')
+    );
+    const templates = [...rotateFn.matchAll(/sql`([\s\S]*?)`/g)].map(
+      (m) => m[1]
+    );
+    ok(
+      'the rotation and the access-token mint are one statement, so a failed mint cannot burn the refresh token',
+      templates.some(
+        (t) =>
+          t.includes('UPDATE oauth_grants') &&
+          t.includes('INSERT INTO api_keys')
+      )
+    );
+    const rotateSql =
+      templates.find((t) => t.includes('UPDATE oauth_grants')) ?? '';
+    ok(
+      'old access tokens are retired only for the grant this statement rotated',
+      rotateSql.includes('WHERE oauth_grant_id IN (SELECT id FROM rotated)')
+    );
+    ok(
+      'the rotation re-checks the client inside the statement, so the binding holds under a race',
+      /IS NULL OR client_id = \$\{input\.clientId\}/.test(rotateSql)
+    );
+    ok(
+      'no JS Date crosses into the rotation; Postgres keeps the clock',
+      !/new Date\(|Date\.now\(\)/.test(rotateFn) &&
+        rotateSql.includes('now() + make_interval')
+    );
+    ok(
+      'the rotation aliases need no quoting (a folded camelCase alias reads undefined)',
+      !/\bAS\s+[a-z]+[A-Z]\w*/.test(rotateSql)
+    );
+
+    const refresh = grants.slice(
+      grants.indexOf('export async function refreshGrant'),
+      grants.indexOf('export async function revokeGrant')
+    );
+    ok(
+      'refreshGrant no longer rotates or mints in separate statements',
+      !/\.update\(oauthGrants\)/.test(refresh) &&
+        !refresh.includes('mintAccessToken(') &&
+        refresh.includes('await rotateAndMint(')
+    );
+    const at = (needle: string) => refresh.indexOf(needle);
+    for (const [what, needle] of [
+      ['the client binding', 'input.clientId !== row.clientId'],
+      ['the grant resource', 'isOurResource(row.resource)'],
+      ['the requested resource', 'sameResource(input.resource'],
+    ] as const) {
+      ok(
+        `${what} is checked before anything is spent or revoked`,
+        at(needle) !== -1 &&
+          at(needle) < at('await rotateAndMint(') &&
+          at(needle) < at('revokeGrant(')
+      );
+    }
+    ok(
+      'a refresh without client_id is still accepted (OAuth 2.1 section 3.2.2), which hosted Claude may rely on',
+      refresh.includes(
+        'input.clientId !== null && input.clientId !== row.clientId'
+      )
+    );
+    ok(
+      'a wrong client is refused without revoking anything',
+      /return \{ ok: false, reason: 'wrong_client' \}/.test(refresh) &&
+        !/wrong_client[\s\S]{0,120}revokeGrant/.test(refresh)
+    );
+
+    const token = withoutComments(
+      readFileSync('app/api/oauth/token/route.ts', 'utf8')
+    );
+    const exchange = token.slice(
+      token.indexOf('async function exchangeRefresh')
+    );
+    ok(
+      'the refresh passes client_id and resource to the grant',
+      exchange.includes("clientId: form.get('client_id')") &&
+        exchange.includes("resource: form.get('resource')")
+    );
+    ok(
+      'a failure inside a refresh answers temporarily_unavailable with a 503, not a bare 500',
+      /catch \{[\s\S]{0,300}?'temporarily_unavailable'[\s\S]{0,200}?status: 503/.test(
+        exchange
+      )
+    );
+    ok(
+      'a request naming another resource answers invalid_target',
+      /result\.reason === 'wrong_resource'\) \{\s*return oauthError\(\s*'invalid_target'/.test(
+        exchange
+      )
+    );
+    ok(
+      'a grant made for another server answers invalid_grant, so a client starts over instead of looping',
+      exchange.includes("result.reason === 'wrong_grant_resource'") &&
+        !/wrong_grant_resource'\) \{\s*return oauthError\(\s*'invalid_target'/.test(
+          exchange
+        )
+    );
+
+    const validate = grants.slice(
+      grants.indexOf('export async function validateAccessToken'),
+      grants.indexOf('export async function listGrants')
+    );
+    ok(
+      'the MCP gate reads the grant resource and refuses a token for another server before calling it valid',
+      validate.includes('resource: oauthGrants.resource') &&
+        validate.indexOf('isOurResource(row.resource)') !== -1 &&
+        validate.indexOf('isOurResource(row.resource)') <
+          validate.lastIndexOf('return { ok: true')
+    );
+
+    const { sameResource, isOurResource } = await import('@/lib/oauth/params');
+    const ours = 'https://walletlink.social/api/mcp';
+    ok(
+      'sameResource tolerates a trailing slash, host case and the default port',
+      sameResource(`${ours}/`, ours) &&
+        sameResource('https://WALLETLINK.social/api/mcp', ours) &&
+        sameResource('https://walletlink.social:443/api/mcp', ours)
+    );
+    for (const r of [
+      'https://www.walletlink.social/api/mcp',
+      'https://wallet-to-social-git-x.vercel.app/api/mcp',
+      'https://walletlink.social/api/mcp-evil',
+      'https://walletlink.social/v1',
+      'http://walletlink.social/api/mcp',
+      'https://walletlink.social/api/mcp#frag',
+      'not a url',
+    ]) {
+      ok(`sameResource refuses ${r}`, !sameResource(r, ours));
+    }
+    ok('a grant with no resource is not ours', !isOurResource(null));
+  }
+
   // --------------------------------------------- OAuth: the exchange ordering
   // The first version of the token endpoint consumed the code and validated
   // afterwards. A single attempt with a wrong verifier therefore burned the

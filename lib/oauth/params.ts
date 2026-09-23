@@ -2,6 +2,7 @@
  * Rules for the parameters of an authorization request that are easier to
  * test as plain functions than inside the page that applies them.
  */
+import { mcpResource } from '@/lib/oauth/metadata';
 
 /**
  * Parameters that may appear once (OAuth 2.1 section 3.1). `client_id` and
@@ -36,6 +37,8 @@ export function sameResource(requested: string, ours: string): boolean {
     const a = new URL(requested);
     const b = new URL(ours);
     return (
+      // RFC 8707 section 2: a resource MUST NOT carry a fragment.
+      !a.hash &&
       a.protocol === b.protocol &&
       a.host.toLowerCase() === b.host.toLowerCase() &&
       a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '')
@@ -62,4 +65,9 @@ export function resourcesAreOurs(
         ? requested
         : [requested];
   return values.every((r) => sameResource(r, ours));
+}
+
+/** Whether a resource is this server's MCP endpoint, by the same comparison. */
+export function isOurResource(resource: string | null): boolean {
+  return resource !== null && sameResource(resource, mcpResource());
 }

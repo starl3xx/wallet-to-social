@@ -50,6 +50,12 @@ consent page instead, and the client should stop waiting when the person
 closes it. Repeated OAuth parameters are refused, except `resource`, which may
 repeat as long as every value is this server.
 
+A refresh must come from the client the connection was made with: send the same
+`client_id`, or none. A `resource` on a refresh must name this server. If the
+token service is briefly unavailable it answers `503` with
+`temporarily_unavailable` and `Retry-After`; retry the refresh with the same
+refresh token.
+
 <Note>
   A connection can spend match credits, so it is worth knowing what it can
   reach. It can resolve wallets in both directions, run a background job, and

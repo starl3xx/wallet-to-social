@@ -51,6 +51,7 @@ import { hashApiKey } from '@/lib/api-keys';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
 import { sha256 } from '@/lib/oauth/requests';
 import { MCP_SCOPE, OFFLINE_SCOPE } from '@/lib/oauth/metadata';
+import { isOurResource, sameResource } from '@/lib/oauth/params';
 
 /**
  * The access-token prefix, distinct from `wts_live_` on purpose.
@@ -269,7 +270,79 @@ async function pruneGrants(userId: string): Promise<void> {
 
 export type RefreshResult =
   | { ok: true; tokens: IssuedTokens }
-  | { ok: false; reason: 'invalid' | 'expired' | 'reused' };
+  | {
+      ok: false;
+      reason:
+        | 'invalid'
+        | 'expired'
+        | 'reused'
+        | 'wrong_client'
+        | 'wrong_grant_resource'
+        | 'wrong_resource';
+    };
+
+/**
+ * Rotate a refresh token and mint its access token in ONE statement.
+ *
+ * They used to be three: rotate the hash, retire the old access tokens, mint
+ * the new one. On neon-http each is its own transaction, so a mint that failed
+ * after the rotation committed left the client holding a refresh token that
+ * was now the "previous" one, and its retry was read as a reuse and revoked
+ * the whole connection. One data-modifying statement is atomic: a failed mint
+ * rolls the rotation back. Its sub-statements share one snapshot, so
+ * `retired` cannot see the row `minted` inserts. The same shape as
+ * `revokeAllAndReissueKey` in lib/api-keys.ts.
+ *
+ * Times come from Postgres (`now()` plus numeric seconds), never a JS Date
+ * parameter, and the aliases are snake_case so none needs quoting.
+ */
+async function rotateAndMint(input: {
+  hash: string;
+  nextHash: string;
+  clientId: string | null;
+  accessHash: string;
+  accessPrefix: string;
+}): Promise<{
+  grant_id: string;
+  scope: string;
+  minted_id: string | null;
+} | null> {
+  const db = getDb();
+  if (!db) return null;
+  const refreshTtlS = Math.floor(REFRESH_TOKEN_TTL_MS / 1000);
+  const accessTtlS = Math.floor(ACCESS_TOKEN_TTL_MS / 1000);
+  const result = (await db.execute(sql`
+    WITH rotated AS (
+      UPDATE oauth_grants
+      SET refresh_token_hash = ${input.nextHash},
+          previous_refresh_token_hash = ${input.hash},
+          refresh_expires_at = now() + make_interval(secs => ${refreshTtlS}),
+          last_used_at = now()
+      WHERE refresh_token_hash = ${input.hash}
+        AND revoked_at IS NULL
+        AND refresh_expires_at > now()
+        AND (${input.clientId}::text IS NULL OR client_id = ${input.clientId})
+      RETURNING id, user_id, client_label, scope
+    ),
+    retired AS (
+      UPDATE api_keys
+      SET is_active = false, revoked_at = now()
+      WHERE oauth_grant_id IN (SELECT id FROM rotated) AND revoked_at IS NULL
+    ),
+    minted AS (
+      INSERT INTO api_keys (key, key_prefix, name, user_id, plan, expires_at, oauth_grant_id)
+      SELECT ${input.accessHash}, ${input.accessPrefix}, client_label, user_id,
+             ${CREDIT_API_PLAN}, now() + make_interval(secs => ${accessTtlS}), id
+      FROM rotated
+      RETURNING id
+    )
+    SELECT r.id AS grant_id, r.scope, (SELECT id FROM minted) AS minted_id
+    FROM rotated r
+  `)) as unknown as {
+    rows: Array<{ grant_id: string; scope: string; minted_id: string | null }>;
+  };
+  return result.rows[0] ?? null;
+}
 
 /**
  * Exchange a refresh token for a new pair, rotating the refresh token.
@@ -281,69 +354,90 @@ export type RefreshResult =
  * successor. That case revokes the grant rather than returning an error, which
  * is what the specification asks for and is the only reason to keep the column.
  *
- * The rotation is a conditional UPDATE on the current hash, so two clients
- * racing with the same token produce one winner; the loser's second attempt
- * then matches the previous hash and is correctly read as a reuse.
+ * ## Bindings, checked before anything is spent or revoked
+ *
+ * A refresh token belongs to one client and one resource (OAuth 2.1 section
+ * 4.3.1; RFC 9700 section 4.14.2). A `client_id` that disagrees is refused
+ * without revoking: whoever holds the token could send the right id anyway,
+ * so revoking adds no protection and would let a probe end a live connection.
+ * An absent `client_id` is accepted (OAuth 2.1 section 3.2.2 makes it
+ * optional for this request). A grant made for some other server answers
+ * `invalid_grant`, so the client starts over; a request naming a different
+ * resource for a good grant answers `invalid_target`.
  */
-export async function refreshGrant(
-  refreshToken: string
-): Promise<RefreshResult> {
+export async function refreshGrant(input: {
+  refreshToken: string;
+  clientId: string | null;
+  resource: string | null;
+}): Promise<RefreshResult> {
   const db = getDb();
   if (!db) return { ok: false, reason: 'invalid' };
-  const hash = sha256(refreshToken);
-  const next = newToken(REFRESH_TOKEN_PREFIX);
+  const hash = sha256(input.refreshToken);
 
-  const rotated = await db
-    .update(oauthGrants)
-    .set({
-      refreshTokenHash: sha256(next),
-      previousRefreshTokenHash: hash,
-      refreshExpiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
-      lastUsedAt: new Date(),
-    })
+  const [row] = await db
+    .select()
+    .from(oauthGrants)
     .where(
-      and(
-        eq(oauthGrants.refreshTokenHash, hash),
-        isNull(oauthGrants.revokedAt),
-        sql`${oauthGrants.refreshExpiresAt} > now()`
-      )
+      sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash}`
     )
-    .returning();
+    .limit(1);
+  if (!row) return { ok: false, reason: 'invalid' };
 
-  if (rotated.length === 1) {
-    const grant = rotated[0];
-    await revokeAccessTokens(grant.id);
-    const access = await mintAccessToken(grant);
-    if (!access) return { ok: false, reason: 'invalid' };
+  if (input.clientId !== null && input.clientId !== row.clientId) {
+    return { ok: false, reason: 'wrong_client' };
+  }
+  if (!isOurResource(row.resource)) {
+    return { ok: false, reason: 'wrong_grant_resource' };
+  }
+  if (input.resource !== null && !sameResource(input.resource, row.resource!)) {
+    return { ok: false, reason: 'wrong_resource' };
+  }
+
+  const next = newToken(REFRESH_TOKEN_PREFIX);
+  const access = newToken(ACCESS_TOKEN_PREFIX);
+  const rotated = await rotateAndMint({
+    hash,
+    nextHash: sha256(next),
+    clientId: input.clientId,
+    accessHash: hashApiKey(access),
+    accessPrefix: access.slice(0, 12),
+  });
+
+  if (rotated) {
+    if (!rotated.minted_id) throw new Error('refresh minted no access token');
     return {
       ok: true,
       tokens: {
-        accessToken: access.token,
-        expiresIn: access.expiresIn,
+        accessToken: access,
+        expiresIn: Math.floor(ACCESS_TOKEN_TTL_MS / 1000),
         refreshToken: next,
-        scope: grant.scope,
+        scope: rotated.scope,
       },
     };
   }
 
+  /**
+   * Nothing rotated. Classified from a FRESH read, not the pre-read above: a
+   * concurrent refresh may have rotated in between. The semantics are the
+   * ones this function always had. Presenting the previous token is read as a
+   * reuse and revokes the grant; a short grace for concurrent refreshes is a
+   * separate change (STA-39, PR B2).
+   */
   const [reused] = await db
     .select()
     .from(oauthGrants)
     .where(eq(oauthGrants.previousRefreshTokenHash, hash))
     .limit(1);
-
   if (reused) {
     await revokeGrant(reused.id, 'refresh token reused');
     return { ok: false, reason: 'reused' };
   }
-
   const [stale] = await db
     .select()
     .from(oauthGrants)
     .where(eq(oauthGrants.refreshTokenHash, hash))
     .limit(1);
   if (stale) return { ok: false, reason: 'expired' };
-
   return { ok: false, reason: 'invalid' };
 }
 
@@ -367,7 +461,7 @@ export function looksLikeAccessToken(raw: string): boolean {
 
 export type AccessTokenCheck =
   | { ok: true; scope: string }
-  | { ok: false; reason: 'unknown' | 'expired' | 'revoked' };
+  | { ok: false; reason: 'unknown' | 'expired' | 'revoked' | 'audience' };
 
 /**
  * Validate an OAuth access token, at the MCP boundary, before the MCP layer
@@ -403,6 +497,7 @@ export async function validateAccessToken(
       keyExpiresAt: apiKeys.expiresAt,
       grantRevokedAt: oauthGrants.revokedAt,
       scope: oauthGrants.scope,
+      resource: oauthGrants.resource,
     })
     .from(apiKeys)
     .innerJoin(oauthGrants, eq(apiKeys.oauthGrantId, oauthGrants.id))
@@ -415,6 +510,12 @@ export async function validateAccessToken(
   }
   if (row.keyExpiresAt && row.keyExpiresAt.getTime() <= Date.now()) {
     return { ok: false, reason: 'expired' };
+  }
+  // The MCP authorization spec: a server MUST validate that an access token
+  // was issued for it. A grant made for another deployment's resource is not
+  // a token for this one.
+  if (!isOurResource(row.resource)) {
+    return { ok: false, reason: 'audience' };
   }
   return { ok: true, scope: row.scope };
 }

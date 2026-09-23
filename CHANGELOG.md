@@ -2,6 +2,29 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-23 (a refresh is one statement, and bound to its client)
+
+- **Refreshing a connection rotates the refresh token and mints the access
+  token in one statement.** They were three, and a mint that failed after the
+  rotation committed left the client holding the replaced token, so its retry
+  was read as a reuse and revoked the connection. A failed mint now rolls the
+  rotation back. Checked against a real Postgres engine (PGlite): a forced
+  mint failure leaves the old refresh token current and the old access token
+  live.
+- **A database failure during a refresh answers 503 `temporarily_unavailable`
+  with `Retry-After`,** not a bare 500, which the MCP SDK read as a reason to
+  start consent over.
+- **A refresh is bound to its client and resource** (OAuth 2.1 section 4.3.1,
+  RFC 9700 section 4.14.2). A `client_id` that disagrees is refused without
+  revoking; an absent one is still accepted. A request naming another
+  `resource` answers `invalid_target`; a grant made for another server answers
+  `invalid_grant`, so a client starts over instead of looping.
+- **The MCP gate refuses an access token issued for another server** (the MCP
+  authorization spec: a server MUST validate that a token was issued for it).
+  The one live connection's resource was checked first and passes.
+- A resource with a fragment is refused (RFC 8707 section 2).
+- Tests: 25 new invariants and 11 new guard mutations.
+
 ### 2026-09-23 (the consent screen names where the reply goes)
 
 - **The OAuth consent screen now names the host of the redirect in the

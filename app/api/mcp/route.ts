@@ -1006,9 +1006,11 @@ async function gate(
     'invalid_token',
     check.reason === 'expired'
       ? 'This access token has expired. Refresh it.'
-      : check.reason === 'revoked'
-        ? 'This connection was revoked. Connect again.'
-        : 'This access token is not recognized.'
+      : check.reason === 'audience'
+        ? 'This access token was issued for a different server. Connect again.'
+        : check.reason === 'revoked'
+          ? 'This connection was revoked. Connect again.'
+          : 'This access token is not recognized.'
   );
 }
 
