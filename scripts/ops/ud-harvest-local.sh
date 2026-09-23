@@ -22,8 +22,10 @@
 #
 # Credentials come from ~/.config/walletlink/ud-harvest.env (DATABASE_URL,
 # optional ALCHEMY_KEY), never from .env.local: .env.local connects as the
-# owner role, and a scheduled job gets the role the workflows used,
-# sweep_runner, which can write the three ingest tables and nothing else.
+# owner role. The agents connect as ud_harvester, which can read and write
+# the three tables the ingest touches (social_graph, handle_conflicts,
+# ingest_state) and nothing else; scripts/migrate-create-ud-harvester.ts
+# creates it and writes its URL into the env file.
 #
 # The whole body is one function, so bash has parsed all of it before
 # `git checkout` can rewrite this file underneath the running shell.
@@ -83,7 +85,7 @@ main() {
     return 1
   fi
   if [ "$user" = "neondb_owner" ]; then
-    fail "DATABASE_URL connects as neondb_owner; use the sweep_runner connection"
+    fail "DATABASE_URL connects as neondb_owner; use ud_harvester (scripts/migrate-create-ud-harvester.ts)"
     return 1
   fi
 
