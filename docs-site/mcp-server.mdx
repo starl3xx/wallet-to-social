@@ -193,6 +193,13 @@ completes, at the same price as resolving. `walletlink_job_status` polls it for
 free on both meters and shows the first 100 result rows; the full set is one
 free REST call away on the same key.
 
+**The tools that spend credits ask first.** `walletlink_resolve_wallets`, both
+reverse lookups and `walletlink_submit_job` are marked as not read-only, so a
+client such as Claude asks you before each call. The four free tools are
+marked read-only and can run without asking. None of the tools deletes
+anything, and all but `walletlink_submit_job` answer from walletlink's own
+index.
+
 ## It is the same meter
 
 The tools carry your key into the same handlers the REST API uses, so nothing
