@@ -2,6 +2,15 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-23 (the owner-attested share is over 99.8%, not over 99.9%)
+
+- **The published floor moves from "over 99.9%" to "over 99.8%"** in the 13
+  places `check-published-figures` guards, plus the two unguarded copies
+  (`.agents/product-marketing.md`, `docs/SEO-STRATEGY.md`). The live share of
+  X matches with an owner-attested route is 99.8975% (1,195,270 of
+  1,196,497), so "over 99.9%" had become false by a hair. Nothing changed in
+  the code: the index moved, and the check caught it on an unrelated PR.
+
 ### 2026-09-23 (the UD harvest gets its own database role)
 
 - **The Mac agents connect as a new role, `ud_harvester`, not

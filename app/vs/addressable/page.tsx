@@ -551,7 +551,7 @@ export default function AddressableComparison() {
               -wallet index covering the complete Farcaster protocol.
               Addressable advertises 23M+ matched wallet owners on
               addressable.io, read 7 September 2026, built with probabilistic
-              &ldquo;fingerprinting&rdquo;; we never fingerprint. Over 99.9% of
+              &ldquo;fingerprinting&rdquo;; we never fingerprint. Over 99.8% of
               our X matches are links the wallet owner created themselves, and
               every match is labeled with the evidence behind it.
             </p>

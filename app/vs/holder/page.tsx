@@ -390,7 +390,7 @@ export default function HolderComparison() {
             </ol>
             <p className="text-muted-foreground">
               Lookups are backed by an index of {INDEXED_WALLETS} wallets with
-              complete Farcaster protocol coverage, refreshed daily. Over 99.9%
+              complete Farcaster protocol coverage, refreshed daily. Over 99.8%
               of X matches are user-attested (links the wallet owner created
               themselves, such as a verified Farcaster account or an onchain ENS
               record), and every match carries the evidence behind it. Export

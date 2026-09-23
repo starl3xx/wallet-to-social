@@ -55,7 +55,7 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 **Key differentiators:**
 
 - Complete Farcaster coverage: every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information.
-- Attested-first X handles: over 99.9% published by the account owner (Farcaster verification or onchain ENS record), labelled always, never inferred from bios or timing.
+- Attested-first X handles: over 99.8% published by the account owner (Farcaster verification or onchain ENS record), labeled always, never inferred from bios or timing.
 - Reachability on every match: of 448,069 X handles resolved, 69.6% are live, 20.6% suspended, 9.7% names nobody holds. Each match says which.
 - Honest two-number coverage: any-identity vs X-or-Farcaster, stated per chain (Base 46.2%, Ethereum 16.6%; typical tools publish low single digits).
 - Reverse lookup: handle to wallets, the question most wallet tooling cannot answer.

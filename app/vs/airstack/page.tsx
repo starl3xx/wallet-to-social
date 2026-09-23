@@ -364,7 +364,7 @@ export default function AirstackComparison() {
               over a simple REST API. Our index covers {INDEXED_WALLETS} wallets
               with complete Farcaster protocol coverage: every account’s
               verified and custody addresses, usernames, and follower counts,
-              refreshed daily. Over 99.9% of X matches are user-attested, most
+              refreshed daily. Over 99.8% of X matches are user-attested, most
               through an X account verified on Farcaster and the rest through
               onchain ENS records.
             </p>
