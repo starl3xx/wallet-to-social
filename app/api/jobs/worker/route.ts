@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getNextPendingJobs, processJobChunk } from '@/lib/job-processor';
 
 export const runtime = 'nodejs';
-export const maxDuration = 300; // 5 minutes max per invocation
+// 5 minutes max per invocation. Below LEASE_SECONDS in lib/job-processor.ts,
+// which is what lets a lease that has run out be taken as abandoned.
+export const maxDuration = 300;
 
 // Process up to 5 jobs in parallel to clear queue faster
 const PARALLEL_JOB_LIMIT = 5;
@@ -25,6 +27,13 @@ const MAX_WALLETS_IN_FLIGHT = 2500;
 /**
  * Cron worker endpoint - called by Vercel Cron every minute.
  * Processes multiple jobs in parallel for faster queue clearing.
+ *
+ * The only lookup pipeline since STA-44: every job runs here, one slice per
+ * job per tick, after a first slice the submit route kicks. Vercel can start
+ * the next tick while this one still runs, which is safe because
+ * `processJobChunk` claims each job with a lease; the candidate read skips
+ * held jobs, and a job claimed between that read and the claim comes back
+ * `busy` without being worked.
  */
 export async function POST(request: NextRequest) {
   try {

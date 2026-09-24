@@ -2796,11 +2796,11 @@ async function main() {
        * input was unavailable at the only moment anybody read it. A product
        * sold on X reach ranked on Farcaster reach alone.
        *
-       * Asserted through the real function, and on both workers, because
-       * `inngest/functions/wallet-lookup.ts` states the rule itself: the two
-       * pipelines have diverged once already, so a change to one is made to
-       * both. An API caller and a web caller must not get different scores
-       * for one wallet.
+       * Asserted through the real function, and on the worker, which is the
+       * only lookup pipeline since STA-44. There were two, and the second
+       * stated the rule itself, so an API caller and a web caller could get
+       * different scores for one wallet; that is now a structural refusal
+       * (the one-pipeline block below) rather than a list of mirrored lines.
        */
       {
         const { calculatePriorityScore, PRIORITY_EXPLANATION } =
@@ -2836,113 +2836,13 @@ async function main() {
           /Farcaster and X/.test(PRIORITY_EXPLANATION)
         );
 
-        for (const worker of [
-          'lib/job-processor.ts',
-          'inngest/functions/wallet-lookup.ts',
-        ]) {
+        {
+          const worker = 'lib/job-processor.ts';
           const src = withoutComments(readFileSync(worker, 'utf8'));
           ok(
             `${worker} scores from X followers as well as Farcaster`,
             /x_followers\s*\n?\s*\)/.test(src)
           );
-          if (worker.startsWith('inngest/')) {
-            ok(
-              'the API pipeline strips the same paid fields the app does',
-              /**
-               * The half that reached a customer.
-               * `docs-site/api-reference/jobs.mdx` says a job run on the free
-               * allowance reports `farcaster.followers` as null, "the same as
-               * a free lookup in the app", and
-               * `app/api/v1/jobs/[id]/route.ts` serves `r.fc_followers ?? null`
-               * with no gate of its own. This pipeline had no paid-field
-               * handling at all, so that published sentence was false: a
-               * free-allowance job reported the real number.
-               *
-               * `options.paidData` was always correct here. The submit route
-               * derives it exactly as the web route does; the worker simply
-               * never read it.
-               */
-              /r\.fc_followers = undefined;/.test(src) &&
-                /r\.x_followers = undefined;/.test(src)
-            );
-            ok(
-              'and a free job keeps no score derived from fields it cannot see',
-              // `priority_score` is computed from both follower counts, so
-              // leaving it on a stripped row hands back a function of the
-              // fields just removed. The app has always stripped it; this
-              // pipeline never did.
-              /priority_score = paid/.test(src) && /: undefined;/.test(src)
-            );
-            ok(
-              'both delta applies survive a step memoised before the delta existed',
-              /**
-               * Inngest memoises by step id. A run that completed either step
-               * under the previous code has `undefined` recorded against it,
-               * so a replay landing on a build that iterates the result would
-               * throw and fail the job outright: a worse outcome than either
-               * defect these deltas were added to fix, and one that only
-               * appears in the window around a deploy.
-               *
-               * Asserted on both, because they were introduced in separate
-               * changes and only the second one was reviewed for it.
-               */
-              /for \(const d of enriched \?\? \[\]\)/.test(src) &&
-                /for \(const d of scored \?\? \[\]\)/.test(src)
-            );
-            ok(
-              'the Inngest enrichment step returns a delta too, so a replay keeps it',
-              /**
-               * The last instance of the same shape in this file. It mutated
-               * `resultsMap` in place and returned nothing, so every retry of
-               * a later step dropped the graph enrichment: a replayed job came
-               * back with fewer identities and with `twitter_verified` and
-               * `farcaster_verified` unset, blanking the attested marking.
-               *
-               * It billed correctly throughout, because `chargeForJob` counts
-               * the same degraded map in `finalize`. The customer got less and
-               * paid less, so no number disagreed with another and nothing
-               * caught it.
-               *
-               * The delta is DIFFED against a snapshot rather than written
-               * branch by branch, because the fill rules are order-dependent:
-               * the verification copy reads the handle the fill above may have
-               * just set. A hand-written delta would restate that order and
-               * could drift from it.
-               */
-              /const enriched = await step\.run\('enrich-social-graph'/.test(
-                src
-              ) &&
-                /return deltas;/.test(src) &&
-                /Object\.assign\(row, d\)/.test(src) &&
-                // The diff, not a restatement of the branches.
-                /result\[key\] !== before\[key\]/.test(src)
-            );
-            ok(
-              'the Inngest scoring step returns a bounded delta, not rows and not nothing',
-              /**
-               * `step.run` memoises its RESULT. On a replay the callback does
-               * not execute, so a step that mutates `resultsMap` in place and
-               * returns nothing does nothing on the second pass, and
-               * `finalize` persists the pre-stamp map: no `x_followers` and a
-               * score that still ignores X reach.
-               *
-               * The file's own working steps return data and rebuild the map
-               * outside (`build-initial-results`, `check-cache`), so this
-               * asserts that shape rather than the absence of the broken one.
-               */
-              /const scored = await step\.run\('calculate-scores'/.test(src) &&
-                // A DELTA, not the rows. Returning whole rows is replay-safe
-                // and can exceed the 4MiB step-result cap on a large job,
-                // after every lookup has already succeeded; returning nothing
-                // is small and does nothing on a replay. The four values this
-                // step creates satisfy both.
-                /return all\.map\(\(r\) => \(\{/.test(src) &&
-                /priority_score: r\.priority_score,/.test(src) &&
-                !/return all;/.test(src) &&
-                /resultsMap\.get\(d\.wallet\)/.test(src)
-            );
-          }
-
           ok(
             `${worker} stamps reachability before it scores`,
             // `x_followers` is produced by the stamp. Scoring first reads a
@@ -6761,9 +6661,9 @@ async function main() {
      *
      * The first version of this assertion named `lib/job-processor.ts` and
      * checked only that. Review found a second copy of the same pipeline in
-     * `inngest/functions/wallet-lookup.ts`, with the same bug in two more
+     * the Inngest function (retired by STA-44), with the same bug in two more
      * object literals, on the path that every upload above the inline
-     * threshold takes. So the fix was in the less used branch and the
+     * threshold took. So the fix was in the less used branch and the
      * assertion agreed with it.
      *
      * It discovers the sites now rather than naming them. A third copy of the
@@ -6787,8 +6687,8 @@ async function main() {
       .filter(Boolean);
 
     ok(
-      `at least two pipelines spread walletData, and all were found (${writers.length})`,
-      writers.length >= 2
+      `the worker is among the files that spread walletData (${writers.length} found)`,
+      writers.includes('lib/job-processor.ts')
     );
 
     /**
@@ -9213,22 +9113,12 @@ async function main() {
      *
      * `history_saved` and `Analytics.historySaved` both existed from January
      * and neither was ever called, so the funnel step and the "History save
-     * rate" stat were structural zeros for seven months. Asserted in both
-     * pipelines, because `app/api/inngest/route.ts` registers the second one
-     * and a fix applied to only the first leaves it running the old behaviour.
+     * rate" stat were structural zeros for seven months. The worker is the
+     * only pipeline since STA-44, so this is the only place it can go missing.
      */
     ok(
       'the job processor emits history_saved when a save succeeds',
       /saveLookup\([\s\S]{0,400}?trackEvent\('history_saved'/.test(processor)
-    );
-    ok(
-      'the inngest pipeline emits it too',
-      // 600, not 400: the save call grew the match-gate argument, which sits
-      // between the call and the event. The assertion is proximity, not
-      // adjacency; deleting the event still fails it.
-      /saveLookup\([\s\S]{0,600}?trackEvent\('history_saved'/.test(
-        readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
-      )
     );
     ok(
       'the worker takes the session from the row, not from options',
@@ -11712,91 +11602,301 @@ async function main() {
     );
   }
 
-  // ---------------------- right-to-removal: the Inngest pipeline, too
-  // Every job over ten addresses runs in inngest/functions/wallet-lookup.ts,
-  // not the worker, and until 2026-09-24 it carried none of the three guards
-  // asserted above: a removed wallet went to every provider and was saved
-  // unscrubbed into the job and history rows. Each guard is asserted again
-  // here, by position, because a guard in the wrong place reads as complete.
+  // ------------------------------------------ one lookup pipeline (STA-44)
+  // Until 2026-09-24 every job over ten addresses was sent to an Inngest
+  // function that restated the worker's pipeline, while the cron worker
+  // picked the same job up each minute with no claim. The copy drifted from
+  // the worker in forty mapped places (billing, the match gate, suppression,
+  // fast scans, stale graph rows) and each was found and mirrored by hand, and
+  // the two raced on the job row. The worker finalized nearly every such job
+  // anyway. So there is one pipeline, and the assertions below are about
+  // structure, not about lines kept in step: nothing sends the job anywhere
+  // else, nothing registers a second pipeline, and the one pipeline cannot run
+  // a job twice at once.
   {
-    const il = withoutComments(
-      readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
-    );
-    const iflat = il.replace(/\s+/g, ' ');
+    /**
+     * Files under the code roots that contain a pattern. `grep` exits 1 when
+     * nothing matches, which here is the passing answer, not an error; any
+     * other failure still throws.
+     */
+    const filesMatching = (pattern: string): string[] => {
+      try {
+        return execFileSync(
+          'grep',
+          [
+            '-rlE',
+            '--include=*.ts',
+            '--include=*.tsx',
+            pattern,
+            'app',
+            'lib',
+            'inngest',
+            'components',
+            'src',
+          ],
+          { encoding: 'utf8' }
+        )
+          .split('\n')
+          .filter(Boolean);
+      } catch (e) {
+        if ((e as { status?: number }).status === 1) return [];
+        throw e;
+      }
+    };
 
-    const preReadIdx = iflat.indexOf(
-      "step.run( 'suppression-preflight', async () => { const sets = await loadSuppressionList();"
-    );
-    const preFilterIdx = iflat.indexOf(
-      'const activeWallets = suppressedWallets.size === 0 ? allWallets : allWallets.filter((w) => !suppressedWallets.has(w.toLowerCase()));'
-    );
-    const cacheIdx = iflat.indexOf("step.run('check-cache'");
+    // The search itself has to be able to find something, or both refusals
+    // below pass by matching nothing.
     ok(
-      'the Inngest pre-flight drops suppressed wallets before the cache read',
-      preReadIdx !== -1 &&
-        preFilterIdx !== -1 &&
-        cacheIdx !== -1 &&
-        preReadIdx < preFilterIdx &&
-        preFilterIdx < cacheIdx &&
-        iflat.includes('const suppressedWallets = new Set(suppressedInJob);')
-    );
-    ok(
-      'and every Inngest reader takes the filtered list, never the raw one',
-      iflat.includes('getCachedWallets(activeWallets)') &&
-        iflat.includes('const uncached = activeWallets.filter(') &&
-        iflat.includes('getSocialGraphData(activeWallets)') &&
-        !iflat.includes('getCachedWallets(allWallets)') &&
-        !iflat.includes('getSocialGraphData(allWallets)')
-    );
-
-    const neynarApplyIdx = iflat.indexOf("[...existing.source, 'neynar']");
-    const batchScrubIdx = iflat.indexOf(
-      'batchResultsMap.set( wallet, scrubResultRow(result, suppression) );'
-    );
-    const cacheWriteIdx = iflat.indexOf(
-      'await cacheWalletResults(newResults);'
-    );
-    const batchCountIdx = iflat.indexOf('let batchTwitter = 0;');
-    ok(
-      'the Inngest batch scrub runs after the provider merge and before the cache write and the counts',
-      neynarApplyIdx !== -1 &&
-        batchScrubIdx !== -1 &&
-        cacheWriteIdx !== -1 &&
-        batchCountIdx !== -1 &&
-        neynarApplyIdx < batchScrubIdx &&
-        batchScrubIdx < cacheWriteIdx &&
-        batchScrubIdx < batchCountIdx
+      'the code search finds the worker it is meant to search',
+      filesMatching('processJobChunk\\(').includes('lib/job-processor.ts')
     );
 
-    const finalizeIdx = iflat.indexOf("step.run('finalize'");
-    const finalReadIdx = iflat.indexOf(
-      'await loadSuppressionList()',
-      finalizeIdx
-    );
-    const finalScrubIdx = iflat.indexOf(
-      'allResults[i] = scrubResultRow(allResults[i], suppression);'
-    );
-    const finalCountIdx = iflat.indexOf(
-      'if (result.twitter_handle || result.farcaster) anySocialFound++;'
-    );
-    const chargeIdx = iflat.indexOf('await chargeForJob(');
-    const saveIdx = iflat.indexOf('await saveLookup(');
-    const graphWriteIdx = iflat.indexOf('await upsertSocialGraph(');
+    const senders = filesMatching(
+      "wallet/lookup\\.requested|inngest\\.send\\(|from '@/inngest/client'"
+    ).filter((f) => f !== 'app/api/inngest/route.ts');
     ok(
-      'the Inngest finalize re-reads the list and scrubs before counting, charging and saving',
-      finalizeIdx !== -1 &&
-        finalReadIdx !== -1 &&
-        finalScrubIdx !== -1 &&
-        finalCountIdx !== -1 &&
-        chargeIdx !== -1 &&
-        saveIdx !== -1 &&
-        graphWriteIdx !== -1 &&
-        finalizeIdx < finalReadIdx &&
-        finalReadIdx < finalScrubIdx &&
-        finalScrubIdx < finalCountIdx &&
-        finalCountIdx < chargeIdx &&
-        finalScrubIdx < saveIdx &&
-        finalScrubIdx < graphWriteIdx
+      `no code sends a lookup job anywhere but the worker (${senders.join(', ') || 'none'})`,
+      senders.length === 0
+    );
+
+    const registrars = filesMatching('createFunction\\(');
+    const inngestRoute = withoutComments(
+      readFileSync('app/api/inngest/route.ts', 'utf8')
+    );
+    ok(
+      `nothing registers a second lookup pipeline (${registrars.join(', ') || 'none'})`,
+      registrars.length === 0 &&
+        /functions:\s*\[\s*\]/.test(inngestRoute) &&
+        !existsSync('inngest/functions/wallet-lookup.ts')
+    );
+
+    const jobRoute = withoutComments(
+      readFileSync('app/api/jobs/route.ts', 'utf8')
+    );
+    const v1JobRoute = withoutComments(
+      readFileSync('app/api/v1/jobs/route.ts', 'utf8')
+    );
+    for (const [name, src] of [
+      ['/api/jobs', jobRoute],
+      ['/v1/jobs', v1JobRoute],
+    ] as const) {
+      ok(
+        `${name} kicks the worker after the response for a job over the inline threshold`,
+        /after\(async \(\) => \{\s*try \{\s*await processJobChunk\(jobId\);/.test(
+          src
+        )
+      );
+    }
+
+    /**
+     * The lease outlives every holder. This is the whole safety argument for
+     * a lease that expires on its own: a holder is killed at its route's
+     * maxDuration, it claims after its invocation starts, so a lease longer
+     * than any route's duration cannot run out under a live holder. Every
+     * caller is discovered rather than listed, and a caller that declares no
+     * duration fails, because the platform default is not a number this file
+     * can read.
+     */
+    const jobProcessor = await import('@/lib/job-processor');
+    const { LEASE_SECONDS } = jobProcessor;
+    const callers = filesMatching('processJobChunk\\(').filter(
+      (f) => f !== 'lib/job-processor.ts'
+    );
+    ok(
+      `the three known callers of processJobChunk were found (${callers.length})`,
+      [
+        'app/api/jobs/route.ts',
+        'app/api/v1/jobs/route.ts',
+        'app/api/jobs/worker/route.ts',
+      ].every((f) => callers.includes(f))
+    );
+    for (const file of callers) {
+      const src = withoutComments(readFileSync(file, 'utf8'));
+      const declared = src.match(/export const maxDuration = (\d+);/);
+      ok(
+        `${file} dies before a lease it holds can run out (maxDuration ${declared?.[1] ?? 'undeclared'} < ${LEASE_SECONDS})`,
+        file.startsWith('app/') &&
+          declared !== null &&
+          Number(declared[1]) < LEASE_SECONDS
+      );
+    }
+
+    /**
+     * The claim is one conditional UPDATE, and it is what every holder goes
+     * through. Rendered through Drizzle rather than read from the source, so
+     * this reads the SQL the claim actually sends.
+     */
+    const { PgDialect } = await import('drizzle-orm/pg-core');
+    const claimSql = new PgDialect().sqlToQuery(jobProcessor.claimable());
+    const flatClaim = claimSql.sql.replace(/\s+/g, ' ');
+    ok(
+      'a live lease refuses the claim: only a lease at or past now is free',
+      flatClaim.includes('"lookup_jobs"."leased_until" <= now()') &&
+        !flatClaim.includes('"lookup_jobs"."leased_until" > now()')
+    );
+    ok(
+      'a processing job with no lease is waited out, never taken at once',
+      // NULL is free only for a job nobody has started. A `processing` row
+      // with no lease was started by a holder from before leases, which may
+      // still be running, so it waits a lease's length from its last write.
+      /"lookup_jobs"\."leased_until" IS NULL AND \( "lookup_jobs"\."status" = 'pending' OR "lookup_jobs"\."updated_at" < \(now\(\) AT TIME ZONE 'UTC'\) - make_interval\(secs => \$1\) \)/.test(
+        flatClaim
+      ) && claimSql.params[0] === LEASE_SECONDS
+    );
+
+    const processorSrc = withoutComments(
+      readFileSync('lib/job-processor.ts', 'utf8')
+    );
+    const chunkFn = processorSrc.slice(
+      processorSrc.indexOf('export async function processJobChunk('),
+      processorSrc.indexOf('function mergeGraphRow(')
+    );
+    const claimAt = chunkFn.indexOf('.update(lookupJobs)');
+    const claimCall = chunkFn.slice(
+      claimAt,
+      chunkFn.indexOf('.returning()', claimAt)
+    );
+    ok(
+      'the first write processJobChunk makes is the claim, conditional on the lease',
+      claimAt !== -1 &&
+        claimAt < chunkFn.indexOf('.select(') &&
+        claimCall.includes(
+          "inArray(lookupJobs.status, ['pending', 'processing'])"
+        ) &&
+        claimCall.includes('claimable()') &&
+        claimCall.includes(
+          'leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`'
+        )
+    );
+    ok(
+      'nothing marks a job processing except the claim',
+      (processorSrc.match(/status: 'processing'/g) ?? []).length === 1 &&
+        !/startedAt: job\.startedAt \|\| new Date\(\)/.test(processorSrc)
+    );
+
+    /**
+     * Every exit hands the lease back, and hands it back as now, never NULL.
+     * A slice that kept it would hide the job for five and a half minutes
+     * after every slice; a NULL on a `processing` row reads as a pre-lease
+     * holder and is waited out for exactly as long.
+     */
+    const setBlockWith = (marker: string): string => {
+      const at = processorSrc.indexOf(marker);
+      if (at === -1) return '';
+      const open = processorSrc.lastIndexOf('.set({', at);
+      const close = processorSrc.indexOf('})', at);
+      return open === -1 || close === -1 ? '' : processorSrc.slice(open, close);
+    };
+    for (const [exit, marker] of [
+      ['a slice that saves progress', 'processedCount: newProcessedCount,'],
+      ['a job that fails', "status: 'failed',"],
+      ['a job that completes', "status: 'completed',"],
+    ] as const) {
+      ok(
+        `${exit} hands the lease back`,
+        setBlockWith(marker).includes('leasedUntil: sql`now()`')
+      );
+    }
+    ok(
+      'no exit releases the lease to NULL',
+      !/leasedUntil:\s*null/.test(processorSrc)
+    );
+
+    const pickerFn = processorSrc.slice(
+      processorSrc.indexOf('export async function getNextPendingJobs(')
+    );
+    ok(
+      "the worker's candidate read skips jobs another invocation holds",
+      (pickerFn.match(/claimable\(\)/g) ?? []).length >= 2 &&
+        !/\.where\(eq\(lookupJobs\.status, '(pending|processing)'\)\)/.test(
+          pickerFn
+        )
+    );
+
+    /**
+     * A job the retired pipeline left part-way restarts rather than finishing
+     * short. Inngest wrote `processed_count` as a count and saved no rows
+     * before it finished, so trusting the count would resume past wallets
+     * nobody saved. Asserted through the real function.
+     */
+    const { resumeFromSavedPrefix } = jobProcessor;
+    type Job = Parameters<typeof resumeFromSavedPrefix>[0];
+    const jobRow = (over: Partial<Job>): Job =>
+      ({
+        id: 'j',
+        wallets: ['0xA1', '0xB2', '0xC3', '0xD4'],
+        processedCount: 0,
+        partialResults: null,
+        twitterFound: 0,
+        farcasterFound: 0,
+        anySocialFound: 0,
+        cacheHits: 0,
+        ...over,
+      }) as Job;
+    const leftByInngest = resumeFromSavedPrefix(
+      jobRow({
+        processedCount: 3,
+        twitterFound: 2,
+        farcasterFound: 1,
+        cacheHits: 1,
+      })
+    );
+    ok(
+      'a count with no saved rows behind it restarts at the first wallet, its counts zeroed',
+      leftByInngest.processedCount === 0 &&
+        leftByInngest.partialResults === null &&
+        leftByInngest.twitterFound === 0 &&
+        leftByInngest.farcasterFound === 0 &&
+        leftByInngest.anySocialFound === 0 &&
+        leftByInngest.cacheHits === 0
+    );
+    const mixed = resumeFromSavedPrefix(
+      jobRow({
+        processedCount: 4,
+        partialResults: [
+          { wallet: '0xa1', source: [] },
+          { wallet: '0xb2', source: [] },
+        ],
+      })
+    );
+    ok('a count past the saved rows restarts too', mixed.processedCount === 0);
+    const workerRow = jobRow({
+      processedCount: 2,
+      twitterFound: 1,
+      partialResults: [
+        { wallet: '0xa1', source: [] },
+        { wallet: '0xb2', source: [] },
+      ],
+    });
+    const repeated = jobRow({
+      wallets: ['0xA1', '0xa1', '0xB2'],
+      processedCount: 2,
+      partialResults: [{ wallet: '0xa1', source: [] }],
+    });
+    ok(
+      "the worker's own progress resumes where it stopped, a repeated address included",
+      resumeFromSavedPrefix(workerRow) === workerRow &&
+        resumeFromSavedPrefix(repeated) === repeated
+    );
+    let strippedThrew = false;
+    try {
+      // The retention sweep nulls the wallets of a job untouched for 30 days.
+      resumeFromSavedPrefix(
+        jobRow({
+          wallets: [null, null] as unknown as string[],
+          processedCount: 1,
+        })
+      );
+    } catch {
+      strippedThrew = true;
+    }
+    ok(
+      'the resume check never throws, since it runs before the failure handler',
+      !strippedThrew
+    );
+    ok(
+      'processJobChunk resumes through that check, before it reads any progress',
+      /const job = resumeFromSavedPrefix\(claimed\);\s*try \{/.test(chunkFn)
     );
   }
 
@@ -13900,10 +14000,8 @@ async function main() {
         /goodwillMatches: goodwill/.test(credits)
       );
 
-      for (const worker of [
-        'lib/job-processor.ts',
-        'inngest/functions/wallet-lookup.ts',
-      ]) {
+      {
+        const worker = 'lib/job-processor.ts';
         const src = withoutComments(readFileSync(worker, 'utf8'));
         ok(
           `${worker} gates a paid job as well as a free one`,
@@ -13966,21 +14064,14 @@ async function main() {
       ANON_MATCHES_PER_JOB < FREE_MATCHES_PER_WINDOW
     );
 
-    // Both pipelines apply it; the inngest finalize has shipped without a
-    // billing block once already.
+    // The worker applies it, and is the only pipeline (STA-44); the retired
+    // Inngest finalize shipped without a billing block once.
     const processorSrc = withoutComments(
       readFileSync('lib/job-processor.ts', 'utf8')
-    );
-    const inngestSrc = withoutComments(
-      readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
     );
     ok(
       'the worker gates anonymous jobs',
       processorSrc.includes('ANON_MATCHES_PER_JOB')
-    );
-    ok(
-      'the inngest pipeline gates anonymous jobs too',
-      inngestSrc.includes('ANON_MATCHES_PER_JOB')
     );
 
     /**
@@ -14989,39 +15080,27 @@ async function main() {
       Object.values(IP_RATE_LIMITS).every((c) => c.windowHours === 1)
     );
     /**
-     * Both delivery pipelines read the reserved gate. The Inngest half billed
-     * nothing at all once because it mirrored a type by hand instead of
-     * importing it, so this asserts the constant is no longer the value either
-     * one assigns.
+     * The delivery pipeline reads the reserved gate. The retired Inngest copy
+     * billed nothing at all once because it mirrored a type by hand instead
+     * of importing it; the worker is the only pipeline now (STA-44), so this
+     * asserts the constant is no longer the value it assigns.
      */
     const workerSrc = withoutComments(
       readFileSync('lib/job-processor.ts', 'utf8')
     );
-    const anonInngestSrc = withoutComments(
-      readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
-    );
     ok(
-      'neither pipeline hands out the flat per-job constant any more',
+      'the worker no longer hands out the flat per-job constant',
       !/matchesDelivered\s*=\s*ANON_MATCHES_PER_JOB/.test(workerSrc) &&
-        !/matchesDelivered\s*=\s*ANON_MATCHES_PER_JOB/.test(anonInngestSrc) &&
-        /matchesDelivered\s*=\s*anonGate/.test(workerSrc) &&
-        /matchesDelivered\s*=\s*anonGate/.test(anonInngestSrc)
-    );
-    ok(
-      'the Inngest pipeline imports the options type rather than copying it',
-      /import type \{[^}]*JobOptions[^}]*\} from '@\/lib\/job-processor'/.test(
-        inngestSrc
-      ) && !/^interface JobOptions/m.test(anonInngestSrc)
+        /matchesDelivered\s*=\s*anonGate/.test(workerSrc)
     );
     /**
-     * A hand-edited or stale option cannot widen the gate: both sides clamp to
-     * the per-job constant. Asserted as the refusal, because the failure would
-     * be a larger free tier that nothing bills for.
+     * A hand-edited or stale option cannot widen the gate: the worker clamps
+     * to the per-job constant. Asserted as the refusal, because the failure
+     * would be a larger free tier that nothing bills for.
      */
     ok(
       'a stored gate cannot exceed the per-job ceiling',
-      /Math\.min\(\s*ANON_MATCHES_PER_JOB/.test(workerSrc) &&
-        /Math\.min\(\s*ANON_MATCHES_PER_JOB/.test(anonInngestSrc)
+      /Math\.min\(\s*ANON_MATCHES_PER_JOB/.test(workerSrc)
     );
 
     ok(

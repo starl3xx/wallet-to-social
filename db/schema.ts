@@ -233,6 +233,17 @@ export const lookupJobs = pgTable(
      * and nobody is charged for a match they were not shown.
      */
     matchesDelivered: integer('matches_delivered'),
+
+    /**
+     * Until when one worker holds this job. Set only by the claim in
+     * `processJobChunk`, which is one conditional UPDATE, so two invocations
+     * can never work the same job at once: the web kick, the API kick and
+     * every cron tick all go through it. Handed back (set to now) on every
+     * exit, so the next tick takes the job at once; a holder that is killed
+     * simply lets it run out. See `LEASE_SECONDS` for why it cannot run out
+     * under a live holder. `scripts/migrate-job-lease.ts`.
+     */
+    leasedUntil: timestamp('leased_until', { withTimezone: true }),
   },
   (table) => [
     index('lookup_jobs_status_idx').on(table.status),

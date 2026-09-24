@@ -1,8 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { cookies } from 'next/headers';
 import { createJob, processJobChunk } from '@/lib/job-processor';
 import { getStarterWallets } from '@/lib/starter-collections';
-import { inngest } from '@/inngest/client';
 import { canSubmit, legacyTierIsUnmetered } from '@/lib/credits';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
 import { getUserAccess, incrementWalletsUsed } from '@/lib/access';
@@ -22,6 +21,14 @@ import {
 const INLINE_PROCESSING_THRESHOLD = 10;
 
 export const runtime = 'nodejs';
+/**
+ * Declared, not left to the platform default, because the kick below runs a
+ * slice inside this invocation and holds the job's lease while it does. The
+ * lease (`LEASE_SECONDS` in lib/job-processor.ts) is safe only while it
+ * outlasts every holder, so every route that calls `processJobChunk` states a
+ * duration below it. Asserted in scripts/check-invariants.ts.
+ */
+export const maxDuration = 300;
 
 interface JobRequest {
   wallets?: string[];
@@ -442,8 +449,21 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Small jobs: process inline to avoid cron queue wait (~45s avg)
-    // Large jobs: trigger Inngest or fall back to cron worker
+    /**
+     * One pipeline, started now rather than at the next cron tick.
+     *
+     * Small jobs run inline, so the response can carry the finished job. A
+     * larger one is kicked after the response is sent: `after()` runs its
+     * first slice in this invocation, and the cron worker takes each slice
+     * after that. Both go through the claim in `processJobChunk`, so the kick
+     * and a tick cannot work the job at once; whichever claims first does the
+     * slice and the other finds it held and does nothing. A kick that fails or
+     * is refused leaves the job `pending` for the next tick, a minute at most.
+     *
+     * Jobs over ten addresses went to Inngest until 2026-09-24 (STA-44). The
+     * cron worker raced it on every such job and finalized nearly all of them,
+     * so it is now the only pipeline.
+     */
     if (wallets.length <= INLINE_PROCESSING_THRESHOLD) {
       try {
         await processJobChunk(jobId);
@@ -454,18 +474,16 @@ export async function POST(request: NextRequest) {
         );
       }
     } else {
-      try {
-        await inngest.send({
-          name: 'wallet/lookup.requested',
-          data: { jobId },
-        });
-      } catch (error) {
-        // Inngest not configured or failed - cron worker will pick up the job
-        console.log(
-          'Inngest trigger skipped (cron will process):',
-          error instanceof Error ? error.message : error
-        );
-      }
+      after(async () => {
+        try {
+          await processJobChunk(jobId);
+        } catch (error) {
+          console.error(
+            'Job kick failed (cron will retry):',
+            error instanceof Error ? error.message : error
+          );
+        }
+      });
     }
 
     return NextResponse.json({

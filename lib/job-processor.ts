@@ -1,6 +1,6 @@
 import { getDb } from '@/db';
 import { lookupJobs } from '@/db/schema';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { batchFetchWeb3Bio } from '@/lib/web3bio';
 import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
@@ -36,6 +36,95 @@ import {
 
 // Process up to this many wallets per cron invocation
 const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
+
+/**
+ * How long a claim holds a job, in seconds.
+ *
+ * Longer than any holder can live, which is the whole of the safety argument:
+ * every route that calls `processJobChunk` declares a `maxDuration` below this
+ * (asserted in `scripts/check-invariants.ts`), and it claims after its
+ * invocation has started, so the platform has killed a holder before its lease
+ * can run out. A lease that has run out therefore belongs to nobody. The 30
+ * seconds over the 300-second routes cover a kill that is not instant and a
+ * write already on the wire when it lands.
+ *
+ * The lease covers one slice, not the job: every exit hands it back, so the
+ * next tick takes the job at once rather than waiting this out.
+ */
+export const LEASE_SECONDS = 330;
+
+/**
+ * A job nobody is working on right now. The one definition, read by the claim
+ * and by the worker's candidate query, so the two cannot disagree. Exported
+ * so scripts/check-invariants.ts can render it and read the SQL it produces.
+ *
+ * - A lease at or past now is free: handed back, or its holder is dead.
+ * - No lease on a `pending` row: nothing has claimed it yet.
+ * - No lease on a `processing` row: a holder from before leases existed,
+ *   meaning the retired Inngest pipeline, or a worker invocation still running
+ *   the old code through the deploy that shipped this. Nothing in the row says
+ *   whether it is alive except `updated_at`, which both refresh as they go, so
+ *   it is waited out for a lease's length from its last write. Nothing written
+ *   since leases exist leaves a `processing` row without one.
+ *
+ * `updated_at` is a timestamp without time zone holding UTC, so it is compared
+ * with UTC wall time rather than with `now()` through the session zone.
+ */
+export function claimable(): SQL {
+  return sql`(
+    ${lookupJobs.leasedUntil} <= now()
+    OR (
+      ${lookupJobs.leasedUntil} IS NULL
+      AND (
+        ${lookupJobs.status} = 'pending'
+        OR ${lookupJobs.updatedAt} < (now() AT TIME ZONE 'UTC') - make_interval(secs => ${LEASE_SECONDS})
+      )
+    )
+  )`;
+}
+
+/**
+ * The row to resume from, or the row restarted from nothing when its saved
+ * progress cannot be resumed.
+ *
+ * `processed_count` is a resume point only when `partial_results` holds every
+ * wallet before it, which is what this worker writes: each slice initializes a
+ * row for every wallet it takes, suppressed ones included, and the progress
+ * save writes them all back. The retired Inngest pipeline wrote the count as a
+ * count and saved no rows until it finished, so a job it left part-way (one in
+ * flight at the deploy that retired it) would resume past wallets nobody
+ * saved and complete without them. Such a row starts again at the first
+ * wallet, with its counts zeroed so nothing is counted twice. Billing cannot
+ * double either way: `chargeForJob` is keyed on the job id.
+ *
+ * Checked wallet by wallet rather than by comparing lengths, because a list
+ * can repeat an address, and then the saved rows are legitimately fewer than
+ * the count. Never throws: it runs before the failure handler exists.
+ */
+export function resumeFromSavedPrefix(job: LookupJob): LookupJob {
+  if (job.processedCount <= 0) return job;
+  const saved = new Set<unknown>(
+    ((job.partialResults || []) as Array<WalletSocialResult | null>).map(
+      (r) => r?.wallet
+    )
+  );
+  const upTo = Math.min(job.processedCount, job.wallets.length);
+  for (let i = 0; i < upTo; i++) {
+    const w: unknown = job.wallets[i];
+    if (!saved.has(typeof w === 'string' ? w.toLowerCase() : w)) {
+      return {
+        ...job,
+        processedCount: 0,
+        partialResults: null,
+        twitterFound: 0,
+        farcasterFound: 0,
+        anySocialFound: 0,
+        cacheHits: 0,
+      };
+    }
+  }
+  return job;
+}
 
 export interface JobOptions {
   /**
@@ -103,10 +192,6 @@ export interface JobOptions {
  * `paidData ?? tier` is how one of them comes to disagree with the other,
  * and the direction it would fail is toward giving paid data away.
  */
-/**
- * Exported so the Inngest pipeline reads the same rule rather than its own.
- * The two have diverged once already, when that one billed nothing at all.
- */
 export function jobGetsPaidFields(options: JobOptions): boolean {
   return (
     options.paidData ?? (options.tier === 'pro' || options.tier === 'unlimited')
@@ -121,11 +206,20 @@ export interface ProcessResult {
   anySocialFound: number;
   cacheHits: number;
   error?: string;
+  /**
+   * The claim found another holder's live lease, so nothing was done. Not an
+   * error: the holder finishes the slice and the next tick takes the job.
+   */
+  busy?: boolean;
 }
 
 /**
  * Process a chunk of wallets for a job.
- * Called by the cron worker - processes up to CHUNK_SIZE wallets and saves progress.
+ *
+ * The only lookup pipeline. Called by the cron worker every minute, and once
+ * straight after submission by both job routes, inline for ten addresses or
+ * fewer and through `after()` above that. Every caller goes through the claim
+ * below, so no two of them ever work one job at once.
  */
 export async function processJobChunk(jobId: string): Promise<ProcessResult> {
   const db = getDb();
@@ -141,45 +235,70 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     };
   }
 
-  // Load job from DB
-  const [job] = await db
-    .select()
-    .from(lookupJobs)
-    .where(eq(lookupJobs.id, jobId))
-    .limit(1);
-
-  if (!job) {
-    return {
-      completed: true,
-      processedCount: 0,
-      twitterFound: 0,
-      farcasterFound: 0,
-      anySocialFound: 0,
-      cacheHits: 0,
-      error: 'Job not found',
-    };
-  }
-
-  if (job.status === 'completed' || job.status === 'failed') {
-    return {
-      completed: true,
-      processedCount: job.processedCount,
-      twitterFound: job.twitterFound,
-      farcasterFound: job.farcasterFound,
-      anySocialFound: job.anySocialFound,
-      cacheHits: job.cacheHits,
-    };
-  }
-
-  // Mark as processing
-  await db
+  /**
+   * Claim by UPDATE, never by read-then-write.
+   *
+   * This read the row and then wrote `status = 'processing'` whatever it
+   * found, so a second invocation arriving meanwhile (the next cron tick while
+   * a slow slice still ran, or the Inngest pipeline this used to race) read
+   * the same `processed_count` and worked the same wallets again: duplicate
+   * provider calls, two finalizes, two history rows. One statement now does
+   * the checking and the claiming, so there is no window between them, and a
+   * holder's lease hides the row from every other claim until it is handed
+   * back or runs out.
+   */
+  const [claimed] = await db
     .update(lookupJobs)
     .set({
       status: 'processing',
-      startedAt: job.startedAt || new Date(),
+      startedAt: sql`coalesce(${lookupJobs.startedAt}, now() AT TIME ZONE 'UTC')`,
+      leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,
       updatedAt: new Date(),
     })
-    .where(eq(lookupJobs.id, jobId));
+    .where(
+      and(
+        eq(lookupJobs.id, jobId),
+        inArray(lookupJobs.status, ['pending', 'processing']),
+        claimable()
+      )
+    )
+    .returning();
+
+  if (!claimed) {
+    // Not ours to work. Read what it is only to report it.
+    const [row] = await db
+      .select({
+        status: lookupJobs.status,
+        processedCount: lookupJobs.processedCount,
+        twitterFound: lookupJobs.twitterFound,
+        farcasterFound: lookupJobs.farcasterFound,
+        anySocialFound: lookupJobs.anySocialFound,
+        cacheHits: lookupJobs.cacheHits,
+      })
+      .from(lookupJobs)
+      .where(eq(lookupJobs.id, jobId))
+      .limit(1);
+
+    if (!row) {
+      return {
+        completed: true,
+        processedCount: 0,
+        twitterFound: 0,
+        farcasterFound: 0,
+        anySocialFound: 0,
+        cacheHits: 0,
+        error: 'Job not found',
+      };
+    }
+
+    const { status, ...stats } = row;
+    if (status === 'completed' || status === 'failed') {
+      return { completed: true, ...stats };
+    }
+    return { completed: false, busy: true, ...stats };
+  }
+
+  const job = resumeFromSavedPrefix(claimed);
 
   try {
     const options = job.options as JobOptions;
@@ -910,6 +1029,8 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
         anySocialFound,
         cacheHits,
         updatedAt: new Date(),
+        // Handed back for the next slice. Now, not NULL: see claimable().
+        leasedUntil: sql`now()`,
       })
       .where(eq(lookupJobs.id, jobId));
 
@@ -932,6 +1053,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
         retryCount: job.retryCount + 1,
         updatedAt: new Date(),
+        leasedUntil: sql`now()`,
       })
       .where(eq(lookupJobs.id, jobId));
 
@@ -1407,6 +1529,7 @@ async function finalizeJobWithResults(
       // The match gate, atomic with completion: a job is never readable as
       // completed-but-ungated when the allowance covered only part of it.
       matchesDelivered,
+      leasedUntil: sql`now()`,
     })
     .where(eq(lookupJobs.id, job.id));
 
@@ -1641,35 +1764,6 @@ export async function getJob(jobId: string): Promise<LookupJob | null> {
 }
 
 /**
- * Get the next pending job to process
- */
-export async function getNextPendingJob(): Promise<LookupJob | null> {
-  const db = getDb();
-  if (!db) {
-    return null;
-  }
-
-  const [job] = await db
-    .select()
-    .from(lookupJobs)
-    .where(eq(lookupJobs.status, 'pending'))
-    .orderBy(lookupJobs.createdAt)
-    .limit(1);
-
-  if (job) return job;
-
-  // Also check for processing jobs (in case previous worker died)
-  const [processingJob] = await db
-    .select()
-    .from(lookupJobs)
-    .where(eq(lookupJobs.status, 'processing'))
-    .orderBy(lookupJobs.createdAt)
-    .limit(1);
-
-  return processingJob || null;
-}
-
-/**
  * Get multiple pending jobs to process in parallel
  * This allows the cron worker to clear the queue faster
  */
@@ -1681,11 +1775,13 @@ export async function getNextPendingJobs(
     return [];
   }
 
-  // Get pending jobs first
+  // Get pending jobs first. Only claimable ones: a job another invocation
+  // holds would be admitted against the wallet budget and then refused by the
+  // claim, spending this tick's budget on nothing.
   const pendingJobs = await db
     .select()
     .from(lookupJobs)
-    .where(eq(lookupJobs.status, 'pending'))
+    .where(and(eq(lookupJobs.status, 'pending'), claimable()))
     .orderBy(lookupJobs.createdAt)
     .limit(limit);
 
@@ -1693,12 +1789,13 @@ export async function getNextPendingJobs(
     return pendingJobs;
   }
 
-  // Also check for processing jobs (in case previous worker died)
+  // Then jobs part-way through: handed back between slices, or left by a
+  // holder that died, whose lease has run out.
   const remainingLimit = limit - pendingJobs.length;
   const processingJobs = await db
     .select()
     .from(lookupJobs)
-    .where(eq(lookupJobs.status, 'processing'))
+    .where(and(eq(lookupJobs.status, 'processing'), claimable()))
     .orderBy(lookupJobs.createdAt)
     .limit(remainingLimit);
 

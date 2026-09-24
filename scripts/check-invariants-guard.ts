@@ -1862,24 +1862,6 @@ const MUTATIONS: Mutation[] = [
     to: '          wallet: walletLower,\n          source: [],\n          holdings,\n          ...walletData,',
   },
   {
-    name: 'the Inngest pipeline overwrites owned fields again (Bugbot, 2026-08-25)',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '              ...walletData,\n              wallet: walletLower,\n              source: [],\n              holdings,',
-    to: '              wallet: walletLower,\n              source: [],\n              holdings,\n              ...walletData,',
-  },
-  {
-    name: 'the Inngest batch initializer overwrites owned fields again',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '                ...walletData,\n                wallet: walletLower,\n                source: [],\n                holdings,',
-    to: '                wallet: walletLower,\n                source: [],\n                holdings,\n                ...walletData,',
-  },
-  {
-    name: 'the Inngest path reloads its partial results without normalising them',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: 'resultsMap.set(r.wallet, { ...r, source: asSourceList(r.source) });',
-    to: 'resultsMap.set(r.wallet, r);',
-  },
-  {
     // The 2026-08-25 job's actual failure: `.some is not a function`, thrown
     // from the write path because nothing normalised `source` before reading it.
     name: 'the index write takes source on trust, so a joined string reaches .some',
@@ -2105,52 +2087,154 @@ const MUTATIONS: Mutation[] = [
     from: '    anySocialFound = results.filter(\n      (r) => r.twitter_handle || r.farcaster\n    ).length;\n',
     to: '',
   },
-  // The same three guards in the Inngest pipeline, which runs every job over
-  // ten addresses and carried none of them until 2026-09-24.
+  // --- one lookup pipeline (STA-44) --------------------------------------
+
   {
-    name: 'the Inngest pre-flight filter is deleted, so a suppressed wallet reaches every provider',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from:
-      '    const activeWallets =\n' +
-      '      suppressedWallets.size === 0\n' +
-      '        ? allWallets\n' +
-      '        : allWallets.filter((w) => !suppressedWallets.has(w.toLowerCase()));',
-    to: '    const activeWallets = allWallets;',
+    // The dispatch this change removed, put back beside the kick. The two
+    // pipelines then race on the job row again, which is the defect.
+    name: 'a job route sends the lookup event to Inngest again, so two pipelines race',
+    file: 'app/api/jobs/route.ts',
+    from: '      after(async () => {\n        try {\n          await processJobChunk(jobId);',
+    to: "      after(async () => {\n        try {\n          await inngest.send({ name: 'wallet/lookup.requested', data: { jobId } });\n          await processJobChunk(jobId);",
   },
   {
-    name: 'the Inngest pre-flight result is ignored, so nothing is ever filtered',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '    const suppressedWallets = new Set(suppressedInJob);',
-    to: '    const suppressedWallets = new Set<string>();\n    void suppressedInJob;',
+    name: 'the Inngest route registers a lookup function again',
+    file: 'app/api/inngest/route.ts',
+    from: '  functions: [],',
+    to: '  functions: [walletLookup],',
   },
   {
-    name: 'the Inngest cache read takes the raw list, suppressed wallets included',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '        cached = await getCachedWallets(activeWallets);',
-    to: '        cached = await getCachedWallets(allWallets);',
+    name: 'the API route stops kicking the worker, so a large job waits for a tick',
+    file: 'app/api/v1/jobs/route.ts',
+    from: '    after(async () => {\n      try {\n        await processJobChunk(jobId);',
+    to: '    after(async () => {\n      try {\n        void jobId;',
   },
   {
-    name: 'the Inngest graph enrichment reads suppressed wallets again',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '        const graphData = await getSocialGraphData(activeWallets);',
-    to: '        const graphData = await getSocialGraphData(allWallets);',
+    // The race itself: a claim that ignores the lease takes a job a live
+    // holder is working, so a tick and a kick run one job at once.
+    name: 'the claim ignores a live lease, so the cron and a kick work one job at once',
+    file: 'lib/job-processor.ts',
+    from: "        inArray(lookupJobs.status, ['pending', 'processing']),\n        claimable()\n",
+    to: "        inArray(lookupJobs.status, ['pending', 'processing'])\n",
   },
   {
-    name: 'the Inngest batch scrub is deleted, so a suppressed handle is counted and cached',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from:
-      '                batchResultsMap.set(\n' +
-      '                  wallet,\n' +
-      '                  scrubResultRow(result, suppression)\n' +
-      '                );\n',
-    to: '                void wallet;\n                void result;\n',
+    name: 'a refused claim still writes the row another invocation holds',
+    file: 'lib/job-processor.ts',
+    from: '    return { completed: false, busy: true, ...stats };',
+    to: "    await db\n      .update(lookupJobs)\n      .set({ status: 'processing', updatedAt: new Date() })\n      .where(eq(lookupJobs.id, jobId));\n    return { completed: false, busy: true, ...stats };",
   },
   {
-    name: 'the Inngest finalize skips the scrub, so a removal is billed and saved to history',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '          allResults[i] = scrubResultRow(allResults[i], suppression);\n',
+    // A lease shorter than a holder's life runs out under it, and the next
+    // tick takes the job while the first is still working it.
+    name: 'the lease is shorter than the routes that hold it',
+    file: 'lib/job-processor.ts',
+    from: 'export const LEASE_SECONDS = 330;',
+    to: 'export const LEASE_SECONDS = 120;',
+  },
+  {
+    name: 'the worker route outlives the lease it holds',
+    file: 'app/api/jobs/worker/route.ts',
+    from: 'export const maxDuration = 300;',
+    to: 'export const maxDuration = 800;',
+  },
+  {
+    // An undeclared duration is the platform default, which this repo cannot
+    // read and Vercel has changed before.
+    name: 'the API route stops declaring how long it can hold a lease',
+    file: 'app/api/v1/jobs/route.ts',
+    from: 'export const maxDuration = 300;\n',
     to: '',
   },
+  {
+    name: 'a lease that has not run out is free to take',
+    file: 'lib/job-processor.ts',
+    from: '    ${lookupJobs.leasedUntil} <= now()\n',
+    to: '    ${lookupJobs.leasedUntil} IS NOT NULL\n',
+  },
+  {
+    // A processing row with no lease belongs to a pre-lease holder that may
+    // still be running: the Inngest step in flight at the deploy.
+    name: 'a processing job with no lease is taken at once, racing the holder from before the deploy',
+    file: 'lib/job-processor.ts',
+    from: '      ${lookupJobs.leasedUntil} IS NULL\n      AND (',
+    to: '      ${lookupJobs.leasedUntil} IS NULL\n      OR (',
+  },
+  {
+    // The Drizzle raw-SQL trap: updated_at holds UTC wall time, and a bare
+    // now() reads through the session zone.
+    name: 'the pre-lease wait compares UTC wall time with the session zone',
+    file: 'lib/job-processor.ts',
+    from: "OR ${lookupJobs.updatedAt} < (now() AT TIME ZONE 'UTC') - make_interval",
+    to: 'OR ${lookupJobs.updatedAt} < now() - make_interval',
+  },
+  {
+    name: 'a slice keeps its lease, so the job sits out five minutes between slices',
+    file: 'lib/job-processor.ts',
+    from: '        // Handed back for the next slice. Now, not NULL: see claimable().\n        leasedUntil: sql`now()`,\n',
+    to: '',
+  },
+  {
+    name: 'a slice hands the lease back as NULL, which reads as a holder from before leases',
+    file: 'lib/job-processor.ts',
+    from: '        // Handed back for the next slice. Now, not NULL: see claimable().\n        leasedUntil: sql`now()`,\n',
+    to: '        leasedUntil: null,\n',
+  },
+  {
+    name: 'a failed job keeps its lease',
+    file: 'lib/job-processor.ts',
+    from: '        retryCount: job.retryCount + 1,\n        updatedAt: new Date(),\n        leasedUntil: sql`now()`,\n',
+    to: '        retryCount: job.retryCount + 1,\n        updatedAt: new Date(),\n',
+  },
+  {
+    name: 'a completed job keeps its lease',
+    file: 'lib/job-processor.ts',
+    from: '      matchesDelivered,\n      leasedUntil: sql`now()`,\n',
+    to: '      matchesDelivered,\n',
+  },
+  {
+    // Admitted against the wallet budget, then refused by the claim: the
+    // tick spends its budget on a job it cannot work.
+    name: "the worker's candidate read admits jobs another invocation holds",
+    file: 'lib/job-processor.ts',
+    from: ".where(and(eq(lookupJobs.status, 'processing'), claimable()))",
+    to: ".where(eq(lookupJobs.status, 'processing'))",
+  },
+  {
+    // A job Inngest left mid-run: processed_count is its count, and no rows
+    // were saved, so trusting it completes the job without those wallets.
+    name: 'a resume trusts processed_count alone, and finishes a job without the wallets before it',
+    file: 'lib/job-processor.ts',
+    from: '  const job = resumeFromSavedPrefix(claimed);',
+    to: '  const job = claimed;',
+  },
+  {
+    name: 'a restart keeps the counts from the run it discards, counting matches twice',
+    file: 'lib/job-processor.ts',
+    from: '        twitterFound: 0,\n        farcasterFound: 0,\n        anySocialFound: 0,\n        cacheHits: 0,\n      };',
+    to: '      };',
+  },
+  {
+    // The job's wallets keep the submitted case; the saved rows are lowered.
+    name: "the resume check compares case, so the worker's own progress restarts every slice",
+    file: 'lib/job-processor.ts',
+    from: "typeof w === 'string' ? w.toLowerCase() : w",
+    to: 'w',
+  },
+  {
+    name: 'the resume check compares lengths, so a repeated address restarts the job for ever',
+    file: 'lib/job-processor.ts',
+    from: '  const upTo = Math.min(job.processedCount, job.wallets.length);\n',
+    to: '  const upTo = Math.min(job.processedCount, job.wallets.length);\n  if (saved.size < upTo) return { ...job, processedCount: 0 };\n',
+  },
+  {
+    // The retention sweep nulls the wallets of a job untouched for 30 days,
+    // and this runs before the failure handler exists.
+    name: 'the resume check throws on a stripped wallet list, stranding the job under its lease',
+    file: 'lib/job-processor.ts',
+    from: "typeof w === 'string' ? w.toLowerCase() : w",
+    to: '(w as string).toLowerCase()',
+  },
+
   {
     // The load-bearing order: suppression rows commit FIRST, then the
     // erasure. Fired without awaiting, the deletes race an in-flight sweep
