@@ -30,6 +30,7 @@ import { CACHE_TTL_DAYS } from '@/lib/cache-constants';
 import {
   ANALYTICS_RETENTION_DAYS,
   JOB_PAYLOAD_RETENTION_DAYS,
+  OAUTH_TOKEN_RETENTION_DAYS,
 } from '@/app/api/cron/cleanup/route';
 import { QUARANTINE_RETENTION_DAYS } from '@/lib/removal-admin';
 import { NEGATIVE_RECHECK_DAYS } from '@/lib/social-graph';
@@ -48,7 +49,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/privacy' },
 };
 
-const UPDATED = '2 September 2026';
+const UPDATED = '24 September 2026';
 
 function Section({
   id,
@@ -363,6 +364,10 @@ export default function PrivacyPage() {
                   [
                     'Connected applications',
                     'Until you disconnect them. Their access renews hourly',
+                  ],
+                  [
+                    'Expired connection tokens',
+                    `Deleted ${OAUTH_TOKEN_RETENTION_DAYS} days after they stop working, with the usage records they carried`,
                   ],
                   ['API keys', 'Until you revoke them. Stored only as a hash'],
                   ['Payment records', 'Seven years, for tax and accounting'],

@@ -19,18 +19,34 @@
  * Kept because a client that implements neither mechanism has no other way in,
  * and the MCP specification still lists it.
  */
-import { lookup } from 'dns/promises';
+import { lookup as dnsLookup } from 'dns/promises';
+import type { ClientRequest, IncomingMessage, RequestOptions } from 'http';
+import { request as httpsRequest } from 'https';
+import { BlockList, isIP, type LookupFunction, type Socket } from 'net';
 import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { oauthClients, type OauthClient } from '@/db/schema';
+import { GRANT_TYPES_SUPPORTED } from '@/lib/oauth/metadata';
 
 /** How long a fetched metadata document is trusted before it is re-read. */
 const CIMD_TTL_MS = 24 * 60 * 60 * 1000;
 
-/** A metadata document larger than this is refused rather than parsed. */
+/**
+ * A metadata document larger than this many bytes is refused. Counted on the
+ * wire as it arrives, so an oversized body is dropped part way rather than
+ * buffered first.
+ */
 const CIMD_MAX_BYTES = 64 * 1024;
 
+/** One deadline for the whole fetch: resolution, connect, headers and body. */
 const CIMD_TIMEOUT_MS = 5000;
+
+/**
+ * Sent on every metadata fetch. The global `fetch` used to send a default
+ * user agent; a plain `https.request` sends none, and some CDNs refuse a
+ * request without one.
+ */
+const CIMD_USER_AGENT = 'walletlink.social-oauth (+https://walletlink.social)';
 
 export interface ResolvedClient {
   clientId: string;
@@ -142,6 +158,63 @@ export function redirectIsTrusted(uri: string): boolean {
     return false;
   }
 }
+
+// --- dynamic registration ---------------------------------------------------
+
+/**
+ * The grant types a registration is stored with, or why it is refused.
+ *
+ * Substituted, not all-or-nothing. RFC 7591 section 2 lets a server register
+ * other values than the ones requested, and section 3.2.1 has it return what
+ * it registered, which `app/api/oauth/register/route.ts` does. So a request
+ * that names a grant this server does not issue is registered without it:
+ * hosted Claude's own metadata lists `urn:ietf:params:oauth:grant-type:jwt-bearer`
+ * beside the two supported grants, and the token endpoint refuses every other
+ * grant anyway, so dropping it loses nothing.
+ *
+ * Refused: an array with a non-string entry, and a list without
+ * `authorization_code`, since that client could never obtain a first token.
+ * The refusal names each requested grant this server does not issue, and
+ * mentions consent only when one of them issues tokens with no person present.
+ *
+ * Omitted, not an array, or empty: the default, both supported grants.
+ */
+export function registrableGrantTypes(
+  requested: unknown
+): { ok: true; grantTypes: string[] } | { ok: false; description: string } {
+  const supported: readonly string[] = GRANT_TYPES_SUPPORTED;
+  if (!Array.isArray(requested) || requested.length === 0) {
+    return { ok: true, grantTypes: [...supported] };
+  }
+  if (!requested.every((g) => typeof g === 'string')) {
+    return {
+      ok: false,
+      description: 'grant_types must be an array of strings.',
+    };
+  }
+  const asked = [...new Set(requested as string[])];
+  const registered = supported.filter((g) => asked.includes(g));
+  const unsupported = asked.filter((g) => !supported.includes(g));
+  if (!registered.includes('authorization_code')) {
+    const without = unsupported.length
+      ? `; it does not support ${unsupported.join(', ')}`
+      : '';
+    const consent = unsupported.some((g) => GRANTS_WITHOUT_A_PERSON.has(g))
+      ? ', because every connection needs a person to consent to it'
+      : '';
+    return {
+      ok: false,
+      description: `grant_types must include authorization_code. This server issues tokens only through the authorization code flow with PKCE, renewed with refresh_token${without}${consent}.`,
+    };
+  }
+  return { ok: true, grantTypes: registered };
+}
+
+/** Grants that issue a token with no person present to consent. */
+const GRANTS_WITHOUT_A_PERSON = new Set([
+  'client_credentials',
+  'urn:ietf:params:oauth:grant-type:jwt-bearer',
+]);
 
 /**
  * Whether a host resolves to this computer, for the consent warning only.
@@ -280,60 +353,359 @@ export function consentView(
 // --- fetching a metadata document -------------------------------------------
 
 /**
+ * Every address a `client_id` fetch may not connect to, one list per family.
+ *
+ * Two lists, never one. `BlockList` answers an IPv4 query against an IPv6
+ * rule for `::ffff:0:0/96` as well, so a single list holding that rule would
+ * refuse every IPv4 address there is, claude.ai's included. Each list is
+ * checked only with its own family.
+ *
+ * IPv4: "this network", private, shared address space, loopback, link-local
+ * (cloud metadata included), IETF protocol assignments, the three
+ * documentation blocks, the old 6to4 relay, benchmarking, multicast, and
+ * everything from 240/4 up, broadcast included.
+ *
+ * IPv6: the unspecified and loopback addresses with the rest of the
+ * IPv4-compatible block, every IPv4-mapped address (refused outright, not
+ * mapped and re-checked), both NAT64 prefixes, discard-only, Teredo,
+ * documentation, 6to4, unique-local, link-local, the old site-local block
+ * and multicast.
+ */
+function blockList(
+  type: 'ipv4' | 'ipv6',
+  ranges: ReadonlyArray<readonly [string, number]>
+): BlockList {
+  const list = new BlockList();
+  for (const [network, prefix] of ranges) list.addSubnet(network, prefix, type);
+  return list;
+}
+
+const NON_PUBLIC_V4 = blockList('ipv4', [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10],
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16],
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.0.2.0', 24],
+  ['192.88.99.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['198.51.100.0', 24],
+  ['203.0.113.0', 24],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
+]);
+
+const NON_PUBLIC_V6 = blockList('ipv6', [
+  ['::', 96],
+  ['::ffff:0:0', 96],
+  ['64:ff9b::', 96],
+  ['64:ff9b:1::', 48],
+  ['100::', 64],
+  ['2001::', 32],
+  ['2001:db8::', 32],
+  ['2002::', 16],
+  ['fc00::', 7],
+  ['fe80::', 10],
+  ['fec0::', 10],
+  ['ff00::', 8],
+]);
+
+/**
+ * Whether an address is one a `client_id` fetch may not connect to.
+ *
  * Exported for `scripts/check-invariants.ts`, which asserts each range this
- * claims to refuse. A private-address check that quietly stopped matching a
- * range would turn the `client_id` fetch into a working request forgery, and
- * nothing about the flow would look different.
+ * claims to refuse, and that claude.ai's own addresses are not among them. A
+ * private-address check that quietly stopped matching a range would turn the
+ * `client_id` fetch into a working request forgery, and nothing about the
+ * flow would look different.
+ *
+ * `family` must agree with the address as `net.isIP` reads it, or the answer
+ * is yes: an address that cannot be classified is refused, never let through.
  */
 export function isPrivateAddress(address: string, family: number): boolean {
-  if (family === 6) {
-    const a = address.toLowerCase();
-    // Loopback, link-local, unique-local, and v4-mapped forms of the same.
-    if (a === '::1' || a === '::') return true;
-    if (a.startsWith('fe80') || a.startsWith('fc') || a.startsWith('fd')) {
-      return true;
-    }
-    const mapped = a.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-    if (mapped) return isPrivateAddress(mapped[1], 4);
-    return false;
+  try {
+    if (isIP(address) !== family) return true;
+    if (family === 4) return NON_PUBLIC_V4.check(address, 'ipv4');
+    if (family === 6) return NON_PUBLIC_V6.check(address, 'ipv6');
+  } catch {
+    // An address BlockList cannot read is refused below, like any other.
   }
-  const parts = address.split('.').map(Number);
-  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return true;
-  const [a, b] = parts;
-  if (a === 10 || a === 127 || a === 0) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 169 && b === 254) return true;
-  if (a === 100 && b >= 64 && b <= 127) return true;
-  if (a >= 224) return true;
-  return false;
+  return true;
 }
 
 /**
- * Refuse a `client_id` URL that resolves somewhere internal.
+ * A metadata document that could not be used, and what the consent page may
+ * say about it.
  *
- * The URL is supplied by whoever is starting an authorization flow, and we
- * fetch it, so it is a server-side request forgery vector by construction.
- * This resolves the hostname first and refuses every private, loopback,
- * link-local and carrier-grade range.
- *
- * What it does not stop: a hostname that answers with a public address here
- * and a private one when `fetch` resolves it again a moment later. Closing
- * that needs the socket pinned to the address checked, which Node's fetch does
- * not expose. Stated rather than papered over. The exposure it leaves is a
- * request from a Vercel function to an address in that function's own network
- * namespace, with the response never returned to the caller: a metadata
- * document that fails the self-reference check below produces the same error
- * as one that never loaded.
+ * `message` is the whole reason, for the server log. `publicMessage` is what
+ * the page shows. A document that loaded and is wrong keeps its specific
+ * reason there, because the developer of that client needs it. Every failure
+ * to load one (resolution, a refused address, connect, TLS, the deadline, a
+ * redirect, the size cap, an encoding) shows the same phrase, so the page
+ * reports nothing about a request that did not complete.
  */
-async function assertPublicHost(url: URL): Promise<void> {
-  const results = await lookup(url.hostname, { all: true });
-  if (results.length === 0) throw new Error('client_id host does not resolve');
-  for (const { address, family } of results) {
-    if (isPrivateAddress(address, family)) {
-      throw new Error('client_id host resolves to a non-public address');
-    }
+export class CimdError extends Error {
+  readonly publicMessage: string;
+
+  constructor(message: string, publicMessage: string = message) {
+    super(message);
+    this.name = 'CimdError';
+    this.publicMessage = publicMessage;
   }
+}
+
+/** What the consent page says for every failure to load a document. */
+export const CIMD_UNREACHABLE =
+  'no usable answer came from the address it names';
+
+function unreachable(reason: unknown): CimdError {
+  const detail = reason instanceof Error ? reason.message : String(reason);
+  return new CimdError(
+    `client_id document could not be fetched: ${detail}`,
+    CIMD_UNREACHABLE
+  );
+}
+
+/**
+ * Why a `client_id` URL is refused before anything is fetched, or null.
+ *
+ * draft-ietf-oauth-client-id-metadata-document-00 section 3: https, a path,
+ * no fragment, no credentials and no dot segments. Two more rules are this
+ * server's own. The host must be a name, not an IP address, because the
+ * checks below are attached to resolving a name and a literal address skips
+ * that step. And the URL must be exactly what WHATWG `URL` serializes it to,
+ * which is also what refuses a missing path, dot segments, an uppercase or
+ * internationalized host and an explicit default port. Both claude.ai client
+ * ids pass unchanged, and `scripts/check-invariants.ts` asserts that.
+ */
+export function clientIdUrlProblem(id: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(id);
+  } catch {
+    return 'a client_id must be a URL';
+  }
+  if (url.protocol !== 'https:') return 'a client_id URL must be https';
+  if (url.username || url.password) {
+    return 'a client_id URL must carry no credentials';
+  }
+  if (url.hash || id.includes('#')) {
+    return 'a client_id URL must carry no fragment';
+  }
+  if (isIP(url.hostname.replace(/^\[|\]$/g, '')) !== 0) {
+    return 'a client_id URL must name a host, not an IP address';
+  }
+  if (url.href !== id) {
+    return 'a client_id URL must have a path and be written in canonical form';
+  }
+  return null;
+}
+
+/** One address a host resolved to, as `dns.lookup` reports it with `all`. */
+export interface ResolvedAddress {
+  address: string;
+  family: number;
+}
+
+/** Every address a host resolves to. Replaced in the invariant checks. */
+export type Resolver = (hostname: string) => Promise<ResolvedAddress[]>;
+
+const systemResolver: Resolver = (hostname) =>
+  dnsLookup(hostname, { all: true });
+
+function familyOf(requested: unknown): 0 | 4 | 6 {
+  if (requested === 4 || requested === 'IPv4') return 4;
+  if (requested === 6 || requested === 'IPv6') return 6;
+  return 0;
+}
+
+/**
+ * The `lookup` a metadata fetch's socket uses.
+ *
+ * It resolves the host once, refuses the whole answer when any address in it
+ * is non-public (an empty answer too), and hands the socket only addresses it
+ * has checked. The socket connects to what this returns and nothing else, so
+ * the address checked is the address connected to.
+ */
+export function pinnedLookup(
+  resolve: Resolver = systemResolver
+): LookupFunction {
+  return (hostname, options, callback) => {
+    resolve(hostname).then(
+      (answer) => {
+        if (answer.length === 0) {
+          return callback(unreachable('client_id host does not resolve'), '');
+        }
+        if (answer.some((a) => isPrivateAddress(a.address, a.family))) {
+          return callback(
+            unreachable('client_id host resolves to a non-public address'),
+            ''
+          );
+        }
+        const family = familyOf(options.family);
+        const usable = family
+          ? answer.filter((a) => a.family === family)
+          : answer;
+        if (usable.length === 0) {
+          return callback(
+            unreachable(`client_id host has no IPv${family} address`),
+            ''
+          );
+        }
+        if (options.all) return callback(null, usable);
+        callback(null, usable[0].address, usable[0].family);
+      },
+      (error: unknown) => callback(unreachable(error), '')
+    );
+  };
+}
+
+/** What `fetchCimdDocument` uses. Replaced in the invariant checks, which run with no network. */
+export interface CimdFetchDeps {
+  resolve: Resolver;
+  request: (url: URL, options: RequestOptions) => ClientRequest;
+  deadlineMs: number;
+  maxBytes: number;
+}
+
+const CIMD_FETCH: CimdFetchDeps = {
+  resolve: systemResolver,
+  request: (url, options) => httpsRequest(url, options),
+  deadlineMs: CIMD_TIMEOUT_MS,
+  maxBytes: CIMD_MAX_BYTES,
+};
+
+/**
+ * Fetch a metadata document and parse it.
+ *
+ * The URL is supplied by whoever starts an authorization flow, and we fetch
+ * it, so it is a server-side request forgery vector by construction. What
+ * keeps it to public hosts:
+ *
+ * - `https.request`, not the global `fetch`, because it takes a `lookup`.
+ *   `pinnedLookup` resolves the host once and checks every address, and the
+ *   socket connects only to an address it returned. `agent: false`, so no
+ *   pooled socket is reused without that lookup.
+ * - Once connected, the peer address is checked again, and the request is
+ *   dropped if it is not public.
+ * - One deadline covers resolution, connect, headers and the whole body.
+ * - The body is counted in bytes as it arrives and dropped past the cap. A
+ *   declared length over the cap is refused before any body is read.
+ * - `Accept-Encoding: identity`, and any other content-encoding is refused,
+ *   so the cap counts what is parsed.
+ * - A redirect is never followed: following one would let the self-reference
+ *   check pass against a URL nobody named.
+ *
+ * Every failure to load the document is a `CimdError` whose public message
+ * is `CIMD_UNREACHABLE`. A status other than 2xx, or a body that is not
+ * JSON, keeps its own message.
+ */
+export function fetchCimdDocument(
+  url: URL,
+  deps: Partial<CimdFetchDeps> = {}
+): Promise<unknown> {
+  const { resolve, request, deadlineMs, maxBytes } = {
+    ...CIMD_FETCH,
+    ...deps,
+  };
+  return new Promise<unknown>((done, fail) => {
+    let req: ClientRequest | null = null;
+    let settled = false;
+    const finish = (error: CimdError | null, doc?: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(deadline);
+      if (error) {
+        req?.destroy();
+        fail(error);
+      } else {
+        done(doc);
+      }
+    };
+    const deadline = setTimeout(
+      () => finish(unreachable(`no complete answer within ${deadlineMs} ms`)),
+      deadlineMs
+    );
+
+    try {
+      req = request(url, {
+        method: 'GET',
+        lookup: pinnedLookup(resolve),
+        agent: false,
+        headers: {
+          Accept: 'application/json',
+          'Accept-Encoding': 'identity',
+          'User-Agent': CIMD_USER_AGENT,
+        },
+      });
+    } catch (error) {
+      finish(unreachable(error));
+      return;
+    }
+
+    req.on('error', (error) =>
+      finish(error instanceof CimdError ? error : unreachable(error))
+    );
+    req.on('socket', (socket: Socket) => {
+      const checkPeer = () => {
+        const remote = socket.remoteAddress ?? '';
+        if (isPrivateAddress(remote, isIP(remote))) {
+          finish(unreachable('connected to a non-public address'));
+        }
+      };
+      if (socket.connecting) socket.once('connect', checkPeer);
+      else checkPeer();
+    });
+    req.on('response', (res: IncomingMessage) =>
+      readDocument(res, maxBytes, finish)
+    );
+    req.end();
+  });
+}
+
+function readDocument(
+  res: IncomingMessage,
+  maxBytes: number,
+  finish: (error: CimdError | null, doc?: unknown) => void
+): void {
+  res.on('error', (error) => finish(unreachable(error)));
+  const status = res.statusCode ?? 0;
+  if (status >= 300 && status < 400) {
+    return finish(unreachable(`answered a redirect (${status})`));
+  }
+  if (status < 200 || status >= 300) {
+    return finish(new CimdError(`client_id document answered ${status}`));
+  }
+  const encoding = res.headers['content-encoding'];
+  if (encoding !== undefined && encoding.trim().toLowerCase() !== 'identity') {
+    return finish(unreachable(`answered with content-encoding ${encoding}`));
+  }
+  if (Number(res.headers['content-length']) > maxBytes) {
+    return finish(unreachable('declared a body over the size cap'));
+  }
+  const chunks: Buffer[] = [];
+  let received = 0;
+  res.on('data', (chunk: Buffer | string) => {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    received += bytes.length;
+    if (received > maxBytes) {
+      finish(unreachable('sent a body over the size cap'));
+      return;
+    }
+    chunks.push(bytes);
+  });
+  res.on('end', () => {
+    let doc: unknown;
+    try {
+      doc = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    } catch {
+      return finish(new CimdError('client_id document is not JSON'));
+    }
+    finish(null, doc);
+  });
 }
 
 function asStringArray(value: unknown): string[] {
@@ -343,9 +715,11 @@ function asStringArray(value: unknown): string[] {
 }
 
 /**
- * Fetch and validate a Client ID Metadata Document.
+ * Validate a fetched metadata document against the `client_id` it was
+ * fetched from. Pure: no network and no database, so the invariant checks run
+ * it against the real claude.ai documents.
  *
- * Three checks, and all three are load-bearing:
+ * Two checks, both load-bearing:
  *
  * 1. **Self-reference.** The document's own `client_id` must equal the URL it
  *    was served from. Without this, any page that happens to serve JSON could
@@ -355,75 +729,58 @@ function asStringArray(value: unknown): string[] {
  *    redirect to the host that proved it controls the document; the loopback
  *    exception exists because a native client cannot be same-origin with
  *    anything and RFC 8252 blesses exactly this shape. Claude Code needs it.
- * 3. **Public host.** See `assertPublicHost`.
- *
- * Redirects are not followed. A document that answers 302 is refused, because
- * following one would let the self-reference check pass against a URL nobody
- * named.
  */
-export async function fetchCimdClient(
-  clientId: string
-): Promise<ResolvedClient> {
-  const url = new URL(clientId);
-  if (url.protocol !== 'https:') {
-    throw new Error('A client_id URL must be https');
-  }
-  if (url.hash) {
-    throw new Error('A client_id URL must carry no fragment');
-  }
-  await assertPublicHost(url);
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CIMD_TIMEOUT_MS);
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      redirect: 'error',
-      signal: controller.signal,
-      headers: { Accept: 'application/json' },
-    });
-  } finally {
-    clearTimeout(timer);
-  }
-  if (!response.ok) {
-    throw new Error(`client_id document answered ${response.status}`);
-  }
-
-  const text = await response.text();
-  if (text.length > CIMD_MAX_BYTES) {
-    throw new Error('client_id document is too large');
-  }
-  let doc: unknown;
-  try {
-    doc = JSON.parse(text);
-  } catch {
-    throw new Error('client_id document is not JSON');
-  }
+export function validateCimdDocument(
+  clientId: string,
+  doc: unknown
+): { client: ResolvedClient; meta: Record<string, unknown> } {
   if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) {
-    throw new Error('client_id document is not an object');
+    throw new CimdError('client_id document is not an object');
   }
   const meta = doc as Record<string, unknown>;
 
   if (meta.client_id !== clientId) {
-    throw new Error('client_id document does not name itself');
+    throw new CimdError('client_id document does not name itself');
   }
 
+  const url = new URL(clientId);
   const redirectUris = asStringArray(meta.redirect_uris);
   if (redirectUris.length === 0) {
-    throw new Error('client_id document declares no redirect_uris');
+    throw new CimdError('client_id document declares no redirect_uris');
   }
   for (const uri of redirectUris) {
     const problem = cimdRedirectProblem(uri, url.origin);
-    if (problem) throw new Error(problem);
+    if (problem) throw new CimdError(problem);
   }
 
-  const resolved: ResolvedClient = {
-    clientId,
-    displayHost: url.host,
-    claimedName: cleanClaimedName(meta.client_name),
-    redirectUris,
-    isCimd: true,
+  return {
+    client: {
+      clientId,
+      displayHost: url.host,
+      claimedName: cleanClaimedName(meta.client_name),
+      redirectUris,
+      isCimd: true,
+    },
+    meta,
   };
+}
+
+/**
+ * Fetch, validate and cache a Client ID Metadata Document.
+ *
+ * In order: the URL's shape (`clientIdUrlProblem`), the fetch
+ * (`fetchCimdDocument`), the document (`validateCimdDocument`), then the
+ * cache row. Every refusal is a `CimdError`.
+ */
+export async function fetchCimdClient(
+  clientId: string
+): Promise<ResolvedClient> {
+  const problem = clientIdUrlProblem(clientId);
+  if (problem) throw new CimdError(problem);
+
+  const doc = await fetchCimdDocument(new URL(clientId));
+  const { client: resolved, meta } = validateCimdDocument(clientId, doc);
+  const redirectUris = resolved.redirectUris;
 
   const db = getDb();
   if (db) {

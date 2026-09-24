@@ -10,7 +10,7 @@
  * policy was written: a policy that names a retention period no code enforces
  * is a claim with nothing able to contradict it, which is the exact shape of
  * defect this repository has now shipped four times. So the periods are here,
- * as constants, and `docs-site/privacy.mdx` states them.
+ * as constants, and `app/privacy/page.tsx` states them.
  *
  * | What                       | Kept for                          |
  * | -------------------------- | --------------------------------- |
@@ -22,6 +22,8 @@
  * | Idempotency replay rows    | 24 hours (lib/idempotency.ts)     |
  * | Job payloads               | 30 days, row and stats kept       |
  * | Removal quarantine copies  | Until purge_after, then deleted   |
+ * | OAuth access tokens        | 400 days after they stop working, |
+ * |                            | with their usage rows             |
  *
  * The two removal-system rows run FIRST, and each catches its own errors.
  * Every other branch here is housekeeping; these two are retention promises
@@ -55,6 +57,7 @@ import { cleanupAuthorizationRequests } from '@/lib/oauth/requests';
 import { cleanupAbandonedListJobs } from '@/lib/x-list-worker';
 import { cleanupAbandonedClaims } from '@/lib/claim-callback';
 import { cleanupIdempotencyKeys } from '@/lib/idempotency';
+import { ACCESS_TOKEN_PREFIX } from '@/lib/oauth/grants';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -82,6 +85,32 @@ export const JOB_PAYLOAD_RETENTION_DAYS = 30;
  * backlog in a few days. Steady state is well under one batch per day.
  */
 export const JOB_PAYLOAD_STRIP_BATCH = 500;
+
+/**
+ * How long an OAuth access token's `api_keys` row is kept after the token
+ * stops working, whichever comes first of its expiry and its revocation.
+ *
+ * Every refresh writes a new row (`lib/oauth/grants.ts`) and nothing else
+ * ever deleted one. Deleting a row cascades to its `api_usage`,
+ * `rate_limit_buckets` and `idempotency_keys` rows, which sets the floor:
+ *
+ * - at least 366 days, one more than the longest window the admin journey
+ *   reads (`MAX_DAYS` in app/api/admin/analytics/journey/route.ts), so no
+ *   admin report loses usage it still shows
+ * - at least 32 days, so a deleted row can never hold a bucket for the
+ *   current calendar month, which the account-wide month quota sums
+ *
+ * 400 meets both, and it is the analytics horizon above. Keys a person made
+ * in the dashboard are never touched here: they last until revoked.
+ */
+export const OAUTH_TOKEN_RETENTION_DAYS = 400;
+
+/**
+ * Token rows deleted per run. Each one takes its usage rows with it, so the
+ * bound is on the cascade as much as on the tokens. Steady state is far
+ * below it.
+ */
+export const OAUTH_TOKEN_DELETE_BATCH = 2000;
 
 async function run(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');
@@ -175,6 +204,40 @@ async function run(request: NextRequest): Promise<NextResponse> {
     console.error('Job payload strip error:', error);
   }
 
+  /**
+   * OAuth access tokens that can never authenticate again, isolated the same
+   * way. A row goes only when all of these hold:
+   *
+   * - `oauth_grant_id` is set and the key carries the access-token prefix,
+   *   two independent marks, so a key a person made (`wts_live_`) is never
+   *   in reach
+   * - it stopped working, by expiry or revocation, more than
+   *   OAUTH_TOKEN_RETENTION_DAYS ago. `LEAST` skips a NULL, and every access
+   *   token is minted with `expires_at`; a row with neither date is kept.
+   *
+   * Aged from when the token stopped working, never from `created_at`, and
+   * with `now()` in SQL rather than a JS Date. The cascade takes the row's
+   * usage, bucket and replay rows with it; see the constant for why the
+   * period is long enough that no report or quota notices.
+   */
+  let oauthAccessTokens: number | null = null;
+  try {
+    const deleted = (await db.execute(sql`
+      WITH spent AS (
+        SELECT id FROM api_keys
+        WHERE oauth_grant_id IS NOT NULL
+          AND starts_with(key_prefix, ${ACCESS_TOKEN_PREFIX})
+          AND LEAST(expires_at, revoked_at) < now() - make_interval(days => ${OAUTH_TOKEN_RETENTION_DAYS})
+        LIMIT ${OAUTH_TOKEN_DELETE_BATCH}
+      )
+      DELETE FROM api_keys k USING spent WHERE k.id = spent.id
+      RETURNING 1
+    `)) as unknown as { rows: unknown[] };
+    oauthAccessTokens = deleted.rows.length;
+  } catch (error) {
+    console.error('OAuth access token cleanup error:', error);
+  }
+
   const auth = await cleanupExpiredAuth();
   const ipBuckets = await cleanupOldIpBuckets(IP_BUCKET_RETENTION_HOURS);
   const authorizationRequests = await cleanupAuthorizationRequests();
@@ -208,6 +271,7 @@ async function run(request: NextRequest): Promise<NextResponse> {
     // the logs); 0 means it ran and found nothing due.
     quarantinePurged,
     jobPayloadsStripped,
+    oauthAccessTokens,
   });
 }
 

@@ -42,7 +42,7 @@ import {
   refreshGrant,
   revokeGrant,
 } from '@/lib/oauth/grants';
-import { mcpResource } from '@/lib/oauth/metadata';
+import { GRANT_TYPES_SUPPORTED, mcpResource } from '@/lib/oauth/metadata';
 import { repeatedFormParam, resourcesAreOurs } from '@/lib/oauth/params';
 
 export const runtime = 'nodejs';
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
   return oauthError(
     'unsupported_grant_type',
-    'Supported grant types are authorization_code and refresh_token.'
+    `Supported grant types are ${GRANT_TYPES_SUPPORTED.join(' and ')}.`
   );
 }
 

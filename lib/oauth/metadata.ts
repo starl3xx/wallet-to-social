@@ -40,6 +40,18 @@ export const OFFLINE_SCOPE = 'offline_access';
 
 export const SUPPORTED_SCOPES = [MCP_SCOPE, OFFLINE_SCOPE];
 
+/**
+ * The grants this server issues, written once. The authorization server
+ * metadata advertises this list, registration keeps only these
+ * (`registrableGrantTypes` in `lib/oauth/clients.ts`), and the token
+ * endpoint names them when it refuses any other. Three copies used to be
+ * written out by hand.
+ */
+export const GRANT_TYPES_SUPPORTED = [
+  'authorization_code',
+  'refresh_token',
+] as const;
+
 /** The canonical resource identifier, RFC 8707 section 2: no fragment, no trailing slash. */
 export function mcpResource(): string {
   return `${getSiteUrl()}/api/mcp`;
@@ -81,6 +93,9 @@ export function protectedResourceMetadata(): Record<string, unknown> {
  *
  * `registration_endpoint` stays advertised anyway, for clients that do not
  * implement metadata documents.
+ *
+ * `grant_types_supported` is `GRANT_TYPES_SUPPORTED`, the same list
+ * registration keeps and the token endpoint names.
  */
 export function authorizationServerMetadata(): Record<string, unknown> {
   const site = getSiteUrl();
@@ -93,7 +108,7 @@ export function authorizationServerMetadata(): Record<string, unknown> {
     scopes_supported: SUPPORTED_SCOPES,
     response_types_supported: ['code'],
     response_modes_supported: ['query'],
-    grant_types_supported: ['authorization_code', 'refresh_token'],
+    grant_types_supported: [...GRANT_TYPES_SUPPORTED],
     token_endpoint_auth_methods_supported: ['none'],
     revocation_endpoint_auth_methods_supported: ['none'],
     code_challenge_methods_supported: ['S256'],

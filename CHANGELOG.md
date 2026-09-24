@@ -2,6 +2,38 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (client metadata fetch pinned; spent access tokens cleaned up)
+
+- **The client metadata fetch connects only to an address it checked.** A
+  `client_id` URL is now fetched with a lookup that resolves the host once,
+  refuses the whole answer when any address in it is not public, and gives the
+  connection only addresses it checked; the peer is checked again once
+  connected. One 5-second deadline now covers the whole fetch, the body
+  included, and the 64 KB cap is counted in bytes as the body arrives.
+  Compressed documents and redirects are refused. The list of refused address
+  ranges is wider (benchmarking, documentation, NAT64, 6to4, site-local,
+  multicast and every IPv4-mapped form), and claude.ai's addresses are
+  asserted public.
+- **A `client_id` URL must be canonical.** https, a path, no credentials, no
+  fragment, a host name rather than an IP address, and written the way a URL
+  parser prints it. Both Claude client ids pass unchanged. The consent page
+  now shows one phrase for every failure to load a document, and the specific
+  reason only for a document that loaded and is wrong.
+- **Registration drops grant types it does not issue instead of refusing.** A
+  request naming the jwt-bearer grant beside `authorization_code` and
+  `refresh_token`, as hosted Claude's metadata does, registers with the two and
+  says so in the response. A request without `authorization_code` is refused
+  with a message naming what it asked for, where it used to be told about
+  `client_credentials` whatever it sent. A `grant_types` array holding a
+  non-string is now refused; an empty one registers the default.
+- **Spent OAuth access tokens are deleted.** Every refresh writes a new key
+  row, and nothing deleted them. The daily cleanup now deletes a token's row,
+  with its usage rows, 400 days after it stopped working. Keys made in the
+  dashboard are never touched. Nothing is old enough before 2027-09-29. The
+  privacy policy lists the period, and the admin agent rail counts
+  connections rather than token rows.
+- Part of STA-39 (D), with 73 new invariants and 23 new guard mutations.
+
 ### 2026-09-24 (OAuth endpoints are limited per connection)
 
 - **Token requests are limited per connection.** A code exchange or refresh

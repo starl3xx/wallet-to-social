@@ -48,6 +48,7 @@ import { PageShell } from '@/components/ui/page-shell';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { checkIpRateLimit, clientIpFromHeaders } from '@/lib/ip-rate-limiter';
 import {
+  CimdError,
   resolveClient,
   redirectUriAllowed,
   redirectIsTrusted,
@@ -160,12 +161,23 @@ export default async function AuthorizePage({
     );
   }
 
+  /**
+   * Only a `CimdError`'s `publicMessage` reaches the page. A metadata document
+   * that loaded and is wrong keeps its specific reason, which the client's
+   * developer needs; every failure to load one shows the same phrase
+   * (`CIMD_UNREACHABLE`), and anything else shows a generic one. The whole
+   * error goes to the server log.
+   */
   let client: ResolvedClient | null = null;
   let clientError: string | null = null;
   try {
     client = await resolveClient(clientId);
   } catch (error) {
-    clientError = error instanceof Error ? error.message : 'unknown';
+    console.error('The client_id could not be resolved:', error);
+    clientError =
+      error instanceof CimdError
+        ? error.publicMessage
+        : 'something failed on our side';
   }
 
   if (!client) {
