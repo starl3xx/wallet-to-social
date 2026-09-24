@@ -17,7 +17,10 @@ All notable changes to walletlink.social. Newest first.
 - The copy branch is moved only over commits Dependabot authored. A commit
   somebody adds to the copy, such as a changelog entry, is never discarded by a
   later run: the workflow leaves the branch where it is and, on a Dependabot
-  push, comments on the copy asking for a rebase by hand. It runs on
+  push, comments on the copy asking for a rebase by hand.
+- The daily sweep closes a copy only when its Dependabot PR was closed
+  unmerged. An original that was merged by hand, or cannot be found, leaves the
+  copy open with a warning, since closing it also deletes the copy branch. It runs on
   `pull_request_target`, because `pull_request` runs nothing on a PR GitHub
   cannot merge, and a daily sweep closes any copy whose Dependabot PR is no
   longer open. A copy already merged is never opened again.

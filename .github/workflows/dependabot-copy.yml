@@ -58,7 +58,7 @@ jobs:
       GH_TOKEN: ${{ secrets.DEPENDABOT_COPY_TOKEN }}
       REPO: ${{ github.repository }}
     steps:
-      - name: Close copies whose Dependabot PR is no longer open
+      - name: Close copies whose Dependabot PR was closed unmerged
         run: |
           set -euo pipefail
           if [ -z "$GH_TOKEN" ]; then
@@ -72,10 +72,17 @@ jobs:
             original="${copy_branch#deps/copy/}"
             state=$(gh pr list --repo "$REPO" --head "$original" --state all \
               --json state -q '.[0].state // "MISSING"')
-            if [ "$state" != "OPEN" ]; then
+            # Only CLOSED, which is closed unmerged: Dependabot gave up on the
+            # update, so the copy goes too, as the `closed` handler does. A
+            # MERGED original (merged by hand instead of the copy) and a
+            # MISSING one are left for a person, because closing would also
+            # delete the copy branch and any commit added to it.
+            if [ "$state" = "CLOSED" ]; then
               gh pr close "$copy_number" --repo "$REPO" --delete-branch \
-                --comment "The Dependabot PR this copied is no longer open ($state), so this copy is closed too."
-              echo "Closed copy #$copy_number ($state)."
+                --comment "Dependabot closed the PR this copied without merging it, so this copy is closed too."
+              echo "Closed copy #$copy_number."
+            elif [ "$state" != "OPEN" ]; then
+              echo "::warning::Copy #$copy_number: its Dependabot PR is $state. Left open for a person to decide."
             fi
           done
 
