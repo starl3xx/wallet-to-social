@@ -223,7 +223,7 @@ export function apiPlanForTier(tier: string): string | null {
  * which made a key something you bought rather than something you held. The
  * reasoning recorded in `lib/developer-auth.ts` was that the free allowance
  * would "let every signup mint a key", and that was already true through a
- * door nobody checked: `mintAccessToken` in `lib/oauth/grants.ts` writes an
+ * door nobody checked: the OAuth mint in `lib/oauth/grants.ts` writes an
  * `api_keys` row on this very plan with no credit test at all, so any free
  * account connecting an OAuth client has had a working key all along. One
  * product, two doors, opposite rules, and the REST door was the one our own

@@ -131,8 +131,9 @@ export async function GET(request: NextRequest) {
    * window true regardless of when the sweep happens to run. The sweep is then
    * what clears the payload, not what defines the deadline.
    *
-   * Postgres decides, not Node: the same reasoning as `consumeCode`, whose
-   * comment records what a clock comparison in the application cost.
+   * Postgres decides, not Node: the same reasoning as `loadCode` in
+   * lib/oauth/requests.ts, whose comment records what a clock comparison in
+   * the application cost.
    */
   const found = (await db.execute(sql`
     SELECT id, user_id, state_nonce, code_verifier, status

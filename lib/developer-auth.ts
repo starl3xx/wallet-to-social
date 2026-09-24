@@ -99,7 +99,7 @@ export async function requireDeveloperAccess(
    * window so honoring it "would let every signup mint a key". Two things
    * were wrong with that, and the second is the one that cost us.
    *
-   * Every signup could already mint one. `mintAccessToken` in
+   * Every signup could already mint one. The OAuth mint in
    * `lib/oauth/grants.ts` writes an `api_keys` row on `CREDIT_API_PLAN` with
    * no credit test, so any free account that connects an OAuth client has
    * held a working key since the day that path shipped. The rule was enforced

@@ -4616,9 +4616,15 @@ async function main() {
         exchange.includes("resources: form.getAll('resource'),\n")
     );
     ok(
-      'a failure inside a refresh is logged and answers 503 temporarily_unavailable with Retry-After, not a bare 500',
-      /catch \(error\) \{\s*console\.error\('[^']+', error\);[\s\S]{0,400}?'temporarily_unavailable'[\s\S]{0,200}?status: 503, headers: \{ \.\.\.NO_STORE, 'Retry-After': '5' \}/.test(
+      'a failure inside a refresh is logged and answers the shared 503',
+      /\} catch \(error\) \{\s*console\.error\('[^']+', error\);\s*return tokenServiceUnavailable\(\);/.test(
         exchange
+      )
+    );
+    ok(
+      'the shared answer is 503 temporarily_unavailable with Retry-After, not a bare 500',
+      /function tokenServiceUnavailable\(\)[\s\S]{0,300}?'temporarily_unavailable'[\s\S]{0,200}?status: 503, headers: \{ \.\.\.NO_STORE, 'Retry-After': '5' \}/.test(
+        token
       )
     );
     ok(
@@ -4783,26 +4789,28 @@ async function main() {
     ok(
       'the exchange reads the code before spending it',
       at('await loadCode(') !== -1 &&
-        at('await consumeCode(') !== -1 &&
-        at('await loadCode(') < at('await consumeCode(')
+        at('await redeemCode(') !== -1 &&
+        at('await loadCode(') < at('await redeemCode(')
     );
     ok(
       'the client binding is checked before the code is spent',
       at('row.clientId !== clientId') !== -1 &&
-        at('row.clientId !== clientId') < at('await consumeCode(')
+        at('row.clientId !== clientId') < at('await redeemCode(')
     );
     ok(
       'the redirect binding is checked before the code is spent',
       at('redirectUri !== row.redirectUri') !== -1 &&
-        at('redirectUri !== row.redirectUri') < at('await consumeCode(')
+        at('redirectUri !== row.redirectUri') < at('await redeemCode(')
     );
     ok(
       'PKCE is checked before the code is spent',
-      at('pkceMatches(') !== -1 && at('pkceMatches(') < at('await consumeCode(')
+      at('pkceMatches(') !== -1 && at('pkceMatches(') < at('await redeemCode(')
     );
     ok(
       'nothing is revoked before the caller has proved it is the right client',
-      at('revokeGrant(') !== -1 && at('await consumeCode(') < at('revokeGrant(')
+      at('revokeGrant(') !== -1 &&
+        at('await redeemCode(') !== -1 &&
+        at('await redeemCode(') < at('revokeGrant(')
     );
 
     // A failed consume has three causes and only one of them is a replay.
@@ -4811,13 +4819,15 @@ async function main() {
     // pass without revoking anything.
     ok(
       'only a replay revokes, not every failure to spend the code',
-      body.includes("spent === 'replayed'") &&
-        body.indexOf("spent === 'replayed'") < at('revokeGrant(')
+      body.includes("spent.outcome === 'replayed'") &&
+        body.indexOf("spent.outcome === 'replayed'") < at('revokeGrant(') &&
+        withoutComments(body).split('revokeGrant(').length === 2
     );
     ok(
       'an expired code is answered without revoking anything',
-      body.includes("spent !== 'consumed'") &&
-        body.indexOf('revokeGrant(') < body.indexOf("spent !== 'consumed'")
+      body.includes("spent.outcome !== 'issued'") &&
+        body.indexOf('revokeGrant(') <
+          body.indexOf("spent.outcome !== 'issued'")
     );
 
     // Two clocks decided this before: the Node clock in `loadCode` and
@@ -4826,7 +4836,7 @@ async function main() {
     const requests = readFileSync('lib/oauth/requests.ts', 'utf8');
     const loadBody = requests.slice(
       requests.indexOf('export async function loadCode'),
-      requests.indexOf('export type ConsumeResult')
+      requests.indexOf('export type UnspentReason')
     );
     ok(
       'loadCode judges no expiry, so one clock decides',
@@ -4837,12 +4847,13 @@ async function main() {
     // And the replay branch has to be read before the expiry branch, or a code
     // that was spent and has since aged out reports as merely expired.
     const consumeBody = requests.slice(
-      requests.indexOf('export async function consumeCode')
+      requests.indexOf('export async function unspentCodeReason')
     );
     ok(
       'a spent code reports as replayed even once it has aged out',
-      consumeBody.indexOf("return 'replayed'") <
-        consumeBody.indexOf("return 'expired'")
+      consumeBody.indexOf("return 'replayed'") !== -1 &&
+        consumeBody.indexOf("return 'replayed'") <
+          consumeBody.indexOf("return 'expired'")
     );
 
     // RFC 6749 section 4.1.3 requires `redirect_uri` on the exchange whenever
@@ -4853,6 +4864,127 @@ async function main() {
       'redirect_uri is required on the exchange, not compared only when supplied',
       body.includes('if (!redirectUri)') &&
         !/redirectUri !== null &&/.test(body)
+    );
+  }
+
+  // ------------------------------- OAuth: a code exchange is one statement
+  // Spending the code, writing the refresh hash and minting the access token
+  // were three statements. A failure after the spend left the code used up
+  // with nothing issued, and the client's retry was read as a replay, which
+  // revoked the connection it was trying to make.
+  {
+    const grants = withoutComments(readFileSync('lib/oauth/grants.ts', 'utf8'));
+    const spendFn = grants.slice(
+      grants.indexOf('async function spendAndMint'),
+      grants.indexOf('export type RedeemResult')
+    );
+    const redeemFn = grants.slice(
+      grants.indexOf('export async function redeemCode'),
+      grants.indexOf('async function pruneGrants')
+    );
+    const spendSql =
+      [...spendFn.matchAll(/sql`([\s\S]*?)`/g)]
+        .map((m) => m[1])
+        .find((t) => t.includes('UPDATE oauth_authorization_requests')) ?? '';
+    const cte = (name: string, next: string) =>
+      spendSql.slice(spendSql.indexOf(name), spendSql.indexOf(next));
+    const consumedCte = cte('WITH consumed AS (', 'granted AS (');
+    const grantedCte = cte('granted AS (', 'minted AS (');
+    const mintedCte = cte('minted AS (', 'SELECT g.id');
+    ok(
+      'spending the code, writing the refresh hash and minting are one statement',
+      consumedCte.length > 0 &&
+        grantedCte.includes('UPDATE oauth_grants') &&
+        mintedCte.includes('INSERT INTO api_keys')
+    );
+    ok(
+      'the spend is conditional: this code, not yet spent, not expired, judged by Postgres',
+      consumedCte.includes('WHERE code_hash = ${input.codeHash}') &&
+        consumedCte.includes('AND consumed_at IS NULL') &&
+        consumedCte.includes('AND code_expires_at > now()')
+    );
+    ok(
+      "credentials go only to the spent code's grant, and never to a revoked one",
+      grantedCte.includes(
+        'WHERE id IN (SELECT grant_id FROM consumed) AND revoked_at IS NULL'
+      )
+    );
+    ok(
+      "a refresh token is written only when the grant's own scope holds offline_access",
+      (
+        grantedCte.match(
+          /WHEN \$\{OFFLINE_SCOPE\} = ANY \(string_to_array\(scope, ' '\)\)/g
+        ) ?? []
+      ).length === 2 &&
+        /\$\{OFFLINE_SCOPE\} = ANY \(string_to_array\(scope, ' '\)\) AS refreshed/.test(
+          grantedCte
+        ) &&
+        redeemFn.includes(
+          'refreshToken: spent.refreshed ? refreshToken : null,'
+        )
+    );
+    ok(
+      'the refresh token gets the refresh lifetime and the access token the access lifetime, from Postgres',
+      grantedCte.includes(
+        'THEN now() + make_interval(secs => ${refreshTtlS})'
+      ) &&
+        mintedCte.includes('now() + make_interval(secs => ${accessTtlS})') &&
+        !mintedCte.includes('refreshTtlS') &&
+        !/new Date\(|Date\.now\(\)/.test(spendFn + redeemFn)
+    );
+    ok(
+      'a spent code whose grant was revoked reports as spent (inactive), not as a replay that revokes',
+      spendSql.includes(
+        'FROM consumed c LEFT JOIN granted g ON g.id = c.grant_id'
+      ) &&
+        redeemFn.includes(
+          "if (!spent.grant_id) return { outcome: 'inactive' };"
+        )
+    );
+    ok(
+      'the code is read back only when the statement spent nothing, and a spend with no key throws',
+      redeemFn.includes(
+        'if (!spent) return { outcome: await unspentCodeReason(code) };'
+      ) && /if \(!spent\.minted_id\)\s*throw new Error\(/.test(redeemFn)
+    );
+    const beforeSpend = redeemFn.slice(
+      0,
+      redeemFn.indexOf('await spendAndMint(')
+    );
+    ok(
+      'nothing writes or revokes before the statement',
+      beforeSpend.length > 0 &&
+        !/\.execute\(|\.update\(|\.insert\(|\.delete\(|revokeGrant\(/.test(
+          beforeSpend
+        )
+    );
+    ok(
+      'no OAuth credential is minted anywhere but the two statements',
+      !grants.includes('.insert(apiKeys)') &&
+        !grants.includes('mintAccessToken') &&
+        !grants.includes('issueInitialTokens')
+    );
+
+    const token = withoutComments(
+      readFileSync('app/api/oauth/token/route.ts', 'utf8')
+    );
+    const exchange = token.slice(
+      token.indexOf('async function exchangeCode'),
+      token.indexOf('async function exchangeRefresh')
+    );
+    ok(
+      'a failure inside the code exchange is logged and answers the shared 503, leaving the code for a retry',
+      /try \{\s*spent = await redeemCode\(code\);\s*\} catch \(error\) \{\s*console\.error\('[^']+', error\);\s*return tokenServiceUnavailable\(\);/.test(
+        exchange
+      )
+    );
+    ok(
+      'a code spent on a revoked grant answers invalid_grant and revokes nothing',
+      /spent\.outcome === 'inactive'\) \{\s*return oauthError\(\s*'invalid_grant'/.test(
+        exchange
+      ) &&
+        exchange.indexOf("spent.outcome === 'inactive'") >
+          exchange.indexOf('revokeGrant(')
     );
   }
 
@@ -4900,7 +5032,7 @@ async function main() {
      */
     ok(
       'the OAuth door mints a key without asking about credits',
-      /plan: CREDIT_API_PLAN/.test(grants) &&
+      (grants.match(/\$\{CREDIT_API_PLAN\}/g) ?? []).length === 2 &&
         !/hasPaidAccess|onFreeAllowance/.test(grants)
     );
     const keysRoute = readFileSync('app/api/developer/keys/route.ts', 'utf8');

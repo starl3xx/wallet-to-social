@@ -250,7 +250,7 @@ export default async function AuthorizePage({
      * for is a refresh token and no access, which is not a thing to grant.
      *
      * But the message said "the only scope this server grants is wallet:read",
-     * and that is untrue: `SUPPORTED_SCOPES` holds both, and `issueInitialTokens`
+     * and that is untrue: `SUPPORTED_SCOPES` holds both, and `redeemCode`
      * returns a refresh token precisely when `offline_access` was granted. A
      * client told the server grants one scope, by a server that advertises two
      * in its own metadata, learns nothing except that one of the two is lying.

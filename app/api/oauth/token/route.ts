@@ -10,11 +10,12 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
-import { consumeCode, loadCode, pkceMatches } from '@/lib/oauth/requests';
+import { loadCode, pkceMatches } from '@/lib/oauth/requests';
 import {
-  issueInitialTokens,
+  redeemCode,
   refreshGrant,
   revokeGrant,
+  type RedeemResult,
   type RefreshResult,
 } from '@/lib/oauth/grants';
 import { mcpResource } from '@/lib/oauth/metadata';
@@ -91,6 +92,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   return oauthError(
     'unsupported_grant_type',
     'Supported grant types are authorization_code and refresh_token.'
+  );
+}
+
+/**
+ * A database failure inside an exchange or a refresh.
+ *
+ * Not the client's fault, and after the atomic statements a retry with the
+ * same code or refresh token is safe unless the commit itself was lost.
+ * `temporarily_unavailable` is defined for the authorization endpoint, not
+ * this one (OAuth 2.1 section 3.2.4); it is used deliberately, as the 429
+ * above already does, because the MCP SDK reads it as an error to retry
+ * rather than a reason to start consent over, which a bare 500 becomes.
+ *
+ * A failure that repeats keeps answering 503. Consent would not mend a token
+ * service that cannot write, so the caller's log line is where a persistent
+ * one is noticed, not the person's browser.
+ */
+function tokenServiceUnavailable(): NextResponse {
+  return NextResponse.json(
+    {
+      error: 'temporarily_unavailable',
+      error_description: 'The token service is briefly unavailable. Try again.',
+    },
+    { status: 503, headers: { ...NO_STORE, 'Retry-After': '5' } }
   );
 }
 
@@ -200,10 +225,19 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
    * Everything above passed, so whoever is calling holds the code, the
    * verifier, the client id and the redirect. Only now does spending it mean
    * anything, and only now does failing to spend it mean anything either.
+   *
+   * The spend and the credentials are one statement, so a failure here leaves
+   * the code unspent and the client's retry works; see `tokenServiceUnavailable`.
    */
-  const spent = await consumeCode(code);
+  let spent: RedeemResult;
+  try {
+    spent = await redeemCode(code);
+  } catch (error) {
+    console.error('Code exchange failed on /api/oauth/token:', error);
+    return tokenServiceUnavailable();
+  }
 
-  if (spent === 'replayed') {
+  if (spent.outcome === 'replayed') {
     /**
      * The code was already spent, by somebody who also passed every check
      * above. That is a code in two places, which OAuth 2.1 answers by revoking
@@ -221,13 +255,21 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
     );
   }
 
-  if (spent !== 'consumed') {
+  if (spent.outcome === 'inactive') {
+    // Spent on a grant revoked since consent. Nothing to revoke, nothing issued.
+    return oauthError(
+      'invalid_grant',
+      'The consent behind this code is no longer active.'
+    );
+  }
+
+  if (spent.outcome !== 'issued') {
     /**
      * Expired, or gone between the read and the write. Neither is a replay and
      * neither revokes anything.
      *
-     * Telling this apart from a replay is the whole reason `consumeCode`
-     * returns four outcomes instead of a boolean. A boolean made every failure
+     * Telling this apart from a replay is the whole reason `unspentCodeReason`
+     * returns three outcomes instead of a boolean. A boolean made every failure
      * a replay, so a first exchange arriving a moment past the window was
      * answered by revoking the connection it was trying to establish, and the
      * only clock that could disagree with itself was the one deciding.
@@ -238,14 +280,7 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
     );
   }
 
-  const tokens = await issueInitialTokens(row.grantId);
-  if (!tokens) {
-    return oauthError(
-      'invalid_grant',
-      'The consent behind this code is no longer active.'
-    );
-  }
-
+  const { tokens } = spent;
   return NextResponse.json(
     {
       access_token: tokens.accessToken,
@@ -276,27 +311,7 @@ async function exchangeRefresh(form: URLSearchParams): Promise<NextResponse> {
     });
   } catch (error) {
     console.error('Refresh failed on /api/oauth/token:', error);
-    /**
-     * A database failure is not the client's fault, and after the atomic
-     * rotation a retry with the same refresh token is safe unless the commit
-     * itself was lost. `temporarily_unavailable` is defined for the
-     * authorization endpoint, not this one (OAuth 2.1 section 3.2.4); it is
-     * used deliberately, as the 429 above already does, because the MCP SDK
-     * reads it as an error to retry rather than a reason to start consent over,
-     * which a bare 500 becomes.
-     *
-     * A failure that repeats keeps answering 503. Consent would not mend a
-     * token service that cannot write, so the log line above is where a
-     * persistent one is noticed, not the person's browser.
-     */
-    return NextResponse.json(
-      {
-        error: 'temporarily_unavailable',
-        error_description:
-          'The token service is briefly unavailable. Try again.',
-      },
-      { status: 503, headers: { ...NO_STORE, 'Retry-After': '5' } }
-    );
+    return tokenServiceUnavailable();
   }
 
   if (!result.ok) {

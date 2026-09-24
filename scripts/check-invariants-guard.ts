@@ -1037,8 +1037,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'a refresh that fails inside answers a bare 500 again',
     file: 'app/api/oauth/token/route.ts',
-    from: "      { status: 503, headers: { ...NO_STORE, 'Retry-After': '5' } }",
-    to: '      { status: 500, headers: NO_STORE }',
+    from: "    { status: 503, headers: { ...NO_STORE, 'Retry-After': '5' } }",
+    to: '    { status: 500, headers: NO_STORE }',
   },
   {
     name: 'the refresh drops the client_id it was sent',
@@ -1121,8 +1121,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the 503 drops Retry-After',
     file: 'app/api/oauth/token/route.ts',
-    from: "      { status: 503, headers: { ...NO_STORE, 'Retry-After': '5' } }",
-    to: '      { status: 503, headers: NO_STORE }',
+    from: "    { status: 503, headers: { ...NO_STORE, 'Retry-After': '5' } }",
+    to: '    { status: 503, headers: NO_STORE }',
   },
   {
     name: 'the pre-read stops matching the previous token, so a reuse is never revoked',
@@ -1151,8 +1151,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'a refreshed access token lives as long as the refresh token',
     file: 'lib/oauth/grants.ts',
-    from: '${CREDIT_API_PLAN}, now() + make_interval(secs => ${accessTtlS}), id',
-    to: '${CREDIT_API_PLAN}, now() + make_interval(secs => ${refreshTtlS}), id',
+    from: '${CREDIT_API_PLAN}, now() + make_interval(secs => ${accessTtlS}), id\n      FROM rotated',
+    to: '${CREDIT_API_PLAN}, now() + make_interval(secs => ${refreshTtlS}), id\n      FROM rotated',
   },
   {
     name: 'a JS Date expiry crosses into the rotation',
@@ -1200,7 +1200,7 @@ const MUTATIONS: Mutation[] = [
     name: 'the code is spent before the exchange is validated (Bugbot, 2026-08-25)',
     file: 'app/api/oauth/token/route.ts',
     from: '  const loaded = await loadCode(code);',
-    to: '  await consumeCode(code);\n  const loaded = await loadCode(code);',
+    to: '  await redeemCode(code);\n  const loaded = await loadCode(code);',
   },
   {
     name: 'the PKCE check is dropped from the exchange',
@@ -1235,8 +1235,80 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'every failed consume is read as a replay, revoking on a clock race (Bugbot, 2026-08-25)',
     file: 'app/api/oauth/token/route.ts',
-    from: "  if (spent === 'replayed') {",
-    to: "  if (spent !== 'consumed') {",
+    from: "  if (spent.outcome === 'replayed') {",
+    to: "  if (spent.outcome !== 'issued') {",
+  },
+  {
+    name: 'the code is spent in its own statement again, so a failed mint burns it',
+    file: 'lib/oauth/grants.ts',
+    from: '  const spent = await spendAndMint({',
+    to: '  await getDb()!.execute(sql`UPDATE oauth_authorization_requests SET consumed_at = now() WHERE code_hash = ${sha256(code)}`);\n  const spent = await spendAndMint({',
+  },
+  {
+    name: 'an expired code can be spent',
+    file: 'lib/oauth/grants.ts',
+    from: '        AND code_expires_at > now()\n',
+    to: '',
+  },
+  {
+    name: 'a spent code can be spent again',
+    file: 'lib/oauth/grants.ts',
+    from: '        AND consumed_at IS NULL\n',
+    to: '',
+  },
+  {
+    name: 'a late code brings a revoked grant back to life',
+    file: 'lib/oauth/grants.ts',
+    from: '      WHERE id IN (SELECT grant_id FROM consumed) AND revoked_at IS NULL',
+    to: '      WHERE id IN (SELECT grant_id FROM consumed)',
+  },
+  {
+    name: 'every grant gets a refresh hash written, offline_access or not',
+    file: 'lib/oauth/grants.ts',
+    from: "      SET refresh_token_hash = CASE\n            WHEN ${OFFLINE_SCOPE} = ANY (string_to_array(scope, ' '))\n            THEN ${input.refreshHash} ELSE refresh_token_hash END,",
+    to: '      SET refresh_token_hash = ${input.refreshHash},',
+  },
+  {
+    name: 'a refresh token is handed out without offline_access',
+    file: 'lib/oauth/grants.ts',
+    from: '      refreshToken: spent.refreshed ? refreshToken : null,',
+    to: '      refreshToken,',
+  },
+  {
+    name: 'a code spent on a revoked grant drops out of the result and reads as a replay',
+    file: 'lib/oauth/grants.ts',
+    from: 'FROM consumed c LEFT JOIN granted g ON g.id = c.grant_id',
+    to: 'FROM consumed c JOIN granted g ON g.id = c.grant_id',
+  },
+  {
+    name: 'a code on a revoked grant is no longer told apart, so it throws into a 503',
+    file: 'lib/oauth/grants.ts',
+    from: "  if (!spent.grant_id) return { outcome: 'inactive' };\n",
+    to: '',
+  },
+  {
+    name: 'every unspent code is read as a replay',
+    file: 'lib/oauth/grants.ts',
+    from: '  if (!spent) return { outcome: await unspentCodeReason(code) };',
+    to: "  if (!spent) return { outcome: 'replayed' };",
+  },
+  {
+    name: 'the first access token lives as long as the refresh token',
+    file: 'lib/oauth/grants.ts',
+    from: '${CREDIT_API_PLAN}, now() + make_interval(secs => ${accessTtlS}), id\n      FROM granted',
+    to: '${CREDIT_API_PLAN}, now() + make_interval(secs => ${refreshTtlS}), id\n      FROM granted',
+  },
+  {
+    name: 'a failed code exchange answers a bare 500 again',
+    file: 'app/api/oauth/token/route.ts',
+    from: "    console.error('Code exchange failed on /api/oauth/token:', error);\n    return tokenServiceUnavailable();",
+    to: '    throw error;',
+  },
+  {
+    name: 'a code spent on a revoked grant revokes it as if it were a replay',
+    file: 'app/api/oauth/token/route.ts',
+    from: "  if (spent.outcome === 'replayed') {",
+    to: "  if (spent.outcome === 'replayed' || spent.outcome === 'inactive') {",
   },
   {
     name: 'loadCode judges expiry again, so two clocks decide (Bugbot, 2026-08-25)',

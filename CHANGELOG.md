@@ -2,6 +2,21 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-23 (a code exchange is one statement)
+
+- **Exchanging an authorization code spends the code, writes the refresh token
+  and mints the access token in one statement.** They were three, and a
+  failure after the spend left the code used up with nothing issued, so the
+  client's retry was read as a replay and revoked the connection it was trying
+  to make. A failure now leaves the code unspent, answers 503
+  `temporarily_unavailable` with `Retry-After`, and is logged. Checked against
+  a real Postgres engine (PGlite) in eight scenarios, a forced mint failure and
+  a retry of the same code among them.
+- A replayed code still revokes its connection, an expired one still revokes
+  nothing, and a code spent on a connection revoked since consent still
+  answers `invalid_grant` without a replay.
+- Tests: 12 new invariants and 12 new guard mutations.
+
 ### 2026-09-23 (a refresh is one statement, and bound to its client)
 
 - **Refreshing a connection rotates the refresh token and mints the access

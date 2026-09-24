@@ -209,7 +209,8 @@ export type LoadedCode =
  * was reported as "expired" and revoked nothing, which is the case replay
  * detection exists for.
  *
- * One clock decides, and it is Postgres's, in `consumeCode`.
+ * One clock decides, and it is Postgres's, in the spend inside `redeemCode`
+ * (lib/oauth/grants.ts).
  */
 export async function loadCode(code: string): Promise<LoadedCode> {
   const db = getDb();
@@ -225,52 +226,35 @@ export async function loadCode(code: string): Promise<LoadedCode> {
 }
 
 /**
- * What happened when we tried to spend a code.
+ * Why a code was not spent.
  *
- * Four outcomes rather than a boolean, because two of them mean "no" for
+ * Three outcomes rather than a boolean, because two of them mean "no" for
  * completely different reasons and only one of them justifies revoking a
  * grant. A boolean forced the caller to guess, and it guessed wrong in both
  * directions.
  */
-export type ConsumeResult = 'consumed' | 'replayed' | 'expired' | 'unknown';
+export type UnspentReason = 'replayed' | 'expired' | 'unknown';
 
 /**
- * Spend a code, once.
+ * Read a code back after `redeemCode` (lib/oauth/grants.ts) spent nothing.
  *
- * The UPDATE is conditional, so two exchanges racing produce exactly one
- * winner and the loser learns why by reading the row back. `replayed` is
- * checked before `expired` on that read: a code that was spent and has since
- * gone past its window is still a code in two places, and reporting it as
- * merely expired would let a late replay pass without revoking anything.
+ * The spend is conditional, so two exchanges racing produce exactly one
+ * winner and the loser learns why here. `replayed` is checked before
+ * `expired`: a code that was spent and has since gone past its window is
+ * still a code in two places, and reporting it as merely expired would let a
+ * late replay pass without revoking anything.
  *
- * By the time this is called the caller has already proved it holds the right
- * `client_id`, `redirect_uri` and PKCE verifier. That is what makes `replayed`
- * worth revoking a grant over rather than an overreaction to a client fumbling
- * its own request.
+ * No clock is read here. Postgres judged the expiry in the spend, and this
+ * only asks whether the code exists and whether it was spent.
  */
-export async function consumeCode(code: string): Promise<ConsumeResult> {
+export async function unspentCodeReason(code: string): Promise<UnspentReason> {
   const db = getDb();
   if (!db) return 'unknown';
-  const hash = sha256(code);
-
-  const consumed = await db
-    .update(oauthAuthorizationRequests)
-    .set({ consumedAt: new Date() })
-    .where(
-      and(
-        eq(oauthAuthorizationRequests.codeHash, hash),
-        isNull(oauthAuthorizationRequests.consumedAt),
-        sql`${oauthAuthorizationRequests.codeExpiresAt} > now()`
-      )
-    )
-    .returning();
-
-  if (consumed.length === 1) return 'consumed';
 
   const [existing] = await db
     .select()
     .from(oauthAuthorizationRequests)
-    .where(eq(oauthAuthorizationRequests.codeHash, hash))
+    .where(eq(oauthAuthorizationRequests.codeHash, sha256(code)))
     .limit(1);
 
   if (!existing) return 'unknown';
