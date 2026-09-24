@@ -953,6 +953,7 @@ paths:
                     error: Invalid cursor. Pass the next_cursor value from a previous response, unmodified.
                     code: INVALID_CURSOR
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccountRequired' }
         '402': { $ref: '#/components/responses/PaymentRequired' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -1052,6 +1053,7 @@ paths:
                     error: Invalid cursor. Pass the next_cursor value from a previous response, unmodified.
                     code: INVALID_CURSOR
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/AccountRequired' }
         '402': { $ref: '#/components/responses/PaymentRequired' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
@@ -1430,6 +1432,23 @@ components:
                 error: Invalid or expired API key
                 code: INVALID_API_KEY
 
+    AccountRequired:
+      description: |
+        `ACCOUNT_REQUIRED`. The reverse lookups need a key that belongs to an
+        account. A key bought with USDC and no account resolves addresses but
+        cannot look up the wallets behind a handle: that direction can find a
+        person, so somebody has to answer for the search. Not worth retrying
+        with the same key; sign up and create one, or connect with OAuth.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          examples:
+            walletOnly:
+              summary: ACCOUNT_REQUIRED
+              value:
+                error: Reverse lookups need an account with an email address.
+                code: ACCOUNT_REQUIRED
+
     PaymentRequired:
       description: |
         `NO_CREDITS`. The match balance is exhausted, or the free allowance for
@@ -1530,6 +1549,7 @@ components:
             - MISSING_API_KEY
             - INVALID_API_KEY
             - NO_CREDITS
+            - ACCOUNT_REQUIRED
             - RATE_LIMIT_EXCEEDED
             - INVALID_ADDRESS
             - INVALID_HANDLE

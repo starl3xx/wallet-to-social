@@ -8,6 +8,8 @@ Finds every wallet attested to a Farcaster username. Costs **1 match credit per 
 
 Only wallets whose recorded sources are all attested evidence (an onchain record, a Farcaster verification, an owner-signed link) are returned. Sources are recorded per wallet, not per username, so a wallet whose attested link sits beside a [correlated](/concepts/data-quality) source is left out too: we cannot tell which of the two supplied the username. A single-wallet lookup still shows it, with its labels. The total and every page follow the same rule, and an empty result means no such wallet, not that no address is attested anywhere.
 
+This lookup needs a key that belongs to an account. A key [bought with USDC](/agent-pack) and no account resolves addresses but answers this one with `403` `ACCOUNT_REQUIRED`: turning a username into the wallets behind it is the direction that can find a person, so somebody has to answer for the search.
+
 Because [Farcaster coverage is complete](/concepts/coverage#farcaster-coverage-is-complete), this is the most reliable lookup in the API. An empty result is a statement about attested rows, as above, not a sign that we have not indexed the username yet.
 
 ## Path parameters

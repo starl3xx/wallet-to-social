@@ -30,7 +30,7 @@
  *    allowance and which analytics can exclude from signups and churn.
  *  - the address cannot be delivered to even if both of those are ignored.
  */
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { creditLots, users } from '@/db/schema';
 import { BASE_MAINNET } from '@/lib/x402';
@@ -41,6 +41,41 @@ const SYNTHETIC_EMAIL_DOMAIN = 'x402.walletlink.invalid';
 export function syntheticEmailForWallet(wallet: string): string {
   return `${wallet.toLowerCase()}@${SYNTHETIC_EMAIL_DOMAIN}`;
 }
+
+/** Whether an email is the synthetic one a wallet-only account is given. */
+export function isWalletOnlyEmail(email: string | null | undefined): boolean {
+  return (
+    typeof email === 'string' &&
+    email.toLowerCase().endsWith(`@${SYNTHETIC_EMAIL_DOMAIN}`)
+  );
+}
+
+/**
+ * Whether an account is wallet-only: made by a USDC payment, with nobody
+ * reachable behind it.
+ *
+ * The reverse lookups refuse these (Linear STA-41). Turning a handle into the
+ * wallets behind it is the direction that can find a person, so a search of
+ * that kind needs an account a person answers for; a key bought with USDC and
+ * no account keeps the forward lookups, which only resolve addresses the
+ * caller already holds. Read from the email, which is synthetic exactly for
+ * these accounts, rather than from `origin`, so the test stays true whatever
+ * else marks the row. A key whose account cannot be read is refused.
+ */
+export async function isWalletOnlyAccount(userId: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return true;
+  const [row] = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return !row || isWalletOnlyEmail(row.email);
+}
+
+/** What a wallet-only key is told when it asks for a reverse lookup. */
+export const ACCOUNT_REQUIRED_MESSAGE =
+  'Reverse lookups need an account with an email address. This key was bought with USDC and has no account behind it, so it can resolve addresses but not look up the wallets behind a handle. Sign up at https://walletlink.social and create a key, or connect with OAuth.';
 
 /**
  * The account for this wallet, created if it is the wallet's first payment.

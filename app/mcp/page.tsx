@@ -530,6 +530,11 @@ export default function McpPage() {
               client signs and reposts for you.
             </p>
             <p className="max-w-[65ch]">
+              That key resolves addresses. The two reverse tools, from a handle
+              to the wallets behind it, need an account: that direction can find
+              a person, so somebody has to answer for the search.
+            </p>
+            <p className="max-w-[65ch]">
               One settlement can buy 1 to {X402_MAX_QUANTITY} packs at linear
               price, so an agent with a real list stops paying a signature per
               pack. A buy that carries a valid key in the Authorization header

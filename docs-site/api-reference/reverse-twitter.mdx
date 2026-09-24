@@ -8,6 +8,8 @@ Finds every wallet attested to an X handle. Costs **1 match credit per wallet re
 
 Only wallets whose recorded sources are all attested evidence (an onchain record, a Farcaster verification, an owner-signed link) are returned. Sources are recorded per wallet, not per handle, so a wallet whose attested link sits beside a [correlated](/concepts/data-quality) source is left out too: we cannot tell which of the two supplied the handle. A single-wallet lookup still shows it, with its labels. The total and every page follow the same rule, and an empty result means no such wallet, not that no address is attested anywhere.
 
+This lookup needs a key that belongs to an account. A key [bought with USDC](/agent-pack) and no account resolves addresses but answers this one with `403` `ACCOUNT_REQUIRED`: turning a handle into the wallets behind it is the direction that can find a person, so somebody has to answer for the search.
+
 This runs the graph backwards, and it answers a question most wallet tooling cannot: given a person, what do they hold?
 
 ## Path parameters

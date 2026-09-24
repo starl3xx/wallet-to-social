@@ -5178,6 +5178,65 @@ async function main() {
     );
   }
 
+  // ------------------------- Reverse lookups need an account (Linear STA-41)
+  // A handle-to-wallets search is the direction that can find a person, so it
+  // needs an account somebody answers for. A key bought with USDC and no
+  // account keeps the forward lookups and is refused here, before anything is
+  // read or billed.
+  {
+    const { isWalletOnlyEmail, syntheticEmailForWallet } =
+      await import('@/lib/x402-account');
+    const w = '0x' + 'ab'.repeat(20);
+    ok(
+      'a wallet-only account is recognized by its synthetic email, in any case, and a real address never is',
+      isWalletOnlyEmail(syntheticEmailForWallet(w)) &&
+        isWalletOnlyEmail(syntheticEmailForWallet(w).toUpperCase()) &&
+        !isWalletOnlyEmail('person@example.com') &&
+        !isWalletOnlyEmail('x402.walletlink.invalid@example.com') &&
+        !isWalletOnlyEmail(null)
+    );
+    const acct = withoutComments(readFileSync('lib/x402-account.ts', 'utf8'));
+    const fn = acct.slice(
+      acct.indexOf('export async function isWalletOnlyAccount'),
+      acct.indexOf('export const ACCOUNT_REQUIRED_MESSAGE')
+    );
+    ok(
+      'an account that cannot be read is treated as wallet-only, so the refusal fails closed',
+      /if \(!db\) return true;/.test(fn) &&
+        fn.includes('return !row || isWalletOnlyEmail(row.email);')
+    );
+    for (const route of [
+      'app/api/v1/reverse/twitter/[handle]/route.ts',
+      'app/api/v1/reverse/farcaster/[username]/route.ts',
+    ]) {
+      const code = withoutComments(readFileSync(route, 'utf8'));
+      const gate = code.indexOf(
+        'if (await isWalletOnlyAccount(context.key.userId)) {'
+      );
+      ok(
+        `${route.split('/')[4]} reverse refuses a wallet-only key with 403 ACCOUNT_REQUIRED before it reads or bills anything`,
+        gate !== -1 &&
+          /if \(await isWalletOnlyAccount\(context\.key\.userId\)\) \{\s*return apiError\(ACCOUNT_REQUIRED_MESSAGE, 'ACCOUNT_REQUIRED', 403,/.test(
+            code
+          ) &&
+          gate < code.indexOf('.from(socialGraph)') &&
+          gate < code.indexOf('trackApiUsage(')
+      );
+    }
+    const spec = readFileSync('docs-site/openapi.yaml', 'utf8');
+    const errors = readFileSync('docs-site/api-reference/errors.mdx', 'utf8');
+    ok(
+      'the new code is documented where integrators branch on codes',
+      /enum:[\s\S]*?- ACCOUNT_REQUIRED/.test(spec) &&
+        (
+          spec.match(
+            /'403': \{ \$ref: '#\/components\/responses\/AccountRequired' \}/g
+          ) ?? []
+        ).length === 2 &&
+        /\| `ACCOUNT_REQUIRED`\s*\| 403/.test(errors)
+    );
+  }
+
   // ------------------------------------------------- OAuth: the grant cap
   // Two Approve clicks: only one can issue a code, and the loser's grant has
   // to go with it. Left behind it holds a slot in the per-account cap and
