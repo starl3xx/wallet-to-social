@@ -2,6 +2,51 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (draft: terms of service, and a privacy policy that matches the code)
+
+- **A draft, not live until the owner approves it (STA-41).** Both pages carry
+  `[DECIDE: …]` markers, rendered in the caution color, for every choice not
+  yet made; none may ship. This merges after #385, which makes jobs over ten
+  addresses apply the suppression list, because the removal text is written
+  as true once it does.
+- **`/terms`**, new: the terms of service with an acceptable-use policy,
+  linked from the footer beside Privacy, from the sitemap and from the privacy
+  page. Every price, lifetime, limit and allowance is read from the constant
+  the code enforces, and the definitions of a match, attested evidence and
+  reachability are the canonical sentences. It says what the product does
+  today: reverse lookups need an account with an email address, rate limits
+  count units rather than requests, credits last `CREDIT_LIFETIME_DAYS` (365)
+  days, plans bought before credit packs keep what they were sold, and misuse
+  can cost a customer their keys and connections. There is no account block,
+  so the page does not promise one. The outreach rules keep the direct
+  messages and X lists and agree with the published line on who the product
+  is not for. Sanctioned persons may be refused; no screening is claimed.
+- **`/privacy`**, every sentence checked against the code. Where the code did
+  not do what the page said, the page now says what the code does:
+  - Lists of more than ten addresses send every address without a cached
+    answer from the past seven days to the identity providers, whatever the
+    scan depth, and do not use the 30-day record of addresses that resolved
+    to nobody.
+  - Cached raw results have no expiry after seven days, since nothing deletes
+    them, and a repeated lookup is billed again.
+  - Payment records are kept at least seven years; nothing deletes them.
+  - A suppression can be lifted by an operator if a removal was made in
+    error, so it is no longer called permanent. Backups, API retry copies and
+    claim records that outlive a removal are listed.
+  - A claim fills or confirms the account we hold and never overwrites a
+    different one; a withdrawal keeps a record on the claimant's account.
+  - The index holds more than the mapping (holdings, exchange verification,
+    X account status, agent labels, handle history), and not every link was
+    published by the owner.
+- New on the page: Inngest, GitHub, X, Warpcast and PayAI as processors, a
+  section on the lawful basis, the welcome and check-in emails, X list jobs,
+  the home page's recent-lookups strip, what the browser keeps, and retention
+  rows for API retry copies, API request records, lifecycle email records, the
+  suppression list, the index's other facts and the encrypted backups.
+- The single-address lookup page no longer calls a removal permanent. The
+  cleanup cron's header named a `docs-site/privacy.mdx` that never existed; it
+  names `app/privacy/page.tsx`.
+
 ### 2026-09-26 (A claim-page withdrawal leaves an email in help@)
 
 - **A withdrawal on the claim page now has a record outside the database.**

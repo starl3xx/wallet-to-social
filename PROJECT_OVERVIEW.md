@@ -731,7 +731,8 @@ wallet is finishing the suppression, not evading it.
 ### Privacy policy and retention
 
 `app/privacy/page.tsx` is the published policy, at `/privacy`, linked from the
-footer and the sitemap. Two rules govern it and both are enforced:
+footer and the sitemap. It links to the terms of service (`/terms`, below). Two
+rules govern it and both are enforced:
 
 **Every period it states is one the code enforces.** `app/api/cron/cleanup/route.ts`
 runs daily and owns all of them. Writing the policy is what surfaced that
@@ -780,6 +781,38 @@ of reach, as the page has always said. The retention table gained two rows
 the cleanup cron enforces: removal quarantine copies (30 days) and
 background job payloads (30 days). The decided policy is under principle 8
 in `docs/AGENT-SYSTEM.md`; the operator runbook is in `docs/OPERATIONS.md`.
+
+**The 2026-09-24 audit (STA-41, a draft PR until the owner approves).** Every
+sentence was checked against the code, and where the code did not do what the
+page said, the page now says what the code does, with a `[DECIDE: …]` marker
+(the `Decide` component, rendered in the caution color) wherever the owner can
+instead change the code. Two rows had no enforcing code, so they no longer
+state an expiry: cached raw results (`cleanExpiredCache` in `lib/cache.ts` has
+no caller, so a copy lasts until the next lookup of the address replaces it)
+and payment records ("at least seven years"; nothing deletes them). Suppression
+is no longer called permanent, because an operator can lift it after the
+quarantine purge (`unsuppressIdentifier` with `acknowledgePurged`). New rows:
+API retry copies (`IDEMPOTENCY_TTL_HOURS`), API request records, lifecycle
+email records, the suppression list, the index's other facts and the encrypted
+backups. New processors: Inngest, GitHub, X, Warpcast, and PayAI named. A new
+section states the lawful basis. The removal text is written as true once the
+Inngest pipeline applies the suppression list (#385), so this merges after it.
+
+### Terms of service
+
+`app/terms/page.tsx` is the terms of service with the acceptable-use policy
+inside them, at `/terms`, linked from the footer beside Privacy, from the
+sitemap and from the privacy page. It follows the privacy page's rules: every
+figure is imported (`lib/packs.ts`, `lib/api-plans.ts`, `lib/match-gate.ts`,
+`lib/ip-rate-limiter.ts`, `lib/access.ts`), the canonical sentences are quoted
+from `lib/canonical-sentences.ts`, and it promises only what the code does. The
+credit lifetime is stated as `CREDIT_LIFETIME_DAYS`, not months, because lots
+expire at 365 days. Enforcement lists revoking keys and disconnecting
+applications, which exist; there is no account block, so anything more is a
+`[DECIDE: …]`. The acceptable-use rules agree with the "who it is not for" line
+in `app/llms.txt/route.ts`. It is not yet in `namesEntity` or the footer and
+sitemap assertions in `scripts/check-invariants.ts`, which check `/privacy`
+only.
 
 ### OAuth 2.1 for the MCP server
 

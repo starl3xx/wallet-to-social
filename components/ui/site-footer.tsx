@@ -192,6 +192,7 @@ export function SiteFooter() {
           <FooterColumn title="Project">
             <FooterLink href="/claim">Claim your address</FooterLink>
             <FooterLink href="/privacy">Privacy</FooterLink>
+            <FooterLink href="/terms">Terms</FooterLink>
             <FooterLink href="mailto:help@walletlink.social">
               help@walletlink.social
             </FooterLink>

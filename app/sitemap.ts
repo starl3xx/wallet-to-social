@@ -198,6 +198,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: 'yearly',
       priority: 0.3,
     },
+    {
+      // The same reasoning as the policy above: terms nobody can find are not
+      // published, and a directory listing asks for their URL too.
+      url: `${baseUrl}/terms`,
+      changeFrequency: 'yearly',
+      priority: 0.3,
+    },
     ...blogEntries,
     {
       // The hub over the per-collection reports; the reports themselves

@@ -247,8 +247,8 @@ export default function FindTwitterFromWalletPage() {
           >
             privacy page
           </Link>
-          . Removal is by hand and permanent, and a removed wallet returns the
-          same answer as one that was never indexed.
+          . Removal is by hand, and a removed wallet returns the same answer as
+          one that was never indexed.
         </p>
       </main>
       <SiteFooter />
