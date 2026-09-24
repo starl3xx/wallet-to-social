@@ -13,7 +13,11 @@ All notable changes to walletlink.social. Newest first.
   a Dependabot PR closed unmerged takes its copy with it.
 - Dependabot's labels are copied on every run, not only when the copy is
   opened: Dependabot labels its PR in a second request after opening it, so the
-  labels reach the copy on the `labeled` run that follows. It runs on
+  labels reach the copy on the `labeled` run that follows.
+- The copy branch is moved only over commits Dependabot authored. A commit
+  somebody adds to the copy, such as a changelog entry, is never discarded by a
+  later run: the workflow leaves the branch where it is and, on a Dependabot
+  push, comments on the copy asking for a rebase by hand. It runs on
   `pull_request_target`, because `pull_request` runs nothing on a PR GitHub
   cannot merge, and a daily sweep closes any copy whose Dependabot PR is no
   longer open. A copy already merged is never opened again.

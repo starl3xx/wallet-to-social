@@ -91,6 +91,7 @@ jobs:
       GH_TOKEN: ${{ secrets.DEPENDABOT_COPY_TOKEN }}
       REPO: ${{ github.repository }}
       NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+      EVENT_ACTION: ${{ github.event.action }}
     steps:
       - name: Copy or follow the Dependabot PR
         run: |
@@ -139,12 +140,29 @@ jobs:
             exit 0
           fi
 
-          # Point the copy branch at Dependabot's head commit, creating it the
-          # first time and moving it (force) on every later push.
-          if gh api "repos/$REPO/git/ref/heads/$copy" >/dev/null 2>&1; then
-            gh api -X PATCH "repos/$REPO/git/refs/heads/$copy" \
-              -f sha="$sha" -F force=true >/dev/null
-            echo "Moved $copy to $sha."
+          # Point the copy branch at Dependabot's head commit: create it the
+          # first time, and move it (force) when Dependabot pushes. It is never
+          # moved over a commit somebody added to the copy, such as a changelog
+          # entry: a force move would discard it. Only commits Dependabot
+          # authored may be replaced, which covers its own rebases.
+          if copy_head=$(gh api "repos/$REPO/git/ref/heads/$copy" -q .object.sha 2>/dev/null); then
+            if [ "$copy_head" = "$sha" ]; then
+              echo "$copy is already at $sha."
+            else
+              own=$(gh api "repos/$REPO/compare/$sha...$copy_head" \
+                -q '[.commits[] | select((.author.login // "") != "dependabot[bot]")] | length')
+              if [ "$own" = "0" ]; then
+                gh api -X PATCH "repos/$REPO/git/refs/heads/$copy" \
+                  -f sha="$sha" -F force=true >/dev/null
+                echo "Moved $copy to $sha."
+              else
+                echo "::warning::$copy has $own commit(s) of its own, so it was not moved to $sha."
+                if [ "$EVENT_ACTION" = "synchronize" ] && [ -n "$existing" ]; then
+                  gh pr comment "$existing" --repo "$REPO" \
+                    --body "Dependabot updated #$NUMBER to $sha, but this branch has $own commit(s) of its own, so the workflow did not move it. Rebase it onto $sha by hand, then the workflow follows Dependabot again."
+                fi
+              fi
+            fi
           else
             gh api "repos/$REPO/git/refs" \
               -f ref="refs/heads/$copy" -f sha="$sha" >/dev/null
