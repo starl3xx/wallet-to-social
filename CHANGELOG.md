@@ -10,7 +10,10 @@ All notable changes to walletlink.social. Newest first.
   opened, and a Dependabot PR gets no repository secrets, so both had to be
   handled by hand until now (as with #364). The Dependabot PR stays open so
   Dependabot keeps rebasing it, and it closes on its own once the copy merges;
-  a Dependabot PR closed unmerged takes its copy with it.
+  a Dependabot PR closed unmerged takes its copy with it. It runs on
+  `pull_request_target`, because `pull_request` runs nothing on a PR GitHub
+  cannot merge, and a daily sweep closes any copy whose Dependabot PR is no
+  longer open. A copy already merged is never opened again.
 - It uses a fine-grained token, `DEPENDABOT_COPY_TOKEN`, stored in both the
   Dependabot and the Actions secret stores, and it never checks out or runs
   the PR's code. `docs/OPERATIONS.md` records the rule: review and merge the

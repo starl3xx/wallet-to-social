@@ -23,11 +23,18 @@ name: dependabot-copy
 # copy; Dependabot then sees the update on main and closes its own PR.
 #
 # Nothing here checks out or runs the PR's code: every step is a GitHub API
-# call on refs and PRs, so a hostile dependency cannot reach the token.
+# call on refs and PRs, so a hostile dependency cannot reach the token. That is
+# what makes `pull_request_target` safe here, and it is used because
+# `pull_request` runs nothing at all on a PR GitHub cannot merge, `closed`
+# included: a conflicting Dependabot PR that Dependabot then closed would have
+# left its copy open. The daily run is the backstop for any event missed
+# anyway: it closes every copy whose Dependabot PR was closed unmerged.
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, closed]
+  schedule:
+    - cron: '23 6 * * *'
   workflow_dispatch:
     inputs:
       pr:
@@ -38,16 +45,45 @@ permissions:
   contents: read
 
 concurrency:
-  group: dependabot-copy-${{ github.event.pull_request.number || inputs.pr }}
+  group: dependabot-copy-${{ github.event.pull_request.number || inputs.pr || 'sweep' }}
   cancel-in-progress: false
 
 jobs:
+  sweep:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.DEPENDABOT_COPY_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Close copies whose Dependabot PR is no longer open
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::DEPENDABOT_COPY_TOKEN is missing from the Actions secret store (Linear STA-33)."
+            exit 1
+          fi
+          gh pr list --repo "$REPO" --state open --limit 200 \
+            --json number,headRefName \
+            -q '.[] | select(.headRefName | startswith("deps/copy/")) | "\(.number) \(.headRefName)"' |
+          while read -r copy_number copy_branch; do
+            original="${copy_branch#deps/copy/}"
+            state=$(gh pr list --repo "$REPO" --head "$original" --state all \
+              --json state -q '.[0].state // "MISSING"')
+            if [ "$state" != "OPEN" ]; then
+              gh pr close "$copy_number" --repo "$REPO" --delete-branch \
+                --comment "The Dependabot PR this copied is no longer open ($state), so this copy is closed too."
+              echo "Closed copy #$copy_number ($state)."
+            fi
+          done
+
   copy:
     # Only a PR Dependabot opened. The copy itself is opened by starl3xx, so
     # its own events never re-enter here.
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.user.login == 'dependabot[bot]'
+      (github.event_name == 'pull_request_target' &&
+       github.event.pull_request.user.login == 'dependabot[bot]')
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.DEPENDABOT_COPY_TOKEN }}
@@ -130,9 +166,14 @@ jobs:
 
           # Carry Dependabot's labels over (no-docs-needed among them), so the
           # copy is judged by the same gates the original would have been.
-          labels=$(jq -r '[.labels[].name] | join(",")' <<<"$pr")
-          if [ -n "$labels" ]; then
-            gh pr edit "$url" --repo "$REPO" --add-label "$labels" || true
-          fi
+          # Through the labels endpoint itself: `gh pr edit` also reads project
+          # fields, which this token cannot, and so it never applied a label.
+          copy_number="${url##*/}"
+          jq -r '.labels[].name' <<<"$pr" | while read -r label; do
+            if [ -n "$label" ]; then
+              gh api --method POST "repos/$REPO/issues/$copy_number/labels" \
+                -f "labels[]=$label" >/dev/null
+            fi
+          done
           gh pr comment "$NUMBER" --repo "$REPO" \
             --body "Copied to $url so Bugbot can review it. Merge the copy; this PR closes on its own once the update is on main."
