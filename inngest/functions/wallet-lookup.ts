@@ -25,6 +25,11 @@ import { jobGetsPaidFields } from '@/lib/job-processor';
 import type { WalletSocialResult } from '@/lib/types';
 import { asSourceList } from '@/lib/api-sources';
 import { trackEvent } from '@/lib/analytics';
+import {
+  loadSuppressionList,
+  scrubResultRow,
+  SUPPRESSION_KINDS,
+} from '@/lib/suppression';
 
 // Process wallets in micro-batches for parallel execution
 const MICRO_BATCH_SIZE = 500;
@@ -166,11 +171,47 @@ export const walletLookup = inngest.createFunction(
     // Convert results back to Map
     let resultsMap = new Map<string, WalletSocialResult>(results);
 
+    /**
+     * Pre-flight: the suppression filter, mirrored from lib/job-processor.ts,
+     * where the reasoning is written out in full. A suppressed wallet must
+     * never reach the cache, the social graph or an outside provider, so it
+     * leaves the work list here, before any of them. Its initialised row stays
+     * in `resultsMap` and is served as an ordinary not-found row.
+     *
+     * Until 2026-09-24 this pipeline had none of the three suppression guards
+     * the worker has, although every job over ten addresses runs here: a
+     * removed wallet went to every provider and was saved unscrubbed into the
+     * job and history rows. The rule stated further down applies: a change
+     * to one pipeline is made to both.
+     *
+     * Inside a step so the work list is memoised with the batches built from
+     * it; a replay that read the list again could split the batches
+     * differently under the same step ids. It returns only this job's
+     * suppressed addresses, never the list itself, so the step result stays
+     * small. A failed read throws: the step retries, and a run that still
+     * fails has read, saved and billed nothing.
+     */
+    const suppressedInJob = await step.run(
+      'suppression-preflight',
+      async () => {
+        const sets = await loadSuppressionList();
+        const wallets = sets.get('wallet')!;
+        return allWallets
+          .map((w) => w.toLowerCase())
+          .filter((w) => wallets.has(w));
+      }
+    );
+    const suppressedWallets = new Set(suppressedInJob);
+    const activeWallets =
+      suppressedWallets.size === 0
+        ? allWallets
+        : allWallets.filter((w) => !suppressedWallets.has(w.toLowerCase()));
+
     // Step 3: Check cache
     const cacheResult = await step.run('check-cache', async () => {
       let cached = new Map<string, WalletSocialResult>();
       try {
-        cached = await getCachedWallets(allWallets);
+        cached = await getCachedWallets(activeWallets);
       } catch (error) {
         console.error('Cache error:', error);
       }
@@ -186,7 +227,9 @@ export const walletLookup = inngest.createFunction(
         });
       }
 
-      const uncached = allWallets.filter((w) => !cached.has(w.toLowerCase()));
+      const uncached = activeWallets.filter(
+        (w) => !cached.has(w.toLowerCase())
+      );
       return {
         cachedCount: cached.size,
         uncachedWallets: uncached,
@@ -322,6 +365,26 @@ export const walletLookup = inngest.createFunction(
               });
             }
 
+            /**
+             * The batch scrub, mirrored from lib/job-processor.ts. The
+             * pre-flight covers suppressed wallets, but a live resolve of an
+             * unsuppressed wallet can still return a suppressed handle. It is
+             * scrubbed here, before the cache write and before the counts, so
+             * neither the progress figures nor this step's memoised result
+             * carry it. A failed read throws, and the step retries.
+             */
+            const suppression = await loadSuppressionList();
+            if (
+              SUPPRESSION_KINDS.some((k) => (suppression.get(k)?.size ?? 0) > 0)
+            ) {
+              for (const [wallet, result] of batchResultsMap) {
+                batchResultsMap.set(
+                  wallet,
+                  scrubResultRow(result, suppression)
+                );
+              }
+            }
+
             // Cache results
             try {
               const newResults = batch
@@ -421,7 +484,7 @@ export const walletLookup = inngest.createFunction(
     const enriched = await step.run('enrich-social-graph', async () => {
       const deltas: EnrichDelta[] = [];
       try {
-        const graphData = await getSocialGraphData(allWallets);
+        const graphData = await getSocialGraphData(activeWallets);
         for (const [wallet, result] of resultsMap) {
           const stored = graphData.get(wallet);
           if (stored) {
@@ -609,6 +672,23 @@ export const walletLookup = inngest.createFunction(
       if (!db) return;
 
       const allResults = Array.from(resultsMap.values());
+
+      /**
+       * The last look before anything durable is written, mirrored from the
+       * finalize in lib/job-processor.ts. The list is read again rather than
+       * reused from the pre-flight, so a removal that lands mid-job still
+       * wins, and the rows filled from the social graph or loaded from stored
+       * partial results get their only scrub here. The counts below are taken
+       * after it, so the charge, the history row and the job row all agree
+       * with what is served. A failed read throws: the step retries, and a
+       * run that still fails has saved and billed nothing.
+       */
+      const suppression = await loadSuppressionList();
+      if (SUPPRESSION_KINDS.some((k) => (suppression.get(k)?.size ?? 0) > 0)) {
+        for (let i = 0; i < allResults.length; i++) {
+          allResults[i] = scrubResultRow(allResults[i], suppression);
+        }
+      }
 
       // Count final stats before anything durable is written: the charge
       // needs the meter, and the history row carries the gate.

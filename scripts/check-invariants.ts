@@ -10221,6 +10221,94 @@ async function main() {
     );
   }
 
+  // ---------------------- right-to-removal: the Inngest pipeline, too
+  // Every job over ten addresses runs in inngest/functions/wallet-lookup.ts,
+  // not the worker, and until 2026-09-24 it carried none of the three guards
+  // asserted above: a removed wallet went to every provider and was saved
+  // unscrubbed into the job and history rows. Each guard is asserted again
+  // here, by position, because a guard in the wrong place reads as complete.
+  {
+    const il = withoutComments(
+      readFileSync('inngest/functions/wallet-lookup.ts', 'utf8')
+    );
+    const iflat = il.replace(/\s+/g, ' ');
+
+    const preReadIdx = iflat.indexOf(
+      "step.run( 'suppression-preflight', async () => { const sets = await loadSuppressionList();"
+    );
+    const preFilterIdx = iflat.indexOf(
+      'const activeWallets = suppressedWallets.size === 0 ? allWallets : allWallets.filter((w) => !suppressedWallets.has(w.toLowerCase()));'
+    );
+    const cacheIdx = iflat.indexOf("step.run('check-cache'");
+    ok(
+      'the Inngest pre-flight drops suppressed wallets before the cache read',
+      preReadIdx !== -1 &&
+        preFilterIdx !== -1 &&
+        cacheIdx !== -1 &&
+        preReadIdx < preFilterIdx &&
+        preFilterIdx < cacheIdx &&
+        iflat.includes('const suppressedWallets = new Set(suppressedInJob);')
+    );
+    ok(
+      'and every Inngest reader takes the filtered list, never the raw one',
+      iflat.includes('getCachedWallets(activeWallets)') &&
+        iflat.includes('const uncached = activeWallets.filter(') &&
+        iflat.includes('getSocialGraphData(activeWallets)') &&
+        !iflat.includes('getCachedWallets(allWallets)') &&
+        !iflat.includes('getSocialGraphData(allWallets)')
+    );
+
+    const neynarApplyIdx = iflat.indexOf("[...existing.source, 'neynar']");
+    const batchScrubIdx = iflat.indexOf(
+      'batchResultsMap.set( wallet, scrubResultRow(result, suppression) );'
+    );
+    const cacheWriteIdx = iflat.indexOf(
+      'await cacheWalletResults(newResults);'
+    );
+    const batchCountIdx = iflat.indexOf('let batchTwitter = 0;');
+    ok(
+      'the Inngest batch scrub runs after the provider merge and before the cache write and the counts',
+      neynarApplyIdx !== -1 &&
+        batchScrubIdx !== -1 &&
+        cacheWriteIdx !== -1 &&
+        batchCountIdx !== -1 &&
+        neynarApplyIdx < batchScrubIdx &&
+        batchScrubIdx < cacheWriteIdx &&
+        batchScrubIdx < batchCountIdx
+    );
+
+    const finalizeIdx = iflat.indexOf("step.run('finalize'");
+    const finalReadIdx = iflat.indexOf(
+      'await loadSuppressionList()',
+      finalizeIdx
+    );
+    const finalScrubIdx = iflat.indexOf(
+      'allResults[i] = scrubResultRow(allResults[i], suppression);'
+    );
+    const finalCountIdx = iflat.indexOf(
+      'if (result.twitter_handle || result.farcaster) anySocialFound++;'
+    );
+    const chargeIdx = iflat.indexOf('await chargeForJob(');
+    const saveIdx = iflat.indexOf('await saveLookup(');
+    const graphWriteIdx = iflat.indexOf('await upsertSocialGraph(');
+    ok(
+      'the Inngest finalize re-reads the list and scrubs before counting, charging and saving',
+      finalizeIdx !== -1 &&
+        finalReadIdx !== -1 &&
+        finalScrubIdx !== -1 &&
+        finalCountIdx !== -1 &&
+        chargeIdx !== -1 &&
+        saveIdx !== -1 &&
+        graphWriteIdx !== -1 &&
+        finalizeIdx < finalReadIdx &&
+        finalReadIdx < finalScrubIdx &&
+        finalScrubIdx < finalCountIdx &&
+        finalCountIdx < chargeIdx &&
+        finalScrubIdx < saveIdx &&
+        finalScrubIdx < graphWriteIdx
+    );
+  }
+
   // -------------------------------- right-to-removal: the operator endpoint
   // The order is the design: insert and commit the suppression rows FIRST,
   // then erase. The other way round leaves a window in which an in-flight
