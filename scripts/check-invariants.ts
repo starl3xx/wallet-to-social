@@ -7869,6 +7869,25 @@ async function main() {
       registered.length >= 8 && listed.length >= 8
     );
 
+    // A null balance with no reason made an agent guess between "unknown" and
+    // "zero" (seen live, 2026-09-24). /v1/usage says which; the tool has to
+    // pass it on, and its description has to say what the pair means.
+    const balanceTool = mcpRoute.slice(
+      mcpRoute.indexOf("registerTool(\n      'walletlink_account_balance'"),
+      mcpRoute.indexOf("registerTool(\n      'walletlink_submit_job'")
+    );
+    ok(
+      'the balance tool passes unmetered through, so a null balance is never unexplained',
+      balanceTool.length > 0 &&
+        balanceTool.includes(
+          'unmetered: asBoolean(credits.unmetered, false),'
+        ) &&
+        balanceTool.includes('matches_available: credits.available ?? null,') &&
+        /unmetered is true on an account that is never debited/.test(
+          balanceTool
+        )
+    );
+
     /**
      * Every tool carries its annotations in full. Claude's connector directory
      * reads the listing name from `annotations.title`, not the top-level

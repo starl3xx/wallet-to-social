@@ -326,7 +326,9 @@ with, before its own matches were debited: subtract `billed_matches` to know
 what remains. The balance key is absent for the legacy unmetered accounts,
 which have no balance to report; the request counters are always present.
 `walletlink_account_balance` still exists for reading the balance without
-resolving anything.
+resolving anything. On an account that is never debited it answers
+`unmetered: true` with `matches_available` null: there is no balance to report,
+which is not the same as a zero one.
 
 ## The REST surface
 
