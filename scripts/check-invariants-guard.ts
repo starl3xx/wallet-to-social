@@ -2733,6 +2733,55 @@ const MUTATIONS: Mutation[] = [
     from: '  limit is 600 requests an hour per account. Every key and connection on the',
     to: '  limit is 1,000 requests an hour per account. Every key and connection on the',
   },
+  // --- STA-40: the self-declared flag -------------------------------------
+  {
+    name: 'a mixed row is flagged self-declared, though another source may have supplied the handle',
+    file: 'lib/api-sources.ts',
+    from: 'list.every((s) => SELF_DECLARED_SOURCE_IDS.has(s))',
+    to: 'list.some((s) => SELF_DECLARED_SOURCE_IDS.has(s))',
+  },
+  {
+    name: 'the negative marker counts as a source, so no self-declared row is ever flagged',
+    file: 'lib/api-sources.ts',
+    from: "asSourceList(sources).filter((s) => s !== 'none');",
+    to: 'asSourceList(sources);',
+  },
+  {
+    name: 'a governance profile handle is treated as checked by the account',
+    file: 'lib/api-sources.ts',
+    from: "  'snapshot_profile',\n  'lens_profile',\n]);",
+    to: "  'lens_profile',\n]);",
+  },
+  {
+    name: 'the X field serves self_declared: false, which reads as confirmed',
+    file: 'lib/handle-reachability.ts',
+    from: '  if (input.selfDeclared) field.self_declared = true;',
+    to: '  field.self_declared = !!input.selfDeclared;',
+  },
+  {
+    name: 'the single lookup never flags a self-declared handle',
+    file: 'app/api/v1/wallet/[address]/route.ts',
+    from: 'selfDeclared: isSelfDeclared(result.sources),',
+    to: 'selfDeclared: false,',
+  },
+  {
+    name: 'the jobs route never flags a self-declared handle',
+    file: 'app/api/v1/jobs/[id]/route.ts',
+    from: 'selfDeclared: selfDeclared.has(r.wallet.toLowerCase()),',
+    to: 'selfDeclared: false,',
+  },
+  {
+    name: 'the jobs read flags a handle from a graph row about a different handle',
+    file: 'lib/handle-reachability.ts',
+    from: '      if (!served || row.twitter_handle.toLowerCase() !== served) continue;\n',
+    to: '      if (!served) continue;\n',
+  },
+  {
+    name: 'the MCP trim drops self_declared, so an agent never sees it',
+    file: 'app/api/mcp/route.ts',
+    from: '    if (twitter.self_declared === true) x.self_declared = true;\n',
+    to: '',
+  },
 ];
 
 function invariantsPass(): boolean {

@@ -11,7 +11,7 @@ import {
   readBodyCapped,
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
-import { publicSources } from '@/lib/api-sources';
+import { publicSources, isSelfDeclared } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
   alsoOnXForWallets,
@@ -387,6 +387,7 @@ export async function POST(request: NextRequest) {
         handle: result.twitterHandle,
         url: result.twitterUrl,
         verified: result.twitterVerified,
+        selfDeclared: isSelfDeclared(result.sources),
         // Keyed by wallet, not handle: reassigned is a per-wallet fact.
         reachability: reach.get(result.wallet.toLowerCase()) ?? null,
         also: also.get(result.wallet.toLowerCase()) ?? null,

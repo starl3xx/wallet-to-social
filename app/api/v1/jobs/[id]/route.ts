@@ -22,6 +22,7 @@ import { publicSources, asSourceList } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
   alsoOnXForWallets,
+  selfDeclaredXWallets,
   publicTwitterField,
 } from '@/lib/handle-reachability';
 import {
@@ -253,9 +254,12 @@ export async function GET(
     const handleRows = rows
       .filter((r) => r.twitter_handle && !lockedOnPage.has(r.wallet))
       .map((r) => ({ wallet: r.wallet, handle: r.twitter_handle }));
-    const [reach, also] = await Promise.all([
+    // The self-declared read is the graph's, for the same reason: a job's
+    // stored rows carry pipeline markers rather than the graph's sources.
+    const [reach, also, selfDeclared] = await Promise.all([
       reachabilityForWallets(handleRows),
       alsoOnXForWallets(handleRows),
+      selfDeclaredXWallets(handleRows),
     ]);
     // The also read is LIVE handle_conflicts, taken after the scrub above,
     // so mid-erasure (or after a backup restore) it can hand back a
@@ -317,6 +321,7 @@ export async function GET(
           handle: r.twitter_handle,
           url: r.twitter_url,
           verified: r.twitter_verified,
+          selfDeclared: selfDeclared.has(r.wallet.toLowerCase()),
           reachability: reach.get(r.wallet) ?? null,
           also: also.get(r.wallet) ?? null,
         });

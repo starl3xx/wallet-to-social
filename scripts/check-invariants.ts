@@ -6417,6 +6417,113 @@ async function main() {
     }
 
     /**
+     * The X field says when a handle rests only on owner-typed text (STA-40).
+     *
+     * An ENS or Basename text record, a governance profile or a
+     * social-protocol profile attribute is the wallet owner's own act, which
+     * is why it counts as attested, but the handle in it is a claim anyone can
+     * type about any account. `self_declared` is served only when that is
+     * certain: every source on the row is such a record. Sources are per
+     * wallet, so a mixed row cannot say which source supplied the handle, and
+     * the field is omitted rather than served as a false that would read as
+     * "the account confirmed it".
+     */
+    {
+      const {
+        isSelfDeclared,
+        SELF_DECLARED_SOURCE_IDS,
+        MAPPED_SOURCE_IDS,
+        publicSources,
+      } = await import('@/lib/api-sources');
+      const { publicTwitterField } = await import('@/lib/handle-reachability');
+      ok(
+        'a row backed only by owner-typed records is self-declared',
+        isSelfDeclared(['ens']) &&
+          isSelfDeclared(['basename_record', 'ens_onchain']) &&
+          isSelfDeclared(['lens_profile', 'none']) &&
+          isSelfDeclared(['snapshot_profile'])
+      );
+      ok(
+        'and a mixed, empty or checked row is not',
+        !isSelfDeclared(['ens', 'neynar']) &&
+          !isSelfDeclared(['basename_record', 'farcaster_sweep']) &&
+          !isSelfDeclared(['ethos']) &&
+          !isSelfDeclared(['none']) &&
+          !isSelfDeclared([]) &&
+          !isSelfDeclared(null)
+      );
+      ok(
+        'the self-declared set is exactly the five owner-typed record sources',
+        SELF_DECLARED_SOURCE_IDS.size === 5 &&
+          [
+            'ens',
+            'ens_onchain',
+            'basename_record',
+            'snapshot_profile',
+            'lens_profile',
+          ].every((id) => SELF_DECLARED_SOURCE_IDS.has(id))
+      );
+      // A new text-record source classed `onchain` is owner-typed by
+      // definition; it must join the set, not silently read as checked.
+      const onchainIds = [...MAPPED_SOURCE_IDS].filter(
+        (id) => id !== 'onchain' && publicSources([id])?.[0] === 'onchain'
+      );
+      ok(
+        'every onchain text-record source is self-declared',
+        onchainIds.length >= 3 &&
+          onchainIds.every((id) => SELF_DECLARED_SOURCE_IDS.has(id))
+      );
+      const flagged = publicTwitterField({ handle: 'a', selfDeclared: true });
+      const unflagged = publicTwitterField({
+        handle: 'a',
+        selfDeclared: false,
+      });
+      ok(
+        'the X field carries self_declared only when true, never as false',
+        flagged.self_declared === true && !('self_declared' in unflagged)
+      );
+
+      for (const route of [
+        'app/api/v1/wallet/[address]/route.ts',
+        'app/api/v1/batch/route.ts',
+        'app/api/v1/reverse/twitter/[handle]/route.ts',
+        'app/api/v1/reverse/farcaster/[username]/route.ts',
+        'app/api/wallet-socials/route.ts',
+      ]) {
+        const src = withoutComments(readFileSync(route, 'utf8'));
+        ok(
+          `${route} derives self_declared from the row's own sources`,
+          /selfDeclared: isSelfDeclared\((result|row)\.sources\)/.test(src)
+        );
+      }
+      const jobsSrc = withoutComments(
+        readFileSync('app/api/v1/jobs/[id]/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'the jobs route reads self_declared from the graph, per served handle',
+        jobsSrc.includes('selfDeclaredXWallets(handleRows)') &&
+          jobsSrc.includes(
+            'selfDeclared: selfDeclared.has(r.wallet.toLowerCase()),'
+          )
+      );
+      const hr = withoutComments(
+        readFileSync('lib/handle-reachability.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      ok(
+        'the MCP record keeps self_declared through its trim',
+        withoutComments(readFileSync('app/api/mcp/route.ts', 'utf8')).includes(
+          'if (twitter.self_declared === true) x.self_declared = true;'
+        )
+      );
+      ok(
+        'and a graph row about a different handle never flags the served one',
+        hr.includes(
+          'if (!served || row.twitter_handle.toLowerCase() !== served) continue; if (isSelfDeclared(row.sources)) out.add(wallet);'
+        )
+      );
+    }
+
+    /**
      * A reassigned handle never carries a follower count.
      *
      * The other three unreachable states are safe by accident: `x_accounts`

@@ -913,6 +913,7 @@ paths:
                       handle: example_user
                       url: https://x.com/example_user
                       verified: true
+                      self_declared: true
                       reachable: true
                       reachability: live
                       reachability_checked_at: '2026-08-21T14:02:11.000Z'
@@ -1654,6 +1655,23 @@ components:
             attested-social sign-in, or a manually verified record. Anything
             else is correlated, and labeled so.
             See the data-quality page.
+        self_declared:
+          type: boolean
+          enum: [true]
+          description: |
+            Present, and `true`, only when the handle rests on nothing but
+            text the wallet owner typed into their own record: an ENS or
+            Basename text record, a governance profile, or a Lens profile.
+            The owner published it, which is why such a handle still counts
+            as attested and `verified` is `true`. The X account never
+            confirmed it, and anyone can type any handle into their own
+            record.
+
+            **Omitted otherwise, and absent is not false.** Evidence is
+            recorded per wallet, not per handle, so a record that pairs such
+            a record with a route that checks the account (a Farcaster
+            verification, a sign-in) cannot say which one supplied the handle,
+            and it omits the field. Added on 24 September 2026.
         reachable:
           type: boolean
           description: |

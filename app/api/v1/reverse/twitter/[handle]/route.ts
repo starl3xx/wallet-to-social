@@ -16,7 +16,7 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { decodeReverseCursor, encodeReverseCursor } from '@/lib/reverse-cursor';
-import { publicSources } from '@/lib/api-sources';
+import { publicSources, isSelfDeclared } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
   publicTwitterField,
@@ -361,6 +361,7 @@ export async function GET(
       handle: result.twitterHandle ?? normalizedHandle,
       url: result.twitterUrl,
       verified: result.twitterVerified,
+      selfDeclared: isSelfDeclared(result.sources),
       reachability: reach.get(result.wallet.toLowerCase()) ?? null,
       also: also.get(result.wallet.toLowerCase()) ?? null,
     });

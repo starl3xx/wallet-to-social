@@ -303,6 +303,40 @@ export function isAttestedSourceId(value: unknown): boolean {
 }
 
 /**
+ * The sources whose X handle is text the wallet owner typed into their own
+ * record, which the X account never confirmed: an ENS or Basename text
+ * record, a governance profile, a social-protocol profile attribute. The
+ * wallet half is the owner's own act, which is why these count as attested;
+ * the handle half is a claim anyone can make about any account.
+ *
+ * Every other X-carrying source checks the account: a Farcaster
+ * verification, a sign-in, a tweet from the account, a platform's own
+ * verified flag, or our review.
+ */
+export const SELF_DECLARED_SOURCE_IDS: ReadonlySet<string> = new Set([
+  'ens',
+  'ens_onchain',
+  'basename_record',
+  'snapshot_profile',
+  'lens_profile',
+]);
+
+/**
+ * Whether a row's X handle rests only on owner-typed text: every source on
+ * the row, ignoring the negative marker, is a self-declaration source.
+ *
+ * True only when that is certain. `sources` is recorded per wallet, not per
+ * identity, so a row that mixes a self-declaration source with any other
+ * cannot say which one supplied the handle, and it reports false. False
+ * therefore means "not established", never "the account confirmed it"; the
+ * API omits the field rather than serving it as false for that reason.
+ */
+export function isSelfDeclared(sources: unknown): boolean {
+  const list = asSourceList(sources).filter((s) => s !== 'none');
+  return list.length > 0 && list.every((s) => SELF_DECLARED_SOURCE_IDS.has(s));
+}
+
+/**
  * Translates internal source identifiers into public evidence classes.
  * Deduplicates, drops anything unrecognized, and returns undefined rather
  * than an empty array so callers can omit the field entirely.

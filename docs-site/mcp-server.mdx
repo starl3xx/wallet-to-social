@@ -319,10 +319,14 @@ Farcaster verification, an onchain ENS record, an attested-social sign-in, or a
 manually verified record makes it `true`; a record resting on correlation alone
 is `false`; a record with no classified evidence reports `null`. Evidence
 classes are recorded per wallet, so `attested` reflects the record’s
-strongest evidence, not each identity separately. It is deliberately not the
-REST API’s `verified` flag, which reports `false` on the majority
-Farcaster-attested handles: see
+strongest evidence, not each identity separately. See
 [the verified flags](/concepts/data-quality#the-verified-flags).
+
+`x.self_declared` is `true` when the handle rests only on text the wallet owner
+typed into their own record, such as an ENS text record: the owner claims the
+handle, and the X account never confirmed it. It is omitted otherwise, and
+absent is not false. See
+[self-declared handles](/concepts/data-quality#self-declared-handles).
 
 `reaches_someone` and `reachability` are **omitted** when we have not resolved
 the handle. Absent is not false: see
