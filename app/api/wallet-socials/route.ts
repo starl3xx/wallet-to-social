@@ -3,7 +3,11 @@ import { eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
 import { isValidWalletAddress, normalizeWalletAddress } from '@/lib/api-auth';
-import { publicSources, ATTESTED_SOURCES } from '@/lib/api-sources';
+import {
+  publicSources,
+  isSelfDeclared,
+  ATTESTED_SOURCES,
+} from '@/lib/api-sources';
 import {
   reachabilityForWallets,
   publicTwitterField,
@@ -219,6 +223,7 @@ export async function POST(request: NextRequest) {
       handle: row.twitterHandle,
       url: row.twitterUrl,
       verified: row.twitterVerified,
+      selfDeclared: isSelfDeclared(row.sources),
       reachability: reach.get(row.wallet) ?? null,
       // The second-handle disclosure belongs to the paid surface.
       also: null,

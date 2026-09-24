@@ -76,6 +76,7 @@ import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import {
   publicSources,
+  isSelfDeclared,
   MAPPED_SOURCE_IDS,
   ATTESTED_SOURCE_ID_LIST,
 } from '@/lib/api-sources';
@@ -549,6 +550,57 @@ export async function alsoOnXForWallets(
 }
 
 /**
+ * The wallets whose X handle, as served, rests only on owner-typed text.
+ *
+ * For routes that serve rows they did not read from `social_graph`: a job's
+ * stored results carry pipeline markers, not the graph's sources, so the
+ * graph row is read here. A wallet is included only when the graph still
+ * holds the same handle the row serves and every source on it is a
+ * self-declaration source; a handle that changed since the job ran is left
+ * unflagged rather than described by a row about a different handle.
+ */
+export async function selfDeclaredXWallets(
+  rows: Array<{ wallet: string; handle?: string | null }>
+): Promise<Set<string>> {
+  const out = new Set<string>();
+  const db = getDb();
+  if (!db) return out;
+
+  const handleByWallet = new Map<string, string>();
+  for (const r of rows) {
+    if (
+      typeof r.wallet !== 'string' ||
+      typeof r.handle !== 'string' ||
+      r.handle.length === 0
+    )
+      continue;
+    handleByWallet.set(
+      r.wallet.toLowerCase(),
+      r.handle.toLowerCase().replace(/^@/, '')
+    );
+  }
+  const wallets = [...handleByWallet.keys()];
+  for (let i = 0; i < wallets.length; i += 2000) {
+    const chunk = wallets.slice(i, i + 2000);
+    const result = (await db.execute(sql`
+      SELECT wallet, twitter_handle, sources
+      FROM social_graph
+      WHERE wallet = ANY(${sql.param(chunk)}::text[])
+        AND twitter_handle IS NOT NULL
+    `)) as unknown as {
+      rows: Array<{ wallet: string; twitter_handle: string; sources: unknown }>;
+    };
+    for (const row of result.rows) {
+      const wallet = row.wallet.toLowerCase();
+      const served = handleByWallet.get(wallet);
+      if (!served || row.twitter_handle.toLowerCase() !== served) continue;
+      if (isSelfDeclared(row.sources)) out.add(wallet);
+    }
+  }
+  return out;
+}
+
+/**
  * The `twitter` object every public route returns.
  *
  * One builder so the four routes cannot drift into describing the same fact
@@ -558,6 +610,12 @@ export function publicTwitterField(input: {
   handle: string;
   url?: string | null;
   verified?: boolean | null;
+  /**
+   * Required, not optional, so a new route cannot forget it: every caller
+   * states whether the handle rests only on owner-typed text
+   * (`isSelfDeclared` in lib/api-sources.ts).
+   */
+  selfDeclared: boolean;
   reachability?: HandleReachability | null;
   also?: TwitterAlso | null;
 }): Record<string, unknown> {
@@ -566,6 +624,9 @@ export function publicTwitterField(input: {
     url: input.url || `https://x.com/${input.handle}`,
     verified: input.verified ?? false,
   };
+  // Present only when true. False would read as "the account confirmed it",
+  // which a per-wallet source list cannot establish; see `isSelfDeclared`.
+  if (input.selfDeclared) field.self_declared = true;
   // Omitted entirely when unchecked. A `reachable: null` invites a consumer to
   // read it as false, and this field's whole value is that it never overstates.
   if (input.reachability) {

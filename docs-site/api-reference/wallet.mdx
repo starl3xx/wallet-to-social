@@ -31,7 +31,7 @@ curl https://walletlink.social/api/v1/wallet/0x000000000000000000000000000000000
     <ResponseField name="wallet" type="string">Lowercased address. Always present.</ResponseField>
     <ResponseField name="ens_name" type="string">Primary ENS name.</ResponseField>
     <ResponseField name="twitter" type="object">
-      `handle`, `url`, `verified`, and, once we have checked, `reachable`, `reachability` and `reachability_checked_at`. See [the verified flags](/concepts/data-quality#the-verified-flags), which are narrower than they look, and [when a handle stops being true](/concepts/data-quality#when-a-handle-stops-being-true).
+      `handle`, `url`, `verified`, `self_declared` where the handle rests only on text the wallet owner typed into their own record, and, once we have checked, `reachable`, `reachability` and `reachability_checked_at`. See [the verified flags](/concepts/data-quality#the-verified-flags), which are narrower than they look, [self-declared handles](/concepts/data-quality#self-declared-handles), and [when a handle stops being true](/concepts/data-quality#when-a-handle-stops-being-true).
 
       `also`, an object with `handle`, `url` and `source`, is present only where a second X account is attested for the same wallet and both accounts are live. See [a second X account](#a-second-x-account).
     </ResponseField>

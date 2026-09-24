@@ -262,10 +262,10 @@ function shapeRecord(raw: unknown): Record<string, unknown> | null {
 
   // `attested` derives from the record's evidence classes (the public
   // `sources` array, mapped through lib/api-sources.ts), never from the
-  // `verified` flag. That flag is true for the onchain, manual and
-  // attested-social routes, so mapping attested from it reported false on the majority
-  // Farcaster-attested handles and taught agents to treat them as weak
-  // evidence. The classes are recorded per wallet, not per identity, so one
+  // `verified` flag. That flag was true only for the onchain, manual and
+  // attested-social routes until 2026-09-20, so mapping attested from it
+  // reported false on the majority Farcaster-attested handles and taught
+  // agents to treat them as weak evidence. The classes are recorded per wallet, not per identity, so one
   // derivation covers both x and farcaster. A record carrying no classified
   // evidence reports null: "not reported" is a different claim from "not
   // attested", and collapsing them would turn a gap in our own response into
@@ -288,6 +288,10 @@ function shapeRecord(raw: unknown): Record<string, unknown> | null {
       x.reaches_someone = twitter.reachable;
       x.reachability = twitter.reachability;
     }
+    // Present only when true, as in the API: the wallet owner typed this
+    // handle into their own record and the account never confirmed it. For
+    // an agent about to act on a handle, that is the distinction that counts.
+    if (twitter.self_declared === true) x.self_declared = true;
     const also = asObject(twitter.also);
     if (also) x.second_account = also.handle;
     out.x = x;

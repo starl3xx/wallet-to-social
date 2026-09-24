@@ -10,7 +10,7 @@ import {
   normalizeWalletAddress,
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
-import { publicSources } from '@/lib/api-sources';
+import { publicSources, isSelfDeclared } from '@/lib/api-sources';
 import {
   reachabilityForWallets,
   alsoOnXForWallets,
@@ -258,6 +258,7 @@ export async function GET(
       handle: result.twitterHandle,
       url: result.twitterUrl,
       verified: result.twitterVerified,
+      selfDeclared: isSelfDeclared(result.sources),
       reachability: reach.get(result.wallet.toLowerCase()) ?? null,
       also:
         alsoVal && !isKindSuppressed(suppression, 'twitter', alsoVal.handle)

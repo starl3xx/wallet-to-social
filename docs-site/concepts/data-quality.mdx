@@ -36,14 +36,45 @@ The bands are guidance, not thresholds enforced anywhere in the API. Pick your o
 `twitter.verified` and `farcaster.verified` are narrower than the English word suggests, and this is the piece most likely to trip you up.
 
 <Warning>
-  `twitter.verified: false` does **not** mean the handle is unverified in the
-  everyday sense. The flag is true for handles attested by an onchain record, a
-  manual review, or an attested-social sign-in; the majority Farcaster-attested
-  handles carry false. A handle that came from an X account verified on
-  Farcaster is genuinely owner-attested, and it still reports `false`.
+  `twitter.verified: true` does **not** mean the X account confirmed the link.
+  Since 20 September 2026 the flag is true for every attested route, the
+  Farcaster verification included, and that covers an ENS or Basename text
+  record, where the wallet owner typed the handle and the account never took
+  part. A handle that rests on nothing else also carries `self_declared: true`:
+  see [self-declared handles](#self-declared-handles).
 </Warning>
 
-To judge attestation, read the `sources` array. To judge overall confidence, read `quality.score`. The `verified` booleans are best treated as a narrow signal meaning “attested by the strongest available route”, not as a general trust flag.
+To judge attestation, read the `sources` array. To judge overall confidence, read `quality.score`. The `verified` booleans are not a general trust flag.
+
+## Self-declared handles
+
+Some attested routes check only the wallet half. An ENS or Basename text
+record, a governance profile and a Lens profile are all published by the
+wallet’s owner, so they prove the owner chose to name the handle. Nothing in
+them proves the X account agreed: anyone can type any handle into their own
+record.
+
+When every source behind a record is of that kind, the `twitter` object says
+so:
+
+```json
+"twitter": {
+  "handle": "someone",
+  "url": "https://x.com/someone",
+  "verified": true,
+  "self_declared": true
+}
+```
+
+The field is **omitted** otherwise, and absent is not false. Evidence classes
+are recorded per wallet, not per handle, so a record that pairs such a record
+with a route that checks the account, like a Farcaster verification or a
+sign-in, cannot say which one supplied the handle. It omits the field rather
+than claim the account confirmed it.
+
+It matters most on a [reverse lookup](/api-reference/reverse-twitter). A wallet
+returned for `@someone` with `self_declared: true` is a wallet whose owner
+claims the handle, not one the account claimed.
 
 ## Staleness
 

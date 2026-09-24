@@ -2,6 +2,26 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (X handles the account never confirmed are flagged)
+
+- **The `twitter` object now carries `self_declared: true` when the handle
+  rests only on text the wallet owner typed into their own record:** an ENS or
+  Basename text record, a governance profile or a Lens profile. The owner
+  published it, so it still counts as attested and `verified` stays `true`, but
+  the X account never confirmed it, and anyone can type any handle into their
+  own record. It is on every v1 route that returns the object (the wallet, batch,
+  jobs and both reverse lookups) and on the MCP tools' `x` record.
+- The field is omitted otherwise, never served as `false`. Evidence is recorded
+  per wallet, not per handle, so a record that mixes such a record with a route
+  that checks the account cannot say which one supplied the handle. The jobs
+  route reads it from the index at serve time and flags a row only when the
+  index still holds the same handle.
+- Corrected in passing: the data-quality page, the MCP page and llms.txt still
+  said `twitter.verified` is `false` on most Farcaster-attested handles. That
+  stopped being true on 2026-09-20, when the flag was widened.
+- Asserted in the invariants with eight new guard mutations. Closes the last
+  open part of STA-40.
+
 ### 2026-09-24 (MCP limits count per account; expired tokens get 401 everywhere)
 
 - **MCP requests that are not tool calls are now limited per account when they

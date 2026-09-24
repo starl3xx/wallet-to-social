@@ -160,7 +160,7 @@ ${ATTESTED_SENTENCE} Every record carries a sources array describing the kind of
 
 Records also carry a quality score from 0 to 100. Seventy and above is strong, forty to sixty-nine is usable, and below forty is thin and should be treated as a lead rather than a fact.
 
-One term that reliably misleads: a twitter.verified value of false does not mean the handle is unverified in the everyday sense. That flag is true for handles attested by an onchain record, a manual review, or an attested-social sign-in; the majority Farcaster-attested handles carry false, so most genuine, attested matches carry false.
+One term that reliably misleads: twitter.verified being true does not mean the X account confirmed the link. Since 20 September 2026 that flag is true for every attested route, including an ENS or Basename text record, where the wallet owner typed the handle and the account never took part. A handle that rests only on such a record also carries self_declared: true, meaning the owner claims the handle and the account never confirmed it. The field is omitted otherwise, and absent is not false.
 
 ## Whether the account still reaches a person
 

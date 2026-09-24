@@ -41,7 +41,11 @@ curl https://walletlink.social/api/v1/reverse/twitter/example_user \
   follower count first, wallets without one last, wallet address as the
   tiebreak). Each entry carries `wallet`, an always-present `twitter` object,
   and whichever of `ens_name`, `farcaster`, `lens`, `github` and `sources`
-  apply, plus a flat `quality_score`.
+  apply, plus a flat `quality_score`. The `twitter` object carries
+  `self_declared: true` when the wallet’s owner named the handle in their own
+  record and nothing else backs it: the owner claims the handle, and the account
+  never confirmed it. See [self-declared
+  handles](/concepts/data-quality#self-declared-handles).
 </ResponseField>
 
 <ResponseField name="meta" type="object">
@@ -74,6 +78,7 @@ curl https://walletlink.social/api/v1/reverse/twitter/example_user \
         "handle": "example_user",
         "url": "https://x.com/example_user",
         "verified": true,
+        "self_declared": true,
         "reachable": true,
         "reachability": "live",
         "reachability_checked_at": "2026-08-21T14:02:11.000Z"
