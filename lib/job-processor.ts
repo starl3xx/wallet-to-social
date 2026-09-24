@@ -1,5 +1,5 @@
 import { getDb } from '@/db';
-import { lookupJobs } from '@/db/schema';
+import { creditLedger, lookupJobs } from '@/db/schema';
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { batchFetchWeb3Bio } from '@/lib/web3bio';
@@ -87,7 +87,7 @@ export function sliceSizeFor(attempts: number): number {
  * slice past the invocation's end; wallets it never reached are recorded as
  * failed, never as negatives.
  */
-const ENS_SLICE_BUDGET_MS = 120_000;
+export const ENS_SLICE_BUDGET_MS = 120_000;
 
 /**
  * A write after the claim matched no row: another invocation holds the job
@@ -153,6 +153,32 @@ async function renewLease(
   await writeOwned(db, job, {
     leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,
   });
+}
+
+/**
+ * Whether a job is past the point where it may be failed: its charge has
+ * landed, or every row is saved and only finalize remains.
+ *
+ * A billed job must never end as "failed, submit the list again": the debit
+ * stays, and a resubmission is a new job id, charged again. So neither the
+ * attempt cap nor the failure path fails such a job. It is finished from its
+ * saved rows instead, by the next claim. The ledger is read the way
+ * `chargeForJob` writes it: one row per job id, unlock rows aside.
+ */
+async function billedOrSaved(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  jobId: string
+): Promise<boolean> {
+  const [row] = await db
+    .select({
+      saved: sql<boolean>`${lookupJobs.processedCount} >= jsonb_array_length(${lookupJobs.wallets})`,
+      billed: sql<boolean>`exists (select 1 from ${creditLedger} where ${creditLedger.jobId} = ${lookupJobs.id} and ${creditLedger.paidFrom} <> 'unlock')`,
+    })
+    .from(lookupJobs)
+    .where(eq(lookupJobs.id, jobId))
+    .limit(1);
+  return Boolean(row?.saved || row?.billed);
 }
 
 /**
@@ -406,7 +432,10 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
   const sliceStartedAt = Date.now();
 
   try {
-    if (job.sliceAttempts > MAX_SLICE_ATTEMPTS) {
+    if (
+      job.sliceAttempts > MAX_SLICE_ATTEMPTS &&
+      !(await billedOrSaved(db, job.id))
+    ) {
       await writeOwned(db, job, {
         status: 'failed',
         errorMessage: SLICES_EXHAUSTED,
@@ -1188,8 +1217,24 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     console.error('Job processing error:', error);
 
-    // Mark job as failed, if it is still ours to mark.
+    // Mark job as failed, if it is still ours to mark and not already billed.
     try {
+      if (await billedOrSaved(db, job.id)) {
+        // Handed back unfailed: the next claim finishes it from saved rows.
+        await writeOwned(db, job, {
+          updatedAt: new Date(),
+          leasedUntil: sql`now()`,
+        });
+        return {
+          completed: false,
+          processedCount: job.processedCount,
+          twitterFound: job.twitterFound,
+          farcasterFound: job.farcasterFound,
+          anySocialFound: job.anySocialFound,
+          cacheHits: job.cacheHits,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+      }
       await writeOwned(db, job, {
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
@@ -1469,9 +1514,12 @@ async function finalizeJobWithResults(
    * A resumed job that reaches this twice recovers the first pass's
    * decision: the ledger insert is unique per job, and the duplicate path
    * reads the row back, so the gate is rebuilt identically on retry. The
-   * inverse crash (charged, then the completion write dies for good) leaves
-   * a billed job the worker retries until it completes; the debit is never
-   * doubled.
+   * inverse crash (charged, then killed, or the completion write fails)
+   * leaves the rows saved just below: the next claim finds every row saved,
+   * goes straight to this finalize without calling a provider, and completes
+   * the job. Neither the attempt cap nor the failure path fails a job in that
+   * state (`billedOrSaved`), so a billed job is never told to submit again,
+   * and the debit is never doubled.
    *
    * `anySocialFound` is the meter: wallets carrying an X handle or a
    * Farcaster account. Misses are free, which is the whole pricing
@@ -1492,7 +1540,27 @@ async function finalizeJobWithResults(
     Math.max(0, options.anonMatchGate ?? ANON_MATCHES_PER_JOB)
   );
 
-  await renewLease(db, job);
+  /**
+   * The finished rows, saved before anything is charged.
+   *
+   * From the charge on, this job may be billed. If the platform kills this
+   * invocation anywhere past here, the next claim finds `processed_count`
+   * equal to the list and every row saved, goes straight to finalize from
+   * them with no provider pass, and does not count toward the attempt cap
+   * (reset here). The same write re-asserts the claim and extends it, which
+   * is the renewal the charge needs.
+   */
+  await writeOwned(db, job, {
+    processedCount: job.wallets.length,
+    partialResults: results,
+    twitterFound,
+    farcasterFound,
+    anySocialFound,
+    cacheHits,
+    updatedAt: new Date(),
+    sliceAttempts: 0,
+    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,
+  });
   if (options.meteredUserId) {
     try {
       const charge = await chargeForJob(
@@ -1554,14 +1622,14 @@ async function finalizeJobWithResults(
   if (options.saveToHistory) {
     await renewLease(db, job);
     try {
+      // Always keyed on the job, gated or not: the unique job_id makes a
+      // second finalize's save a no-op, which returns null.
       const lookupId = await saveLookup(
         results,
         options.historyName,
         options.userId || job.userId || undefined,
         options.inputSource,
-        matchesDelivered !== null
-          ? { jobId: job.id, matchesDelivered }
-          : undefined
+        { jobId: job.id, matchesDelivered }
       );
 
       /**
@@ -1576,17 +1644,21 @@ async function finalizeJobWithResults(
        * Server-side rather than from the browser, because saving is a checkbox
        * the user sets before submitting and the request that honours it is
        * this one. A client event would record the intent; this records what was
-       * actually written, which is the thing worth a rate.
+       * actually written, which is the thing worth a rate. So only when a
+       * row was inserted: a finalize that runs twice saves once, and counts
+       * once.
        */
-      trackEvent('history_saved', {
-        userId: options.userId || job.userId || undefined,
-        sessionId: job.sessionId ?? undefined,
-        metadata: {
-          jobId: job.id,
-          lookupId,
-          walletCount: results.length,
-        },
-      });
+      if (lookupId) {
+        trackEvent('history_saved', {
+          userId: options.userId || job.userId || undefined,
+          sessionId: job.sessionId ?? undefined,
+          metadata: {
+            jobId: job.id,
+            lookupId,
+            walletCount: results.length,
+          },
+        });
+      }
     } catch (error) {
       console.error('History save error:', error);
     }

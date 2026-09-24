@@ -178,6 +178,14 @@ export async function POST(request: NextRequest) {
           completedAt: null,
           updatedAt: new Date(),
           options: updatedOptions,
+          // A clean start for the worker's claim (lib/job-processor.ts): no
+          // kills carried over from the run being retried, which would fail
+          // it at the first claim, and no lease or token. A NULL lease on a
+          // pending row is claimable at once, and a holder still running the
+          // old attempt is fenced out, since the row is no longer its token's.
+          sliceAttempts: 0,
+          leasedUntil: null,
+          leaseToken: null,
         })
         .where(eq(lookupJobs.id, id))
         .returning();
@@ -197,6 +205,11 @@ export async function POST(request: NextRequest) {
           status: 'failed',
           errorMessage: 'Cancelled by admin',
           updatedAt: new Date(),
+          // As on retry: the holder's next write finds neither its token nor
+          // a running status, and stops.
+          sliceAttempts: 0,
+          leasedUntil: null,
+          leaseToken: null,
         })
         .where(eq(lookupJobs.id, id))
         .returning();

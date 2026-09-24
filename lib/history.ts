@@ -41,11 +41,18 @@ export async function saveLookup(
   userId?: string,
   inputSource?: InputSource,
   /**
-   * The match gate, written with the row rather than mirrored afterwards: a
-   * mirror that failed after the save left an ungated saved copy of a gated
-   * job, which is the history bypass this column exists to close.
+   * The job this save belongs to, and its match gate, written with the row
+   * rather than mirrored afterwards: a mirror that failed after the save left
+   * an ungated saved copy of a gated job, which is the history bypass this
+   * column exists to close. `matchesDelivered` null means ungated.
+   *
+   * With a job, the save happens at most once per job. A finalize can run
+   * twice for one job (a slice killed after the save, a holder resumed after
+   * losing its lease), and each run used to add another copy of the lookup to
+   * the customer's history. `lookup_history.job_id` is unique, so the second
+   * insert writes nothing and this returns null.
    */
-  gate?: { jobId: string; matchesDelivered: number }
+  gate?: { jobId: string; matchesDelivered: number | null }
 ): Promise<string | null> {
   const db = getDb();
   if (!db) return null;
@@ -53,22 +60,26 @@ export async function saveLookup(
   const twitterFound = results.filter((r) => r.twitter_handle).length;
   const farcasterFound = results.filter((r) => r.farcaster).length;
 
-  const [inserted] = await db
-    .insert(lookupHistory)
-    .values({
-      name: name ?? null,
-      userId: userId ?? null,
-      walletCount: results.length,
-      twitterFound,
-      farcasterFound,
-      results: results,
-      inputSource: inputSource ?? null,
-      jobId: gate?.jobId ?? null,
-      matchesDelivered: gate?.matchesDelivered ?? null,
-    })
-    .returning();
+  const values = {
+    name: name ?? null,
+    userId: userId ?? null,
+    walletCount: results.length,
+    twitterFound,
+    farcasterFound,
+    results: results,
+    inputSource: inputSource ?? null,
+    jobId: gate?.jobId ?? null,
+    matchesDelivered: gate?.matchesDelivered ?? null,
+  };
+  const [inserted] = gate
+    ? await db
+        .insert(lookupHistory)
+        .values(values)
+        .onConflictDoNothing({ target: lookupHistory.jobId })
+        .returning()
+    : await db.insert(lookupHistory).values(values).returning();
 
-  return inserted.id;
+  return inserted?.id ?? null;
 }
 
 export async function getLookupHistory(

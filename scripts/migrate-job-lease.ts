@@ -1,6 +1,7 @@
 /**
  * Three columns on `lookup_jobs`, so only one worker can hold a job, and a
- * job the platform keeps killing stops being retried.
+ * job the platform keeps killing stops being retried; and a unique index on
+ * `lookup_history.job_id`, so a job saves its lookup to history once.
  *
  * ## Why
  *
@@ -27,6 +28,13 @@
  *   platform kills never hands back, so this counts kills in a row: each one
  *   halves the next slice, and after five the job is failed, unbilled, rather
  *   than retaken for as long as an upstream stays slow.
+ * - `lookup_history_job_id_key`: unique on `job_id`. A finalize can run twice
+ *   for one job (killed after the save, or a holder resumed after losing its
+ *   lease), and each run inserted another copy of the lookup into the
+ *   customer's history. The save is now `ON CONFLICT (job_id) DO NOTHING`.
+ *   Built CONCURRENTLY, so the table is never locked against writes, and
+ *   only after a check that no two rows already share a job id: on
+ *   2026-09-24 production held 338 rows and none had a job id at all.
  *
  * ## Why columns and not `updated_at`
  *
@@ -46,6 +54,7 @@
  *
  * ## Rollback
  *
+ * DROP INDEX CONCURRENTLY lookup_history_job_id_key;
  * ALTER TABLE lookup_jobs
  *   DROP COLUMN leased_until, DROP COLUMN lease_token, DROP COLUMN slice_attempts;
  *
@@ -131,6 +140,50 @@ async function main() {
     console.log(`ok: lookup_jobs.${name} (${col.data_type})`);
   }
   if (bad) process.exit(1);
+
+  /**
+   * Refuse rather than dedupe. Two history rows for one job are two saves a
+   * customer may have seen, renamed or shared, and which one to keep is not a
+   * decision a migration can make.
+   */
+  const [dupes] = (await sql`
+    SELECT count(*)::int AS n FROM (
+      SELECT job_id FROM lookup_history
+      WHERE job_id IS NOT NULL
+      GROUP BY job_id HAVING count(*) > 1
+    ) d
+  `) as unknown as Array<{ n: number }>;
+  if (dupes.n > 0) {
+    console.error(
+      `lookup_history has ${dupes.n} job ids saved more than once; resolve them before the unique index can be built.`
+    );
+    process.exit(1);
+  }
+
+  // CONCURRENTLY cannot run in a transaction; the HTTP driver sends this one
+  // statement on its own.
+  console.log('lookup_history_job_id_key');
+  await sql`CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS lookup_history_job_id_key ON lookup_history (job_id)`;
+
+  /**
+   * A concurrent build that fails leaves an INVALID index behind, and
+   * IF NOT EXISTS then skips it on every rerun. So validity is checked, not
+   * existence, and an invalid one is named for the operator to drop.
+   */
+  const [idx] = (await sql`
+    SELECT i.indisvalid AS valid, i.indisunique AS "unique",
+           pg_get_indexdef(i.indexrelid) AS def
+    FROM pg_index i
+    JOIN pg_class c ON c.oid = i.indexrelid
+    WHERE c.relname = 'lookup_history_job_id_key'
+  `) as unknown as Array<{ valid: boolean; unique: boolean; def: string }>;
+  if (!idx || !idx.valid || !idx.unique || !/\(job_id\)$/.test(idx.def)) {
+    console.error(
+      `lookup_history_job_id_key is missing or invalid (${idx ? idx.def : 'absent'}, valid ${idx?.valid}). Drop it with DROP INDEX CONCURRENTLY lookup_history_job_id_key and run this again.`
+    );
+    process.exit(1);
+  }
+  console.log('ok: lookup_history_job_id_key (unique, valid)');
 }
 
 main().catch((e) => {

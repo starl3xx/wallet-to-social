@@ -2281,15 +2281,15 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'finalize charges without re-asserting the claim',
     file: 'lib/job-processor.ts',
-    from: '  await renewLease(db, job);\n  if (options.meteredUserId) {',
-    to: '  if (options.meteredUserId) {',
+    from: '  await writeOwned(db, job, {\n    processedCount: job.wallets.length,',
+    to: '  if (options.fastMode) await writeOwned(db, job, {\n    processedCount: job.wallets.length,',
   },
   {
     // A second history row for one job, the duplicate the review found.
     name: 'finalize saves history without re-asserting the claim',
     file: 'lib/job-processor.ts',
-    from: '    await renewLease(db, job);\n    try {\n      const lookupId = await saveLookup(',
-    to: '    try {\n      const lookupId = await saveLookup(',
+    from: '    await renewLease(db, job);\n    try {\n      // Always keyed on the job',
+    to: '    try {\n      // Always keyed on the job',
   },
   {
     name: 'finalize writes the graph without re-asserting the claim',
@@ -2332,8 +2332,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the attempt cap never fires',
     file: 'lib/job-processor.ts',
-    from: '    if (job.sliceAttempts > MAX_SLICE_ATTEMPTS) {',
-    to: '    if (job.sliceAttempts > MAX_SLICE_ATTEMPTS * 100) {',
+    from: '      job.sliceAttempts > MAX_SLICE_ATTEMPTS &&\n',
+    to: '      job.sliceAttempts > MAX_SLICE_ATTEMPTS * 100 &&\n',
   },
   {
     name: 'the attempt cap is raised until it never binds',
@@ -2374,6 +2374,140 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/job-processor.ts',
     from: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n              failedWallets: apiFailedWallets,\n',
     to: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n',
+  },
+  // --- the verify pass on #393 ---------------------------------------------
+  {
+    // Finding 6: the renewal's body was never read. A rotated token makes the
+    // next fenced write find the job lost after its charge, and every job
+    // then ends failed and billed.
+    name: 'a renewal rotates the token, so the write after the charge finds the job lost',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+    to: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n    leaseToken: sql`gen_random_uuid()`,\n  });\n}',
+  },
+  {
+    name: 'a renewal hands the lease back just before the history save and the graph write',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+    to: '  await writeOwned(db, job, {\n    leasedUntil: sql`now()`,\n  });\n}',
+  },
+  {
+    name: 'a renewal is not awaited, so a holder that lost the job saves and writes the graph anyway',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+    to: '  void writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+  },
+  {
+    name: 'a renewal swallows a lost lease',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+    to: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  }).catch(() => {});\n}',
+  },
+  {
+    // Finding 7: a substring check passed a conditional renewal.
+    name: 'the renewal before the history save is conditional, so a stale holder saves a second copy',
+    file: 'lib/job-processor.ts',
+    from: '  if (options.saveToHistory) {\n    await renewLease(db, job);',
+    to: '  if (options.saveToHistory) {\n    if (options.fastMode) await renewLease(db, job);',
+  },
+  {
+    name: 'the renewal before the graph write is conditional',
+    file: 'lib/job-processor.ts',
+    from: '  if (positiveResults.length > 0) {\n    await renewLease(db, job);',
+    to: '  if (positiveResults.length > 0) {\n    if (options.fastMode) await renewLease(db, job);',
+  },
+  {
+    // Findings 0 and 4: without the save, a job billed and then killed goes
+    // back through the providers, counts toward the cap, and can end failed
+    // with the debit standing.
+    name: 'the finished rows are not saved before the charge, so a job killed after it can be failed billed',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    processedCount: job.wallets.length,\n    partialResults: results,\n',
+    to: '  await writeOwned(db, job, {\n',
+  },
+  {
+    name: 'the attempt cap fails a job whose charge has landed',
+    file: 'lib/job-processor.ts',
+    from: '      job.sliceAttempts > MAX_SLICE_ATTEMPTS &&\n      !(await billedOrSaved(db, job.id))\n',
+    to: '      job.sliceAttempts > MAX_SLICE_ATTEMPTS\n',
+  },
+  {
+    name: 'the failure path fails a job whose charge has landed',
+    file: 'lib/job-processor.ts',
+    from: '      if (await billedOrSaved(db, job.id)) {',
+    to: '      if (false) {',
+  },
+  {
+    name: 'a billed job with rows still missing counts as failable',
+    file: 'lib/job-processor.ts',
+    from: '  return Boolean(row?.saved || row?.billed);',
+    to: '  return Boolean(row?.saved);',
+  },
+  {
+    // Finding 1: ungated saves carried no job id, so nothing stopped a second.
+    name: 'an ungated job saves history without its job id, so a second finalize saves it again',
+    file: 'lib/job-processor.ts',
+    from: '        { jobId: job.id, matchesDelivered }\n',
+    to: '        matchesDelivered !== null ? { jobId: job.id, matchesDelivered } : undefined\n',
+  },
+  {
+    name: 'the history insert ignores the unique job id',
+    file: 'lib/history.ts',
+    from: '        .onConflictDoNothing({ target: lookupHistory.jobId })\n',
+    to: '',
+  },
+  {
+    name: 'history_saved counts a save that wrote nothing',
+    file: 'lib/job-processor.ts',
+    from: '      if (lookupId) {\n',
+    to: '      if (lookupId || true) {\n',
+  },
+  {
+    name: 'the history index is not unique, so ON CONFLICT has nothing to meet',
+    file: 'scripts/migrate-job-lease.ts',
+    from: 'CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS lookup_history_job_id_key',
+    to: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS lookup_history_job_id_key',
+  },
+  {
+    // Findings 2 and 3: the admin's retry kept the kills of the run it
+    // replaced, and the next claim failed the job before any work.
+    name: 'an admin retry keeps the attempt count, so a job killed five times fails at its first claim',
+    file: 'app/api/admin/jobs/route.ts',
+    from: "          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n",
+    to: "          // old attempt is fenced out, since the row is no longer its token's.\n",
+  },
+  {
+    name: 'an admin retry keeps the old lease, so the rerun waits out a holder that is gone',
+    file: 'app/api/admin/jobs/route.ts',
+    from: "          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n          leasedUntil: null,\n",
+    to: "          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n",
+  },
+  {
+    // Finding 8: an unbounded budget lets a slow RPC run the slice to the kill.
+    name: 'the ENS deadline is widened past the invocation',
+    file: 'lib/job-processor.ts',
+    from: 'export const ENS_SLICE_BUDGET_MS = 120_000;',
+    to: 'export const ENS_SLICE_BUDGET_MS = 1_200_000;',
+  },
+  {
+    // Finding 9: only `.update(lookupJobs)` was counted.
+    name: 'a stage write goes through raw SQL, around the fence',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, { currentStage: stage, updatedAt: new Date() });',
+    to: '  await db.execute(\n    sql`UPDATE lookup_jobs SET current_stage = ${stage} WHERE id = ${job.id}`\n  );',
+  },
+  {
+    // Finding 10: every job path names every schema column.
+    name: 'the schema names the attempt column differently from the migration',
+    file: 'db/schema.ts',
+    from: "    sliceAttempts: integer('slice_attempts').default(0).notNull(),",
+    to: "    sliceAttempts: integer('slice_attempt').default(0).notNull(),",
+  },
+  {
+    name: 'the migration adds an attempt column the schema does not name',
+    file: 'scripts/migrate-job-lease.ts',
+    from: 'ADD COLUMN IF NOT EXISTS slice_attempts integer NOT NULL DEFAULT 0',
+    to: 'ADD COLUMN IF NOT EXISTS slice_attempt integer NOT NULL DEFAULT 0',
   },
   {
     // A job Inngest left mid-run: processed_count is its count, and no rows

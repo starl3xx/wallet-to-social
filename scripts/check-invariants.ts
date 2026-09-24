@@ -11710,9 +11710,12 @@ async function main() {
         'app/api/jobs/worker/route.ts',
       ].every((f) => callers.includes(f))
     );
+    let shortestRoute = Infinity;
     for (const file of callers) {
       const src = withoutComments(readFileSync(file, 'utf8'));
       const declared = src.match(/export const maxDuration = (\d+);/);
+      if (declared)
+        shortestRoute = Math.min(shortestRoute, Number(declared[1]));
       ok(
         `${file} dies before a lease it holds can run out (maxDuration ${declared?.[1] ?? 'undeclared'} < ${LEASE_SECONDS})`,
         file.startsWith('app/') &&
@@ -11720,6 +11723,42 @@ async function main() {
           Number(declared[1]) < LEASE_SECONDS
       );
     }
+    /**
+     * The ENS deadline has to fire inside the invocation, with room left for
+     * Web3Bio and finalize, or it is decoration: a slow RPC then runs the
+     * slice to the platform's kill, the kill loop it was written to prevent.
+     * Bounded by half the shortest route that runs a slice, and by 150 s.
+     */
+    const { ENS_SLICE_BUDGET_MS } = jobProcessor;
+    ok(
+      `the ENS deadline fires well inside the shortest route (${ENS_SLICE_BUDGET_MS} ms, routes ${shortestRoute} s)`,
+      ENS_SLICE_BUDGET_MS > 0 &&
+        ENS_SLICE_BUDGET_MS <= 150_000 &&
+        ENS_SLICE_BUDGET_MS <= (shortestRoute * 1000) / 2
+    );
+
+    /**
+     * The names the SQL uses, which nothing else pins: `db.select()` and every
+     * insert name each schema column, so a schema name the migration does not
+     * create fails every job path after deploy.
+     */
+    const { getTableColumns } = await import('drizzle-orm');
+    const { lookupJobs: jobsTable } = await import('@/db/schema');
+    const jobCols = getTableColumns(jobsTable);
+    const leaseMigration = readFileSync('scripts/migrate-job-lease.ts', 'utf8');
+    ok(
+      'the lease columns in the schema are the ones the migration adds',
+      jobCols.leasedUntil.name === 'leased_until' &&
+        jobCols.leaseToken.name === 'lease_token' &&
+        jobCols.sliceAttempts.name === 'slice_attempts' &&
+        leaseMigration.includes(
+          'ADD COLUMN IF NOT EXISTS leased_until timestamptz'
+        ) &&
+        leaseMigration.includes('ADD COLUMN IF NOT EXISTS lease_token uuid') &&
+        leaseMigration.includes(
+          'ADD COLUMN IF NOT EXISTS slice_attempts integer NOT NULL DEFAULT 0'
+        )
+    );
 
     /**
      * The claim is one conditional UPDATE, and it is what every holder goes
@@ -11819,8 +11858,35 @@ async function main() {
         )
     );
     ok(
-      'nothing writes a job except the claim and the fenced writer',
-      (processorSrc.match(/\.update\(lookupJobs\)/g) ?? []).length === 2
+      'nothing writes a job except the claim and the fenced writer, raw SQL included',
+      (processorSrc.match(/\.update\(lookupJobs\)/g) ?? []).length === 2 &&
+        !/UPDATE\s+lookup_jobs/i.test(processorSrc) &&
+        !/INSERT\s+INTO\s+lookup_jobs/i.test(processorSrc)
+    );
+    /**
+     * The two helpers every fenced write goes through, pinned whole. A
+     * renewal that rotated the token, handed the lease back, or was not
+     * awaited all read as "a renewal" to a substring check, and each one
+     * either fails every job after its charge or lets a holder that lost the
+     * job charge, save and write the graph anyway.
+     */
+    const flatFn = (start: string, end: string): string =>
+      processorSrc
+        .slice(processorSrc.indexOf(start), processorSrc.indexOf(end))
+        .replace(/\s+/g, ' ')
+        .trim();
+    ok(
+      'a renewal extends this claim, under the same token, and is awaited',
+      flatFn('async function renewLease(', 'async function billedOrSaved(') ===
+        "async function renewLease( db: any, job: Pick<LookupJob, 'id' | 'leaseToken'> ): Promise<void> { await writeOwned(db, job, { leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`, }); }"
+    );
+    ok(
+      'a stage write is a fenced write and nothing else',
+      flatFn(
+        'async function updateJobStage(',
+        'async function finalizeJob('
+      ) ===
+        "async function updateJobStage( db: any, job: Pick<LookupJob, 'id' | 'leaseToken'>, stage: string ) { await writeOwned(db, job, { currentStage: stage, updatedAt: new Date() }); }"
     );
     const catchAt = chunkFn.lastIndexOf('} catch (error) {');
     const catchBody = chunkFn.slice(catchAt);
@@ -11835,27 +11901,97 @@ async function main() {
         )
     );
     const finalizeFn = processorSrc.slice(
-      processorSrc.indexOf('async function finalizeJobWithResults(')
+      processorSrc.indexOf('async function finalizeJobWithResults('),
+      processorSrc.indexOf('export async function createJob(')
     );
-    const sideEffects = [
-      'await chargeForJob(',
-      'await saveLookup(',
-      'await upsertSocialGraphWithRetry(',
-    ];
-    let previous = 0;
-    let renewedBeforeEach = true;
-    for (const call of sideEffects) {
-      const at = finalizeFn.indexOf(call);
-      if (
-        at === -1 ||
-        !finalizeFn.slice(previous, at).includes('await renewLease(db, job);')
-      )
-        renewedBeforeEach = false;
-      previous = at === -1 ? previous : at;
-    }
+    /**
+     * Each side effect that must not run twice is immediately preceded by a
+     * fenced write that re-asserts the claim, as a statement of its own. A
+     * substring check passed a renewal made conditional (`if (...) await
+     * renewLease(...)`), which lets a stale holder charge or save anyway.
+     *
+     * Before the charge that write is the save of the finished rows, so a
+     * job billed and then killed is found complete by the next claim.
+     */
     ok(
-      'finalize re-asserts the claim before charging, saving history and writing the graph',
-      renewedBeforeEach
+      'the finished rows are saved, and the claim extended, immediately before the charge',
+      /\n  await writeOwned\(db, job, \{\s*processedCount: job\.wallets\.length,\s*partialResults: results,\s*twitterFound,\s*farcasterFound,\s*anySocialFound,\s*cacheHits,\s*updatedAt: new Date\(\),\s*sliceAttempts: 0,\s*leasedUntil: sql`now\(\) \+ make_interval\(secs => \$\{LEASE_SECONDS\}\)`,\s*\}\);\s*if \(options\.meteredUserId\) \{\s*try \{\s*const charge = await chargeForJob\(/.test(
+        finalizeFn
+      )
+    );
+    ok(
+      'finalize re-asserts the claim immediately before saving history and before writing the graph, unconditionally',
+      /\n  if \(options\.saveToHistory\) \{\s*await renewLease\(db, job\);\s*try \{\s*const lookupId = await saveLookup\(/.test(
+        finalizeFn
+      ) &&
+        /\n  if \(positiveResults\.length > 0\) \{\s*await renewLease\(db, job\);\s*const writeResult = await upsertSocialGraphWithRetry\(/.test(
+          finalizeFn
+        ) &&
+        (finalizeFn.match(/renewLease\(/g) ?? []).length === 2 &&
+        (finalizeFn.match(/chargeForJob\(/g) ?? []).length === 1 &&
+        (finalizeFn.match(/saveLookup\(/g) ?? []).length === 1 &&
+        (finalizeFn.match(/upsertSocialGraphWithRetry\(/g) ?? []).length === 1
+    );
+
+    /**
+     * A job whose charge has landed, or whose rows are all saved, is never
+     * failed with "submit the list again": the debit would stand, and the
+     * resubmission is a new job, charged again. The attempt cap and the
+     * failure path both ask first, and the question reads the ledger the way
+     * `chargeForJob` writes it.
+     */
+    const billedFn = processorSrc
+      .slice(
+        processorSrc.indexOf('async function billedOrSaved('),
+        processorSrc.indexOf('export async function processJobChunk(')
+      )
+      .replace(/\s+/g, ' ');
+    ok(
+      'a job is billed when the ledger holds its non-unlock row, and saved when every row is',
+      billedFn.includes(
+        'saved: sql<boolean>`${lookupJobs.processedCount} >= jsonb_array_length(${lookupJobs.wallets})`'
+      ) &&
+        billedFn.includes(
+          "billed: sql<boolean>`exists (select 1 from ${creditLedger} where ${creditLedger.jobId} = ${lookupJobs.id} and ${creditLedger.paidFrom} <> 'unlock')`"
+        ) &&
+        billedFn.includes('return Boolean(row?.saved || row?.billed);') &&
+        // The key chargeForJob reads its own duplicate back by.
+        /and\(eq\(creditLedger\.jobId, jobId\), ne\(creditLedger\.paidFrom, 'unlock'\)\)/.test(
+          readFileSync('lib/credits.ts', 'utf8')
+        )
+    );
+    ok(
+      'neither the attempt cap nor the failure path fails a billed or fully saved job',
+      /if \(\s*job\.sliceAttempts > MAX_SLICE_ATTEMPTS &&\s*!\(await billedOrSaved\(db, job\.id\)\)\s*\) \{\s*await writeOwned\(db, job, \{\s*status: 'failed',/.test(
+        chunkFn
+      ) &&
+        /if \(await billedOrSaved\(db, job\.id\)\) \{\s*await writeOwned\(db, job, \{\s*updatedAt: new Date\(\),\s*leasedUntil: sql`now\(\)`,\s*\}\);\s*return \{/.test(
+          catchBody
+        ) &&
+        catchBody.indexOf('await billedOrSaved(db, job.id)') <
+          catchBody.indexOf("status: 'failed',")
+    );
+
+    /**
+     * And history is saved once per job however many times finalize runs:
+     * every job's save carries its id, the insert yields to the unique index,
+     * and `history_saved` counts only a row that was written.
+     */
+    const historySrc = withoutComments(readFileSync('lib/history.ts', 'utf8'));
+    ok(
+      "a job's lookup is saved to history once, however many times finalize runs",
+      /saveLookup\(\s*results,\s*options\.historyName,\s*options\.userId \|\| job\.userId \|\| undefined,\s*options\.inputSource,\s*\{ jobId: job\.id, matchesDelivered \}\s*\)/.test(
+        finalizeFn
+      ) &&
+        /\.onConflictDoNothing\(\{ target: lookupHistory\.jobId \}\)/.test(
+          historySrc
+        ) &&
+        historySrc.includes('return inserted?.id ?? null;') &&
+        /if \(lookupId\) \{\s*trackEvent\('history_saved'/.test(finalizeFn) &&
+        leaseMigration.includes(
+          'CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS lookup_history_job_id_key ON lookup_history (job_id)'
+        ) &&
+        leaseMigration.includes('i.indisvalid AS valid')
     );
 
     /**
@@ -11893,6 +12029,37 @@ async function main() {
       'no exit releases the lease to NULL',
       !/leasedUntil:\s*null/.test(processorSrc)
     );
+    /**
+     * The admin's retry, rerun and cancel are exits too. A retry that kept
+     * the count failed a job killed five times at its first claim, before any
+     * work; one that kept the lease made the rerun wait out a dead holder.
+     * NULL is right here, not now(): a `pending` row with no lease is
+     * claimable at once, and a running holder is fenced out by the token.
+     */
+    const adminJobs = withoutComments(
+      readFileSync('app/api/admin/jobs/route.ts', 'utf8')
+    );
+    const adminSet = (marker: string): string => {
+      const at = adminJobs.indexOf(marker);
+      if (at === -1) return '';
+      const open = adminJobs.lastIndexOf('.set({', at);
+      const close = adminJobs.indexOf('})', at);
+      const block =
+        open === -1 || close === -1 ? '' : adminJobs.slice(open, close);
+      return block.includes('.set({', 1) ? '' : block;
+    };
+    for (const [exit, marker] of [
+      ['an admin retry or rerun', "status: 'pending',"],
+      ['an admin cancel', "errorMessage: 'Cancelled by admin',"],
+    ] as const) {
+      const block = adminSet(marker);
+      ok(
+        `${exit} resets the attempts and clears the lease and its token`,
+        block.includes('sliceAttempts: 0,') &&
+          block.includes('leasedUntil: null,') &&
+          block.includes('leaseToken: null,')
+      );
+    }
 
     /**
      * A slice the platform kills never hands back, so it would be retaken
@@ -11914,7 +12081,7 @@ async function main() {
     );
     ok(
       'the attempt cap is checked first on every claim, and the slice is sized by the attempt count',
-      /try \{\s*if \(job\.sliceAttempts > MAX_SLICE_ATTEMPTS\) \{\s*await writeOwned\(db, job, \{\s*status: 'failed',\s*errorMessage: SLICES_EXHAUSTED,/.test(
+      /try \{\s*if \(\s*job\.sliceAttempts > MAX_SLICE_ATTEMPTS &&\s*!\(await billedOrSaved\(db, job\.id\)\)\s*\) \{\s*await writeOwned\(db, job, \{\s*status: 'failed',\s*errorMessage: SLICES_EXHAUSTED,/.test(
         chunkFn
       ) &&
         /startIndex \+ sliceSizeFor\(job\.sliceAttempts\)/.test(chunkFn) &&

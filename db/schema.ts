@@ -63,8 +63,10 @@ export const lookupHistory = pgTable(
      *
      * History stores the full payload, so a gated job's saved lookup must
      * carry its own gate or "save to history" is a free bypass of the lock.
-     * `jobId` exists solely so an unlock can find and clear this mirror;
-     * history rows predating the gate carry null in both and serve in full.
+     * `jobId` lets an unlock find and clear this mirror, and since STA-44 it
+     * is set on every save a job makes and unique, so a finalize that runs
+     * twice saves the lookup once. Rows saved outside a job, and rows from
+     * before, carry null and serve in full.
      */
     jobId: uuid('job_id'),
     matchesDelivered: integer('matches_delivered'),
@@ -76,6 +78,9 @@ export const lookupHistory = pgTable(
     index('lookup_history_user_created_idx').on(table.userId, table.createdAt),
     // The unlock's clear: find the history mirror of a gated job.
     index('lookup_history_job_id_idx').on(table.jobId),
+    // One saved lookup per job: the save is ON CONFLICT (job_id) DO NOTHING.
+    // scripts/migrate-job-lease.ts, built concurrently.
+    uniqueIndex('lookup_history_job_id_key').on(table.jobId),
   ]
 );
 
