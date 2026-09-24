@@ -3136,6 +3136,37 @@ const MUTATIONS: Mutation[] = [
     from: '`Deleted ${OAUTH_TOKEN_RETENTION_DAYS} days after',
     to: '`Deleted 400 days after',
   },
+  // --- STA-39 D review: the dropped request and every range edge ---------
+  {
+    name: 'a refused metadata request is rejected but never dropped, so the socket goes on to the peer',
+    file: 'lib/oauth/clients.ts',
+    from: '        req?.destroy();\n',
+    to: '',
+  },
+  {
+    name: 'the documentation range 203.0.113.0/24 is dropped from the refused list',
+    file: 'lib/oauth/clients.ts',
+    from: "  ['203.0.113.0', 24],\n",
+    to: '',
+  },
+  {
+    name: 'the private 10/8 block is narrowed to 10.0.0.0/16',
+    file: 'lib/oauth/clients.ts',
+    from: "  ['10.0.0.0', 8],",
+    to: "  ['10.0.0.0', 16],",
+  },
+  {
+    name: 'the local-use NAT64 prefix is dropped from the refused list',
+    file: 'lib/oauth/clients.ts',
+    from: "  ['64:ff9b:1::', 48],\n",
+    to: '',
+  },
+  {
+    name: 'the unique-local block is widened to fc00::/6, refusing public space',
+    file: 'lib/oauth/clients.ts',
+    from: "  ['fc00::', 7],",
+    to: "  ['fc00::', 6],",
+  },
 ];
 
 function invariantsPass(): boolean {

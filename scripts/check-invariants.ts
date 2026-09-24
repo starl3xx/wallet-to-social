@@ -4407,6 +4407,103 @@ async function main() {
     ok('172.15.0.1 is public', !isPrivateAddress('172.15.0.1', 4));
     ok('172.32.0.1 is public', !isPrivateAddress('172.32.0.1', 4));
 
+    /**
+     * Every refused range, written out here independently of the table in
+     * lib/oauth/clients.ts, and probed at both of its edges. A range deleted
+     * from the table fails its first address, one narrowed fails its last,
+     * and one widened fails the public neighbor just outside it (skipped only
+     * where that neighbor sits in another refused range).
+     */
+    const EXPECTED_V4: Array<[string, number]> = [
+      ['0.0.0.0', 8],
+      ['10.0.0.0', 8],
+      ['100.64.0.0', 10],
+      ['127.0.0.0', 8],
+      ['169.254.0.0', 16],
+      ['172.16.0.0', 12],
+      ['192.0.0.0', 24],
+      ['192.0.2.0', 24],
+      ['192.88.99.0', 24],
+      ['192.168.0.0', 16],
+      ['198.18.0.0', 15],
+      ['198.51.100.0', 24],
+      ['203.0.113.0', 24],
+      ['224.0.0.0', 4],
+      ['240.0.0.0', 4],
+    ];
+    const EXPECTED_V6: Array<[string, number]> = [
+      ['::', 96],
+      ['::ffff:0:0', 96],
+      ['64:ff9b::', 96],
+      ['64:ff9b:1::', 48],
+      ['100::', 64],
+      ['2001::', 32],
+      ['2001:db8::', 32],
+      ['2002::', 16],
+      ['fc00::', 7],
+      ['fe80::', 10],
+      ['fec0::', 10],
+      ['ff00::', 8],
+    ];
+    const v4ToBig = (a: string) =>
+      a.split('.').reduce((n, o) => (n << BigInt(8)) + BigInt(o), BigInt(0));
+    const bigToV4 = (n: bigint) =>
+      [BigInt(24), BigInt(16), BigInt(8), BigInt(0)]
+        .map((s) => String((n >> s) & BigInt(255)))
+        .join('.');
+    const v6ToBig = (a: string) => {
+      const [head, tail = ''] = a.split('::');
+      const h = head ? head.split(':') : [];
+      const t = a.includes('::') ? (tail ? tail.split(':') : []) : [];
+      const groups = [...h, ...Array(8 - h.length - t.length).fill('0'), ...t];
+      return groups.reduce(
+        (n, g) => (n << BigInt(16)) + BigInt(parseInt(g, 16)),
+        BigInt(0)
+      );
+    };
+    const bigToV6 = (n: bigint) =>
+      Array.from({ length: 8 }, (_, i) =>
+        ((n >> BigInt(112 - 16 * i)) & BigInt(0xffff)).toString(16)
+      ).join(':');
+    const edges = (
+      ranges: Array<[string, number]>,
+      bits: number,
+      toBig: (a: string) => bigint,
+      toStr: (n: bigint) => string,
+      family: 4 | 6
+    ) => {
+      const inAny = (n: bigint) =>
+        ranges.some(([net, p]) => {
+          const size = BigInt(1) << BigInt(bits - p);
+          const start = toBig(net);
+          return n >= start && n < start + size;
+        });
+      const max = (BigInt(1) << BigInt(bits)) - BigInt(1);
+      const bad: string[] = [];
+      for (const [net, p] of ranges) {
+        const first = toBig(net);
+        const last = first + (BigInt(1) << BigInt(bits - p)) - BigInt(1);
+        for (const n of [first, last]) {
+          if (!isPrivateAddress(toStr(n), family)) bad.push(`${toStr(n)} open`);
+        }
+        for (const n of [first - BigInt(1), last + BigInt(1)]) {
+          if (n < BigInt(0) || n > max || inAny(n)) continue;
+          if (isPrivateAddress(toStr(n), family)) bad.push(`${toStr(n)} shut`);
+        }
+      }
+      return bad;
+    };
+    const badV4 = edges(EXPECTED_V4, 32, v4ToBig, bigToV4, 4);
+    ok(
+      `every refused IPv4 range holds at both edges and stops at them (${badV4.join(', ') || 'none wrong'})`,
+      badV4.length === 0
+    );
+    const badV6 = edges(EXPECTED_V6, 128, v6ToBig, bigToV6, 6);
+    ok(
+      `every refused IPv6 range holds at both edges and stops at them (${badV6.join(', ') || 'none wrong'})`,
+      badV6.length === 0
+    );
+
     // The ranges added with the two-list classifier (STA-39 D). Hex and
     // compatible spellings of loopback and link-local, both NAT64 prefixes,
     // 6to4, the rest of fe80::/10, site-local, multicast, benchmarking, the
@@ -4543,6 +4640,8 @@ async function main() {
       const seen = {
         connectedTo: null as string | null,
         systemCalls: () => system.calls(),
+        destroyed: false,
+        responded: false,
       };
       const request = (url: URL, options: RequestOptions): ClientRequest => {
         const req = Object.assign(new EventEmitter(), {
@@ -4550,6 +4649,7 @@ async function main() {
           destroy(error?: Error) {
             if (req.destroyed) return;
             req.destroyed = true;
+            seen.destroyed = true;
             if (error) process.nextTick(() => req.emit('error', error));
           },
           end() {
@@ -4588,6 +4688,7 @@ async function main() {
                   },
                 }
               );
+              seen.responded = true;
               req.emit('response', res);
             });
           },
@@ -4600,12 +4701,13 @@ async function main() {
     const fetchWith = (
       reply: Reply,
       answer: Answer = PUBLIC,
-      deadlineMs = 1000
+      deadlineMs = 1000,
+      fake = fakeRequest(reply)
     ) =>
       settle(
         fetchCimdDocument(DOC_URL, {
           resolve: resolver(answer).resolve,
-          request: fakeRequest(reply).request,
+          request: fake.request,
           deadlineMs,
         })
       );
@@ -4723,10 +4825,13 @@ async function main() {
     );
 
     // The peer, checked again once connected.
-    const peer = await fetchWith({ peer: '10.0.0.1' });
+    const peerFake = fakeRequest({ peer: '10.0.0.1' });
+    const peer = await fetchWith({ peer: '10.0.0.1' }, PUBLIC, 1000, peerFake);
     ok(
       'a socket that reports a non-public peer is dropped, even after a public lookup',
-      peer instanceof CimdError
+      peer instanceof CimdError &&
+        peerFake.seen.destroyed &&
+        !peerFake.seen.responded
     );
 
     // The body: one deadline, a byte cap as it arrives, identity only, no
@@ -4741,10 +4846,16 @@ async function main() {
     };
     const big = padded(70 * 1024);
     const bigChunks = big.match(/[\s\S]{1,7168}/g) ?? [];
-    const oversize = await fetchWith({ body: bigChunks });
+    const oversizeFake = fakeRequest({ body: bigChunks });
+    const oversize = await fetchWith(
+      { body: bigChunks },
+      PUBLIC,
+      1000,
+      oversizeFake
+    );
     ok(
-      'a 70 KiB document sent in chunks with no declared length is refused',
-      oversize instanceof CimdError
+      'a 70 KiB document sent in chunks with no declared length is refused, and the request dropped',
+      oversize instanceof CimdError && oversizeFake.seen.destroyed
     );
     const declared = await fetchWith({
       headers: { 'content-length': '70000' },
@@ -4766,10 +4877,11 @@ async function main() {
       'a redirect is refused, never followed',
       redirected instanceof CimdError
     );
-    const stalled = await fetchWith({ body: null }, PUBLIC, 50);
+    const stalledFake = fakeRequest({ body: null });
+    const stalled = await fetchWith({ body: null }, PUBLIC, 50, stalledFake);
     ok(
-      'a body that never ends is cut off by the deadline, which does not stop at the headers',
-      stalled instanceof CimdError
+      'a body that never ends is cut off by the deadline, which does not stop at the headers, and the request dropped',
+      stalled instanceof CimdError && stalledFake.seen.destroyed
     );
     const oneKib = await fetchWith({ body: [padded(1024)] });
     ok(
