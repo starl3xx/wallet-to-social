@@ -4376,8 +4376,7 @@ async function main() {
   // ---------------------------- OAuth: who pays for discovery (STA-39 C)
   // Hosted Claude calls every MCP server from Anthropic's shared outbound
   // range, so an address-keyed bucket is one bucket for every Claude user at
-  // once, and anybody pointing a connector at the endpoint can empty it. A
-  // credential that works is bounded per account; anything else, a string
+  // once. A credential that works is bounded per account; anything else, a string
   // that merely looks like a credential included, stays on the address.
   {
     const g = await import('@/lib/mcp-gate');
@@ -4500,9 +4499,23 @@ async function main() {
       ) && !/checkIpRateLimit\([^)]*bearer/.test(route)
     );
     ok(
-      'the credential is read for every method, outside the POST branch',
-      at('credentialFor(') > at("if (request.method === 'POST')") &&
-        at('credentialFor(') > at('body = await request.text();')
+      'the credential is read for every method, after the POST branch closes',
+      /body = await request\.text\(\);\s*\}\s*const cred = await credentialFor\(bearerFrom\(request\), body\);/.test(
+        guardedFn
+      )
+    );
+    const credFnC = route.slice(route.indexOf('async function credentialFor('));
+    ok(
+      'an access token is judged before the body is looked at, so GET and DELETE with a dead token are challenged',
+      /if \(!bearer\) return \{ kind: 'none' \};\s*if \(looksLikeAccessToken\(bearer\)\) \{\s*const check = await validateAccessToken\(bearer\);/.test(
+        credFnC
+      )
+    );
+    ok(
+      'the route answers every challenge decision, whatever the method',
+      /if \(decision\.action === 'challenge'\) \{\s*return challenge\(decision\.error, decision\.description\);/.test(
+        guardedFn
+      )
     );
     ok(
       'only a key that validates names an account',
@@ -4530,6 +4543,12 @@ async function main() {
         )
     );
     const keys = withoutComments(readFileSync('lib/api-keys.ts', 'utf8'));
+    ok(
+      'identifying a key names the account that owns it, not the key row',
+      keys.includes(
+        'return found ? { keyId: found.key.id, userId: found.key.userId } : null;'
+      )
+    );
     ok(
       'identifying a key applies exactly the rules validating it does',
       /export async function validateApiKey[\s\S]*?await lookupActiveKey\(rawKey\)/.test(
@@ -4927,6 +4946,11 @@ async function main() {
     const validate = grants.slice(
       grants.indexOf('export async function validateAccessToken'),
       grants.indexOf('export async function listGrants')
+    );
+    ok(
+      'an access token names the account that owns it, not the token row',
+      validate.includes('userId: apiKeys.userId') &&
+        validate.includes('userId: row.userId')
     );
     ok(
       'validateAccessToken reads the grant resource and refuses a token for another server before calling it valid',

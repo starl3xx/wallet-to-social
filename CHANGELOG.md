@@ -20,7 +20,7 @@ All notable changes to walletlink.social. Newest first.
   key never lifted that limit. The refusal also carries the request's own
   JSON-RPC id and the `X-RateLimit-*` headers.
 - Checking an API key for this no longer updates its last-used time; only a
-  metered call does. Part of STA-39 (C), with 23 new invariants and 9 new guard mutations.
+  metered call does. Part of STA-39 (C), with 27 new invariants and 14 new guard mutations.
 
 ### 2026-09-24 (large lookup jobs honor the removal list)
 

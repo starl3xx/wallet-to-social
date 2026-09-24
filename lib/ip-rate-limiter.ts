@@ -89,8 +89,7 @@ export const IP_RATE_LIMITS = {
    *
    * Hosted Claude calls every MCP server from Anthropic's shared outbound
    * range, so an address-keyed bucket is one bucket for every Claude user at
-   * once: a few dozen sessions an hour between them fill 120, and anyone who
-   * points a connector at this endpoint can empty it on purpose. A working
+   * once: a few dozen sessions an hour between them fill 120. A working
    * credential names its account, and the account is what gets bounded. Per
    * account and not per token: every refresh mints a new token, so a
    * per-token bucket would reset hourly, and one account can hold several

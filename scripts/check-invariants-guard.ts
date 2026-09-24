@@ -2698,6 +2698,36 @@ const MUTATIONS: Mutation[] = [
     to: '    const limit = await checkIpRateLimit(\n      bearerFrom(request) ?? decision.subject,\n      decision.endpoint\n    );',
   },
   {
+    name: 'a dead access token on GET or DELETE is read as no credential, credential read moved into the POST branch',
+    file: 'app/api/mcp/route.ts',
+    from: '  const cred = await credentialFor(bearerFrom(request), body);\n',
+    to: "  const cred: McpCredential =\n    request.method === 'POST'\n      ? await credentialFor(bearerFrom(request), body)\n      : { kind: 'none' };\n",
+  },
+  {
+    name: 'a dead access token on GET or DELETE is treated as no credential',
+    file: 'app/api/mcp/route.ts',
+    from: "  if (!bearer) return { kind: 'none' };",
+    to: "  if (!bearer || body === undefined) return { kind: 'none' };",
+  },
+  {
+    name: 'the route drops the challenge for a request with no body',
+    file: 'app/api/mcp/route.ts',
+    from: "  if (decision.action === 'challenge') {",
+    to: "  if (decision.action === 'challenge' && body !== undefined) {",
+  },
+  {
+    name: 'an access token names its own row, so the account bucket resets on every refresh',
+    file: 'lib/oauth/grants.ts',
+    from: '      userId: apiKeys.userId,',
+    to: '      userId: apiKeys.id,',
+  },
+  {
+    name: 'an API key names its own row, so each key multiplies the account bucket',
+    file: 'lib/api-keys.ts',
+    from: '  return found ? { keyId: found.key.id, userId: found.key.userId } : null;',
+    to: '  return found ? { keyId: found.key.id, userId: found.key.id } : null;',
+  },
+  {
     name: 'the MCP page publishes an account limit the limiter does not enforce',
     file: 'docs-site/mcp-server.mdx',
     from: '  limit is 600 requests an hour per account. Every key and connection on the',
