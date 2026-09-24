@@ -707,10 +707,19 @@ for (const file of walk('app', [], ['.tsx', '.ts']).concat(
  * because it ranks for a query the site does not. Its `.actor/*.json` files
  * carry the title and the input labels the Actor's page renders, so they are
  * read too.
+ *
+ * SECURITY.md joined on 2026-09-24. GitHub renders it on the repository's
+ * Security tab and `/.well-known/security.txt` points researchers at it, so
+ * it is published copy too.
  */
 for (const file of walk('docs-site', [], ['.mdx', '.md', '.json']).concat(
   walk('integrations/apify-actor/.actor', [], ['.json']),
-  ['README.md', 'PROJECT_OVERVIEW.md', 'integrations/apify-actor/README.md']
+  [
+    'README.md',
+    'PROJECT_OVERVIEW.md',
+    'SECURITY.md',
+    'integrations/apify-actor/README.md',
+  ]
 )) {
   let raw;
   try {
@@ -785,7 +794,7 @@ for (const file of walk('content/social', [], ['.json'])) {
 
 if (!hits.length) {
   console.log(
-    `house style ok: ${RULES.length} rules over UI copy (quoted and template literals), docs-site, the social queue, README, PROJECT_OVERVIEW and the Apify Actor’s page`
+    `house style ok: ${RULES.length} rules over UI copy (quoted and template literals), docs-site, the social queue, README, PROJECT_OVERVIEW, SECURITY.md and the Apify Actor’s page`
   );
   process.exit(0);
 }

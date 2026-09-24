@@ -18,7 +18,9 @@ directory precisely so nothing here reaches docs.walletlink.social.
 
 ## The security runbook moved
 
-`SECURITY.md` now lives in the private **[starl3xx/walletlink-ops](https://github.com/starl3xx/walletlink-ops)** repo, along with `content/drafts/` and `data/content.db`.
+The internal security runbook, formerly `docs/SECURITY.md`, now lives in the private **[starl3xx/walletlink-ops](https://github.com/starl3xx/walletlink-ops)** repo, along with `content/drafts/` and `data/content.db`. Only that `docs/` path is gitignored.
+
+The root [`SECURITY.md`](../SECURITY.md) is a different document: the public vulnerability policy, which says how to report a security issue and what is in scope. GitHub shows it on the repository's Security tab and `/.well-known/security.txt` points at it, so it is public on purpose.
 
 It was not removed because it leaked credentials. It never has: `.env` was never committed, and its passwords have always been `<GENERATE-A-STRONG-ONE>` placeholders. It moved because it is a map of which secrets exist and whether each lives in Vercel, GitHub Actions or a laptop, which has real value to an attacker and none to anyone checking our data claims.
 

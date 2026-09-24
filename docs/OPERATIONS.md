@@ -509,6 +509,50 @@ Two settings deliberately left off, both defensible to turn on later:
 to be resolved rather than merely read, and `required_linear_history`, which
 the squash-merge habit already produces.
 
+## The security contact
+
+`/.well-known/security.txt` (RFC 9116) and the root `SECURITY.md` publish where a
+vulnerability report goes. Both read from `lib/security-contact.ts`, and
+`scripts/check-invariants.ts` checks one against the other. Two Contacts, in
+order, because RFC 9116 makes the first one preferred:
+
+1. GitHub private vulnerability reporting (PVR),
+   `https://github.com/starl3xx/wallet-to-social/security/advisories/new`;
+2. `security@walletlink.social`, an alias on the Workspace user who reads help@.
+
+Two of the facts behind them are settings, not files, so this is their record:
+
+- **Private vulnerability reporting: NOT enabled as of 2026-09-24.** Enabling it
+  is Jake's step, and it comes before security.txt ships, because the report
+  form opens for nobody but admins while PVR is off. The command is
+  `gh api -X PUT repos/starl3xx/wallet-to-social/private-vulnerability-reporting`
+  (expect 204), and `gh api repos/starl3xx/wallet-to-social/private-vulnerability-reporting --jq .enabled`
+  confirms it. When it is on, replace this line with the date it was enabled.
+- **The security@ alias** exists only in Google Workspace. No file shows it.
+
+`.github/workflows/security-contact.yml` checks both every Monday against
+production, plus the one thing the invariants deliberately do not read: the
+clock. It fails when Expires is 30 days away or less, when PVR is off, or when
+the policy page says "No security policy detected". Local repro:
+`GITHUB_TOKEN=$(gh auth token) node scripts/check-security-contact.mjs`.
+
+**Renewal**, when that workflow goes red on Expires, or at any time before:
+
+1. From a mailbox outside walletlink.social, send a test to security@ and to
+   help@. Confirm both arrive and neither lands in spam. Reply from Workspace
+   and confirm the reply passes DMARC. Also send to a nonsense local part: if
+   that arrives too, a catch-all exists and the test proves less than it looks.
+2. Confirm PVR is still enabled (the `--jq .enabled` command above).
+3. In `lib/security-contact.ts`, set `SECURITY_CONTACT_VERIFIED` to the day the
+   test passed, then `SECURITY_TXT_EXPIRES` to about six months later. The
+   invariants require Expires to fall after the verified day and less than 365
+   days after it; they never compare it with today.
+4. Ship it through a normal PR. The route is static, so the new date is live
+   with the deploy that carries it.
+
+Never move the date without the test. An expired file is ignored silently, and
+RFC 9116 prefers no file to one whose contacts no longer work.
+
 ## Standing constraints
 
 Short form only; `CLAUDE.md` is the authority on each.
@@ -520,6 +564,8 @@ Short form only; `CLAUDE.md` is the authority on each.
 - Published numbers: never type one; add it to `lib/public-figures.ts` and the
   figures registry in the same change.
 - The agent surface has its own design authority: `docs/AGENT-SYSTEM.md`.
+- security.txt expires. Renew it only after re-testing both channels; see "The
+  security contact" above.
 
 ## Landing graph hero (2026-09-20)
 

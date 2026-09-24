@@ -1,0 +1,44 @@
+# Checks that the published security contact still works, against production.
+#
+# WHY THIS IS SCHEDULED AND NOT A PR CHECK. Every fact it checks can go false
+# with no diff. security.txt carries an Expires date, and the day it passes,
+# every consumer ignores the file without saying so. Private vulnerability
+# reporting, the preferred Contact, is a repository setting a click switches
+# off. The policy page depends on SECURITY.md being on the default branch.
+# None of that arrives as a commit, and a clock comparison inside the
+# `invariants` check would turn a required check red on every PR, and on main,
+# the day the window closed. So `scripts/check-invariants.ts` checks Expires
+# against SECURITY_CONTACT_VERIFIED in `lib/security-contact.ts` and never
+# against today, and this checks it against today, once a week.
+#
+# A FAILURE HERE IS NOT AN OUTAGE. It means a channel is about to stop being
+# trustworthy. Re-test both channels and renew: docs/OPERATIONS.md, "The
+# security contact".
+#
+# The token is the job's own, read-only. The PVR endpoint sits under the
+# Metadata permission every GITHUB_TOKEN carries; it is sent only so the call
+# does not share the anonymous rate limit of a hosted runner.
+name: security-contact
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Monday 09:00 UTC, alongside the other weekly gates
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      # No npm ci: the script uses only Node's own fetch.
+      - name: security.txt is live and unexpired, PVR is on, the policy renders
+        run: node scripts/check-security-contact.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

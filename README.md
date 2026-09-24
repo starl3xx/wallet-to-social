@@ -212,6 +212,12 @@ See [CLAUDE.md](CLAUDE.md) for conventions, including house style (sentence case
 
 ---
 
+## Security
+
+Report a vulnerability privately, never in a public issue. [SECURITY.md](SECURITY.md) has the channels, the scope, the testing rules and what to expect; the preferred channel is a [private report on GitHub](https://github.com/starl3xx/wallet-to-social/security/advisories/new). The same contacts are published for machines at [/.well-known/security.txt](https://walletlink.social/.well-known/security.txt).
+
+---
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md).

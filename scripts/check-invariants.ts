@@ -11660,6 +11660,295 @@ async function main() {
     );
   }
 
+  // --------------------------------------- the security contact, RFC 9116
+  // Through the handler, like the catalog above: GET is called and its bytes
+  // are parsed, because a consumer reads the bytes and not the source.
+  //
+  // Nothing here reads the clock. Whether Expires is still far enough away is
+  // a fact about today, not about the code, and a date comparison in this
+  // file would turn a required check red on every PR, and on main, the day
+  // the window closed. That half runs every Monday in
+  // `.github/workflows/security-contact.yml`. What the code can promise is
+  // checked against SECURITY_CONTACT_VERIFIED, the day the channels were last
+  // proven, which only moves when a person moves it.
+  {
+    const { GET } = await import('@/app/api/security-txt/route');
+    const { SECURITY_CONTACT_VERIFIED } =
+      await import('@/lib/security-contact');
+    const { PRODUCTION_URL } = await import('@/lib/site-url');
+    const res = GET();
+    const body = await res.text();
+
+    ok(
+      'security.txt is text/plain with the utf-8 charset RFC 9116 section 3 requires',
+      res.headers.get('content-type') === 'text/plain; charset=utf-8'
+    );
+    ok(
+      'every security.txt line ends in a newline, the last one included (section 2.2)',
+      body.endsWith('\n')
+    );
+
+    /**
+     * `name: value`, with the name lowercased because section 2.4 makes
+     * field names case-insensitive. A line with no colon parses to an empty
+     * name, so it fails the shape check below instead of slipping through
+     * as a field nobody named.
+     */
+    const fields = body
+      .split('\n')
+      .filter((line) => line.trim() !== '' && !line.startsWith('#'))
+      .map((line): [string, string] => {
+        const colon = line.indexOf(':');
+        return colon > 0
+          ? [line.slice(0, colon).toLowerCase(), line.slice(colon + 1).trim()]
+          : ['', line];
+      });
+    const field = (name: string) =>
+      fields.filter(([n]) => n === name).map(([, v]) => v);
+    const contacts = field('contact');
+    const expires = field('expires');
+    // A malformed URI is a failed claim, not a crash that hides the others.
+    const parseUrl = (value: string): URL | null => {
+      try {
+        return new URL(value);
+      } catch {
+        return null;
+      }
+    };
+    const canonical = field('canonical');
+    const policy = field('policy');
+
+    ok(
+      'every non-comment security.txt line is a name: value field',
+      fields.every(([n, v]) => /^[a-z][a-z-]*$/.test(n) && v !== '')
+    );
+    ok(
+      'the parser found Contact fields, so the checks below are not vacuous',
+      contacts.length > 0
+    );
+    ok(
+      'security.txt offers two independent channels, a mailbox and a web form',
+      contacts.some((c) => c.startsWith('mailto:')) &&
+        contacts.some((c) => c.startsWith('https://'))
+    );
+
+    /**
+     * Section 2.5.3: the first Contact is the preferred one. The GitHub
+     * private report goes first because it is confidential and does not
+     * depend on mail delivery; swapping the order tells every consumer to
+     * prefer the channel that is neither.
+     */
+    ok(
+      'the first Contact, the one RFC 9116 calls preferred, is the private GitHub report',
+      contacts[0]?.startsWith('https://') === true
+    );
+    ok(
+      'every Contact is a mailto or an https URI',
+      contacts.every((c) => c.startsWith('mailto:') || c.startsWith('https://'))
+    );
+
+    /**
+     * A typo in a hand-written address or URL sends a vulnerability report
+     * to somebody else. `walletlink.socia1` is a domain anyone can register,
+     * and a misspelled repository is a report form on a repository that is
+     * not this one, or a 404 that looks like the form is down.
+     */
+    ok(
+      'every mailto Contact is a mailbox on this domain',
+      contacts
+        .filter((c) => c.startsWith('mailto:'))
+        .every((c) => {
+          const [local, domain, ...rest] = c.slice('mailto:'.length).split('@');
+          return (
+            local !== '' &&
+            rest.length === 0 &&
+            domain === new URL(PRODUCTION_URL).hostname
+          );
+        })
+    );
+    ok(
+      'every https Contact is exactly this repository’s private report form',
+      contacts
+        .filter((c) => c.startsWith('https://'))
+        .every((c) => {
+          const url = parseUrl(c);
+          return (
+            url !== null &&
+            url.origin === 'https://github.com' &&
+            url.pathname ===
+              '/starl3xx/wallet-to-social/security/advisories/new' &&
+            url.search === '' &&
+            url.hash === ''
+          );
+        })
+    );
+
+    /**
+     * Expires, against the day the channels were last proven rather than
+     * against today. After it, because a file that expired before its
+     * contacts were checked is a file nobody checked. Under a year after
+     * it, because section 2.5.5 recommends less than a year and a renewal
+     * that skips the delivery test would otherwise push the date out
+     * without anybody sending a test.
+     */
+    ok('Expires appears exactly once (section 2.5.5)', expires.length === 1);
+    ok(
+      'Expires is an RFC 3339 date-time in UTC',
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(expires[0] ?? '')
+    );
+    const verifiedAt = Date.parse(`${SECURITY_CONTACT_VERIFIED}T00:00:00Z`);
+    const expiresAt = Date.parse(expires[0] ?? '');
+    ok(
+      'SECURITY_CONTACT_VERIFIED is a calendar date',
+      /^\d{4}-\d{2}-\d{2}$/.test(SECURITY_CONTACT_VERIFIED) &&
+        Number.isFinite(verifiedAt)
+    );
+    ok(
+      'Expires falls after the day the channels were last proven',
+      Number.isFinite(expiresAt) && expiresAt > verifiedAt
+    );
+    ok(
+      'Expires is under a year after that day, as section 2.5.5 recommends',
+      expiresAt - verifiedAt < 365 * 864e5
+    );
+
+    ok(
+      'Preferred-Languages appears at most once',
+      field('preferred-languages').length <= 1
+    );
+
+    /**
+     * Built from PRODUCTION_URL, never from the request or `getSiteUrl()`.
+     * A preview deployment serves this file too, and one that named itself
+     * canonical would be a second authoritative copy of the security
+     * contact on a host that disappears.
+     */
+    ok(
+      'Canonical names the production well-known URI, so a preview never claims to be canonical',
+      JSON.stringify(canonical) ===
+        JSON.stringify([`${PRODUCTION_URL}/.well-known/security.txt`])
+    );
+    ok(
+      'every web URI in security.txt is https',
+      fields
+        .map(([, v]) => v)
+        .filter((v) => v.includes('://'))
+        .every((v) => v.startsWith('https://'))
+    );
+
+    /**
+     * The pathname is pinned to GitHub's policy page for this repository,
+     * and the file that page renders must exist. The page answers 200 with
+     * "No security policy detected" when it does not, so a Policy field is
+     * only true while SECURITY.md is in the tree.
+     */
+    ok(
+      'the Policy field is this repository’s GitHub policy page, and SECURITY.md exists to fill it',
+      policy.length === 1 &&
+        parseUrl(policy[0])?.origin === 'https://github.com' &&
+        parseUrl(policy[0])?.pathname ===
+          '/starl3xx/wallet-to-social/security/policy' &&
+        existsSync('SECURITY.md')
+    );
+
+    /**
+     * Unreachable at the specified URI without the rewrite, for the reason
+     * recorded above the OAuth rules. Nothing errors when it is missing:
+     * `/api/security-txt` keeps answering and the well-known URI 404s.
+     */
+    const config = withoutComments(readFileSync('next.config.ts', 'utf8'));
+    ok(
+      'security.txt is reachable at the well-known URI RFC 9116 names',
+      /source: '\/\.well-known\/security\.txt',\s*destination: '\/api\/security-txt',/.test(
+        config
+      )
+    );
+
+    /**
+     * Section 3 allows the legacy path to redirect. A copy served there by a
+     * rewrite would carry a Canonical that disowns the URI it came from.
+     */
+    const { default: nextConfig } = await import('../next.config');
+    const redirects = (await nextConfig.redirects!()) as {
+      source: string;
+      destination: string;
+      permanent?: boolean;
+    }[];
+    ok(
+      'the legacy /security.txt redirects rather than serving a copy its Canonical disowns',
+      redirects.some(
+        (r) =>
+          r.source === '/security.txt' &&
+          r.destination === '/.well-known/security.txt' &&
+          r.permanent === true
+      )
+    );
+
+    /**
+     * The name trap. The old internal runbook was `docs/SECURITY.md`; it
+     * moved to the private ops repo and its path stays ignored. The public
+     * policy has the same file name at the root. Widening the pattern to a
+     * bare `SECURITY.md` hides the policy, and deleting it lets the runbook
+     * be committed from a checkout that still has it on disk.
+     *
+     * `--no-index`, because without it check-ignore skips tracked files and
+     * the first assertion would pass vacuously once SECURITY.md is
+     * committed. Exit status 1 exactly: 0 means ignored, and 128 means git
+     * failed, which proves nothing either way.
+     */
+    const ignoreStatus = (path: string): number | null => {
+      try {
+        execFileSync('git', ['check-ignore', '-q', '--no-index', path], {
+          stdio: 'pipe',
+        });
+        return 0;
+      } catch (err) {
+        return (err as { status?: number | null }).status ?? null;
+      }
+    };
+    ok(
+      'the public vulnerability policy is not gitignored like the runbook it shares a name with',
+      ignoreStatus('SECURITY.md') === 1
+    );
+    ok(
+      'the private runbook path stays gitignored',
+      ignoreStatus('docs/SECURITY.md') === 0
+    );
+
+    /**
+     * SECURITY.md against the handler's own output, never against a second
+     * copy of the literals. HTML comments are removed first: they do not
+     * render, so a channel named only inside one is a channel nobody reads.
+     */
+    ok(
+      'SECURITY.md is at the repository root, where GitHub reads it',
+      existsSync('SECURITY.md')
+    );
+    const policyDoc = existsSync('SECURITY.md')
+      ? readFileSync('SECURITY.md', 'utf8').replace(/<!--[\s\S]*?-->/g, '')
+      : '';
+    const positions = contacts.map((c) =>
+      policyDoc.indexOf(c.replace(/^mailto:/, ''))
+    );
+    ok(
+      'SECURITY.md names every channel security.txt publishes',
+      positions.length > 0 && positions.every((p) => p >= 0)
+    );
+    ok(
+      'SECURITY.md names the channels in the order the Contact fields give them',
+      positions.every((p, i) => i === 0 || p > positions[i - 1])
+    );
+    const preferredAt = policyDoc.search(/\bpreferred\b/i);
+    ok(
+      'SECURITY.md calls the first channel preferred, before it names the second',
+      preferredAt >= 0 && (positions.length < 2 || preferredAt < positions[1])
+    );
+    ok(
+      'SECURITY.md points at the machine-readable file',
+      canonical.length === 1 && policyDoc.includes(canonical[0])
+    );
+  }
+
   // ------------------------------------------- preview builds and Neon
   // docs/CI.md promises two things at once: a preview deployment never reads
   // the database at build time, and production behaves as if the frozen

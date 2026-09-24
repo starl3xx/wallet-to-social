@@ -139,6 +139,7 @@ wallet-to-social/
 │       ├── webhook/          # Stripe webhooks
 │       ├── admin/            # Admin-only endpoints
 │       ├── developer/        # API key management
+│       ├── security-txt/     # /.well-known/security.txt (RFC 9116), via a rewrite
 │       └── v1/               # Public API endpoints
 ├── components/
 │   ├── FileUpload.tsx        # CSV/Excel upload dropzone
@@ -168,6 +169,7 @@ wallet-to-social/
 │   ├── social-graph.ts       # Permanent social data storage (normalises source; see below)
 │   ├── analytics.ts          # Event tracking
 │   ├── ip-rate-limiter.ts    # IP-based rate limiting for UI endpoints
+│   ├── security-contact.ts   # security.txt fields; SECURITY.md is checked against them
 │   └── dashboard-analytics.ts # Admin dashboard metrics
 └── db/
     ├── schema.ts             # Drizzle schema definitions
@@ -1326,6 +1328,17 @@ onto the well-known URI by a rewrite for the same reason the three OAuth
 discovery documents are: the App Router will not route a dot-prefixed segment.
 Reasoning, and the two deliberate omissions (`status`, and `service-desc` on
 the rail), are in `docs/AGENT-SYSTEM.md` under L4.
+
+**Where a vulnerability report goes.** `/.well-known/security.txt` (RFC 9116)
+names two Contacts in order of preference: GitHub private vulnerability
+reporting, then `security@walletlink.social`. Its `Policy` field points at the
+root `SECURITY.md`, which carries the scope, the testing rules and the response
+times. The fields live in `lib/security-contact.ts`, the handler is
+`app/api/security-txt`, reached by a rewrite, and the legacy `/security.txt` is
+a 308 to the well-known URI. The invariants check Expires against
+`SECURITY_CONTACT_VERIFIED` and never against the clock;
+`.github/workflows/security-contact.yml` checks production every Monday. The
+renewal procedure is in `docs/OPERATIONS.md`.
 
 **Six pages answer markdown when a client asks for it.** `Accept:
 text/markdown` on `/`, `/pricing`, `/blog`, `/blog/<slug>`, `/holders` or

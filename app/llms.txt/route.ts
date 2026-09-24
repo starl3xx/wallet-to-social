@@ -36,6 +36,7 @@ import {
 } from '@/lib/canonical-sentences';
 import { CHAIN_LABELS, SUPPORTED_CHAINS } from '@/lib/chains';
 import { LEGAL_ENTITY } from '@/lib/site-url';
+import { SECURITY_POLICY_URL, SECURITY_TXT_URL } from '@/lib/security-contact';
 
 export const runtime = 'nodejs';
 export const revalidate = 86400;
@@ -298,6 +299,7 @@ walletlink.social is operated by ${LEGAL_ENTITY}. The application is open source
 
 - [Source code](https://github.com/starl3xx/wallet-to-social): the repository behind the site and the API.
 - [Changelog](https://github.com/starl3xx/wallet-to-social/blob/main/CHANGELOG.md): what shipped, and when.
+- [Security policy](${SECURITY_POLICY_URL}): how to report a vulnerability privately. The same contacts are in ${SECURITY_TXT_URL}.
 
 ## Optional
 

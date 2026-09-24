@@ -44,6 +44,12 @@ next-env.d.ts
 # ralph:* content scripts keep working locally, but no longer tracked here:
 # the security runbook maps where every secret lives, and the drafts are
 # unpublished positioning. See docs/README.md.
+#
+# The runbook pattern below is anchored by its slash, so it ignores only the
+# old internal runbook under docs/ and nothing at the root. The root
+# SECURITY.md is the public vulnerability policy, a different document that
+# must stay tracked. Never widen the pattern to the bare file name;
+# scripts/check-invariants.ts asserts both halves.
 docs/SECURITY.md
 content/drafts/
 data/content.db
