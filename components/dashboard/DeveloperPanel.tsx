@@ -160,10 +160,10 @@ export function DeveloperPanel({
                 render during the credits fetch and again if it failed, so a
                 paying account was told to buy a pack it already owns. */}
             {credits.loading || credits.failed
-              ? 'API access comes with credits, and draws on the same balance.'
+              ? 'API access draws on the same balance as the app, the free allowance included.'
               : entitled && plan
                 ? `The ${plan.name} plan: ${plan.requestsPerMinute.toLocaleString()} requests a minute and up to ${plan.maxBatchSize.toLocaleString()} addresses a batch.`
-                : 'API access comes with credits, and draws on the same balance.'}
+                : 'API access draws on the same balance as the app, the free allowance included.'}
             {/* Said rather than guessed, the same qualification the keys
                 dialog carries: the lots above can raise this plan but cannot
                 see a pack that is spent and still unexpired, which the server
