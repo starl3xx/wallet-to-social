@@ -437,7 +437,7 @@ allowance, so a stranger following the Actor's own instructions signed up, went
 to fetch a key, and got a 403. The Actor has said "get a free API key" since
 2026-09-17.
 
-The rule was also only half enforced. `mintAccessToken` in
+The rule was also only half enforced. The OAuth mint in
 `lib/oauth/grants.ts` writes an `api_keys` row on the same plan with no credit
 test, so any free account connecting an OAuth client had a working key already.
 Two doors, opposite rules, nothing comparing them.

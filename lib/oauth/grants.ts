@@ -3,8 +3,10 @@
  *
  * ## The access token is an API key
  *
- * Not "is like": is. `mintAccessToken` writes an `api_keys` row whose
- * `oauth_grant_id` points here, and the token it returns is that row's key.
+ * Not "is like": is. Both statements that issue one, `spendAndMint` (called by
+ * `redeemCode`) at the code exchange and `rotateAndMint` at a refresh, write an
+ * `api_keys` row whose
+ * `oauth_grant_id` points here, and the token returned is that row's key.
  * Everything downstream then works with no second implementation: the three
  * rate-limit windows in `lib/rate-limiter.ts`, the credit balance check in
  * `lib/api-auth.ts`, the per-key usage ledger, the plan's batch ceiling. A
@@ -49,7 +51,11 @@ import { getDb } from '@/db';
 import { apiKeys, oauthGrants, type OauthGrant } from '@/db/schema';
 import { hashApiKey } from '@/lib/api-keys';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
-import { sha256 } from '@/lib/oauth/requests';
+import {
+  sha256,
+  unspentCodeReason,
+  type UnspentReason,
+} from '@/lib/oauth/requests';
 import { MCP_SCOPE, OFFLINE_SCOPE } from '@/lib/oauth/metadata';
 import { isOurResource, resourcesAreOurs } from '@/lib/oauth/params';
 
@@ -89,35 +95,6 @@ export interface IssuedTokens {
   expiresIn: number;
   refreshToken: string | null;
   scope: string;
-}
-
-/**
- * Write the `api_keys` row that is this grant's access token.
- *
- * `keyPrefix` is the first twelve characters, matching what every other key
- * stores, so the dashboard's identification logic needs no special case.
- */
-async function mintAccessToken(
-  grant: OauthGrant
-): Promise<{ token: string; expiresIn: number } | null> {
-  const db = getDb();
-  if (!db) return null;
-  const token = newToken(ACCESS_TOKEN_PREFIX);
-  const expiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_MS);
-  const [row] = await db
-    .insert(apiKeys)
-    .values({
-      key: hashApiKey(token),
-      keyPrefix: token.slice(0, 12),
-      name: grant.clientLabel,
-      userId: grant.userId,
-      plan: CREDIT_API_PLAN,
-      expiresAt,
-      oauthGrantId: grant.id,
-    })
-    .returning();
-  if (!row) return null;
-  return { token, expiresIn: Math.floor(ACCESS_TOKEN_TTL_MS / 1000) };
 }
 
 /**
@@ -190,54 +167,125 @@ export async function enforceGrantCap(userId: string): Promise<void> {
 }
 
 /**
- * Hand out the first pair of credentials, once the code has been exchanged.
+ * Spend a code and issue its first credentials in ONE statement.
+ *
+ * They used to be three: spend the code, write the refresh hash, mint the
+ * access token. On neon-http each is its own transaction, so a failure after
+ * the spend left a code that was used up with nothing to show for it, and the
+ * client's retry was read as a replay and revoked the connection it was
+ * trying to make. One data-modifying statement is atomic: a failed mint
+ * leaves the code unspent. The same shape as `rotateAndMint` below.
+ *
+ * The spend is conditional (`consumed_at IS NULL`, `code_expires_at > now()`),
+ * so two exchanges racing produce exactly one winner. The grant update carries
+ * `revoked_at IS NULL`, so a grant revoked between consent and exchange (by
+ * the cap, or by the user) does not come back to life; the LEFT JOIN still
+ * reports that code as spent, which is what tells it apart from a replay.
+ *
+ * A refresh token is written only when the grant's own scope holds
+ * `offline_access`, and `refreshed` says whether it was. Times come from
+ * Postgres, never a JS Date parameter, and the aliases are snake_case.
+ */
+async function spendAndMint(input: {
+  codeHash: string;
+  refreshHash: string;
+  accessHash: string;
+  accessPrefix: string;
+}): Promise<{
+  grant_id: string | null;
+  scope: string | null;
+  refreshed: boolean | null;
+  minted_id: string | null;
+} | null> {
+  const db = getDb();
+  if (!db) return null;
+  const refreshTtlS = Math.floor(REFRESH_TOKEN_TTL_MS / 1000);
+  const accessTtlS = Math.floor(ACCESS_TOKEN_TTL_MS / 1000);
+  const result = (await db.execute(sql`
+    WITH consumed AS (
+      UPDATE oauth_authorization_requests
+      SET consumed_at = now()
+      WHERE code_hash = ${input.codeHash}
+        AND consumed_at IS NULL
+        AND code_expires_at > now()
+      RETURNING grant_id
+    ),
+    granted AS (
+      UPDATE oauth_grants
+      SET refresh_token_hash = CASE
+            WHEN ${OFFLINE_SCOPE} = ANY (string_to_array(scope, ' '))
+            THEN ${input.refreshHash} ELSE refresh_token_hash END,
+          refresh_expires_at = CASE
+            WHEN ${OFFLINE_SCOPE} = ANY (string_to_array(scope, ' '))
+            THEN now() + make_interval(secs => ${refreshTtlS})
+            ELSE refresh_expires_at END,
+          last_used_at = now()
+      WHERE id IN (SELECT grant_id FROM consumed) AND revoked_at IS NULL
+      RETURNING id, user_id, client_label, scope,
+        ${OFFLINE_SCOPE} = ANY (string_to_array(scope, ' ')) AS refreshed
+    ),
+    minted AS (
+      INSERT INTO api_keys (key, key_prefix, name, user_id, plan, expires_at, oauth_grant_id)
+      SELECT ${input.accessHash}, ${input.accessPrefix}, client_label, user_id,
+             ${CREDIT_API_PLAN}, now() + make_interval(secs => ${accessTtlS}), id
+      FROM granted
+      RETURNING id
+    )
+    SELECT g.id AS grant_id, g.scope, g.refreshed,
+           (SELECT id FROM minted) AS minted_id
+    FROM consumed c LEFT JOIN granted g ON g.id = c.grant_id
+  `)) as unknown as {
+    rows: Array<{
+      grant_id: string | null;
+      scope: string | null;
+      refreshed: boolean | null;
+      minted_id: string | null;
+    }>;
+  };
+  return result.rows[0] ?? null;
+}
+
+/**
+ * What exchanging a code came to. `inactive` is a code that was spent on a
+ * grant revoked since consent; the other refusals are `unspentCodeReason`'s.
+ */
+export type RedeemResult =
+  | { outcome: 'issued'; tokens: IssuedTokens }
+  | { outcome: UnspentReason | 'inactive' };
+
+/**
+ * Exchange a code for its first credentials, once.
+ *
+ * By the time this is called the caller has proved it holds the right
+ * `client_id`, `redirect_uri` and PKCE verifier. When nothing was spent, the
+ * row is read back to say why, and only `replayed` justifies revoking.
  *
  * A refresh token is issued only when `offline_access` was granted. Claude
  * appends that scope because the authorization server metadata advertises it,
  * so in practice it is always present, but a client that does not ask does not
- * get one. Honouring the scope is the difference between a scope and a label.
- *
- * The refresh hash is written with `revoked_at IS NULL` in the predicate, so a
- * grant revoked between consent and exchange (by the cap, or by the user) does
- * not quietly come back to life carrying a fresh refresh token.
+ * get one. Honoring the scope is the difference between a scope and a label.
  */
-export async function issueInitialTokens(
-  grantId: string
-): Promise<IssuedTokens | null> {
-  const db = getDb();
-  if (!db) return null;
+export async function redeemCode(code: string): Promise<RedeemResult> {
+  const refreshToken = newToken(REFRESH_TOKEN_PREFIX);
+  const access = newToken(ACCESS_TOKEN_PREFIX);
+  const spent = await spendAndMint({
+    codeHash: sha256(code),
+    refreshHash: sha256(refreshToken),
+    accessHash: hashApiKey(access),
+    accessPrefix: access.slice(0, 12),
+  });
 
-  const [grant] = await db
-    .select()
-    .from(oauthGrants)
-    .where(and(eq(oauthGrants.id, grantId), isNull(oauthGrants.revokedAt)))
-    .limit(1);
-  if (!grant) return null;
-
-  const wantsRefresh = grant.scope.split(' ').includes(OFFLINE_SCOPE);
-  const refreshToken = wantsRefresh ? newToken(REFRESH_TOKEN_PREFIX) : null;
-
-  if (refreshToken) {
-    const updated = await db
-      .update(oauthGrants)
-      .set({
-        refreshTokenHash: sha256(refreshToken),
-        refreshExpiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS),
-        lastUsedAt: new Date(),
-      })
-      .where(and(eq(oauthGrants.id, grantId), isNull(oauthGrants.revokedAt)))
-      .returning();
-    if (updated.length !== 1) return null;
-  }
-
-  const access = await mintAccessToken(grant);
-  if (!access) return null;
-
+  if (!spent) return { outcome: await unspentCodeReason(code) };
+  if (!spent.grant_id) return { outcome: 'inactive' };
+  if (!spent.minted_id) throw new Error('code exchange minted no access token');
   return {
-    accessToken: access.token,
-    expiresIn: access.expiresIn,
-    refreshToken,
-    scope: grant.scope,
+    outcome: 'issued',
+    tokens: {
+      accessToken: access,
+      expiresIn: Math.floor(ACCESS_TOKEN_TTL_MS / 1000),
+      refreshToken: spent.refreshed ? refreshToken : null,
+      scope: spent.scope!,
+    },
   };
 }
 
