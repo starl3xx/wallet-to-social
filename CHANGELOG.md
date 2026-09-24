@@ -2,6 +2,22 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (large lookup jobs honor the removal list)
+
+- **Jobs over ten addresses now apply the suppression list,** as the smaller
+  ones always did. They run on a separate pipeline, which never read the list:
+  a removed address would still have gone to the outside providers, and its
+  row would have been saved into the job and history records unscrubbed and
+  could be counted as a billable match. The read routes stripped it only when
+  it was served.
+- The pipeline now has the same three guards as the worker: removed addresses
+  leave the work list before any read, each batch is scrubbed before it is
+  cached or counted, and the list is read again and every row scrubbed before
+  the charge and the saves. A failed read of the list stops the job rather
+  than letting it run unfiltered.
+- No job was affected: the suppression list has had no entries so far. The
+  guards are asserted in the invariants, with six new guard mutations.
+
 ### 2026-09-24 (X handles UD verified, read from the chain)
 
 - **A one-off harvest of the X accounts Unstoppable Domains verified in 2020 to

@@ -1890,6 +1890,52 @@ const MUTATIONS: Mutation[] = [
     from: '    anySocialFound = results.filter(\n      (r) => r.twitter_handle || r.farcaster\n    ).length;\n',
     to: '',
   },
+  // The same three guards in the Inngest pipeline, which runs every job over
+  // ten addresses and carried none of them until 2026-09-24.
+  {
+    name: 'the Inngest pre-flight filter is deleted, so a suppressed wallet reaches every provider',
+    file: 'inngest/functions/wallet-lookup.ts',
+    from:
+      '    const activeWallets =\n' +
+      '      suppressedWallets.size === 0\n' +
+      '        ? allWallets\n' +
+      '        : allWallets.filter((w) => !suppressedWallets.has(w.toLowerCase()));',
+    to: '    const activeWallets = allWallets;',
+  },
+  {
+    name: 'the Inngest pre-flight result is ignored, so nothing is ever filtered',
+    file: 'inngest/functions/wallet-lookup.ts',
+    from: '    const suppressedWallets = new Set(suppressedInJob);',
+    to: '    const suppressedWallets = new Set<string>();\n    void suppressedInJob;',
+  },
+  {
+    name: 'the Inngest cache read takes the raw list, suppressed wallets included',
+    file: 'inngest/functions/wallet-lookup.ts',
+    from: '        cached = await getCachedWallets(activeWallets);',
+    to: '        cached = await getCachedWallets(allWallets);',
+  },
+  {
+    name: 'the Inngest graph enrichment reads suppressed wallets again',
+    file: 'inngest/functions/wallet-lookup.ts',
+    from: '        const graphData = await getSocialGraphData(activeWallets);',
+    to: '        const graphData = await getSocialGraphData(allWallets);',
+  },
+  {
+    name: 'the Inngest batch scrub is deleted, so a suppressed handle is counted and cached',
+    file: 'inngest/functions/wallet-lookup.ts',
+    from:
+      '                batchResultsMap.set(\n' +
+      '                  wallet,\n' +
+      '                  scrubResultRow(result, suppression)\n' +
+      '                );\n',
+    to: '                void wallet;\n                void result;\n',
+  },
+  {
+    name: 'the Inngest finalize skips the scrub, so a removal is billed and saved to history',
+    file: 'inngest/functions/wallet-lookup.ts',
+    from: '          allResults[i] = scrubResultRow(allResults[i], suppression);\n',
+    to: '',
+  },
   {
     // The load-bearing order: suppression rows commit FIRST, then the
     // erasure. Fired without awaiting, the deletes race an in-flight sweep
