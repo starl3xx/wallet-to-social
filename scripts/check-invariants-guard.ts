@@ -1186,9 +1186,9 @@ const MUTATIONS: Mutation[] = [
   },
   {
     name: 'the MCP gate lets an audience failure through',
-    file: 'app/api/mcp/route.ts',
-    from: '  if (check.ok) return null;',
-    to: "  if (check.ok || check.reason === 'audience') return null;",
+    file: 'lib/mcp-gate.ts',
+    from: "  if (cred.kind === 'dead-token') {",
+    to: "  if (cred.kind === 'dead-token' && cred.reason !== 'audience') {",
   },
   {
     name: 'the code is spent before the exchange is validated (Bugbot, 2026-08-25)',
@@ -2647,6 +2647,91 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/holder-pages.ts',
     from: '      return `the ${n} ${subject.measuredNoun}${subject.ofCollection}`;',
     to: '      return `the ${n} ${subject.measuredNoun}${subject.ofCollection} the index imported`;',
+  },
+  // --- STA-39 C: who pays for MCP discovery ------------------------------
+  {
+    name: 'credentialed discovery keys on the shared egress address again',
+    file: 'lib/mcp-gate.ts',
+    from: '      subject: `user:${cred.userId}`,',
+    to: '      subject: ip,',
+  },
+  {
+    name: 'any credential string buys an account bucket',
+    file: 'app/api/mcp/route.ts',
+    from: "  return key ? { kind: 'account', userId: key.userId } : { kind: 'unverified' };",
+    to: "  return { kind: 'account', userId: key?.userId ?? bearer };",
+  },
+  {
+    name: 'an account gets less discovery headroom than a stranger',
+    file: 'lib/ip-rate-limiter.ts',
+    from: "  '/api/mcp:account': { limit: 600, windowHours: 1 },",
+    to: "  '/api/mcp:account': { limit: 60, windowHours: 1 },",
+  },
+  {
+    name: 'a dead access token is challenged on tool calls only again, the audited defect',
+    file: 'lib/mcp-gate.ts',
+    from: "  if (cred.kind === 'dead-token') {",
+    to: "  if (cred.kind === 'dead-token' && body !== undefined && callsATool(body)) {",
+  },
+  {
+    name: 'a mistyped key on a tool call is answered with a consent screen',
+    file: 'lib/mcp-gate.ts',
+    from: "  if (body !== undefined && callsATool(body) && cred.kind === 'none') {",
+    to: "  if (body !== undefined && callsATool(body) && cred.kind !== 'account') {",
+  },
+  {
+    name: 'a connected account is told to configure an API key again',
+    file: 'lib/mcp-gate.ts',
+    from: '  return `This account sent more than ${limit} connection and listing requests in the last hour. Tool calls are not counted. Try again after the time in Retry-After.`;',
+    to: '  return `Too many requests (${limit}). Configure a walletlink.social API key, or try again later.`;',
+  },
+  {
+    name: 'every caller gets the anonymous refusal text',
+    file: 'lib/mcp-gate.ts',
+    from: "  if (cred.kind === 'account') return accountDiscoveryLimited(limits.account);\n",
+    to: '',
+  },
+  {
+    name: 'the MCP bucket is keyed on the raw bearer string',
+    file: 'app/api/mcp/route.ts',
+    from: '    const limit = await checkIpRateLimit(decision.subject, decision.endpoint);',
+    to: '    const limit = await checkIpRateLimit(\n      bearerFrom(request) ?? decision.subject,\n      decision.endpoint\n    );',
+  },
+  {
+    name: 'a dead access token on GET or DELETE is read as no credential, credential read moved into the POST branch',
+    file: 'app/api/mcp/route.ts',
+    from: '  const cred = await credentialFor(bearerFrom(request), body);\n',
+    to: "  const cred: McpCredential =\n    request.method === 'POST'\n      ? await credentialFor(bearerFrom(request), body)\n      : { kind: 'none' };\n",
+  },
+  {
+    name: 'a dead access token on GET or DELETE is treated as no credential',
+    file: 'app/api/mcp/route.ts',
+    from: "  if (!bearer) return { kind: 'none' };",
+    to: "  if (!bearer || body === undefined) return { kind: 'none' };",
+  },
+  {
+    name: 'the route drops the challenge for a request with no body',
+    file: 'app/api/mcp/route.ts',
+    from: "  if (decision.action === 'challenge') {",
+    to: "  if (decision.action === 'challenge' && body !== undefined) {",
+  },
+  {
+    name: 'an access token names its own row, so the account bucket resets on every refresh',
+    file: 'lib/oauth/grants.ts',
+    from: '      userId: apiKeys.userId,',
+    to: '      userId: apiKeys.id,',
+  },
+  {
+    name: 'an API key names its own row, so each key multiplies the account bucket',
+    file: 'lib/api-keys.ts',
+    from: '  return found ? { keyId: found.key.id, userId: found.key.userId } : null;',
+    to: '  return found ? { keyId: found.key.id, userId: found.key.id } : null;',
+  },
+  {
+    name: 'the MCP page publishes an account limit the limiter does not enforce',
+    file: 'docs-site/mcp-server.mdx',
+    from: '  limit is 600 requests an hour per account. Every key and connection on the',
+    to: '  limit is 1,000 requests an hour per account. Every key and connection on the',
   },
 ];
 

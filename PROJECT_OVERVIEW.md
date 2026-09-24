@@ -530,9 +530,13 @@ the caller twice for one tool call.
 Because the handler does the recording, `api_usage.endpoint` keeps the same
 route literals the REST surface records, so MCP traffic needs no new keys in
 `requests_by_endpoint`. Protocol
-chatter (`initialize`, `tools/list`) reaches no handler and is bounded by IP at
-120 an hour under `/api/mcp` in `lib/ip-rate-limiter.ts`, since it is the one
-path no key-based limit covers. Tool descriptions live under `app/`, so
+chatter (`initialize`, `tools/list`) reaches no handler, since it is the one
+path no key-based limit covers, so it is bounded in `lib/ip-rate-limiter.ts`:
+per account at 600 an hour under `/api/mcp:account` when the request carries a
+credential that works, and per address at 120 an hour under `/api/mcp`
+otherwise. Hosted Claude calls from Anthropic's shared outbound range, which is
+why a working credential is never counted by address. The policy is `decide`
+in `lib/mcp-gate.ts`. Tool descriptions live under `app/`, so
 `scripts/check-design-language.mjs` greps their prose: the words it fires on are
 listed in a comment at the top of the route.
 
@@ -705,7 +709,10 @@ route compiles and is absent from the build. Confirmed by building it.
 
 **Refusal is a 401, never a tool error.** A 200 carrying `isError` is read by a
 client as a tool that failed, so no token is refreshed and nobody is offered a
-connection. A mistyped bearer key is the deliberate exception.
+connection. An expired or revoked access token is refused on every method, the
+handshake included, as the MCP authorization spec requires. A mistyped bearer
+key is the deliberate exception: it passes to the API, which says in words
+that the key is wrong, rather than meeting a consent screen.
 
 **The sign-in detour carries nothing a client supplied.** `/oauth/authorize`
 validates and stores the request first, then refers to it by an opaque id, so

@@ -84,6 +84,24 @@ export const IP_RATE_LIMITS = {
    */
   '/api/mcp': { limit: 120, windowHours: 1 },
   /**
+   * The same MCP traffic when it carries a credential that works, bounded per
+   * ACCOUNT rather than per address.
+   *
+   * Hosted Claude calls every MCP server from Anthropic's shared outbound
+   * range, so an address-keyed bucket is one bucket for every Claude user at
+   * once: a few dozen sessions an hour between them fill 120. A working
+   * credential names its account, and the account is what gets bounded. Per
+   * account and not per token: every refresh mints a new token, so a
+   * per-token bucket would reset hourly, and one account can hold several
+   * grants and keys that would each multiply its headroom.
+   *
+   * 600 an hour is five times the anonymous bound, so an account never has
+   * less room than a stranger, and still far below anything a real client
+   * sends: a session opens with three requests. Tool calls are not counted;
+   * they are metered per key by the v1 handler they reach.
+   */
+  '/api/mcp:account': { limit: 600, windowHours: 1 },
+  /**
    * The onchain rail's unauthenticated surface: the key-recovery challenge and
    * the signature that redeems it.
    *
@@ -298,6 +316,10 @@ export function getClientIp(request: NextRequest): string {
  * whose cost scales with its body (enrich-fids: one upstream call per
  * username) passes the body size, so the configured limit bounds the actual
  * work rather than the number of envelopes it arrived in.
+ *
+ * `ipAddress` is the bucket's subject, and it is an address everywhere except
+ * `/api/mcp:account`, whose subject is `user:<account id>`. The column is
+ * text, and a prefix keeps the two kinds of subject from ever colliding.
  */
 export async function checkIpRateLimit(
   ipAddress: string,

@@ -205,7 +205,7 @@ Two ways to authenticate. OAuth 2.1, which is what a client with a person behind
 
 Or the same bearer key the REST API uses, which is the better answer for a server with no browser to sign in from. Keys are self-serve at https://walletlink.social for any signed-in account, free allowance included, and the keys modal offers a one-click install for Cursor and a one-line command for Claude Code at the moment a key is created.
 
-Tool discovery needs neither: a client can connect and list the tools before buying anything. Calling a tool with no credential answers 401 with a WWW-Authenticate header naming the protected resource metadata, which is the signal to start the flow, rather than a tool error a model would read out and move past.
+Tool discovery needs neither: a client can connect and list the tools before buying anything. Calling a tool with no credential answers 401 with a WWW-Authenticate header naming the protected resource metadata, which is the signal to start the flow, rather than a tool error a model would read out and move past. Any request carrying an expired or revoked access token, the handshake included, answers 401 the same way, so a client refreshes and retries.
 
 The skill file is at https://walletlink.social/skill.md, which is a URL a person can hand to an agent directly: what the tools are, what each costs, how to authenticate, and how to read a result. It is generated from the same constants and canonical sentences as this file, so it cannot drift from what the product actually charges or claims.
 
