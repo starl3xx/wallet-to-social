@@ -91,6 +91,16 @@ jobs:
             exit 0
           fi
 
+          # A copy already merged means the update is on main, and Dependabot
+          # closes its own PR once it sees that. A push it makes first (a rebase
+          # onto the new main) must not open a second copy.
+          merged_copy=$(gh pr list --repo "$REPO" --head "$copy" --state merged \
+            --json number -q '.[0].number // empty')
+          if [ -n "$merged_copy" ]; then
+            echo "Copy #$merged_copy already merged; Dependabot closes #$NUMBER on its own."
+            exit 0
+          fi
+
           # Point the copy branch at Dependabot's head commit, creating it the
           # first time and moving it (force) on every later push.
           if gh api "repos/$REPO/git/ref/heads/$copy" >/dev/null 2>&1; then
