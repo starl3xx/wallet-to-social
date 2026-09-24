@@ -24,7 +24,10 @@ All notable changes to walletlink.social. Newest first.
 - The daily run also copies or updates every open Dependabot PR, so copies do
   not depend on the event runs receiving the token. An event run without the
   token warns rather than fails. The copy logic moved to
-  `.github/scripts/dependabot-copy.sh`, read from the default branch. It runs on
+  `.github/scripts/dependabot-copy.sh`, read from the default branch.
+- When a copy has commits of its own and Dependabot moves on, the copy is asked
+  to rebase once per Dependabot commit, by whichever run sees it first, the
+  daily sweep included. It runs on
   `pull_request_target`, because `pull_request` runs nothing on a PR GitHub
   cannot merge, and a daily sweep closes any copy whose Dependabot PR is no
   longer open. A copy already merged is never opened again.

@@ -6,9 +6,9 @@
 # Dependabot PR. The sweep runs with the Actions secret store in every case, so
 # a copy is made or updated within a day even if an event run gets no token.
 #
-# Needs GH_TOKEN (DEPENDABOT_COPY_TOKEN), REPO and NUMBER. EVENT_ACTION is the
-# pull_request_target action, or empty. It runs only GitHub API calls on refs
-# and PRs, and it is read from the default branch, never from a PR.
+# Needs GH_TOKEN (DEPENDABOT_COPY_TOKEN), REPO and NUMBER, and is run with
+# `bash`, so it does not depend on the file mode. It runs only GitHub API calls
+# on refs and PRs, and it is read from the default branch, never from a PR.
 set -euo pipefail
 
 pr=$(gh api "repos/$REPO/pulls/$NUMBER")
@@ -66,7 +66,11 @@ if copy_head=$(gh api "repos/$REPO/git/ref/heads/$copy" -q .object.sha 2>/dev/nu
       echo "Moved $copy to $sha."
     else
       echo "::warning::$copy has $own commit(s) of its own, so it was not moved to $sha."
-      if [ "$EVENT_ACTION" = "synchronize" ] && [ -n "$existing" ]; then
+      # Asked once per Dependabot commit, from whichever run sees it first:
+      # the event run if it has the token, or else the daily sweep. A comment
+      # already naming this commit means the question has been asked.
+      if [ -n "$existing" ] && ! gh api "repos/$REPO/issues/$existing/comments" --paginate \
+        -q '.[].body' | grep -qF "$sha"; then
         gh pr comment "$existing" --repo "$REPO" \
           --body "Dependabot updated #$NUMBER to $sha, but this branch has $own commit(s) of its own, so the workflow did not move it. Rebase it onto $sha by hand, then the workflow follows Dependabot again."
       fi

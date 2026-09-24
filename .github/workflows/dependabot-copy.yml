@@ -102,7 +102,7 @@ jobs:
             --json number,author \
             -q '.[] | select(.author.login == "app/dependabot" or .author.login == "dependabot[bot]") | .number' |
           while read -r n; do
-            NUMBER="$n" EVENT_ACTION="" .github/scripts/dependabot-copy.sh || \
+            NUMBER="$n" EVENT_ACTION="" bash .github/scripts/dependabot-copy.sh || \
               echo "::warning::Could not copy #$n; the next sweep tries again."
           done
 
@@ -139,4 +139,4 @@ jobs:
             echo "::error::DEPENDABOT_COPY_TOKEN is missing from the Actions secret store (Linear STA-33)."
             exit 1
           fi
-          .github/scripts/dependabot-copy.sh
+          bash .github/scripts/dependabot-copy.sh
