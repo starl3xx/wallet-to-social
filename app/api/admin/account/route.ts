@@ -139,6 +139,9 @@ export async function GET(request: NextRequest) {
     FROM lookup_history WHERE user_id = ${account.id}
   `);
 
+  // `total` counts rows on record, OAuth access tokens included, and the
+  // daily cleanup deletes a token's row OAUTH_TOKEN_RETENTION_DAYS after it
+  // stopped working, so it can fall. Dashboard keys are never deleted.
   const [keys] = await rows<{ active: number; total: number }>(sql`
     SELECT count(*) FILTER (WHERE is_active AND revoked_at IS NULL)::int AS active,
            count(*)::int AS total

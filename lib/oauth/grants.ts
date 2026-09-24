@@ -18,6 +18,11 @@
  * new column, and it is what tells a token from a key somebody made in the
  * dashboard and pasted into a config file.
  *
+ * The row outlives the token, but not forever. Every refresh writes a new one,
+ * so the daily cleanup (`app/api/cron/cleanup/route.ts`) deletes a token's row
+ * `OAUTH_TOKEN_RETENTION_DAYS` after it stopped working, by expiry or
+ * revocation, and its usage rows go with it. A dashboard key is never deleted.
+ *
  * ## What that costs, stated plainly
  *
  * A token issued for the MCP server also authenticates a plain REST call to

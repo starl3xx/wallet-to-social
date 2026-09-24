@@ -1326,11 +1326,19 @@ export async function getPurchases(
 export interface AgentRail {
   /** False when the query failed and every count below is an invented zero. */
   ok: boolean;
-  /** Keys ever created, OAuth access tokens included. */
+  /**
+   * Key rows on record, OAuth access tokens included. Not "ever created": the
+   * daily cleanup deletes an access token's row OAUTH_TOKEN_RETENTION_DAYS
+   * after it stopped working, so this can fall.
+   */
   totalKeys: number;
   /** Keys that could authenticate a call right now. */
   activeKeys: number;
-  /** Keys that are OAuth access tokens from agent connections. */
+  /**
+   * Agent connections (grants) behind the access-token rows on record. One
+   * connection writes a new row on every refresh, so counting rows counted
+   * refreshes, not connections.
+   */
   oauthKeys: number;
   /** Distinct keys that made at least one call in the window. */
   callers: number;
@@ -1371,7 +1379,7 @@ export async function getAgentRail(
             WHERE is_active AND revoked_at IS NULL
               AND (expires_at IS NULL OR expires_at > ${utcBound(new Date())}::timestamp)
           )::int AS active_keys,
-          count(*) FILTER (WHERE oauth_grant_id IS NOT NULL)::int AS oauth_keys
+          count(DISTINCT oauth_grant_id)::int AS oauth_keys
         FROM api_keys
       ),
       calls AS (

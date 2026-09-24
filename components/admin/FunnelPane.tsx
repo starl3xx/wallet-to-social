@@ -986,7 +986,7 @@ export function FunnelPane({ password }: { password: string }) {
             <Stat
               label="Active keys"
               value={agents.activeKeys.toLocaleString()}
-              note={`of ${agents.totalKeys.toLocaleString()} created, ${agents.oauthKeys.toLocaleString()} from agent connections`}
+              note={`of ${agents.totalKeys.toLocaleString()} on record, including access tokens for ${agents.oauthKeys.toLocaleString()} agent connections`}
             />
           </div>
           <p className="mt-4 border-t pt-4 text-xs text-muted-foreground">

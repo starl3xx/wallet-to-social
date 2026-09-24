@@ -4265,6 +4265,76 @@ async function main() {
     );
   }
 
+  // ------------------------------------- OAuth: registration grant types
+  // The pure function the register route calls, never the route itself: with
+  // DATABASE_URL set in a developer's shell the route would write to the
+  // IP-limit table and to oauth_clients.
+  {
+    const { registrableGrantTypes } = await import('@/lib/oauth/clients');
+    const { GRANT_TYPES_SUPPORTED, authorizationServerMetadata } =
+      await import('@/lib/oauth/metadata');
+    const JWT = 'urn:ietf:params:oauth:grant-type:jwt-bearer';
+    const refusal = (requested: unknown) => {
+      const r = registrableGrantTypes(requested);
+      return r.ok ? null : r.description;
+    };
+    const registered = (requested: unknown) => {
+      const r = registrableGrantTypes(requested);
+      return r.ok ? JSON.stringify(r.grantTypes) : null;
+    };
+
+    const jwtOnly = refusal([JWT]);
+    ok(
+      'a registration asking only for the jwt-bearer grant is refused by name, and not told about client_credentials',
+      jwtOnly !== null &&
+        jwtOnly.includes(JWT) &&
+        !jwtOnly.includes('client_credentials')
+    );
+    const credentialsOnly = refusal(['client_credentials']);
+    ok(
+      'a registration asking only for client_credentials is refused by name',
+      credentialsOnly !== null && credentialsOnly.includes('client_credentials')
+    );
+    ok(
+      'a registration with a refresh grant and no way to a first token is refused',
+      refusal(['refresh_token']) !== null
+    );
+    ok(
+      'a grant_types list holding a non-string is refused',
+      refusal(['authorization_code', 42]) !== null
+    );
+    ok(
+      'hosted Claude’s grant list registers, without the grant this server does not issue',
+      registered(['authorization_code', 'refresh_token', JWT]) ===
+        JSON.stringify(['authorization_code', 'refresh_token'])
+    );
+    ok(
+      'MCP Inspector’s grant lists register unchanged',
+      registered(['authorization_code']) ===
+        JSON.stringify(['authorization_code']) &&
+        registered(['authorization_code', 'refresh_token']) ===
+          JSON.stringify(['authorization_code', 'refresh_token'])
+    );
+    ok(
+      'an omitted or empty grant list registers the default',
+      registered(undefined) === JSON.stringify(GRANT_TYPES_SUPPORTED) &&
+        registered([]) === JSON.stringify(GRANT_TYPES_SUPPORTED)
+    );
+    ok(
+      'the metadata advertises exactly the grants registration keeps',
+      JSON.stringify(authorizationServerMetadata().grant_types_supported) ===
+        JSON.stringify(GRANT_TYPES_SUPPORTED)
+    );
+    const registerRoute = withoutComments(
+      readFileSync('app/api/oauth/register/route.ts', 'utf8')
+    );
+    ok(
+      'the register route decides grant types with registrableGrantTypes, and the old fixed sentence is gone',
+      registerRoute.includes('registrableGrantTypes(meta.grant_types)') &&
+        !registerRoute.includes('no client_credentials grant')
+    );
+  }
+
   // -------------------------------------------------------------- OAuth: PKCE
   // A known-answer test from RFC 7636 appendix B, deliberately not a value this
   // repo computed. Deriving the challenge with the same function under test
@@ -4336,6 +4406,541 @@ async function main() {
     // and would hide a real off-by-one in the other.
     ok('172.15.0.1 is public', !isPrivateAddress('172.15.0.1', 4));
     ok('172.32.0.1 is public', !isPrivateAddress('172.32.0.1', 4));
+
+    // The ranges added with the two-list classifier (STA-39 D). Hex and
+    // compatible spellings of loopback and link-local, both NAT64 prefixes,
+    // 6to4, the rest of fe80::/10, site-local, multicast, benchmarking, the
+    // IETF block and documentation.
+    for (const address of [
+      '198.18.0.1',
+      '192.0.0.8',
+      '192.0.2.1',
+      '240.0.0.1',
+    ]) {
+      ok(
+        `${address} is refused as a client_id host`,
+        isPrivateAddress(address, 4)
+      );
+    }
+    for (const address of [
+      '::ffff:7f00:1',
+      '::ffff:a9fe:a9fe',
+      '::127.0.0.1',
+      '64:ff9b::a9fe:a9fe',
+      '2002:7f00:1::',
+      'fe90::1',
+      'febf::1',
+      'fec0::1',
+      'ff02::1',
+    ]) {
+      ok(
+        `${address} is refused as a client_id host`,
+        isPrivateAddress(address, 6)
+      );
+    }
+    // The public side, from the hosts that matter. BlockList answers an IPv4
+    // query against an IPv6 `::ffff:0:0/96` rule too, so one list for both
+    // families refuses every IPv4 address there is, claude.ai's included.
+    ok(
+      'claude.ai’s IPv4 address is public, so hosted Claude can load its document',
+      !isPrivateAddress('160.79.104.10', 4)
+    );
+    ok(
+      'claude.ai’s IPv6 address is public',
+      !isPrivateAddress('2607:6bc0::10', 6)
+    );
+    ok(
+      'an address whose stated family is wrong is refused, not classified',
+      isPrivateAddress('104.18.32.7', 6) &&
+        isPrivateAddress('2606:4700:4700::1111', 4)
+    );
+    ok(
+      'an address that does not parse is refused',
+      isPrivateAddress('not an address', 4) && isPrivateAddress('', 0)
+    );
+  }
+
+  // ------------------ OAuth: the CIMD fetch connects where it checked (STA-39 D)
+  // In process, with fakes for the resolver and the request: no network and
+  // no database. The one real request below goes to a loopback listener this
+  // block opens, and the assertion is that it is never reached.
+  {
+    const { EventEmitter } = await import('events');
+    const { Readable } = await import('stream');
+    const net = await import('net');
+    const {
+      pinnedLookup,
+      fetchCimdDocument,
+      clientIdUrlProblem,
+      validateCimdDocument,
+      redirectUriAllowed,
+      CimdError,
+      CIMD_UNREACHABLE,
+    } = await import('@/lib/oauth/clients');
+    type Answer = Array<{ address: string; family: number }>;
+    type ClientRequest = import('http').ClientRequest;
+    type RequestOptions = import('http').RequestOptions;
+
+    const PUBLIC: Answer = [{ address: '104.18.32.7', family: 4 }];
+    const PUBLIC_V6 = { address: '2606:4700:4700::1111', family: 6 };
+    const METADATA: Answer = [{ address: '169.254.169.254', family: 4 }];
+    const DOC_URL = new URL('https://client.example/c');
+    const DOC = JSON.stringify({
+      client_id: DOC_URL.href,
+      redirect_uris: ['https://client.example/cb'],
+    });
+
+    /**
+     * Every await in this block goes through here. A promise that never
+     * settles, with nothing else scheduled, ends the process with exit code
+     * 0 and no output, which would read as a pass. The timer keeps the
+     * process alive and turns a hang into a value the assertions can refuse.
+     */
+    const settle = (p: Promise<unknown>, ms = 1500): Promise<unknown> =>
+      new Promise((done) => {
+        const timer = setTimeout(() => done('hung'), ms);
+        p.then(
+          (value) => {
+            clearTimeout(timer);
+            done({ value });
+          },
+          (error: unknown) => {
+            clearTimeout(timer);
+            done(error);
+          }
+        );
+      });
+    const loaded = (r: unknown) =>
+      r !== null && typeof r === 'object' && 'value' in r;
+
+    /** Answers `first` to the first question and `later` to every one after. */
+    const resolver = (first: Answer, later: Answer = first) => {
+      let calls = 0;
+      return {
+        resolve: async (): Promise<Answer> => (calls++ === 0 ? first : later),
+        calls: () => calls,
+      };
+    };
+
+    interface Reply {
+      status?: number;
+      headers?: Record<string, string>;
+      /** The body in chunks; null for a body that never ends. */
+      body?: string[] | null;
+      /** The peer the socket reports, when not the address it was handed. */
+      peer?: string;
+    }
+
+    /**
+     * Stands in for `https.request` in what the fetch relies on. The socket
+     * asks `options.lookup` for an address; with no lookup passed it asks the
+     * system resolver, which here answers the metadata address. It emits
+     * `socket`, then `connect` with `remoteAddress` set to what it was handed
+     * and `remoteFamily` as the string Node uses, then answers with `reply`.
+     */
+    const fakeRequest = (reply: Reply = {}) => {
+      const system = resolver(METADATA);
+      const seen = {
+        connectedTo: null as string | null,
+        systemCalls: () => system.calls(),
+      };
+      const request = (url: URL, options: RequestOptions): ClientRequest => {
+        const req = Object.assign(new EventEmitter(), {
+          destroyed: false,
+          destroy(error?: Error) {
+            if (req.destroyed) return;
+            req.destroyed = true;
+            if (error) process.nextTick(() => req.emit('error', error));
+          },
+          end() {
+            const lookup: import('net').LookupFunction =
+              options.lookup ??
+              ((host, _o, cb) => {
+                void system.resolve().then((a) => cb(null, a));
+              });
+            lookup(url.hostname, { all: true }, (error, addresses) => {
+              if (req.destroyed) return;
+              if (error) return req.destroy(error);
+              const handed = (addresses as Answer)[0].address;
+              const address = reply.peer ?? handed;
+              const socket = Object.assign(new EventEmitter(), {
+                connecting: true,
+                remoteAddress: undefined as string | undefined,
+                remoteFamily: undefined as string | undefined,
+              });
+              req.emit('socket', socket);
+              socket.remoteAddress = address;
+              socket.remoteFamily = net.isIP(address) === 6 ? 'IPv6' : 'IPv4';
+              socket.connecting = false;
+              seen.connectedTo = address;
+              socket.emit('connect');
+              if (req.destroyed) return;
+              const res = Object.assign(
+                reply.body === null
+                  ? new Readable({ read() {} })
+                  : Readable.from(
+                      (reply.body ?? [DOC]).map((c) => Buffer.from(c))
+                    ),
+                {
+                  statusCode: reply.status ?? 200,
+                  headers: reply.headers ?? {
+                    'content-type': 'application/json',
+                  },
+                }
+              );
+              req.emit('response', res);
+            });
+          },
+        });
+        return req as unknown as ClientRequest;
+      };
+      return { request, seen };
+    };
+
+    const fetchWith = (
+      reply: Reply,
+      answer: Answer = PUBLIC,
+      deadlineMs = 1000
+    ) =>
+      settle(
+        fetchCimdDocument(DOC_URL, {
+          resolve: resolver(answer).resolve,
+          request: fakeRequest(reply).request,
+          deadlineMs,
+        })
+      );
+
+    // One resolution, and the socket goes where it said. The system resolver
+    // answers the metadata address, so a socket that looked the host up again
+    // on its own would connect there and be counted.
+    const once = resolver(PUBLIC, METADATA);
+    const pinned = fakeRequest();
+    const first = await settle(
+      fetchCimdDocument(DOC_URL, {
+        resolve: once.resolve,
+        request: pinned.request,
+        deadlineMs: 1000,
+      })
+    );
+    ok(
+      'the CIMD fetch resolves the host once and connects to the address it checked',
+      loaded(first) &&
+        once.calls() === 1 &&
+        pinned.seen.systemCalls() === 0 &&
+        pinned.seen.connectedTo === '104.18.32.7'
+    );
+    const refusedFake = fakeRequest();
+    const refusedEarly = await settle(
+      fetchCimdDocument(DOC_URL, {
+        resolve: resolver(METADATA).resolve,
+        request: refusedFake.request,
+        deadlineMs: 1000,
+      })
+    );
+    ok(
+      'a host that resolves to a non-public address is refused before any connection, so the assertion above is not vacuous',
+      refusedEarly instanceof CimdError && refusedFake.seen.connectedTo === null
+    );
+
+    // The same with the real https.request: a loopback listener, a resolver
+    // that answers loopback, and not one connection accepted.
+    let accepted = 0;
+    const listener = net.createServer((socket) => {
+      accepted++;
+      socket.destroy();
+    });
+    await settle(
+      new Promise<void>((r) => listener.listen(0, '127.0.0.1', () => r()))
+    );
+    const { port } = listener.address() as import('net').AddressInfo;
+    const real = await settle(
+      fetchCimdDocument(new URL(`https://localhost:${port}/c`), {
+        resolve: async () => [{ address: '127.0.0.1', family: 4 }],
+        deadlineMs: 1000,
+      }),
+      3000
+    );
+    await settle(new Promise((r) => listener.close(() => r(null))));
+    ok(
+      'a real request to a host that resolves to loopback is refused, and the listener never sees a connection',
+      real instanceof CimdError && accepted === 0
+    );
+
+    // The lookup itself: the whole answer is refused when any of it is not
+    // public, and an empty one is refused too.
+    const lookupWith = (
+      answer: Answer,
+      options: import('dns').LookupOptions = { all: true }
+    ) =>
+      settle(
+        new Promise<{ error: Error | null; address: unknown }>((done) =>
+          pinnedLookup(async () => answer)(
+            'client.example',
+            options,
+            (error, address) => done({ error, address })
+          )
+        )
+      ).then((r) =>
+        loaded(r)
+          ? (r as { value: { error: Error | null; address: unknown } }).value
+          : { error: null, address: 'hung' }
+      );
+    const mixed = await lookupWith([
+      ...PUBLIC,
+      { address: '10.0.0.1', family: 4 },
+    ]);
+    ok(
+      'a lookup answer mixing a public and a private address is refused whole',
+      mixed.error instanceof CimdError
+    );
+    ok(
+      'an empty lookup answer is refused',
+      (await lookupWith([])).error instanceof CimdError
+    );
+    ok(
+      'a lookup answer of private addresses only is refused',
+      (await lookupWith(METADATA)).error instanceof CimdError
+    );
+    const both = await lookupWith([...PUBLIC, PUBLIC_V6]);
+    ok(
+      'a public answer reaches the socket whole, so the refusals above are not vacuous',
+      both.error === null &&
+        Array.isArray(both.address) &&
+        both.address.length === 2
+    );
+    const v6Only = await lookupWith([...PUBLIC, PUBLIC_V6], { family: 6 });
+    ok(
+      'a lookup for one family is answered with an address of that family',
+      v6Only.error === null && v6Only.address === PUBLIC_V6.address
+    );
+    ok(
+      'a lookup for a family the answer does not have is refused',
+      (await lookupWith(PUBLIC, { family: 6 })).error instanceof CimdError
+    );
+
+    // The peer, checked again once connected.
+    const peer = await fetchWith({ peer: '10.0.0.1' });
+    ok(
+      'a socket that reports a non-public peer is dropped, even after a public lookup',
+      peer instanceof CimdError
+    );
+
+    // The body: one deadline, a byte cap as it arrives, identity only, no
+    // redirect. Each over-cap or encoded body is valid JSON, so nothing but
+    // the rule under test refuses it.
+    const padded = (bytes: number) => {
+      const shell = JSON.stringify({ client_id: DOC_URL.href, pad: '' });
+      return shell.replace(
+        '"pad":""',
+        `"pad":"${'x'.repeat(bytes - shell.length)}"`
+      );
+    };
+    const big = padded(70 * 1024);
+    const bigChunks = big.match(/[\s\S]{1,7168}/g) ?? [];
+    const oversize = await fetchWith({ body: bigChunks });
+    ok(
+      'a 70 KiB document sent in chunks with no declared length is refused',
+      oversize instanceof CimdError
+    );
+    const declared = await fetchWith({
+      headers: { 'content-length': '70000' },
+    });
+    ok(
+      'a document that declares 70000 bytes is refused before its body is read',
+      declared instanceof CimdError
+    );
+    const gzip = await fetchWith({ headers: { 'content-encoding': 'gzip' } });
+    ok(
+      'a document sent with a content-encoding other than identity is refused',
+      gzip instanceof CimdError
+    );
+    const redirected = await fetchWith({
+      status: 302,
+      headers: { location: 'https://elsewhere.example/c' },
+    });
+    ok(
+      'a redirect is refused, never followed',
+      redirected instanceof CimdError
+    );
+    const stalled = await fetchWith({ body: null }, PUBLIC, 50);
+    ok(
+      'a body that never ends is cut off by the deadline, which does not stop at the headers',
+      stalled instanceof CimdError
+    );
+    const oneKib = await fetchWith({ body: [padded(1024)] });
+    ok(
+      'a 1 KiB document loads, so the refusals above are not vacuous',
+      loaded(oneKib) &&
+        (oneKib as { value: { client_id?: string } }).value.client_id ===
+          DOC_URL.href
+    );
+
+    // What the page may show: one phrase for every failure to load, the
+    // specific reason for a document that loaded and is wrong.
+    const failures = [
+      refusedEarly,
+      real,
+      peer,
+      oversize,
+      declared,
+      gzip,
+      redirected,
+      stalled,
+    ];
+    ok(
+      'every failure to load a document carries the same public message',
+      failures.every(
+        (e) => e instanceof CimdError && e.publicMessage === CIMD_UNREACHABLE
+      )
+    );
+    const notJson = await fetchWith({ body: ['<html>'] });
+    const missing = await fetchWith({ status: 404 });
+    ok(
+      'a document that loaded and is wrong keeps its own message, which its developer needs',
+      notJson instanceof CimdError &&
+        notJson.publicMessage === 'client_id document is not JSON' &&
+        missing instanceof CimdError &&
+        missing.publicMessage === 'client_id document answered 404'
+    );
+    const authorizePage = withoutComments(
+      readFileSync('app/oauth/authorize/page.tsx', 'utf8')
+    );
+    ok(
+      'the authorize page shows only a CimdError’s public message, never an error’s own text',
+      /error instanceof CimdError\s*\?\s*error\.publicMessage/.test(
+        authorizePage
+      ) && !authorizePage.includes('error.message')
+    );
+
+    // The client_id URL, before anything is fetched.
+    for (const [id, why] of [
+      ['http://client.example/c', 'plain http'],
+      ['https://client.example', 'no path'],
+      ['https://client.example/a/../b', 'a dot segment'],
+      ['https://u:p@client.example/c', 'credentials'],
+      ['https://client.example/c#f', 'a fragment'],
+      ['https://client.example/c#', 'an empty fragment'],
+      ['https://127.0.0.1/c', 'an IPv4 literal'],
+      ['https://[::1]/c', 'an IPv6 literal'],
+      ['https://2130706433/c', 'an integer IPv4 literal'],
+      ['https://Client.example/c', 'an uppercase host'],
+      ['https://client.example:443/c', 'an explicit default port'],
+    ]) {
+      ok(
+        `a client_id URL with ${why} is refused before anything is fetched`,
+        clientIdUrlProblem(id) !== null
+      );
+    }
+
+    // The two Claude documents, exactly as claude.ai served them on
+    // 2026-09-24: 342 and 317 bytes, 200, no redirect, no content-encoding.
+    const hosted = {
+      client_id: 'https://claude.ai/oauth/mcp-oauth-client-metadata',
+      client_name: 'Claude',
+      client_uri: 'https://claude.ai',
+      redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+      grant_types: [
+        'authorization_code',
+        'refresh_token',
+        'urn:ietf:params:oauth:grant-type:jwt-bearer',
+      ],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+    };
+    const claudeCode = {
+      client_id: 'https://claude.ai/oauth/claude-code-client-metadata',
+      client_name: 'Claude Code',
+      client_uri: 'https://claude.ai',
+      redirect_uris: ['http://localhost/callback', 'http://127.0.0.1/callback'],
+      grant_types: ['authorization_code', 'refresh_token'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'none',
+    };
+    const accepts = (id: string, doc: unknown) => {
+      try {
+        validateCimdDocument(id, doc);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    ok(
+      'both claude.ai client ids pass the URL rules unchanged',
+      clientIdUrlProblem(hosted.client_id) === null &&
+        clientIdUrlProblem(claudeCode.client_id) === null
+    );
+    ok(
+      'hosted Claude’s document is accepted, and its callback matches',
+      accepts(hosted.client_id, hosted) &&
+        redirectUriAllowed(
+          'https://claude.ai/api/mcp/auth_callback',
+          hosted.redirect_uris
+        )
+    );
+    ok(
+      'Claude Code’s document is accepted, and a loopback callback on any port matches',
+      accepts(claudeCode.client_id, claudeCode) &&
+        redirectUriAllowed(
+          'http://localhost:53682/callback',
+          claudeCode.redirect_uris
+        )
+    );
+    ok(
+      'a copy of hosted Claude’s document served under another client_id is refused',
+      !accepts('https://client.example/c', {
+        ...hosted,
+        client_id: 'https://client.example/c',
+        redirect_uris: ['https://claude.ai/api/mcp/auth_callback'],
+      }) &&
+        !accepts(hosted.client_id, {
+          ...hosted,
+          client_id: 'https://client.example/c',
+        })
+    );
+    ok(
+      'a copy of hosted Claude’s document with a callback on another origin is refused',
+      !accepts(hosted.client_id, {
+        ...hosted,
+        redirect_uris: ['https://elsewhere.example/cb'],
+      })
+    );
+    const hostedBody = JSON.stringify(hosted);
+    const servedHosted = await settle(
+      fetchCimdDocument(new URL(hosted.client_id), {
+        resolve: resolver([
+          { address: '160.79.104.10', family: 4 },
+          { address: '2607:6bc0::10', family: 6 },
+        ]).resolve,
+        request: fakeRequest({
+          body: [hostedBody.slice(0, 200), hostedBody.slice(200)],
+          headers: {
+            'content-type': 'application/json',
+            'transfer-encoding': 'chunked',
+          },
+        }).request,
+        deadlineMs: 1000,
+      })
+    );
+    ok(
+      'hosted Claude’s document, served chunked from claude.ai’s addresses, loads and validates',
+      hostedBody.length === 342 &&
+        loaded(servedHosted) &&
+        accepts(hosted.client_id, (servedHosted as { value: unknown }).value)
+    );
+
+    // The shape of the request, read from the code.
+    const clientsCode = withoutComments(
+      readFileSync('lib/oauth/clients.ts', 'utf8')
+    );
+    ok(
+      'the metadata fetch never uses the global fetch, which cannot take a lookup',
+      !/(^|[^\w.])fetch\(/m.test(clientsCode)
+    );
+    ok(
+      'the metadata request carries the pinned lookup and no pooled agent',
+      clientsCode.includes('lookup: pinnedLookup(resolve),') &&
+        clientsCode.includes('agent: false,')
+    );
   }
 
   // ---------------------------------------------------------- OAuth: the gate
@@ -6153,6 +6758,7 @@ async function main() {
       'MAGIC_LINK_DURATION_MINUTES',
       'MAGIC_LINK_RETENTION_HOURS',
       'NEGATIVE_RECHECK_DAYS',
+      'OAUTH_TOKEN_RETENTION_DAYS',
     ]) {
       ok(
         `the privacy policy reads ${constant} rather than restating the number`,
@@ -6263,6 +6869,80 @@ async function main() {
         // leaving the index entirely, so a change that replaced it would be
         // removing the accessible path in favour of one that needs a wallet.
         noComments(privacyPage).includes('mailto:help@walletlink.social')
+    );
+
+    /**
+     * Spent OAuth access tokens (STA-39 D). The delete cascades to a token's
+     * usage, quota bucket and replay rows, so the period has two floors, and
+     * the row set is fenced twice so a key a person made is never in reach.
+     */
+    const cleanupCode = withoutComments(cleanup);
+    const runBody = cleanupCode.slice(
+      cleanupCode.indexOf('async function run(')
+    );
+    const tokenDelete = runBody.slice(
+      runBody.indexOf('DELETE FROM api_keys'),
+      runBody.indexOf('RETURNING', runBody.indexOf('DELETE FROM api_keys'))
+    );
+    const tokenSelect = runBody.slice(
+      runBody.lastIndexOf(
+        'SELECT id FROM api_keys',
+        runBody.indexOf('DELETE FROM api_keys')
+      ),
+      runBody.indexOf('DELETE FROM api_keys')
+    );
+    ok(
+      'the token cleanup deletes only OAuth access tokens, never a key a person made',
+      tokenSelect.includes('oauth_grant_id IS NOT NULL') &&
+        tokenSelect.includes(
+          'starts_with(key_prefix, ${ACCESS_TOKEN_PREFIX})'
+        ) &&
+        tokenDelete.includes('USING spent WHERE k.id = spent.id')
+    );
+    ok(
+      'a token is aged from when it stopped working, never from when it was made',
+      tokenSelect.includes(
+        'LEAST(expires_at, revoked_at) < now() - make_interval(days => ${OAUTH_TOKEN_RETENTION_DAYS})'
+      ) && !tokenSelect.includes('created_at')
+    );
+    const { ACCESS_TOKEN_PREFIX } = await import('@/lib/oauth/grants');
+    ok(
+      'the prefix the cleanup requires is the one access tokens carry, not the dashboard key prefix',
+      ACCESS_TOKEN_PREFIX === 'wts_mcp_' &&
+        !'wts_live_'.startsWith(ACCESS_TOKEN_PREFIX)
+    );
+    const { OAUTH_TOKEN_RETENTION_DAYS } =
+      await import('@/app/api/cron/cleanup/route');
+    const journeyMaxDays = Number(
+      readFileSync('app/api/admin/analytics/journey/route.ts', 'utf8').match(
+        /const MAX_DAYS = (\d+);/
+      )?.[1]
+    );
+    ok(
+      'the token cascade cannot erase usage an admin window still reads',
+      journeyMaxDays > 0 && OAUTH_TOKEN_RETENTION_DAYS > journeyMaxDays
+    );
+    ok(
+      'the token cascade cannot lower an account’s month quota',
+      OAUTH_TOKEN_RETENTION_DAYS >= 32
+    );
+    const tokenAt = runBody.indexOf('DELETE FROM api_keys');
+    const tryBefore = runBody.lastIndexOf('try {', tokenAt);
+    ok(
+      'the token cleanup sits in its own try, so a failure there abandons nothing after it',
+      tryBefore !== -1 &&
+        !runBody.slice(tryBefore, tokenAt).includes('catch (') &&
+        runBody.indexOf('catch (error)', tokenAt) <
+          runBody.indexOf('cleanupExpiredAuth(')
+    );
+    ok(
+      'the token cleanup reports what it deleted',
+      /oauthAccessTokens = deleted\.rows\.length;/.test(runBody) &&
+        /\n\s*oauthAccessTokens,\n\s*\}\);/.test(runBody)
+    );
+    ok(
+      'the cleanup never calls cleanupOldBuckets, which would delete the current month’s quota buckets',
+      !runBody.includes('cleanupOldBuckets(')
     );
   }
 

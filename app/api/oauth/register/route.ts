@@ -7,6 +7,13 @@
  * does reach it is a client that implements neither mechanism, and refusing
  * those would be refusing the only way in they have.
  *
+ * Grant types are substituted, not all-or-nothing: a request naming a grant
+ * this server does not issue is registered with only the ones it does, and
+ * the response's `grant_types` says which (RFC 7591 sections 2 and 3.2.1).
+ * Hosted Claude's own metadata lists the jwt-bearer grant beside the two
+ * supported ones, so refusing the whole registration would refuse it. See
+ * `registrableGrantTypes`.
+ *
  * The result is worth being clear-eyed about: this endpoint mints a
  * `client_id` for anybody who asks, and nothing it stores has been verified.
  * That is what RFC 7591 is. The consequence is carried at the consent screen,
@@ -24,7 +31,7 @@ import { randomBytes } from 'crypto';
 import { getDb } from '@/db';
 import { oauthClients } from '@/db/schema';
 import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
-import { isLoopbackRedirect } from '@/lib/oauth/clients';
+import { isLoopbackRedirect, registrableGrantTypes } from '@/lib/oauth/clients';
 import { SUPPORTED_SCOPES } from '@/lib/oauth/metadata';
 
 export const runtime = 'nodejs';
@@ -85,22 +92,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  const grantTypes = asStringArray(meta.grant_types) ?? [
-    'authorization_code',
-    'refresh_token',
-  ];
-  const unsupported = grantTypes.filter(
-    (g) => g !== 'authorization_code' && g !== 'refresh_token'
-  );
-  if (unsupported.length > 0) {
-    return NextResponse.json(
-      {
-        error: 'invalid_client_metadata',
-        error_description: `Unsupported grant_types: ${unsupported.join(', ')}. This server issues authorization codes only; there is no client_credentials grant, because every connection needs a person to consent to it.`,
-      },
-      { status: 400 }
-    );
-  }
+  // Grants this server does not issue are dropped, not refused, and the
+  // response echoes what was registered (RFC 7591 sections 2 and 3.2.1).
+  const grants = registrableGrantTypes(meta.grant_types);
+  if (!grants.ok) return invalid(grants.description);
+  const grantTypes = grants.grantTypes;
 
   /**
    * Every client here is public.

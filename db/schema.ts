@@ -741,6 +741,11 @@ export const apiKeys = pgTable(
      *
      * Null for every key made in the dashboard, which is what tells the two
      * apart. `lib/oauth/grants.ts` owns everything that sets it.
+     *
+     * A row with this set is deleted by the daily cleanup
+     * `OAUTH_TOKEN_RETENTION_DAYS` after the token stopped working
+     * (app/api/cron/cleanup/route.ts), taking its usage rows with it. A row
+     * without it is kept until its owner revokes it, and after that too.
      */
     oauthGrantId: uuid('oauth_grant_id'),
   },
