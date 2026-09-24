@@ -2,6 +2,23 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (docs: three statements corrected against the code)
+
+- **The API works on the free allowance.** The app lookups page listed "the
+  API" among the things that need a pack, and the dashboard's Developer card
+  said API access comes with credits. `lib/api-auth.ts` serves a key on the free
+  allowance, and the key route lets a free account create one. Both now say the
+  API draws on the same balance, the free allowance included.
+- **A key bought with USDC and no account cannot use the reverse lookups.**
+  llms.txt still said such a key "works on the whole REST API". It has answered
+  403 `ACCOUNT_REQUIRED` on the reverse lookups since that change shipped.
+- **The app does not overdraw the way the API does.** The MCP page said a call
+  resolving more than the balance finishes and the next fails, "the same
+  behavior the REST API and the app have". The app instead opens the matches the
+  balance covers and locks the rest, past a small margin. The page now says so
+  and links the app's own explanation.
+- Found by the privacy and terms audit (Linear STA-41).
+
 ### 2026-09-24 (X handles the account never confirmed are flagged)
 
 - **The `twitter` object now carries `self_declared: true` when the handle
