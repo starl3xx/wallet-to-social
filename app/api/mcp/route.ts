@@ -656,6 +656,7 @@ const handler = createMcpHandler(
           'How many match credits the configured key has left, and how much of the request allowance it has used.',
           'COST: free on both meters. Call it before a reverse lookup, which can spend up to 100 credits in one go.',
           'matches_available is the meter that stops a metered call: at zero, the resolve and reverse tools refuse, while this tool and the coverage tool keep answering, so a drained key can always read its own meter. rate_limit_units_used is a separate count of requests and is not a credit figure.',
+          'unmetered is true on an account that is never debited. Its matches_available is null because it has no balance to report, not because the balance is zero.',
         ].join('\n\n'),
         annotations: {
           title: 'Match credit balance',
@@ -680,6 +681,9 @@ const handler = createMcpHandler(
         const usage = asObject(d.usage) ?? {};
         return ok({
           matches_available: credits.available ?? null,
+          // Without it a null balance reads as "unknown" or "zero", and an
+          // agent has to guess which; /v1/usage already says which.
+          unmetered: asBoolean(credits.unmetered, false),
           on_free_allowance: asBoolean(credits.on_free_allowance, false),
           free_window_resets_at: credits.free_window_resets_at ?? null,
           requests_per_minute: limits.requests_per_minute ?? null,

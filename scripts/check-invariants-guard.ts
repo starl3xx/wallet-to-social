@@ -1389,6 +1389,12 @@ const MUTATIONS: Mutation[] = [
     to: '${accessTtlS}), NULL\n      FROM rotated',
   },
   {
+    name: 'the balance tool drops unmetered again, so a null balance is unexplained',
+    file: 'app/api/mcp/route.ts',
+    from: '          unmetered: asBoolean(credits.unmetered, false),\n',
+    to: '',
+  },
+  {
     name: 'loadCode judges expiry again, so two clocks decide (Bugbot, 2026-08-25)',
     file: 'lib/oauth/requests.ts',
     from: '  return row ? { ok: true, row } : { ok: false };',

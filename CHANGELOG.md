@@ -2,6 +2,14 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (the MCP balance tool says when an account is unmetered)
+
+- **`walletlink_account_balance` now returns `unmetered`.** On an account that
+  is never debited, `matches_available` is null, and the tool gave no reason,
+  so Claude had to guess between "unknown" and "zero" (seen live on the owner's
+  account). `/v1/usage` already reported `credits.unmetered`; the tool dropped
+  it. The tool description and the MCP docs page say what the pair means.
+
 ### 2026-09-23 (a code exchange is one statement)
 
 - **Exchanging an authorization code spends the code, writes the refresh token
