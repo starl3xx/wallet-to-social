@@ -25,14 +25,28 @@ All notable changes to walletlink.social. Newest first.
   could be picked up again by the next minute's round, or by the other
   pipeline, which called the providers twice for the same addresses and could
   save a lookup to history twice. Billing was never doubled: the charge is
-  keyed on the job.
-- Operator: `scripts/migrate-job-lease.ts` adds `lookup_jobs.leased_until` and
-  must run before this deploys. The Inngest route stays, registering nothing,
-  so runs started before the deploy end cleanly; the route, the client, the
-  package and the `INNGEST_*` variables go in a follow-up. Linear STA-44. The
-  twelve invariants that held the two pipelines in step are replaced by
-  eighteen that assert one pipeline and the claim, and the nine guard
-  mutations against the Inngest copy by twenty-one.
+  keyed on the job. Each claim also carries its own token, and every write
+  to the job after it must match that token: a worker the platform suspended
+  past its turn and later resumed finds its writes refused, so it can no
+  longer cut a finished lookup back to a partial one or mark it failed.
+- **A list that keeps running out of time now stops, with an answer.** If
+  the platform stops a slice before it finishes, the next attempt takes half
+  as many addresses, down to an eighth. After five attempts in a row that
+  never finish, the lookup fails, unbilled, with "Submit the list again."
+  Before, it was retried every few minutes for as long as a source stayed
+  slow, and the app gave up waiting after ten minutes.
+- **The onchain ENS pass on a deep scan has a time limit,** as Web3Bio
+  already had: it stops starting new batches two minutes into a slice.
+  Addresses it did not reach are left unchecked rather than recorded as
+  having no ENS name, so the next lookup asks again.
+- Operator: `scripts/migrate-job-lease.ts` adds `lookup_jobs.leased_until`,
+  `lease_token` and `slice_attempts`, and must run before this deploys. The
+  Inngest route stays, registering nothing, so runs started before the deploy
+  end cleanly; the route, the client, the package and the `INNGEST_*`
+  variables go in a follow-up. Linear STA-44. The twelve invariants that held
+  the two pipelines in step are replaced by twenty-nine that assert one
+  pipeline, the claim, the fenced writes and the attempt cap, and the nine
+  guard mutations against the Inngest copy by forty-seven.
 
 ### 2026-09-24 (Dependabot PRs are copied so Bugbot reviews them)
 
