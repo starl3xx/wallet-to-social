@@ -182,18 +182,44 @@ export async function lookupWalletENS(wallet: string): Promise<ENSResult> {
 }
 
 /**
+ * Whether the batch is out of time. When it is, every wallet it has not
+ * reached is recorded as unreached, and the caller stops.
+ *
+ * Unreached is the point. The job worker treats a wallet in `failedWallets`
+ * as never checked, so it is neither cached as empty nor written to the graph
+ * as a negative: a wallet ENS never asked about is not a wallet with no ENS
+ * name. Lowercased, because that is how the worker keys the set.
+ */
+export function ensPastDeadline(
+  deadline: number | undefined,
+  unreached: readonly string[],
+  failedWallets?: Set<string>
+): boolean {
+  if (deadline === undefined || Date.now() < deadline) return false;
+  for (const wallet of unreached) failedWallets?.add(wallet.toLowerCase());
+  return true;
+}
+
+/**
  * Two-phase batch ENS lookup:
  * Phase 1: Reverse-resolve all wallets to ENS names in parallel
  * Phase 2: Fetch text records only for wallets that have ENS names
  *
  * This avoids the per-wallet serial penalty of resolve→text-records by
  * batching each phase independently.
+ *
+ * `opts.deadline` is a wall-clock time after which no new batch starts, the
+ * same bound `batchFetchWeb3Bio` has. Without it a slice of 3,000 addresses is
+ * 60 serial batches, each able to wait out a 15-second RPC timeout, which can
+ * outrun the job worker's whole invocation: the platform kills it before
+ * anything is saved, and the next claim runs the same slice again.
  */
 export async function batchLookupENS(
   wallets: string[],
   onProgress?: (completed: number, found: number) => void,
   batchSize = 50,
-  delayMs = 50
+  delayMs = 50,
+  opts?: { deadline?: number; failedWallets?: Set<string> }
 ): Promise<Map<string, ENSResult>> {
   const results = new Map<string, ENSResult>();
   let found = 0;
@@ -202,6 +228,8 @@ export async function batchLookupENS(
   const ensNames = new Map<string, string>(); // wallet → ensName
   let completed = 0;
   for (let i = 0; i < wallets.length; i += batchSize) {
+    if (ensPastDeadline(opts?.deadline, wallets.slice(i), opts?.failedWallets))
+      break;
     const batch = wallets.slice(i, i + batchSize);
     const batchResults = await Promise.allSettled(
       batch.map(async (wallet) => ({
@@ -226,6 +254,15 @@ export async function batchLookupENS(
   // Phase 2: Fetch text records only for wallets with ENS names (in parallel)
   const walletsWithENS = Array.from(ensNames.entries());
   for (let i = 0; i < walletsWithENS.length; i += batchSize) {
+    // A name found but its records never read is as unchecked as no name.
+    if (
+      ensPastDeadline(
+        opts?.deadline,
+        walletsWithENS.slice(i).map(([wallet]) => wallet),
+        opts?.failedWallets
+      )
+    )
+      break;
     const batch = walletsWithENS.slice(i, i + batchSize);
     const batchResults = await Promise.allSettled(
       batch.map(async ([wallet, ensName]) => {

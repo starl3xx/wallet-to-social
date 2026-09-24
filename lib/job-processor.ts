@@ -1,6 +1,7 @@
 import { getDb } from '@/db';
 import { lookupJobs } from '@/db/schema';
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
+import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { batchFetchWeb3Bio } from '@/lib/web3bio';
 import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
@@ -52,6 +53,107 @@ const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
  * next tick takes the job at once rather than waiting this out.
  */
 export const LEASE_SECONDS = 330;
+
+/**
+ * Consecutive claims a job may take without handing back, before it fails.
+ *
+ * A slice the platform kills at maxDuration never reaches its catch or its
+ * progress save, so nothing marks it failed and the next claim runs the same
+ * slice again, for as long as the upstream that made it slow stays slow. Each
+ * claim counts itself in `slice_attempts`, every handback resets it, and so a
+ * run of kills is visible: each one halves the next slice (`sliceSizeFor`),
+ * and the claim after the fifth fails the job, unbilled, with an answer the
+ * caller can act on. Before STA-44 the Inngest run finished such jobs in
+ * 500-wallet steps; this is what replaces that backstop.
+ */
+export const MAX_SLICE_ATTEMPTS = 5;
+
+/** What a caller reads when a job used up its attempts. */
+export const SLICES_EXHAUSTED =
+  'This lookup ran out of time on every attempt and was stopped. Submit the list again.';
+
+/**
+ * Wallets per slice on this claim: the full chunk first, then half after each
+ * killed attempt, down to an eighth. Never zero, so the last attempts still
+ * make progress.
+ */
+export function sliceSizeFor(attempts: number): number {
+  return CHUNK_SIZE >> Math.min(Math.max(attempts - 1, 0), 3);
+}
+
+/**
+ * How long, from the claim, the ENS pass may start new batches. The same kind
+ * of bound Web3Bio has (`batchDeadlineMs`), so one slow RPC cannot hold a
+ * slice past the invocation's end; wallets it never reached are recorded as
+ * failed, never as negatives.
+ */
+const ENS_SLICE_BUDGET_MS = 120_000;
+
+/**
+ * A write after the claim matched no row: another invocation holds the job
+ * now, or it finished. The holder that sees this stops and writes nothing
+ * more, including no 'failed' over a job someone else completed.
+ */
+export class LeaseLostError extends Error {
+  constructor(jobId: string) {
+    super(`Lost the lease on job ${jobId}; another invocation holds it`);
+    this.name = 'LeaseLostError';
+  }
+}
+
+/**
+ * The WHERE of every write after the claim: this job, still under the token
+ * this claim minted, and still running. Exported so scripts/check-invariants.ts
+ * can render it.
+ *
+ * The lease alone cannot protect the writes. It is safe only while every
+ * holder stops before it runs out, and a platform that suspends an invocation
+ * rather than killing it (a shared process under Fluid compute, a frozen
+ * instance thawed by the next request) can resume one afterwards. Its writes
+ * then land on a job another invocation has claimed, advanced or completed:
+ * a completed, billed job cut back to the stale holder's rows, or flipped to
+ * failed by its catch. Matching on the token makes those writes match nothing.
+ */
+export function owned(jobId: string, token: string): SQL {
+  return and(
+    eq(lookupJobs.id, jobId),
+    eq(lookupJobs.leaseToken, token),
+    eq(lookupJobs.status, 'processing')
+  )!;
+}
+
+/**
+ * Every write to a job after its claim goes through here, and nothing else
+ * writes it. Throws `LeaseLostError` when the row is no longer this claim's.
+ */
+async function writeOwned(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  job: Pick<LookupJob, 'id' | 'leaseToken'>,
+  values: PgUpdateSetSource<typeof lookupJobs>
+): Promise<void> {
+  const rows = await db
+    .update(lookupJobs)
+    .set(values)
+    .where(owned(job.id, job.leaseToken!))
+    .returning({ id: lookupJobs.id });
+  if (rows.length === 0) throw new LeaseLostError(job.id);
+}
+
+/**
+ * Re-assert the claim and extend it, before a side effect that must not run
+ * twice. A holder that lost the job stops here instead of charging, saving a
+ * second history row or writing the graph again.
+ */
+async function renewLease(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  job: Pick<LookupJob, 'id' | 'leaseToken'>
+): Promise<void> {
+  await writeOwned(db, job, {
+    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,
+  });
+}
 
 /**
  * A job nobody is working on right now. The one definition, read by the claim
@@ -253,6 +355,8 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       status: 'processing',
       startedAt: sql`coalesce(${lookupJobs.startedAt}, now() AT TIME ZONE 'UTC')`,
       leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,
+      leaseToken: sql`gen_random_uuid()`,
+      sliceAttempts: sql`${lookupJobs.sliceAttempts} + 1`,
       updatedAt: new Date(),
     })
     .where(
@@ -299,8 +403,28 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
   }
 
   const job = resumeFromSavedPrefix(claimed);
+  const sliceStartedAt = Date.now();
 
   try {
+    if (job.sliceAttempts > MAX_SLICE_ATTEMPTS) {
+      await writeOwned(db, job, {
+        status: 'failed',
+        errorMessage: SLICES_EXHAUSTED,
+        updatedAt: new Date(),
+        leasedUntil: sql`now()`,
+        sliceAttempts: 0,
+      });
+      return {
+        completed: true,
+        processedCount: job.processedCount,
+        twitterFound: job.twitterFound,
+        farcasterFound: job.farcasterFound,
+        anySocialFound: job.anySocialFound,
+        cacheHits: job.cacheHits,
+        error: SLICES_EXHAUSTED,
+      };
+    }
+
     const options = job.options as JobOptions;
     const originalData = (job.originalData || {}) as Record<
       string,
@@ -309,10 +433,10 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     const allWallets = job.wallets;
     const startIndex = job.processedCount;
 
-    // Get chunk to process
+    // Get chunk to process: smaller after each attempt the platform killed.
     const walletsToProcess = allWallets.slice(
       startIndex,
-      startIndex + CHUNK_SIZE
+      startIndex + sliceSizeFor(job.sliceAttempts)
     );
 
     if (walletsToProcess.length === 0) {
@@ -468,7 +592,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // STEP 1: Check social_graph FIRST (primary data source)
     // High-quality records are trusted completely, reducing API calls
     // =========================================================================
-    await updateJobStage(db, jobId, 'graph');
+    await updateJobStage(db, job, 'graph');
 
     const walletsNeedingLookup: string[] = [];
     try {
@@ -562,7 +686,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     // =========================================================================
     // STEP 2: Check cache for wallets that need lookup
     // =========================================================================
-    await updateJobStage(db, jobId, 'cache');
+    await updateJobStage(db, job, 'cache');
 
     // Check cache for wallets not served by high-quality graph data.
     // Includes negative cache entries (source: ['none']) — wallets previously
@@ -621,11 +745,14 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       const canUseENS = options.includeENS && options.canUseENS !== false;
 
       // Run ENS + Neynar in parallel (ENS is slow RPC, Neynar is fast batch)
-      await updateJobStage(db, jobId, canUseENS ? 'ens' : 'neynar');
+      await updateJobStage(db, job, canUseENS ? 'ens' : 'neynar');
 
       const [ensResults, neynarResults] = await Promise.all([
         canUseENS
-          ? batchLookupENS(uncachedWallets).catch((error) => {
+          ? batchLookupENS(uncachedWallets, undefined, undefined, undefined, {
+              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,
+              failedWallets: apiFailedWallets,
+            }).catch((error) => {
               console.error('ENS lookup error:', error);
               return new Map<
                 string,
@@ -680,7 +807,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       }
 
       // Apply Neynar results (including bio for agent detection)
-      await updateJobStage(db, jobId, 'neynar');
+      await updateJobStage(db, job, 'neynar');
       for (const [wallet, data] of neynarResults) {
         const existing = results.get(wallet)!;
         results.set(wallet, {
@@ -749,7 +876,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
       // Run Web3Bio only for wallets without Twitter (slow — 1 request per wallet)
       if (walletsNeedingWeb3Bio.length > 0) {
-        await updateJobStage(db, jobId, 'web3bio');
+        await updateJobStage(db, job, 'web3bio');
         const web3BioResults = await batchFetchWeb3Bio(
           walletsNeedingWeb3Bio,
           undefined,
@@ -1019,20 +1146,18 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
     }
 
     // Save progress for resume
-    await db
-      .update(lookupJobs)
-      .set({
-        processedCount: newProcessedCount,
-        partialResults: allResults,
-        twitterFound,
-        farcasterFound,
-        anySocialFound,
-        cacheHits,
-        updatedAt: new Date(),
-        // Handed back for the next slice. Now, not NULL: see claimable().
-        leasedUntil: sql`now()`,
-      })
-      .where(eq(lookupJobs.id, jobId));
+    await writeOwned(db, job, {
+      processedCount: newProcessedCount,
+      partialResults: allResults,
+      twitterFound,
+      farcasterFound,
+      anySocialFound,
+      cacheHits,
+      updatedAt: new Date(),
+      // Handed back for the next slice. Now, not NULL: see claimable().
+      leasedUntil: sql`now()`,
+      sliceAttempts: 0,
+    });
 
     return {
       completed: false,
@@ -1043,19 +1168,39 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       cacheHits,
     };
   } catch (error) {
+    /**
+     * Not ours any more: another invocation holds the job, or finished it.
+     * Stop without a write. Marking it failed here is exactly the stale
+     * overwrite the token exists to prevent.
+     */
+    if (error instanceof LeaseLostError) {
+      console.warn(error.message);
+      return {
+        completed: false,
+        busy: true,
+        processedCount: job.processedCount,
+        twitterFound: job.twitterFound,
+        farcasterFound: job.farcasterFound,
+        anySocialFound: job.anySocialFound,
+        cacheHits: job.cacheHits,
+      };
+    }
+
     console.error('Job processing error:', error);
 
-    // Mark job as failed
-    await db
-      .update(lookupJobs)
-      .set({
+    // Mark job as failed, if it is still ours to mark.
+    try {
+      await writeOwned(db, job, {
         status: 'failed',
         errorMessage: error instanceof Error ? error.message : 'Unknown error',
         retryCount: job.retryCount + 1,
         updatedAt: new Date(),
         leasedUntil: sql`now()`,
-      })
-      .where(eq(lookupJobs.id, jobId));
+        sliceAttempts: 0,
+      });
+    } catch (writeError) {
+      if (!(writeError instanceof LeaseLostError)) throw writeError;
+    }
 
     return {
       completed: true,
@@ -1167,12 +1312,13 @@ function mergeCacheRow(
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function updateJobStage(db: any, jobId: string, stage: string) {
-  await db
-    .update(lookupJobs)
-    .set({ currentStage: stage, updatedAt: new Date() })
-    .where(eq(lookupJobs.id, jobId));
+async function updateJobStage(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  job: Pick<LookupJob, 'id' | 'leaseToken'>,
+  stage: string
+) {
+  await writeOwned(db, job, { currentStage: stage, updatedAt: new Date() });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1346,6 +1492,7 @@ async function finalizeJobWithResults(
     Math.max(0, options.anonMatchGate ?? ANON_MATCHES_PER_JOB)
   );
 
+  await renewLease(db, job);
   if (options.meteredUserId) {
     try {
       const charge = await chargeForJob(
@@ -1405,6 +1552,7 @@ async function finalizeJobWithResults(
 
   // Save to history if requested
   if (options.saveToHistory) {
+    await renewLease(db, job);
     try {
       const lookupId = await saveLookup(
         results,
@@ -1467,6 +1615,7 @@ async function finalizeJobWithResults(
       );
 
   if (positiveResults.length > 0) {
+    await renewLease(db, job);
     const writeResult = await upsertSocialGraphWithRetry(positiveResults);
 
     // Determine write status
@@ -1511,27 +1660,25 @@ async function finalizeJobWithResults(
 
   // Mark job as complete with write status
   const completedAt = new Date();
-  await db
-    .update(lookupJobs)
-    .set({
-      status: 'completed',
-      processedCount: job.wallets.length,
-      partialResults: results,
-      twitterFound,
-      farcasterFound,
-      anySocialFound,
-      cacheHits,
-      completedAt,
-      updatedAt: new Date(),
-      socialGraphWriteStatus,
-      socialGraphWriteErrors:
-        socialGraphWriteErrors.length > 0 ? socialGraphWriteErrors : null,
-      // The match gate, atomic with completion: a job is never readable as
-      // completed-but-ungated when the allowance covered only part of it.
-      matchesDelivered,
-      leasedUntil: sql`now()`,
-    })
-    .where(eq(lookupJobs.id, job.id));
+  await writeOwned(db, job, {
+    status: 'completed',
+    processedCount: job.wallets.length,
+    partialResults: results,
+    twitterFound,
+    farcasterFound,
+    anySocialFound,
+    cacheHits,
+    completedAt,
+    updatedAt: new Date(),
+    socialGraphWriteStatus,
+    socialGraphWriteErrors:
+      socialGraphWriteErrors.length > 0 ? socialGraphWriteErrors : null,
+    // The match gate, atomic with completion: a job is never readable as
+    // completed-but-ungated when the allowance covered only part of it.
+    matchesDelivered,
+    leasedUntil: sql`now()`,
+    sliceAttempts: 0,
+  });
 
   if (matchesDelivered !== null && gateIsFresh) {
     trackEvent('limit_hit', {

@@ -237,13 +237,24 @@ export const lookupJobs = pgTable(
     /**
      * Until when one worker holds this job. Set only by the claim in
      * `processJobChunk`, which is one conditional UPDATE, so two invocations
-     * can never work the same job at once: the web kick, the API kick and
+     * can never start the same job at once: the web kick, the API kick and
      * every cron tick all go through it. Handed back (set to now) on every
      * exit, so the next tick takes the job at once; a holder that is killed
-     * simply lets it run out. See `LEASE_SECONDS` for why it cannot run out
-     * under a live holder. `scripts/migrate-job-lease.ts`.
+     * simply lets it run out. `scripts/migrate-job-lease.ts`.
      */
     leasedUntil: timestamp('leased_until', { withTimezone: true }),
+    /**
+     * A fresh uuid per claim. Every write after the claim matches on it, so a
+     * holder that outlived its lease finds its writes match nothing and stops,
+     * rather than overwriting the holder that claimed after it.
+     */
+    leaseToken: uuid('lease_token'),
+    /**
+     * Claims since the job was last handed back. The claim adds one and every
+     * handback resets it, so it counts slices the platform killed in a row:
+     * each halves the next slice, and past `MAX_SLICE_ATTEMPTS` the job fails.
+     */
+    sliceAttempts: integer('slice_attempts').default(0).notNull(),
   },
   (table) => [
     index('lookup_jobs_status_idx').on(table.status),

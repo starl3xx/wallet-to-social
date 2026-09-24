@@ -11727,21 +11727,25 @@ async function main() {
      * this reads the SQL the claim actually sends.
      */
     const { PgDialect } = await import('drizzle-orm/pg-core');
-    const claimSql = new PgDialect().sqlToQuery(jobProcessor.claimable());
-    const flatClaim = claimSql.sql.replace(/\s+/g, ' ');
+    const dialect = new PgDialect();
+    const claimSql = dialect.sqlToQuery(jobProcessor.claimable());
+    const flatClaim = claimSql.sql.replace(/\s+/g, ' ').trim();
+    /**
+     * The whole predicate, not fragments of it. A substring check passed with
+     * the top-level OR turned to AND (no job ever claimable: the queue stops)
+     * and with `<= now() + interval '6 minutes'` (every live lease free: the
+     * race is back), because each kept the fragment it looked for.
+     *
+     * Read as: a lease at or past now is free; with no lease, a `pending` job
+     * is free, and a `processing` one only once its last write is a lease's
+     * length old, because a holder from before leases may still be running.
+     */
+    const EXPECTED_CLAIMABLE = `( "lookup_jobs"."leased_until" <= now() OR ( "lookup_jobs"."leased_until" IS NULL AND ( "lookup_jobs"."status" = 'pending' OR "lookup_jobs"."updated_at" < (now() AT TIME ZONE 'UTC') - make_interval(secs => $1) ) ) )`;
     ok(
-      'a live lease refuses the claim: only a lease at or past now is free',
-      flatClaim.includes('"lookup_jobs"."leased_until" <= now()') &&
-        !flatClaim.includes('"lookup_jobs"."leased_until" > now()')
-    );
-    ok(
-      'a processing job with no lease is waited out, never taken at once',
-      // NULL is free only for a job nobody has started. A `processing` row
-      // with no lease was started by a holder from before leases, which may
-      // still be running, so it waits a lease's length from its last write.
-      /"lookup_jobs"\."leased_until" IS NULL AND \( "lookup_jobs"\."status" = 'pending' OR "lookup_jobs"\."updated_at" < \(now\(\) AT TIME ZONE 'UTC'\) - make_interval\(secs => \$1\) \)/.test(
-        flatClaim
-      ) && claimSql.params[0] === LEASE_SECONDS
+      'the claim predicate is exactly: a lease at or past now, or no lease and (pending, or processing untouched for a lease length)',
+      flatClaim === EXPECTED_CLAIMABLE &&
+        claimSql.params.length === 1 &&
+        claimSql.params[0] === LEASE_SECONDS
     );
 
     const processorSrc = withoutComments(
@@ -11757,15 +11761,24 @@ async function main() {
       chunkFn.indexOf('.returning()', claimAt)
     );
     ok(
-      'the first write processJobChunk makes is the claim, conditional on the lease',
+      'the first write processJobChunk makes is the claim: this job, pending or processing, and claimable',
+      // The whole WHERE, id included. Without `eq(lookupJobs.id, jobId)` the
+      // UPDATE leases every claimable job and returns the first, and the
+      // slice then works another customer's wallets into this job's row.
       claimAt !== -1 &&
         claimAt < chunkFn.indexOf('.select(') &&
-        claimCall.includes(
-          "inArray(lookupJobs.status, ['pending', 'processing'])"
+        /\.where\(\s*and\(\s*eq\(lookupJobs\.id, jobId\),\s*inArray\(lookupJobs\.status, \['pending', 'processing'\]\),\s*claimable\(\),?\s*\)\s*\)/.test(
+          claimCall
         ) &&
-        claimCall.includes('claimable()') &&
         claimCall.includes(
           'leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`'
+        )
+    );
+    ok(
+      'every claim mints a fresh token and counts itself as an attempt',
+      claimCall.includes('leaseToken: sql`gen_random_uuid()`') &&
+        claimCall.includes(
+          'sliceAttempts: sql`${lookupJobs.sliceAttempts} + 1`'
         )
     );
     ok(
@@ -11775,31 +11788,175 @@ async function main() {
     );
 
     /**
-     * Every exit hands the lease back, and hands it back as now, never NULL.
-     * A slice that kept it would hide the job for five and a half minutes
-     * after every slice; a NULL on a `processing` row reads as a pre-lease
-     * holder and is waited out for exactly as long.
+     * Every write after the claim is fenced on the claim's token.
+     *
+     * The lease alone is safe only while every holder stops before it runs
+     * out, and a suspended invocation can resume afterwards. Its writes then
+     * landed on the job by id alone: a completed, billed job cut back to the
+     * stale holder's rows, or flipped to failed by its catch. Asserted as:
+     * one fenced writer, rendered exactly; nothing else updates the table;
+     * a write that matches nothing stops the holder; and the catch never
+     * writes over a job it lost.
      */
-    const setBlockWith = (marker: string): string => {
+    const ownedSql = dialect.sqlToQuery(jobProcessor.owned('j', 't'));
+    ok(
+      "a write after the claim matches this job, this claim's token and a running status, all three",
+      ownedSql.sql.replace(/\s+/g, ' ').trim() ===
+        '("lookup_jobs"."id" = $1 and "lookup_jobs"."lease_token" = $2 and "lookup_jobs"."status" = $3)' &&
+        JSON.stringify(ownedSql.params) ===
+          JSON.stringify(['j', 't', 'processing'])
+    );
+    const writerFn = processorSrc.slice(
+      processorSrc.indexOf('async function writeOwned('),
+      processorSrc.indexOf('async function renewLease(')
+    );
+    ok(
+      'the one fenced writer matches on the token and stops the holder when nothing matched',
+      writerFn.includes('.where(owned(job.id, job.leaseToken!))') &&
+        writerFn.includes('.returning(') &&
+        /if \(rows\.length === 0\) throw new LeaseLostError\(job\.id\);/.test(
+          writerFn
+        )
+    );
+    ok(
+      'nothing writes a job except the claim and the fenced writer',
+      (processorSrc.match(/\.update\(lookupJobs\)/g) ?? []).length === 2
+    );
+    const catchAt = chunkFn.lastIndexOf('} catch (error) {');
+    const catchBody = chunkFn.slice(catchAt);
+    ok(
+      'a holder that lost the job stops without writing, and never marks it failed',
+      catchAt !== -1 &&
+        catchBody.indexOf('if (error instanceof LeaseLostError) {') !== -1 &&
+        catchBody.indexOf('if (error instanceof LeaseLostError) {') <
+          catchBody.indexOf('writeOwned(') &&
+        /catch \(writeError\) \{\s*if \(!\(writeError instanceof LeaseLostError\)\) throw writeError;/.test(
+          catchBody
+        )
+    );
+    const finalizeFn = processorSrc.slice(
+      processorSrc.indexOf('async function finalizeJobWithResults(')
+    );
+    const sideEffects = [
+      'await chargeForJob(',
+      'await saveLookup(',
+      'await upsertSocialGraphWithRetry(',
+    ];
+    let previous = 0;
+    let renewedBeforeEach = true;
+    for (const call of sideEffects) {
+      const at = finalizeFn.indexOf(call);
+      if (
+        at === -1 ||
+        !finalizeFn.slice(previous, at).includes('await renewLease(db, job);')
+      )
+        renewedBeforeEach = false;
+      previous = at === -1 ? previous : at;
+    }
+    ok(
+      'finalize re-asserts the claim before charging, saving history and writing the graph',
+      renewedBeforeEach
+    );
+
+    /**
+     * Every exit hands the lease back as now, never NULL, and resets the
+     * attempt count. A slice that kept the lease would hide the job for five
+     * and a half minutes after every slice; a NULL on a `processing` row reads
+     * as a pre-lease holder and is waited out for as long; an exit that kept
+     * the count would carry kills over into the next run, and an admin rerun
+     * of an exhausted job would fail again at once.
+     */
+    const exitWrite = (marker: string): string => {
       const at = processorSrc.indexOf(marker);
       if (at === -1) return '';
-      const open = processorSrc.lastIndexOf('.set({', at);
-      const close = processorSrc.indexOf('})', at);
-      return open === -1 || close === -1 ? '' : processorSrc.slice(open, close);
+      const open = processorSrc.lastIndexOf('writeOwned(db, job, {', at);
+      const close = processorSrc.indexOf('});', at);
+      if (open === -1 || close === -1) return '';
+      const call = processorSrc.slice(open, close);
+      // The marker must sit inside this call, not after an earlier one.
+      return call.includes('});') ? '' : call;
     };
     for (const [exit, marker] of [
-      ['a slice that saves progress', 'processedCount: newProcessedCount,'],
-      ['a job that fails', "status: 'failed',"],
+      ['a slice that saves progress', 'partialResults: allResults,'],
+      ['a job that fails', 'retryCount: job.retryCount + 1,'],
+      ['a job that used up its attempts', 'errorMessage: SLICES_EXHAUSTED,'],
       ['a job that completes', "status: 'completed',"],
     ] as const) {
+      const call = exitWrite(marker);
       ok(
-        `${exit} hands the lease back`,
-        setBlockWith(marker).includes('leasedUntil: sql`now()`')
+        `${exit} hands the lease back and resets its attempts`,
+        call.includes('leasedUntil: sql`now()`') &&
+          call.includes('sliceAttempts: 0,')
       );
     }
     ok(
       'no exit releases the lease to NULL',
       !/leasedUntil:\s*null/.test(processorSrc)
+    );
+
+    /**
+     * A slice the platform kills never hands back, so it would be retaken
+     * for as long as the upstream stays slow. Kills in a row shrink the slice
+     * and then fail the job. Through the real functions and constants.
+     */
+    const { sliceSizeFor, MAX_SLICE_ATTEMPTS, SLICES_EXHAUSTED } = jobProcessor;
+    const sizes = [1, 2, 3, 4, 5, 6, 50].map(sliceSizeFor);
+    ok(
+      `each killed attempt halves the next slice, to an eighth and never to nothing (${sizes.join(', ')})`,
+      JSON.stringify(sizes) ===
+        JSON.stringify([3000, 1500, 750, 375, 375, 375, 375])
+    );
+    ok(
+      `a job fails after a handful of kills in a row, not never (${MAX_SLICE_ATTEMPTS})`,
+      MAX_SLICE_ATTEMPTS >= 3 &&
+        MAX_SLICE_ATTEMPTS <= 6 &&
+        /Submit the list again\./.test(SLICES_EXHAUSTED)
+    );
+    ok(
+      'the attempt cap is checked first on every claim, and the slice is sized by the attempt count',
+      /try \{\s*if \(job\.sliceAttempts > MAX_SLICE_ATTEMPTS\) \{\s*await writeOwned\(db, job, \{\s*status: 'failed',\s*errorMessage: SLICES_EXHAUSTED,/.test(
+        chunkFn
+      ) &&
+        /startIndex \+ sliceSizeFor\(job\.sliceAttempts\)/.test(chunkFn) &&
+        !/startIndex \+ CHUNK_SIZE/.test(chunkFn)
+    );
+
+    /**
+     * ENS stops starting batches at a deadline, and what it never reached is
+     * recorded as failed, so it is neither cached as empty nor stored as a
+     * negative. Through the real helper; no network.
+     */
+    const { ensPastDeadline } = await import('@/lib/ens');
+    const unreached = new Set<string>();
+    const notYet =
+      !ensPastDeadline(undefined, ['0xAa'], unreached) &&
+      !ensPastDeadline(Date.now() + 60_000, ['0xAa'], unreached) &&
+      unreached.size === 0;
+    const past = ensPastDeadline(Date.now() - 1, ['0xAa', '0xBb'], unreached);
+    ok(
+      'past its deadline ENS stops, and records every wallet it did not reach, lowercased',
+      notYet && past && unreached.has('0xaa') && unreached.has('0xbb')
+    );
+    const ensFlat = withoutComments(readFileSync('lib/ens.ts', 'utf8')).replace(
+      /\s+/g,
+      ' '
+    );
+    ok(
+      'both ENS phases check the deadline before every batch',
+      ensFlat.includes(
+        'for (let i = 0; i < wallets.length; i += batchSize) { if (ensPastDeadline(opts?.deadline, wallets.slice(i), opts?.failedWallets)) break;'
+      ) &&
+        ensFlat.includes(
+          'for (let i = 0; i < walletsWithENS.length; i += batchSize) { if ( ensPastDeadline( opts?.deadline, walletsWithENS.slice(i).map(([wallet]) => wallet), opts?.failedWallets ) ) break;'
+        )
+    );
+    ok(
+      'the worker gives ENS a deadline and its failed-wallet set',
+      processorSrc
+        .replace(/\s+/g, ' ')
+        .includes(
+          'batchLookupENS(uncachedWallets, undefined, undefined, undefined, { deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS, failedWallets: apiFailedWallets, })'
+        )
     );
 
     const pickerFn = processorSrc.slice(
@@ -11896,7 +12053,9 @@ async function main() {
     );
     ok(
       'processJobChunk resumes through that check, before it reads any progress',
-      /const job = resumeFromSavedPrefix\(claimed\);\s*try \{/.test(chunkFn)
+      /const job = resumeFromSavedPrefix\(claimed\);\s*const sliceStartedAt = Date\.now\(\);\s*try \{/.test(
+        chunkFn
+      )
     );
   }
 
