@@ -150,9 +150,10 @@ export const IP_RATE_LIMITS = {
    *
    * The route sorts every request before it charges anything. A credential
    * that is not the shape we mint is refused with no read and counted
-   * nowhere; one that names a grant is counted under `/api/oauth/token:grant`.
-   * So this bucket holds only well-formed credentials that resolve to
-   * nothing, which a working client does not send at volume.
+   * nowhere; one that names a grant is counted under `/api/oauth/token:grant`,
+   * a code only once its client, redirect and verifier match. So this bucket
+   * holds well-formed credentials that resolve to nothing and codes whose
+   * proof failed, which a working client does not send at volume.
    *
    * An authorization code is guessable only at 2^256, so this is not what
    * stops a code being brute forced. It is what bounds the reads a miss

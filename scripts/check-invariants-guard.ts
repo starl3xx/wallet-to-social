@@ -1560,6 +1560,48 @@ const MUTATIONS: Mutation[] = [
   // token and revocation endpoints from shared outbound addresses, so the
   // token endpoint counts per connection and sorts before it charges.
   {
+    name: 'a failed verifier is answered without being counted anywhere',
+    file: 'app/api/oauth/token/route.ts',
+    from: '  if (!pkceMatches(verifier, row.codeChallenge)) {\n    return unknownCredential(\n      ip,\n',
+    to: "  if (!pkceMatches(verifier, row.codeChallenge)) {\n    return oauthError(\n      'invalid_grant',\n",
+  },
+  {
+    name: 'the connection is counted before the caller proves it holds the verifier',
+    file: 'app/api/oauth/token/route.ts',
+    from: '  if (row.clientId !== clientId) {\n    return unknownCredential(',
+    to: "  await checkIpRateLimit(`grant:${row.grantId ?? row.id}`, '/api/oauth/token:grant');\n  if (row.clientId !== clientId) {\n    return unknownCredential(",
+  },
+  {
+    name: 'revocation sends each token shape to the other lookup',
+    file: 'app/api/oauth/revoke/route.ts',
+    from: '  if (isRefresh) {\n',
+    to: '  if (!isRefresh) {\n',
+  },
+  {
+    name: 'revocation of an access token finds its row and discards the grant id',
+    file: 'app/api/oauth/revoke/route.ts',
+    from: '    grantId = key?.grantId ?? null;',
+    to: '    grantId = null;',
+  },
+  {
+    name: 'the refresh-token lookup returns the user, so revoke ends nothing and one bucket covers every connection',
+    file: 'lib/oauth/grants.ts',
+    from: '    .select({ id: oauthGrants.id })\n    .from(oauthGrants)\n    .where(matchesRefreshHash(sha256(raw)))',
+    to: '    .select({ id: oauthGrants.userId })\n    .from(oauthGrants)\n    .where(matchesRefreshHash(sha256(raw)))',
+  },
+  {
+    name: 'revocation peeks at the token endpoint bucket, which it never charges',
+    file: 'app/api/oauth/revoke/route.ts',
+    from: "  const status = await getIpRateLimitStatus(ip, '/api/oauth/revoke');",
+    to: "  const status = await getIpRateLimitStatus(ip, '/api/oauth/token');",
+  },
+  {
+    name: 'revocation peeks at a bucket keyed by the token, so the limit never refuses',
+    file: 'app/api/oauth/revoke/route.ts',
+    from: "  const status = await getIpRateLimitStatus(ip, '/api/oauth/revoke');",
+    to: "  const status = await getIpRateLimitStatus(token, '/api/oauth/revoke');",
+  },
+  {
     name: 'a code exchange is counted by client_id, which every user of a hosted client shares',
     file: 'app/api/oauth/token/route.ts',
     from: '    `grant:${row.grantId ?? row.id}`,',

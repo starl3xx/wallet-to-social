@@ -16,9 +16,12 @@
  *   - a code or refresh token that is not the shape we mint is answered
  *     `invalid_grant` with no read, and counted nowhere
  *   - one that names a grant is counted against that grant, subject
- *     `grant:<grant id>` under `/api/oauth/token:grant`
- *   - one that names nothing is counted per address under `/api/oauth/token`,
- *     then answered `invalid_grant`
+ *     `grant:<grant id>` under `/api/oauth/token:grant`: a refresh token at
+ *     once, since holding it is the proof, and a code only after the caller
+ *     has matched its client, its redirect and its verifier
+ *   - one that names nothing, and a code whose client, redirect or verifier
+ *     does not match, is counted per address under `/api/oauth/token`, then
+ *     answered `invalid_grant`
  *
  * Per connection because a hosted client exchanges and refreshes from its
  * provider's shared outbound addresses, so a count per address would be one
@@ -231,44 +234,50 @@ async function exchangeCode(
   const row = loaded.row;
 
   /**
-   * Counted against the connection the code belongs to, before anything
-   * about it is judged. The code exchange and every refresh after it share
-   * one bucket. A code with no grant on its row is counted under its own
-   * request id, and refused below.
-   */
-  const perGrant = await checkIpRateLimit(
-    `grant:${row.grantId ?? row.id}`,
-    '/api/oauth/token:grant'
-  );
-  if (!perGrant.allowed) return tooManyRequests(perGrant, CONNECTION_LIMITED);
-
-  /**
    * The code is bound to the client it was issued to.
+   *
+   * These three checks come before the connection's own bucket is touched,
+   * and a failure of any of them is counted per address, exactly like a code
+   * that names nothing. The connection's bucket is counted only for a caller
+   * who has proved it holds the code, the client id, the redirect and the
+   * verifier, so a request that proves less never affects the connection.
    *
    * Without this, a code intercepted from one client's redirect is redeemable
    * by any other client that can guess a `client_id`, and PKCE would not stop
    * it: the attacker chose the verifier only if they also started the flow.
    */
   if (row.clientId !== clientId) {
-    return oauthError(
-      'invalid_grant',
+    return unknownCredential(
+      ip,
       'This authorization code was issued to a different client.'
     );
   }
 
   if (redirectUri !== row.redirectUri) {
-    return oauthError(
-      'invalid_grant',
+    return unknownCredential(
+      ip,
       'redirect_uri does not match the one this code was issued for.'
     );
   }
 
   if (!pkceMatches(verifier, row.codeChallenge)) {
-    return oauthError(
-      'invalid_grant',
+    return unknownCredential(
+      ip,
       'The code_verifier does not match the code_challenge from the authorization request.'
     );
   }
+
+  /**
+   * Counted against the connection the code belongs to, now that the caller
+   * has proved it is the client the code was issued to. The code exchange and
+   * every refresh after it share one bucket. A code with no grant on its row
+   * is counted under its own request id, and refused below.
+   */
+  const perGrant = await checkIpRateLimit(
+    `grant:${row.grantId ?? row.id}`,
+    '/api/oauth/token:grant'
+  );
+  if (!perGrant.allowed) return tooManyRequests(perGrant, CONNECTION_LIMITED);
 
   /**
    * RFC 8707: a `resource` on the token request must name the same resource the

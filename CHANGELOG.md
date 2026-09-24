@@ -11,7 +11,9 @@ All notable changes to walletlink.social. Newest first.
   limit for every Claude user. A code or refresh token that is not the shape
   we mint is refused with `invalid_grant` before any read and counts against
   nothing; a well-formed one that names nothing counts against the address,
-  120 an hour, as before. No `client_id` keys a limit.
+  120 an hour, as before. A code counts against its connection only once the
+  caller has matched its client, redirect and verifier; a failed match counts
+  against the address. No `client_id` keys a limit.
 - **Revocation and the consent screen have limits.** `/api/oauth/revoke`
   counts only a well-formed token that names nothing, 60 an hour per address,
   and while that is spent answers 503 with `Retry-After` before looking

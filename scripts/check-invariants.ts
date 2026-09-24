@@ -5193,8 +5193,10 @@ async function main() {
       grantsSrc.indexOf('export interface IssuedTokens')
     );
     ok(
-      'grantIdForRefreshToken matches by the same predicate as a refresh, the burst included, and only reads',
-      lookup.includes('.where(matchesRefreshHash(sha256(raw)))') &&
+      'grantIdForRefreshToken matches by the same predicate as a refresh, the burst included, returns the grant id, and only reads',
+      lookup.includes('.select({ id: oauthGrants.id })') &&
+        lookup.includes('return row?.id ?? null;') &&
+        lookup.includes('.where(matchesRefreshHash(sha256(raw)))') &&
         (grantsSrc.match(/matchesRefreshHash\(/g) ?? []).length === 3 &&
         !/\.update\(|\.insert\(|\.delete\(|\.execute\(|revokeGrant\(/.test(
           lookup
@@ -5267,9 +5269,19 @@ async function main() {
         inCode('await loadCode(') < inCode('checkIpRateLimit(')
     );
     ok(
-      'a code that names nothing is counted per address; one that names a grant is counted before anything is judged or spent',
+      'a code that names nothing, or a caller that fails the client, redirect or verifier check, is counted per address; only a proven caller is counted against the connection, before anything is spent',
       /if \(!loaded\.ok\) \{\s*return unknownCredential\(ip, /.test(code) &&
-        inCode('checkIpRateLimit(') < inCode('row.clientId !== clientId') &&
+        /if \(row\.clientId !== clientId\) \{\s*return unknownCredential\(\s*ip,/.test(
+          code
+        ) &&
+        /if \(redirectUri !== row\.redirectUri\) \{\s*return unknownCredential\(\s*ip,/.test(
+          code
+        ) &&
+        /if \(!pkceMatches\(verifier, row\.codeChallenge\)\) \{\s*return unknownCredential\(\s*ip,/.test(
+          code
+        ) &&
+        inCode('pkceMatches(') < inCode('checkIpRateLimit(') &&
+        inCode('row.clientId !== clientId') < inCode('checkIpRateLimit(') &&
         inCode('checkIpRateLimit(') < inCode('await redeemCode(') &&
         /if \(!perGrant\.allowed\) return tooManyRequests\(/.test(code)
     );
@@ -5409,13 +5421,22 @@ async function main() {
     );
     ok(
       'revocation is refused before any lookup, so a live token and a dead one get the same answer',
-      at('getIpRateLimitStatus(') !== -1 &&
+      revoke.split('getIpRateLimitStatus(').length === 2 &&
+        revoke.includes(
+          "const status = await getIpRateLimitStatus(ip, '/api/oauth/revoke');"
+        ) &&
         at('getIpRateLimitStatus(') < at('.from(') &&
         at('getIpRateLimitStatus(') < at('grantIdForRefreshToken(') &&
         /if \(!status\.allowed\) \{\s*return NextResponse\.json\([\s\S]*?status: 503,[\s\S]*?'Retry-After': String\(status\.retryAfter/.test(
           revoke
         ) &&
         !revoke.includes('status: 429')
+    );
+    ok(
+      'revocation sends a refresh-shaped token to the grant lookup and an access-shaped token to api_keys, and keeps the grant id each finds',
+      /if \(isRefresh\) \{\s*grantId = await grantIdForRefreshToken\(token\);\s*\} else \{[\s\S]*?\.from\(apiKeys\)\s*\.where\(eq\(apiKeys\.key, hashApiKey\(token\)\)\)[\s\S]*?grantId = key\?\.grantId \?\? null;\s*\}/.test(
+        revoke
+      )
     );
     ok(
       'revocation charges only a token that named nothing, after both lookups',

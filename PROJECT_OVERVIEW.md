@@ -732,8 +732,9 @@ is a live credential, and restoring one from last night would resurrect a
 connection somebody revoked this morning.
 
 Every endpoint here has a limit in `lib/ip-rate-limiter.ts`, and the token
-endpoint's is per connection. A code or refresh token that names a grant is
-counted against that grant, 60 an hour under `/api/oauth/token:grant`: hosted
+endpoint's is per connection. A refresh token that names a grant, and a code
+whose client, redirect and verifier all match, is counted against that grant,
+60 an hour under `/api/oauth/token:grant`: hosted
 Claude exchanges and refreshes from Anthropic's shared outbound addresses,
 where a count per address would be one count for every Claude user. A
 credential that is not the shape we mint is refused before any read, and a
