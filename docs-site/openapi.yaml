@@ -853,9 +853,10 @@ paths:
         Farcaster follower count descending, then by address.
 
         Attested links only: a wallet is returned when every source recorded
-        for it is attested evidence. A wallet known to carry the handle only
-        through a correlated source is left out of the results and the count,
-        though a single-wallet lookup still shows it with its label.
+        for it is attested evidence. Sources are recorded per wallet, so a
+        wallet whose attested link sits beside a correlated source is left out
+        of the results and the count too; a single-wallet lookup still shows it
+        with its labels. An empty result means no such wallet.
 
         A wallet matches when this handle is its primary X account **or** its
         second attested one. Some owners have attested two live X accounts from
@@ -967,9 +968,10 @@ paths:
         by follower count descending, then by address.
 
         Attested links only: a wallet is returned when every source recorded
-        for it is attested evidence. A wallet known to carry the username only
-        through a correlated source is left out of the results and the count,
-        though a single-wallet lookup still shows it with its label.
+        for it is attested evidence. Sources are recorded per wallet, so a
+        wallet whose attested link sits beside a correlated source is left out
+        of the results and the count too; a single-wallet lookup still shows it
+        with its labels. An empty result means no such wallet.
 
         Billed one match credit per wallet returned. A username nobody holds
         returns an empty array and costs nothing.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/db';
+import { everySourceAttested } from '@/lib/social-graph';
 import { cleanTwitterHandle } from '@/lib/twitter-cleaner';
 import {
   REACHABILITY_DETAIL,
@@ -164,7 +165,8 @@ export async function GET(request: NextRequest) {
     const result = (await db.execute(sql`
       SELECT
         (SELECT count(*)::int FROM social_graph
-          WHERE lower(twitter_handle) = ${handle}) AS wallets,
+          WHERE lower(twitter_handle) = ${handle}
+            AND ${everySourceAttested()}) AS wallets,
         x.status,
         x.checked_at
       FROM (SELECT 1) AS one

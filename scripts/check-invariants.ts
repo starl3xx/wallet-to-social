@@ -5807,7 +5807,7 @@ async function main() {
     );
     ok(
       'the secondary gate filters on the public source allowlist',
-      /c\.their_source = ANY\(\$\{sql\.param\(MAPPED_SOURCE_IDS\)\}/.test(
+      /w\.their_source = ANY\(\$\{sql\.param\(MAPPED_SOURCE_IDS\)\}/.test(
         reachCode
       )
     );
@@ -5839,11 +5839,14 @@ async function main() {
           !ATTESTED_SOURCE_ID_LIST.includes('none')
       );
       const sg = withoutComments(readFileSync('lib/social-graph.ts', 'utf8'));
+      const predStart = sg.indexOf('export function everySourceAttested()');
+      const predBody = sg.slice(predStart, sg.indexOf('\n}', predStart) + 2);
       ok(
-        'a row qualifies only when it has sources and every one is attested',
-        sg.includes(
-          'sql`(cardinality(${socialGraph.sources}) > 0 AND ${socialGraph.sources} <@ ${sql.param(ATTESTED_SOURCE_ID_LIST)}::text[])`'
-        )
+        'a row qualifies only when it has real sources and every one is attested; the none marker is ignored',
+        predStart !== -1 &&
+          /^export function everySourceAttested\(\) \{\s*return sql`\(cardinality\(array_remove\(\$\{socialGraph\.sources\}, 'none'\)\) > 0 AND array_remove\(\$\{socialGraph\.sources\}, 'none'\) <@ \$\{sql\.param\(ATTESTED_SOURCE_ID_LIST\)\}::text\[\]\)`;\s*\}$/.test(
+            predBody
+          )
       );
       const v1x = withoutComments(
         readFileSync('app/api/v1/reverse/twitter/[handle]/route.ts', 'utf8')
@@ -5857,6 +5860,12 @@ async function main() {
             v1x
           ) &&
           /\.from\(socialGraph\)\s*\.where\(matchesHandle\);/.test(v1x) &&
+          /afterCursor === undefined\s*\?\s*matchesHandle\s*:\s*and\(matchesHandle, afterCursor\)/.test(
+            v1x
+          ) &&
+          !/twitter_handle|twitterHandle\s*[=)]|ilike|lower\(\$\{socialGraph\.twitterHandle/.test(
+            v1x.slice(v1x.indexOf('const primary = and('))
+          ) &&
           (
             v1x.match(/eq\(socialGraph\.twitterHandle, normalizedHandle\)/g) ??
             []
@@ -5886,21 +5895,45 @@ async function main() {
           'const primary = and(eq(primaryColumn, handle), everySourceAttested());'
         ) &&
           /\.from\(socialGraph\)\s*\.where\(primary\);/.test(app) &&
+          /\.from\(socialGraph\)[\s\S]{0,200}?\.where\(matchesHandle\)/.test(
+            app
+          ) &&
           /\? or\(primary, inArray\(socialGraph\.wallet, secondary\)\)\s*: primary;/.test(
             app
           ) &&
           (app.match(/eq\(primaryColumn, handle\)/g) ?? []).length === 1
       );
+      const pickStart = reachCode.indexOf('SELECT DISTINCT ON (c.wallet)');
+      const pick = reachCode.slice(
+        reachCode.indexOf('WHERE c.platform', pickStart),
+        reachCode.indexOf('ORDER BY c.wallet', pickStart)
+      );
+      const after = reachCode.slice(
+        reachCode.indexOf(') w', pickStart),
+        reachCode.indexOf('`;', pickStart)
+      );
       ok(
-        'a second account is matched only when its own source is attested, filtered after the display winner is picked',
-        /c\.wallet, lower\(c\.theirs\) AS theirs, c\.their_source/.test(
-          reachCode
+        'the second-account pick uses only the conditions the display picks with, and every other filter runs after it, as the display does',
+        pickStart !== -1 &&
+          pick.length > 0 &&
+          !/their_source|c\.ours|c\.theirs\) <>|twitter_handle/.test(pick) &&
+          /WHERE w\.theirs = \$\{normalized\}\s*AND w\.ours = w\.primary_handle\s*AND w\.theirs <> w\.primary_handle\s*AND w\.their_source = ANY\(\$\{sql\.param\(MAPPED_SOURCE_IDS\)\}::text\[\]\)\s*AND w\.their_source = ANY\(\$\{sql\.param\(ATTESTED_SOURCE_ID_LIST\)\}::text\[\]\)/.test(
+            after
+          )
+      );
+      const reachRoute = withoutComments(
+        readFileSync('app/api/reachability/route.ts', 'utf8')
+      );
+      const hero = withoutComments(
+        readFileSync('lib/identity-hero/server.ts', 'utf8')
+      );
+      ok(
+        "/check's wallet count and the homepage hero use the reverse rule, so no surface counts a wallet reverse will not return",
+        /WHERE lower\(twitter_handle\) = \$\{handle\}\s*AND \$\{everySourceAttested\(\)\}\) AS wallets/.test(
+          reachRoute
         ) &&
-          /WHERE w\.theirs = \$\{normalized\}\s*AND w\.their_source = ANY\(\$\{sql\.param\(ATTESTED_SOURCE_ID_LIST\)\}::text\[\]\)/.test(
-            reachCode
-          ) &&
-          !/c\.their_source = ANY\(\$\{sql\.param\(ATTESTED_SOURCE_ID_LIST\)\}/.test(
-            reachCode
+          /eq\(socialGraph\.farcasterVerified, true\),\s*everySourceAttested\(\)/.test(
+            hero
           )
       );
     }
