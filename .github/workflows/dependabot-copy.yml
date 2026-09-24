@@ -32,7 +32,9 @@ name: dependabot-copy
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, closed]
+    # `labeled` because Dependabot adds its labels in a second request after
+    # `opened`, and the copy has to pick them up whenever they arrive.
+    types: [opened, synchronize, reopened, labeled, closed]
   schedule:
     - cron: '23 6 * * *'
   workflow_dispatch:
@@ -149,31 +151,39 @@ jobs:
             echo "Created $copy at $sha."
           fi
 
+          created=""
           if [ -n "$existing" ]; then
+            copy_number="$existing"
             echo "Copy #$existing follows #$NUMBER."
-            exit 0
+          else
+            title=$(jq -r '.title' <<<"$pr")
+            body=$(printf '%s\n\n%s\n\n%s\n' \
+              "Copy of #$NUMBER, opened by starl3xx so Bugbot reviews it and CI gets the repository secrets. Made by the dependabot-copy workflow." \
+              "The Dependabot PR stays open so Dependabot keeps it rebased; this branch follows its pushes. Merge this one, and Dependabot then closes #$NUMBER on its own." \
+              "---" )
+            body="$body$(jq -r '(.body // "")[0:60000]' <<<"$pr")"
+            url=$(gh pr create --repo "$REPO" --base "$(jq -r '.base.ref' <<<"$pr")" \
+              --head "$copy" --title "$title" --body "$body")
+            echo "Opened $url."
+            copy_number="${url##*/}"
+            created="$url"
           fi
 
-          title=$(jq -r '.title' <<<"$pr")
-          body=$(printf '%s\n\n%s\n\n%s\n' \
-            "Copy of #$NUMBER, opened by starl3xx so Bugbot reviews it and CI gets the repository secrets. Made by the dependabot-copy workflow." \
-            "The Dependabot PR stays open so Dependabot keeps it rebased; this branch follows its pushes. Merge this one, and Dependabot then closes #$NUMBER on its own." \
-            "---" )
-          body="$body$(jq -r '(.body // "")[0:60000]' <<<"$pr")"
-          url=$(gh pr create --repo "$REPO" --base "$(jq -r '.base.ref' <<<"$pr")" \
-            --head "$copy" --title "$title" --body "$body")
-          echo "Opened $url."
-
           # Carry Dependabot's labels over (no-docs-needed among them), so the
-          # copy is judged by the same gates the original would have been.
-          # Through the labels endpoint itself: `gh pr edit` also reads project
-          # fields, which this token cannot, and so it never applied a label.
-          copy_number="${url##*/}"
+          # copy is judged by the same gates the original would have been. On
+          # every run, not only at creation: Dependabot labels its PR after
+          # opening it, so the labels usually arrive on a later `labeled` run.
+          # Adding a label the copy already has changes nothing. Through the
+          # labels endpoint itself: `gh pr edit` also reads project fields,
+          # which this token cannot, and so it never applied a label.
           jq -r '.labels[].name' <<<"$pr" | while read -r label; do
             if [ -n "$label" ]; then
               gh api --method POST "repos/$REPO/issues/$copy_number/labels" \
                 -f "labels[]=$label" >/dev/null
             fi
           done
-          gh pr comment "$NUMBER" --repo "$REPO" \
-            --body "Copied to $url so Bugbot can review it. Merge the copy; this PR closes on its own once the update is on main."
+
+          if [ -n "$created" ]; then
+            gh pr comment "$NUMBER" --repo "$REPO" \
+              --body "Copied to $created so Bugbot can review it. Merge the copy; this PR closes on its own once the update is on main."
+          fi
