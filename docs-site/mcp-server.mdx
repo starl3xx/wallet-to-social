@@ -47,8 +47,15 @@ character for character, except that a loopback redirect (`localhost`,
 declining, is sent back to the client's callback only when that callback is on
 loopback or on claude.ai. For any other callback the answer is shown on the
 consent page instead, and the client should stop waiting when the person
-closes it. Repeated OAuth parameters are refused, except `resource`, which may
-repeat as long as every value is this server.
+closes it. Repeated OAuth parameters are refused, at the consent page and the
+token endpoint alike, except `resource`, which may repeat as long as every value
+is this server.
+
+A refresh must come from the client the connection was made with: send the same
+`client_id`, or none. Every `resource` on a refresh must name this server. If the
+token service is briefly unavailable it answers `503` with
+`temporarily_unavailable` and `Retry-After`; retry the refresh with the same
+refresh token.
 
 <Note>
   A connection can spend match credits, so it is worth knowing what it can

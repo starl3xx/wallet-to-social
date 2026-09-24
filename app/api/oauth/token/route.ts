@@ -15,8 +15,10 @@ import {
   issueInitialTokens,
   refreshGrant,
   revokeGrant,
+  type RefreshResult,
 } from '@/lib/oauth/grants';
 import { mcpResource } from '@/lib/oauth/metadata';
+import { repeatedFormParam, resourcesAreOurs } from '@/lib/oauth/params';
 
 export const runtime = 'nodejs';
 
@@ -70,6 +72,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       'invalid_request',
       'The request body must be application/x-www-form-urlencoded.'
     );
+  }
+
+  // Every parameter but `resource` may appear once (OAuth 2.1 section 3.2). A
+  // second client_id would otherwise pass whichever check read the first.
+  const repeated = repeatedFormParam(form);
+  if (repeated) {
+    return oauthError('invalid_request', `${repeated} may appear only once.`);
   }
 
   const grantType = form.get('grant_type');
@@ -166,10 +175,14 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
    * RFC 8707: a `resource` on the token request must name the same resource the
    * authorization request did. A client that asked to reach the MCP server and
    * then asks for a token audienced somewhere else is refused rather than
-   * quietly given the first one.
+   * quietly given the first one. Every value is checked, by the comparison the
+   * authorization request and a refresh use, so a trailing slash on one side
+   * and not the other does not strand a connection halfway.
    */
-  const resource = form.get('resource');
-  if (resource !== null && row.resource !== null && resource !== row.resource) {
+  if (
+    row.resource !== null &&
+    !resourcesAreOurs(form.getAll('resource'), row.resource)
+  ) {
     return oauthError(
       'invalid_target',
       'resource does not match the one this code was issued for.'
@@ -252,23 +265,68 @@ async function exchangeRefresh(form: URLSearchParams): Promise<NextResponse> {
     return oauthError('invalid_request', 'refresh_token is required.');
   }
 
-  const result = await refreshGrant(token);
-  if (!result.ok) {
+  let result: RefreshResult;
+  try {
+    result = await refreshGrant({
+      refreshToken: token,
+      // Sent without a value is omitted (OAuth 2.1 section 3.2): `client_id=`
+      // is a refresh with no client_id, not one from a client named ''.
+      clientId: form.get('client_id') || null,
+      resources: form.getAll('resource'),
+    });
+  } catch (error) {
+    console.error('Refresh failed on /api/oauth/token:', error);
     /**
-     * All three failures answer `invalid_grant`, and the descriptions differ
+     * A database failure is not the client's fault, and after the atomic
+     * rotation a retry with the same refresh token is safe unless the commit
+     * itself was lost. `temporarily_unavailable` is defined for the
+     * authorization endpoint, not this one (OAuth 2.1 section 3.2.4); it is
+     * used deliberately, as the 429 above already does, because the MCP SDK
+     * reads it as an error to retry rather than a reason to start consent over,
+     * which a bare 500 becomes.
+     *
+     * A failure that repeats keeps answering 503. Consent would not mend a
+     * token service that cannot write, so the log line above is where a
+     * persistent one is noticed, not the person's browser.
+     */
+    return NextResponse.json(
+      {
+        error: 'temporarily_unavailable',
+        error_description:
+          'The token service is briefly unavailable. Try again.',
+      },
+      { status: 503, headers: { ...NO_STORE, 'Retry-After': '5' } }
+    );
+  }
+
+  if (!result.ok) {
+    if (result.reason === 'wrong_resource') {
+      return oauthError(
+        'invalid_target',
+        'resource does not match the one this connection was made for.'
+      );
+    }
+    /**
+     * Every other failure answers `invalid_grant`, and the descriptions differ
      * only in what they tell the person reading a log.
      *
      * A reused refresh token has already revoked the grant inside
      * `refreshGrant`, so there is nothing here to decide. What matters is that
      * the code is `invalid_grant` in every case: it is the one code that makes
-     * a client stop retrying and ask for consent again.
+     * a client stop retrying and ask for consent again. That includes a grant
+     * made for another server: `invalid_target` there would leave a client
+     * holding tokens it can never use, retrying forever.
      */
     const description =
       result.reason === 'reused'
         ? 'This refresh token was already exchanged. The connection has been revoked; start a new one.'
         : result.reason === 'expired'
           ? 'This refresh token has expired. Start a new connection.'
-          : 'The refresh token is unknown.';
+          : result.reason === 'wrong_client'
+            ? 'This refresh token was issued to a different client.'
+            : result.reason === 'wrong_grant_resource'
+              ? 'This connection was made for a different server. Start a new one.'
+              : 'The refresh token is unknown.';
     return oauthError('invalid_grant', description);
   }
 
