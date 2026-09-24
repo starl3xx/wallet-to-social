@@ -316,6 +316,28 @@ async function exchangeRefresh(form: URLSearchParams): Promise<NextResponse> {
         'resource does not match the one this connection was made for.'
       );
     }
+    if (result.reason === 'just_rotated') {
+      /**
+       * A parallel refresh lost the race to another request carrying the same
+       * token, moments ago. Not `invalid_grant`: the MCP SDK answers that by
+       * deleting its stored tokens, which by now are the winner's good ones.
+       * `temporarily_unavailable` it surfaces as an error on this one call and
+       * keeps the store, so the next call uses what the winner received.
+       *
+       * No `Retry-After`, unlike the other 503 here: this one must not be
+       * retried with the same refresh token, which after the window revokes
+       * the connection. `token_rotated` tells a client which 503 this is.
+       */
+      return NextResponse.json(
+        {
+          error: 'temporarily_unavailable',
+          error_description:
+            'This refresh token was rotated by another request moments ago. Use the tokens that request received; do not send this refresh token again.',
+          token_rotated: true,
+        },
+        { status: 503, headers: NO_STORE }
+      );
+    }
     /**
      * Every other failure answers `invalid_grant`, and the descriptions differ
      * only in what they tell the person reading a log.

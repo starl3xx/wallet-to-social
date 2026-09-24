@@ -51,12 +51,20 @@ closes it. Repeated OAuth parameters are refused, at the consent page and the
 token endpoint alike, except `resource`, which may repeat as long as every value
 is this server.
 
+A refresh token rotates on every use; present each one once. While rotations
+keep coming within 30 seconds of each other, as they do when several calls
+from one client refresh at once, a token already rotated out answers `503`
+`temporarily_unavailable` with `"token_rotated": true` and no tokens. Do not
+send that refresh token again: use the tokens the other request received, and
+the connection carries on. After that window, presenting the token a rotation
+replaced ends the connection, and an older one is unknown.
+
 A refresh must come from the client the connection was made with: send the same
 `client_id`, or none. Every `resource` on a refresh must name this server. If the
 token service is briefly unavailable it answers `503` with
-`temporarily_unavailable` and `Retry-After`, for a code exchange as for a
-refresh. Retry with the same code (it lasts a minute) or the same refresh token:
-a failure leaves both unspent. The one exception is a request that completed
+`temporarily_unavailable` and `Retry-After`, without `token_rotated`, for a code
+exchange as for a refresh. Retry with the same code (it lasts a minute) or the
+same refresh token: a failure leaves both unspent. The one exception is a request that completed
 and lost only its reply; its retry is refused, and the client connects again.
 
 <Note>

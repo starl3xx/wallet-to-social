@@ -76,6 +76,33 @@ export const ACCESS_TOKEN_TTL_MS = 60 * 60 * 1000;
 const REFRESH_TOKEN_TTL_MS = 90 * 24 * 60 * 60 * 1000;
 
 /**
+ * How long after a rotation a replay of a token rotated out in the same burst
+ * is held off rather than read as a reuse.
+ *
+ * An MCP client sends one refresh per tool call that meets an expired token,
+ * and the SDK refreshes on every 401 even once another call has saved new
+ * tokens, so one burst of parallel calls rotates the chain several times and
+ * its slow members present tokens one, two or more steps old. They used to
+ * revoke the connection (the direct predecessor) or get `invalid_grant`, which
+ * makes the SDK delete the live tokens (anything older). Now every token
+ * rotated out while the rotations keep coming within this window is held in
+ * `refresh_grace_hashes` (the last REFRESH_GRACE_HASHES), and a replay of one
+ * gets a refusal with no tokens; the connection lives on what the winners
+ * received. After the window, presenting the direct predecessor revokes, as
+ * OAuth 2.1 section 4.3.1 and RFC 9700 section 4.14.2 describe, and an older
+ * token is unknown, as before.
+ *
+ * A replay inside the window is refused and not detected: a stolen token
+ * gains nothing from it, and revocation needs a replay after the window while
+ * that token is still the direct predecessor. Thirty seconds, Okta's default
+ * grace for rotation.
+ */
+export const REFRESH_REUSE_GRACE_MS = 30 * 1000;
+
+/** How many rotated-out hashes one burst keeps; a burst longer than this is not parallel calls. */
+export const REFRESH_GRACE_HASHES = 10;
+
+/**
  * Live grants per account.
  *
  * Separate from the API-key cap and deliberately larger: a person plausibly
@@ -324,6 +351,7 @@ export type RefreshResult =
         | 'invalid'
         | 'expired'
         | 'reused'
+        | 'just_rotated'
         | 'wrong_client'
         | 'wrong_grant_resource'
         | 'wrong_resource';
@@ -359,12 +387,19 @@ async function rotateAndMint(input: {
   if (!db) return null;
   const refreshTtlS = Math.floor(REFRESH_TOKEN_TTL_MS / 1000);
   const accessTtlS = Math.floor(ACCESS_TOKEN_TTL_MS / 1000);
+  const graceS = Math.floor(REFRESH_REUSE_GRACE_MS / 1000);
   const result = (await db.execute(sql`
     WITH rotated AS (
       UPDATE oauth_grants
       SET refresh_token_hash = ${input.nextHash},
           previous_refresh_token_hash = ${input.hash},
           refresh_expires_at = now() + make_interval(secs => ${refreshTtlS}),
+          refresh_rotated_at = now(),
+          refresh_grace_hashes = CASE
+            WHEN refresh_rotated_at > now() - make_interval(secs => ${graceS})
+            THEN (coalesce(refresh_grace_hashes, ARRAY[]::text[]))[greatest(cardinality(refresh_grace_hashes) - ${REFRESH_GRACE_HASHES - 2}, 1):] || ${input.hash}::text
+            ELSE ARRAY[${input.hash}::text]
+          END,
           last_used_at = now()
       WHERE refresh_token_hash = ${input.hash}
         AND revoked_at IS NULL
@@ -401,6 +436,8 @@ async function rotateAndMint(input: {
  * leak, because the legitimate client already exchanged it and holds the
  * successor. That case revokes the grant rather than returning an error, which
  * is what the specification asks for and is the only reason to keep the column.
+ * Except within REFRESH_REUSE_GRACE_MS of the rotation, when it is refused
+ * without revoking: see that constant.
  *
  * ## Bindings, checked before anything is spent or revoked
  *
@@ -427,7 +464,7 @@ export async function refreshGrant(input: {
     .select()
     .from(oauthGrants)
     .where(
-      sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash}`
+      sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`
     )
     .limit(1);
   if (!row) return { ok: false, reason: 'invalid' };
@@ -467,19 +504,36 @@ export async function refreshGrant(input: {
 
   /**
    * Nothing rotated. Classified from a FRESH read, not the pre-read above: a
-   * concurrent refresh may have rotated in between. The semantics are the
-   * ones this function always had. Presenting the previous token is read as a
-   * reuse and revokes the grant; a short grace for concurrent refreshes is a
-   * separate change (STA-39, PR B2).
+   * concurrent refresh may have rotated in between. A token rotated out in the
+   * current burst, while the last rotation is moments ago
+   * (REFRESH_REUSE_GRACE_MS, judged by Postgres) on a live grant, is a
+   * parallel refresh: refused without tokens and without a revoke. After the
+   * window the direct predecessor revokes the grant, and an older token of the
+   * burst is unknown, as it always was. A grant rotated before
+   * `refresh_rotated_at` existed has NULL there, which is never recent.
    */
+  const graceS = Math.floor(REFRESH_REUSE_GRACE_MS / 1000);
   const [reused] = await db
-    .select()
+    .select({
+      id: oauthGrants.id,
+      revokedAt: oauthGrants.revokedAt,
+      rotatedJustNow: sql<boolean>`${oauthGrants.refreshRotatedAt} > now() - make_interval(secs => ${graceS})`,
+      direct: sql<boolean>`${oauthGrants.previousRefreshTokenHash} = ${hash}`,
+    })
     .from(oauthGrants)
-    .where(eq(oauthGrants.previousRefreshTokenHash, hash))
+    .where(
+      sql`${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`
+    )
     .limit(1);
   if (reused) {
-    await revokeGrant(reused.id, 'refresh token reused');
-    return { ok: false, reason: 'reused' };
+    if (reused.rotatedJustNow === true && !reused.revokedAt) {
+      console.log(`[oauth] refresh held off within grace, grant ${reused.id}`);
+      return { ok: false, reason: 'just_rotated' };
+    }
+    if (reused.direct === true) {
+      await revokeGrant(reused.id, 'refresh token reused');
+      return { ok: false, reason: 'reused' };
+    }
   }
   const [stale] = await db
     .select()
