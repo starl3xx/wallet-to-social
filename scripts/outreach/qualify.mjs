@@ -14,8 +14,13 @@ if (!input || !output || (flag && flag !== '--run')) {
     const records = JSON.parse(readFileSync(input, 'utf8'));
     if (!Array.isArray(records) || !records.length || records.length > 20)
       throw new Error('Supply 1–20 public research records');
-    // Validate the entire batch before any network call or output creation.
-    const previews = records.map((record) => prepare(record));
+    // Validate the entire batch before any network call or output creation. A
+    // failed research row is an outcome, not malformed input: it is reported
+    // in the output below instead of stopping the batch.
+    const failed = (record) => record?.status === 'research-failed';
+    const previews = records.map((record) =>
+      failed(record) ? null : prepare(record)
+    );
     if (flag === '--run' && !process.env.TYPESAFE_API_KEY)
       throw new Error('Set TYPESAFE_API_KEY in a private environment file');
     const report = {
@@ -31,6 +36,15 @@ if (!input || !output || (flag && flag !== '--run')) {
       mode: 0o600,
     });
     for (const [i, record] of records.entries()) {
+      if (failed(record)) {
+        report.results.push({
+          company: record.company,
+          status: 'research-failed',
+          error: record.error ?? 'Research failed',
+        });
+        writeFileSync(output, JSON.stringify(report, null, 2), { mode: 0o600 });
+        continue;
+      }
       try {
         report.results.push(
           flag === '--run'

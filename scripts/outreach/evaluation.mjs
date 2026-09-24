@@ -17,7 +17,10 @@ export function validateDataset(dataset, now = Date.now()) {
     groups = new Map();
   for (const c of dataset.cases) {
     if (
-      !c.id ||
+      // A string: checkpoint keys are strings, so a numeric id would never
+      // match its own checkpoint on --resume, and 1 and '1' would collide.
+      typeof c.id !== 'string' ||
+      !c.id.trim() ||
       ids.has(c.id) ||
       !c.group ||
       !['development', 'holdout'].includes(c.split) ||
@@ -25,7 +28,7 @@ export function validateDataset(dataset, now = Date.now()) {
       !c.rationale
     )
       throw new Error(
-        'Case needs unique ID, group, split, kind and annotation rationale'
+        'Case needs a unique string ID, group, split, kind and annotation rationale'
       );
     ids.add(c.id);
     if (groups.has(c.group) && groups.get(c.group) !== c.split)

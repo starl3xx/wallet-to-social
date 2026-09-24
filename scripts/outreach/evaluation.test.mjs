@@ -178,3 +178,11 @@ test('CLI resume regenerates review without API calls and rejects concurrent wri
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a numeric case id is refused at validation, before a run can checkpoint it', () => {
+  assert.throws(
+    () => validateDataset({ version: 1, cases: [{ ...row, id: 7 }] }),
+    /unique string ID/
+  );
+  assert.doesNotThrow(() => validateDataset(dataset, now));
+});

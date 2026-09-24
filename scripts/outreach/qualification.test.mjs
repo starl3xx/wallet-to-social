@@ -199,3 +199,41 @@ test('accepts a rounded 0.99 distribution at the 1% tolerance boundary', () => {
     /Invalid TypeSafe probabilities/
   );
 });
+
+test('a real failed research row is refused as failed, not as a bad URL', () => {
+  assert.throws(
+    () =>
+      prepare({ company: 'X', status: 'research-failed', error: 'timeout' }),
+    /Research failed/
+  );
+});
+test('a failed research row is reported, and the rest of the batch still runs', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'walletlink-qualify-'));
+  try {
+    const input = join(dir, 'research.json');
+    const output = join(dir, 'out.json');
+    writeFileSync(
+      input,
+      JSON.stringify([
+        { ...record, observedAt: new Date().toISOString() },
+        { company: 'Down Co', status: 'research-failed', error: 'timeout' },
+      ])
+    );
+    const run = spawnSync(process.execPath, [
+      new URL('./qualify.mjs', import.meta.url).pathname,
+      input,
+      output,
+    ]);
+    assert.equal(run.status, 0, String(run.stderr));
+    const report = JSON.parse(readFileSync(output, 'utf8'));
+    assert.equal(report.results.length, 2);
+    assert.equal(report.results[0].company, 'Fictional Agency');
+    assert.deepEqual(report.results[1], {
+      company: 'Down Co',
+      status: 'research-failed',
+      error: 'timeout',
+    });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

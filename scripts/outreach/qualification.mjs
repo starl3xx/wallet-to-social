@@ -30,6 +30,9 @@ function string(value, name, max) {
   return value;
 }
 export function prepare(record, now = Date.now()) {
+  // First: a failed research row carries only company, status and error, so any
+  // field check before this one would report "Invalid URL" instead.
+  if (record.status === 'research-failed') throw new Error('Research failed');
   string(record.company, 'company', 200);
   const url = new URL(record.sourceUrl);
   if (
@@ -48,7 +51,6 @@ export function prepare(record, now = Date.now()) {
     throw new Error(
       'Evidence is missing a valid observation date or is older than 30 days'
     );
-  if (record.status === 'research-failed') throw new Error('Research failed');
   const claims = record.claims ?? [];
   if (!Array.isArray(claims) || claims.length > 10)
     throw new Error('At most 10 claims per source');
