@@ -35,18 +35,32 @@ All notable changes to walletlink.social. Newest first.
   never finish, the lookup fails, unbilled, with "Submit the list again."
   Before, it was retried every few minutes for as long as a source stayed
   slow, and the app gave up waiting after ten minutes.
+- **A lookup that has been charged is never failed.** The finished results
+  are saved before the charge, so a lookup stopped after it is finished from
+  them on the next attempt, with no second pass over the sources and no
+  second charge. Neither the attempt limit nor an error after the charge
+  can turn it into "Submit the list again", which would have left the charge
+  standing and billed the resubmission as well.
+- **A lookup is saved to your history once.** A lookup finished twice (stopped
+  after the save, or a worker resumed after its turn) could appear twice in
+  saved history. Each job's save is now keyed on the job and written at most
+  once.
 - **The onchain ENS pass on a deep scan has a time limit,** as Web3Bio
   already had: it stops starting new batches two minutes into a slice.
   Addresses it did not reach are left unchecked rather than recorded as
   having no ENS name, so the next lookup asks again.
 - Operator: `scripts/migrate-job-lease.ts` adds `lookup_jobs.leased_until`,
-  `lease_token` and `slice_attempts`, and must run before this deploys. The
-  Inngest route stays, registering nothing, so runs started before the deploy
-  end cleanly; the route, the client, the package and the `INNGEST_*`
-  variables go in a follow-up. Linear STA-44. The twelve invariants that held
-  the two pipelines in step are replaced by twenty-nine that assert one
-  pipeline, the claim, the fenced writes and the attempt cap, and the nine
-  guard mutations against the Inngest copy by forty-seven.
+  `lease_token` and `slice_attempts`, and a unique index on
+  `lookup_history.job_id` (built concurrently, after a check for duplicates;
+  production had none on 2026-09-24), and must run before this deploys. The
+  admin's retry, rerun and cancel now reset the attempt count and clear the
+  lease. The Inngest route stays, registering nothing, so runs started before
+  the deploy end cleanly; the route, the client, the package and the
+  `INNGEST_*` variables go in a follow-up. Linear STA-44. The twelve
+  invariants that held the two pipelines in step are replaced by thirty-eight
+  that assert one pipeline, the claim, the fenced writes, the attempt cap,
+  the billed-job rule and the once-per-job history save, and the nine guard
+  mutations against the Inngest copy by sixty-seven.
 
 ### 2026-09-24 (Dependabot PRs are copied so Bugbot reviews them)
 
