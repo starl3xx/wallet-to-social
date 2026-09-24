@@ -382,8 +382,9 @@ export function getClientIp(request: NextRequest): string {
  * work rather than the number of envelopes it arrived in.
  *
  * `ipAddress` is the bucket's subject, and it is an address everywhere except
- * `/api/mcp:account`, whose subject is `user:<account id>`. The column is
- * text, and a prefix keeps the two kinds of subject from ever colliding.
+ * two buckets: `/api/mcp:account`, whose subject is `user:<account id>`, and
+ * `/api/oauth/token:grant`, whose subject is `grant:<grant id>`. The column is
+ * text, and a prefix keeps the kinds of subject from ever colliding.
  */
 export async function checkIpRateLimit(
   ipAddress: string,
