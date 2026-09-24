@@ -113,8 +113,70 @@ export const REFRESH_GRACE_HASHES = 10;
  */
 const MAX_GRANTS_PER_USER = 10;
 
-function newToken(prefix: string): string {
+export function newToken(prefix: string): string {
   return `${prefix}${randomBytes(32).toString('base64url')}`;
+}
+
+/**
+ * What `newToken` puts after the prefix: 32 random bytes in base64url, which
+ * is 43 characters with no padding.
+ */
+const TOKEN_BODY = /^[A-Za-z0-9_-]{43}$/;
+
+/**
+ * Whether a string has the shape of a refresh token we mint, judged without
+ * the database.
+ *
+ * The token endpoint and revocation answer anything else before any read and
+ * before any limit is charged. No row can match it: every refresh token is
+ * `newToken(REFRESH_TOKEN_PREFIX)`, and the format is the one the first token
+ * was issued in.
+ */
+export function isWellFormedRefreshToken(raw: string): boolean {
+  return (
+    raw.startsWith(REFRESH_TOKEN_PREFIX) &&
+    TOKEN_BODY.test(raw.slice(REFRESH_TOKEN_PREFIX.length))
+  );
+}
+
+/** The same judgment for an access token, `newToken(ACCESS_TOKEN_PREFIX)`. */
+export function isWellFormedAccessToken(raw: string): boolean {
+  return (
+    raw.startsWith(ACCESS_TOKEN_PREFIX) &&
+    TOKEN_BODY.test(raw.slice(ACCESS_TOKEN_PREFIX.length))
+  );
+}
+
+/**
+ * The grants a presented refresh token names: by the token a grant holds now,
+ * by the one that token replaced, or by any rotated out in the latest burst
+ * (REFRESH_REUSE_GRACE_MS). One predicate, so `refreshGrant` and
+ * `grantIdForRefreshToken` cannot come to disagree about whose token it is.
+ */
+function matchesRefreshHash(hash: string) {
+  return sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`;
+}
+
+/**
+ * The grant a refresh token belongs to, or null, found exactly as
+ * `refreshGrant` finds it and without judging it: a revoked, expired or
+ * rotated-out token still names its grant.
+ *
+ * The token endpoint counts a refresh against the connection it names before
+ * `refreshGrant` decides anything, and revocation ends the grant it names.
+ * Reads only.
+ */
+export async function grantIdForRefreshToken(
+  raw: string
+): Promise<string | null> {
+  const db = getDb();
+  if (!db) return null;
+  const [row] = await db
+    .select({ id: oauthGrants.id })
+    .from(oauthGrants)
+    .where(matchesRefreshHash(sha256(raw)))
+    .limit(1);
+  return row?.id ?? null;
 }
 
 export interface IssuedTokens {
@@ -463,9 +525,7 @@ export async function refreshGrant(input: {
   const [row] = await db
     .select()
     .from(oauthGrants)
-    .where(
-      sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`
-    )
+    .where(matchesRefreshHash(hash))
     .limit(1);
   if (!row) return { ok: false, reason: 'invalid' };
 

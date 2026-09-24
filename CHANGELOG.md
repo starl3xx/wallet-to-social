@@ -2,6 +2,32 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (OAuth endpoints are limited per connection)
+
+- **Token requests are limited per connection.** A code exchange or refresh
+  whose credential names a connection counts against that connection, 60 an
+  hour, not against the address it came from. Hosted Claude exchanges and
+  refreshes from Anthropic's shared addresses, so a per-address limit was one
+  limit for every Claude user. A code or refresh token that is not the shape
+  we mint is refused with `invalid_grant` before any read and counts against
+  nothing; a well-formed one that names nothing counts against the address,
+  120 an hour, as before. A code counts against its connection only once the
+  caller has matched its client, redirect and verifier; a failed match counts
+  against the address. No `client_id` keys a limit.
+- **Revocation and the consent screen have limits.** `/api/oauth/revoke`
+  counts only a well-formed token that names nothing, 60 an hour per address,
+  and while that is spent answers 503 with `Retry-After` before looking
+  anything up, so live and dead tokens get the same answer. A string that is
+  neither token shape answers 200 with no read. `/oauth/authorize` counts a
+  fresh request, 30 an hour per address, after the missing-parameter check and
+  before the client is resolved, and renders its refusal rather than
+  redirecting. The consent step is not counted.
+- **Registration counts only a registration that writes,** still 10 an hour
+  per address. A malformed request is refused without counting.
+- Revoking a refresh token rotated out in the latest burst of refreshes now
+  ends its connection too: revocation finds a token the way a refresh does.
+  Part of STA-39 (C2), with 42 new invariants and 28 new guard mutations.
+
 ### 2026-09-24 (docs: three statements corrected against the code)
 
 - **The API works on the free allowance.** The app lookups page listed "the

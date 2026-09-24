@@ -7,11 +7,41 @@
  * that only parses JSON answers 415 to a request that is entirely correct.
  * That failure is invisible in a browser and shows up as intermittent broken
  * connections, so the parser is explicit here rather than inherited.
+ *
+ * ## Limits, per connection
+ *
+ * The form is parsed and the credential sorted before anything is charged,
+ * in three ways:
+ *
+ *   - a code or refresh token that is not the shape we mint is answered
+ *     `invalid_grant` with no read, and counted nowhere
+ *   - one that names a grant is counted against that grant, subject
+ *     `grant:<grant id>` under `/api/oauth/token:grant`: a refresh token at
+ *     once, since holding it is the proof, and a code only after the caller
+ *     has matched its client, its redirect and its verifier
+ *   - one that names nothing, and a code whose client, redirect or verifier
+ *     does not match, is counted per address under `/api/oauth/token`, then
+ *     answered `invalid_grant`
+ *
+ * Per connection because a hosted client exchanges and refreshes from its
+ * provider's shared outbound addresses, so a count per address would be one
+ * count for all of its users. A `client_id` keys nothing: every client here
+ * is public, and hosted Claude's is one string shared by every Claude user.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
-import { loadCode, pkceMatches } from '@/lib/oauth/requests';
-import { redeemCode, refreshGrant, revokeGrant } from '@/lib/oauth/grants';
+import {
+  checkIpRateLimit,
+  getClientIp,
+  type IpRateLimitResult,
+} from '@/lib/ip-rate-limiter';
+import { isWellFormedCode, loadCode, pkceMatches } from '@/lib/oauth/requests';
+import {
+  grantIdForRefreshToken,
+  isWellFormedRefreshToken,
+  redeemCode,
+  refreshGrant,
+  revokeGrant,
+} from '@/lib/oauth/grants';
 import { mcpResource } from '@/lib/oauth/metadata';
 import { repeatedFormParam, resourcesAreOurs } from '@/lib/oauth/params';
 
@@ -39,26 +69,44 @@ function oauthError(
   );
 }
 
-export async function POST(request: NextRequest): Promise<NextResponse> {
-  const limit = await checkIpRateLimit(
-    getClientIp(request),
-    '/api/oauth/token'
+/**
+ * Over one of the two limits. The same 429 `temporarily_unavailable` the
+ * endpoint has always answered, with the wait in `Retry-After`.
+ */
+function tooManyRequests(
+  limit: IpRateLimitResult,
+  description: string
+): NextResponse {
+  return NextResponse.json(
+    { error: 'temporarily_unavailable', error_description: description },
+    {
+      status: 429,
+      headers: limit.retryAfter
+        ? { ...NO_STORE, 'Retry-After': String(limit.retryAfter) }
+        : NO_STORE,
+    }
   );
-  if (!limit.allowed) {
-    return NextResponse.json(
-      {
-        error: 'temporarily_unavailable',
-        error_description: 'Too many token requests from this address.',
-      },
-      {
-        status: 429,
-        headers: limit.retryAfter
-          ? { ...NO_STORE, 'Retry-After': String(limit.retryAfter) }
-          : NO_STORE,
-      }
-    );
-  }
+}
 
+/**
+ * A well-formed code or refresh token that names nothing. There is no
+ * connection to count it against, so it is counted per address, and then
+ * answered exactly as before: `invalid_grant`.
+ */
+async function unknownCredential(
+  ip: string,
+  description: string
+): Promise<NextResponse> {
+  const limit = await checkIpRateLimit(ip, '/api/oauth/token');
+  if (!limit.allowed) {
+    return tooManyRequests(limit, 'Too many token requests from this address.');
+  }
+  return oauthError('invalid_grant', description);
+}
+
+const CONNECTION_LIMITED = 'Too many token requests for this connection.';
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
   let form: URLSearchParams;
   try {
     form = new URLSearchParams(await request.text());
@@ -80,9 +128,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // anywhere answers the same 503. `return await`, not `return`: a promise
   // returned unawaited rejects after the try has already been left.
   const grantType = form.get('grant_type');
+  const ip = getClientIp(request);
   try {
-    if (grantType === 'authorization_code') return await exchangeCode(form);
-    if (grantType === 'refresh_token') return await exchangeRefresh(form);
+    if (grantType === 'authorization_code') return await exchangeCode(form, ip);
+    if (grantType === 'refresh_token') return await exchangeRefresh(form, ip);
   } catch (error) {
     console.error(
       `Token request (${grantType}) failed on /api/oauth/token:`,
@@ -136,7 +185,10 @@ function tokenServiceUnavailable(): NextResponse {
  * behind it without holding anything else. Nothing below spends or revokes
  * until the caller has proved it is the client the code was issued to.
  */
-async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
+async function exchangeCode(
+  form: URLSearchParams,
+  ip: string
+): Promise<NextResponse> {
   const code = form.get('code');
   const verifier = form.get('code_verifier');
   const clientId = form.get('client_id');
@@ -169,39 +221,63 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
     );
   }
 
+  // Not the shape we mint, so no row can match: refused with no read, and
+  // counted nowhere.
+  if (!isWellFormedCode(code)) {
+    return oauthError('invalid_grant', 'The authorization code is unknown.');
+  }
+
   const loaded = await loadCode(code);
   if (!loaded.ok) {
-    return oauthError('invalid_grant', 'The authorization code is unknown.');
+    return unknownCredential(ip, 'The authorization code is unknown.');
   }
   const row = loaded.row;
 
   /**
    * The code is bound to the client it was issued to.
    *
+   * These three checks come before the connection's own bucket is touched,
+   * and a failure of any of them is counted per address, exactly like a code
+   * that names nothing. The connection's bucket is counted only for a caller
+   * who has proved it holds the code, the client id, the redirect and the
+   * verifier, so a request that proves less never affects the connection.
+   *
    * Without this, a code intercepted from one client's redirect is redeemable
    * by any other client that can guess a `client_id`, and PKCE would not stop
    * it: the attacker chose the verifier only if they also started the flow.
    */
   if (row.clientId !== clientId) {
-    return oauthError(
-      'invalid_grant',
+    return unknownCredential(
+      ip,
       'This authorization code was issued to a different client.'
     );
   }
 
   if (redirectUri !== row.redirectUri) {
-    return oauthError(
-      'invalid_grant',
+    return unknownCredential(
+      ip,
       'redirect_uri does not match the one this code was issued for.'
     );
   }
 
   if (!pkceMatches(verifier, row.codeChallenge)) {
-    return oauthError(
-      'invalid_grant',
+    return unknownCredential(
+      ip,
       'The code_verifier does not match the code_challenge from the authorization request.'
     );
   }
+
+  /**
+   * Counted against the connection the code belongs to, now that the caller
+   * has proved it is the client the code was issued to. The code exchange and
+   * every refresh after it share one bucket. A code with no grant on its row
+   * is counted under its own request id, and refused below.
+   */
+  const perGrant = await checkIpRateLimit(
+    `grant:${row.grantId ?? row.id}`,
+    '/api/oauth/token:grant'
+  );
+  if (!perGrant.allowed) return tooManyRequests(perGrant, CONNECTION_LIMITED);
 
   /**
    * RFC 8707: a `resource` on the token request must name the same resource the
@@ -295,11 +371,36 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
   );
 }
 
-async function exchangeRefresh(form: URLSearchParams): Promise<NextResponse> {
+async function exchangeRefresh(
+  form: URLSearchParams,
+  ip: string
+): Promise<NextResponse> {
   const token = form.get('refresh_token');
   if (!token) {
     return oauthError('invalid_request', 'refresh_token is required.');
   }
+
+  // Not the shape we mint, so no row can match: refused with no read, and
+  // counted nowhere.
+  if (!isWellFormedRefreshToken(token)) {
+    return oauthError('invalid_grant', 'The refresh token is unknown.');
+  }
+
+  /**
+   * Counted against the connection the token names, found exactly as
+   * `refreshGrant` finds it: by the current token, the one it replaced, or
+   * one rotated out in the latest burst. Everything `refreshGrant` answers
+   * after this is unchanged, including the hold-off and the revoke on reuse.
+   */
+  const grantId = await grantIdForRefreshToken(token);
+  if (!grantId) {
+    return unknownCredential(ip, 'The refresh token is unknown.');
+  }
+  const perGrant = await checkIpRateLimit(
+    `grant:${grantId}`,
+    '/api/oauth/token:grant'
+  );
+  if (!perGrant.allowed) return tooManyRequests(perGrant, CONNECTION_LIMITED);
 
   const result = await refreshGrant({
     refreshToken: token,

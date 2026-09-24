@@ -135,19 +135,72 @@ export const IP_RATE_LIMITS = {
    * hour is far more than any real client needs: a client registers once and
    * then reuses its `client_id` forever, and Claude does not register at all
    * when it can read a metadata document instead, which it can here.
+   *
+   * Charged only for a registration that would write a row. The route runs
+   * every validation first, so a malformed request is refused without
+   * spending anything, and the bound counts exactly the writes it exists to
+   * bound. Per address, because nothing at registration names a caller:
+   * RFC 7591 registration is open by design.
    */
   '/api/oauth/register': { limit: 10, windowHours: 1 },
   /**
-   * The token endpoint, bounded per address because the credential it checks
-   * is not a key we issued to the caller.
+   * The token endpoint, for a credential that names nothing: a well-formed
+   * authorization code or refresh token that matches no grant. Counted per
+   * address, because there is no connection to count it against.
+   *
+   * The route sorts every request before it charges anything. A credential
+   * that is not the shape we mint is refused with no read and counted
+   * nowhere; one that names a grant is counted under `/api/oauth/token:grant`,
+   * a code only once its client, redirect and verifier match. So this bucket
+   * holds well-formed credentials that resolve to nothing and codes whose
+   * proof failed, which a working client does not send at volume.
    *
    * An authorization code is guessable only at 2^256, so this is not what
-   * stops a code being brute forced. It is what stops the endpoint being a
-   * free oracle: every failure here reads a row and returns a distinguishable
-   * error, and the refresh-reuse path writes. 120 an hour comfortably clears a
-   * client refreshing hourly on several devices.
+   * stops a code being brute forced. It is what bounds the reads a miss
+   * costs. 120 an hour is far more than a client that has lost track of its
+   * tokens sends before starting over.
    */
   '/api/oauth/token': { limit: 120, windowHours: 1 },
+  /**
+   * The token endpoint, for a code or refresh token that names a grant,
+   * counted per connection. The subject is `grant:<grant id>`: never an
+   * address, and never a `client_id`.
+   *
+   * Per connection because a hosted client exchanges and refreshes from its
+   * provider's shared outbound addresses. Hosted Claude does, from
+   * Anthropic's, so a bucket keyed on the address would be one bucket for
+   * every Claude user at once. Not per `client_id`, because every client here
+   * is public and a hosted client's id is one string shared by all of its
+   * users, so it names nobody in particular.
+   *
+   * 60 an hour, against about one refresh an hour in normal use, leaves room
+   * for the bursts that parallel tool calls produce (REFRESH_REUSE_GRACE_MS in
+   * lib/oauth/grants.ts).
+   */
+  '/api/oauth/token:grant': { limit: 60, windowHours: 1 },
+  /**
+   * A fresh authorization request at `/oauth/authorize`, per address.
+   *
+   * Each one can resolve a client, which for a metadata-document client is an
+   * outbound fetch, and writes a pending request. The page opens in the
+   * person's own browser for every client, hosted or local, so the address is
+   * theirs rather than a provider's. 30 an hour is far more than a person
+   * connecting several clients needs. The consent step (`?req=`) is not
+   * counted, so one connection costs one unit, sign-in detour included.
+   */
+  '/oauth/authorize': { limit: 30, windowHours: 1 },
+  /**
+   * Token revocation, counted only for a well-formed token that names
+   * nothing, per address.
+   *
+   * Hosted clients revoke from their provider's shared outbound addresses
+   * when a person disconnects, so a revocation that finds its token is never
+   * counted. A string that is neither token shape is answered before any read
+   * and not counted either. The route reads this bucket before its lookup and
+   * answers 503 while it is spent, so a live token and a dead one get the same
+   * answer (RFC 7009 section 2.2.1).
+   */
+  '/api/oauth/revoke': { limit: 60, windowHours: 1 },
 } as const;
 
 export type RateLimitedEndpoint = keyof typeof IP_RATE_LIMITS;
@@ -270,30 +323,36 @@ function getResetTime(date: Date = new Date()): Date {
 }
 
 /**
- * Extracts the client IP from a Next.js request
- * Handles various proxy headers and falls back to connection IP
+ * The client address, read from request headers.
+ *
+ * Takes anything with a `get`, so a route handler passes `request.headers`
+ * and a server component passes `await headers()`. The authorize page is a
+ * server component, and a second copy of these rules there would be the copy
+ * that drifts.
  */
-export function getClientIp(request: NextRequest): string {
+export function clientIpFromHeaders(h: {
+  get(name: string): string | null;
+}): string {
   // Trust ONLY headers a caller can't forge. Previously this returned the
   // FIRST x-forwarded-for hop, which is fully client-controlled: sending a
   // random X-Forwarded-For per request minted a fresh bucket every time and
   // the "3/hour to prevent scraping" limits never fired.
   //
   // On Vercel, x-vercel-forwarded-for is set by the platform to the real
-  // client IP and overwrites anything the caller sent — it is authoritative.
-  const vercelForwardedFor = request.headers.get('x-vercel-forwarded-for');
+  // client IP and overwrites anything the caller sent: it is authoritative.
+  const vercelForwardedFor = h.get('x-vercel-forwarded-for');
   if (vercelForwardedFor) {
     // Single trusted value, but split defensively and take the first entry
     return vercelForwardedFor.split(',')[0]?.trim() || 'unknown';
   }
 
   // Cloudflare sets a single unspoofable connecting-IP value
-  const cfConnectingIp = request.headers.get('cf-connecting-ip');
+  const cfConnectingIp = h.get('cf-connecting-ip');
   if (cfConnectingIp) return cfConnectingIp.trim();
 
   // Generic x-forwarded-for: the LAST hop is the one appended by our own
   // trusted proxy; the leftmost entries are caller-supplied and unsafe.
-  const forwardedFor = request.headers.get('x-forwarded-for');
+  const forwardedFor = h.get('x-forwarded-for');
   if (forwardedFor) {
     const hops = forwardedFor
       .split(',')
@@ -302,10 +361,15 @@ export function getClientIp(request: NextRequest): string {
     if (hops.length) return hops[hops.length - 1];
   }
 
-  const realIp = request.headers.get('x-real-ip');
+  const realIp = h.get('x-real-ip');
   if (realIp) return realIp.trim();
 
   return 'unknown';
+}
+
+/** The client address of a route handler's request; see clientIpFromHeaders. */
+export function getClientIp(request: NextRequest): string {
+  return clientIpFromHeaders(request.headers);
 }
 
 /**
@@ -318,8 +382,9 @@ export function getClientIp(request: NextRequest): string {
  * work rather than the number of envelopes it arrived in.
  *
  * `ipAddress` is the bucket's subject, and it is an address everywhere except
- * `/api/mcp:account`, whose subject is `user:<account id>`. The column is
- * text, and a prefix keeps the two kinds of subject from ever colliding.
+ * two buckets: `/api/mcp:account`, whose subject is `user:<account id>`, and
+ * `/api/oauth/token:grant`, whose subject is `grant:<grant id>`. The column is
+ * text, and a prefix keeps the kinds of subject from ever colliding.
  */
 export async function checkIpRateLimit(
   ipAddress: string,
@@ -430,7 +495,17 @@ export async function checkIpRateLimit(
 }
 
 /**
- * Get current rate limit status without incrementing (for debugging/monitoring)
+ * A bucket's standing without charging it: whether one more request would be
+ * allowed now, and, when it would not, how long until it would.
+ *
+ * For a route that has to refuse before it does any work but charge only
+ * once it knows the outcome. `/api/oauth/revoke` reads this before its lookup
+ * and charges afterwards, only on a miss, so its refusal cannot depend on
+ * whether the token existed.
+ *
+ * One clock reading for everything: the two bucket keys, the window fraction
+ * and the reset. Separate readings could fall either side of an hour
+ * boundary and describe two different windows.
  */
 export async function getIpRateLimitStatus(
   ipAddress: string,
@@ -438,24 +513,24 @@ export async function getIpRateLimitStatus(
 ): Promise<IpRateLimitResult> {
   const config = IP_RATE_LIMITS[endpoint];
   const db = getDb();
+  const now = new Date();
+  const resetAt = getResetTime(now);
 
   if (!db) {
     return {
       allowed: true,
       limit: config.limit,
       remaining: config.limit,
-      resetAt: getResetTime(),
+      resetAt,
     };
   }
 
-  const bucketKey = getHourlyBucketKey();
-  const resetAt = getResetTime();
+  const bucketKey = getHourlyBucketKey(now);
+  const previousBucketKey = getHourlyBucketKey(
+    new Date(now.getTime() - 60 * 60 * 1000)
+  );
 
   try {
-    const now = new Date();
-    const previousBucketKey = getHourlyBucketKey(
-      new Date(now.getTime() - 60 * 60 * 1000)
-    );
     const rows = await db
       .select({
         bucketKey: ipRateLimitBuckets.bucketKey,
@@ -475,16 +550,30 @@ export async function getIpRateLimitStatus(
       rows.find((r) => r.bucketKey === previousBucketKey)?.count ?? 0;
     const effective = slidingWindowCount(previousCount, count, now);
     const remaining = Math.max(0, Math.floor(config.limit - effective));
+    // The question status answers is "would a request succeed now", so it
+    // predicts exactly what checkIpRateLimit computes after its increment:
+    // effective plus one unit. A bare `effective < limit` disagreed in the
+    // fractional gap under one unit.
+    const allowed = effective + 1 <= config.limit;
+
+    // Refused, it states the admission moment as checkIpRateLimit does. Nothing
+    // was charged here, so the wait is solved against the counts as they
+    // stand, for the one unit the next request will cost.
+    const retryAfter = allowed
+      ? undefined
+      : Math.max(
+          1,
+          secondsUntilNextAllowed(previousCount, count, config.limit, now)
+        );
 
     return {
-      // The question status answers is "would a request succeed now", so it
-      // predicts exactly what checkIpRateLimit computes after its
-      // increment: effective plus one unit. A bare `effective < limit`
-      // disagreed in the fractional gap under one unit.
-      allowed: effective + 1 <= config.limit,
+      allowed,
       limit: config.limit,
       remaining,
-      resetAt,
+      resetAt: retryAfter
+        ? new Date(now.getTime() + retryAfter * 1000)
+        : resetAt,
+      retryAfter,
     };
   } catch (error) {
     console.error('IP rate limit status check error:', error);

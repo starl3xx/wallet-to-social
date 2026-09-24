@@ -376,6 +376,9 @@ pasted one needs to read.
 
 ## Limits
 
+OAuth token requests, the exchange that completes sign-in and every refresh
+after it, are limited per connection, not per IP address.
+
 Tool calls are limited per key, on the same three windows as the REST API. See
 [rate limits](/api-reference/rate-limits).
 

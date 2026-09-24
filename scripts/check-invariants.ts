@@ -4772,13 +4772,20 @@ async function main() {
       /return \{ ok: false, reason: 'wrong_client' \}/.test(refresh)
     );
 
+    // One predicate, shared with grantIdForRefreshToken, so the token
+    // endpoint's limiter and revocation name the grant a refresh acts on.
+    const refreshMatch = grants.slice(
+      grants.indexOf('function matchesRefreshHash('),
+      grants.indexOf('export async function grantIdForRefreshToken')
+    );
     // Reuse detection: a presented previous token revokes the grant, read from
     // a fresh query after the rotation found nothing.
     ok(
       'the pre-read finds a grant by its current or its previous refresh token, so a reuse reaches the reuse branch',
-      beforeRotation.includes(
-        'sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`'
-      )
+      beforeRotation.includes('.where(matchesRefreshHash(hash))') &&
+        refreshMatch.includes(
+          'return sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`;'
+        )
     );
     const afterRotation = refresh.slice(at('await rotateAndMint('));
     const reusedAt = afterRotation.indexOf('const [reused]');
@@ -5079,6 +5086,395 @@ async function main() {
     );
   }
 
+  // ------------------------------- OAuth: the endpoint limits (Linear STA-39)
+  // Hosted clients exchange, refresh and revoke from their provider's shared
+  // outbound addresses, so the token endpoint counts per connection, never
+  // per address and never per client_id, and it sorts every request before it
+  // charges anything. Registration charges only a write, and the two
+  // endpoints that had no bound have one.
+  {
+    const {
+      ACCESS_TOKEN_PREFIX,
+      REFRESH_TOKEN_PREFIX,
+      REFRESH_GRACE_HASHES,
+      isWellFormedAccessToken,
+      isWellFormedRefreshToken,
+      newToken,
+    } = await import('@/lib/oauth/grants');
+    const { isWellFormedCode, newAuthorizationCode } =
+      await import('@/lib/oauth/requests');
+    const { IP_RATE_LIMITS, clientIpFromHeaders } =
+      await import('@/lib/ip-rate-limiter');
+
+    // The shapes, refused. Each of these reaches no row, so none may cost a
+    // read or a charge.
+    const initialize =
+      '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}';
+    const body43 = 'A'.repeat(43);
+    for (const [what, raw] of [
+      ['a JSON-RPC initialize body', initialize],
+      ['an empty string', ''],
+      ['the prefix alone', REFRESH_TOKEN_PREFIX],
+      ['the prefix and 42 characters', REFRESH_TOKEN_PREFIX + 'A'.repeat(42)],
+      ['the prefix and 44 characters', REFRESH_TOKEN_PREFIX + 'A'.repeat(44)],
+      ['an access token', ACCESS_TOKEN_PREFIX + body43],
+      [
+        'standard base64 characters',
+        REFRESH_TOKEN_PREFIX + '+/' + 'A'.repeat(41),
+      ],
+      ['padding', REFRESH_TOKEN_PREFIX + 'A'.repeat(42) + '='],
+      ['a trailing newline', REFRESH_TOKEN_PREFIX + body43 + '\n'],
+    ] as const) {
+      ok(
+        `${what} is not a well-formed refresh token`,
+        !isWellFormedRefreshToken(raw)
+      );
+    }
+    ok(
+      'a refresh token is not a well-formed access token, and a JSON-RPC body is neither',
+      !isWellFormedAccessToken(REFRESH_TOKEN_PREFIX + body43) &&
+        !isWellFormedAccessToken(initialize) &&
+        !isWellFormedAccessToken(ACCESS_TOKEN_PREFIX)
+    );
+    for (const [what, raw] of [
+      ['a JSON-RPC initialize body', initialize],
+      ['an empty string', ''],
+      ['a code containing a dot', 'A'.repeat(21) + '.' + 'A'.repeat(21)],
+      ['a code of 42 characters', 'A'.repeat(42)],
+      ['a code of 44 characters', 'A'.repeat(44)],
+      ['a refresh token', newToken(REFRESH_TOKEN_PREFIX)],
+    ] as const) {
+      ok(`${what} is not a well-formed code`, !isWellFormedCode(raw));
+    }
+
+    // The shapes, accepted, through the real mints. Many draws, so every
+    // character the alphabet can produce, `-` and `_` included, has appeared.
+    let minted = true;
+    const seen = new Set<string>();
+    for (let i = 0; i < 400; i++) {
+      const refresh = newToken(REFRESH_TOKEN_PREFIX);
+      const access = newToken(ACCESS_TOKEN_PREFIX);
+      const code = newAuthorizationCode();
+      minted &&=
+        isWellFormedRefreshToken(refresh) &&
+        isWellFormedAccessToken(access) &&
+        isWellFormedCode(code);
+      for (const c of code) seen.add(c);
+    }
+    ok(
+      'every token and code the mints produce is well formed, across the whole alphabet',
+      minted && seen.has('-') && seen.has('_') && seen.size === 64
+    );
+
+    // The mints tested above are the mints in use, and the only ones.
+    const requestsSrc = withoutComments(
+      readFileSync('lib/oauth/requests.ts', 'utf8')
+    );
+    const grantsSrc = withoutComments(
+      readFileSync('lib/oauth/grants.ts', 'utf8')
+    );
+    ok(
+      'issueCode mints with newAuthorizationCode, and nothing else in requests.ts draws random bytes',
+      /export async function issueCode[\s\S]*?const code = newAuthorizationCode\(\);/.test(
+        requestsSrc
+      ) && (requestsSrc.match(/randomBytes\(/g) ?? []).length === 1
+    );
+    ok(
+      'every refresh and access token is minted by newToken, the one draw of random bytes in grants.ts',
+      (grantsSrc.match(/randomBytes\(/g) ?? []).length === 1 &&
+        (grantsSrc.match(/newToken\(REFRESH_TOKEN_PREFIX\)/g) ?? []).length ===
+          2 &&
+        (grantsSrc.match(/newToken\(ACCESS_TOKEN_PREFIX\)/g) ?? []).length === 2
+    );
+
+    // grantIdForRefreshToken names the grant refreshGrant would act on.
+    const lookup = grantsSrc.slice(
+      grantsSrc.indexOf('export async function grantIdForRefreshToken'),
+      grantsSrc.indexOf('export interface IssuedTokens')
+    );
+    ok(
+      'grantIdForRefreshToken matches by the same predicate as a refresh, the burst included, returns the grant id, and only reads',
+      lookup.includes('.select({ id: oauthGrants.id })') &&
+        lookup.includes('return row?.id ?? null;') &&
+        lookup.includes('.where(matchesRefreshHash(sha256(raw)))') &&
+        (grantsSrc.match(/matchesRefreshHash\(/g) ?? []).length === 3 &&
+        !/\.update\(|\.insert\(|\.delete\(|\.execute\(|revokeGrant\(/.test(
+          lookup
+        )
+    );
+
+    // The token route.
+    const token = withoutComments(
+      readFileSync('app/api/oauth/token/route.ts', 'utf8')
+    );
+    const post = token.slice(
+      token.indexOf('export async function POST'),
+      token.indexOf('function tokenServiceUnavailable')
+    );
+    ok(
+      'the token endpoint charges nothing before the form is parsed',
+      post.includes('new URLSearchParams(') &&
+        !post.includes('checkIpRateLimit(') &&
+        !post.includes('unknownCredential(') &&
+        post.indexOf('new URLSearchParams(') <
+          post.indexOf('exchangeCode(form, ip)')
+    );
+    ok(
+      'a public client_id never keys a limit',
+      !/checkIpRateLimit\([^;]*client_?[iI]d/.test(token) &&
+        Object.keys(IP_RATE_LIMITS).every((k) => !/client/i.test(k))
+    );
+    const grantCharges = [
+      ...token.matchAll(
+        /checkIpRateLimit\(\s*([^,]+),\s*'\/api\/oauth\/token:grant'\s*\)/g
+      ),
+    ].map((m) => m[1].trim());
+    ok(
+      'both grant types count a credential that names a grant against that grant',
+      grantCharges.length === 2 &&
+        grantCharges.every((s) => s.startsWith('`grant:${'))
+    );
+    const helper = token.slice(
+      token.indexOf('async function unknownCredential'),
+      token.indexOf('export async function POST')
+    );
+    ok(
+      'a well-formed credential that names nothing is counted per address, then answered invalid_grant',
+      /const limit = await checkIpRateLimit\(ip, '\/api\/oauth\/token'\);\s*if \(!limit\.allowed\) \{\s*return tooManyRequests\(/.test(
+        helper
+      ) &&
+        helper.indexOf("checkIpRateLimit(ip, '/api/oauth/token')") <
+          helper.indexOf("oauthError('invalid_grant', description)") &&
+        (token.match(/checkIpRateLimit\(/g) ?? []).length === 3
+    );
+    ok(
+      'a limited token request still answers 429 temporarily_unavailable with Retry-After',
+      /function tooManyRequests\([\s\S]*?error: 'temporarily_unavailable'[\s\S]*?status: 429,[\s\S]*?'Retry-After': String\(limit\.retryAfter\)/.test(
+        token
+      )
+    );
+
+    const code = token.slice(
+      token.indexOf('async function exchangeCode'),
+      token.indexOf('async function exchangeRefresh')
+    );
+    const inCode = (needle: string) => code.indexOf(needle);
+    ok(
+      'a malformed code is refused invalid_grant before any read or charge',
+      /if \(!isWellFormedCode\(code\)\) \{\s*return oauthError\('invalid_grant'/.test(
+        code
+      ) &&
+        inCode('if (!isWellFormedCode(code))') > inCode('if (!redirectUri)') &&
+        inCode('if (!isWellFormedCode(code))') < inCode('await loadCode(') &&
+        inCode('await loadCode(') < inCode('checkIpRateLimit(')
+    );
+    ok(
+      'a code that names nothing, or a caller that fails the client, redirect or verifier check, is counted per address; only a proven caller is counted against the connection, before anything is spent',
+      /if \(!loaded\.ok\) \{\s*return unknownCredential\(ip, /.test(code) &&
+        /if \(row\.clientId !== clientId\) \{\s*return unknownCredential\(\s*ip,/.test(
+          code
+        ) &&
+        /if \(redirectUri !== row\.redirectUri\) \{\s*return unknownCredential\(\s*ip,/.test(
+          code
+        ) &&
+        /if \(!pkceMatches\(verifier, row\.codeChallenge\)\) \{\s*return unknownCredential\(\s*ip,/.test(
+          code
+        ) &&
+        inCode('pkceMatches(') < inCode('checkIpRateLimit(') &&
+        inCode('row.clientId !== clientId') < inCode('checkIpRateLimit(') &&
+        inCode('checkIpRateLimit(') < inCode('await redeemCode(') &&
+        /if \(!perGrant\.allowed\) return tooManyRequests\(/.test(code)
+    );
+    const refresh = token.slice(
+      token.indexOf('async function exchangeRefresh')
+    );
+    const inRefresh = (needle: string) => refresh.indexOf(needle);
+    ok(
+      'a malformed refresh token is refused invalid_grant before any read or charge',
+      /if \(!isWellFormedRefreshToken\(token\)\) \{\s*return oauthError\('invalid_grant'/.test(
+        refresh
+      ) &&
+        inRefresh('isWellFormedRefreshToken(token)') <
+          inRefresh('grantIdForRefreshToken(')
+    );
+    ok(
+      'a refresh token that names nothing is counted per address; one that names a grant is counted before refreshGrant decides anything',
+      /if \(!grantId\) \{\s*return unknownCredential\(ip, /.test(refresh) &&
+        inRefresh('grantIdForRefreshToken(') < inRefresh('checkIpRateLimit(') &&
+        inRefresh('checkIpRateLimit(') < inRefresh('await refreshGrant(') &&
+        /if \(!perGrant\.allowed\) return tooManyRequests\(/.test(refresh)
+    );
+    ok(
+      'a connection’s own bucket holds several bursts of parallel refreshes',
+      IP_RATE_LIMITS['/api/oauth/token:grant'].limit >= 3 * REFRESH_GRACE_HASHES
+    );
+
+    // Registration: charged after the last validation, before the write.
+    const register = withoutComments(
+      readFileSync('app/api/oauth/register/route.ts', 'utf8')
+    );
+    const registerLimit = register.indexOf('checkIpRateLimit(');
+    ok(
+      'registration still carries its per-address limit, charged once, after every validation and before the insert',
+      /const limit = await checkIpRateLimit\(\s*getClientIp\(request\),\s*'\/api\/oauth\/register'\s*\);\s*if \(!limit\.allowed\) \{\s*return NextResponse\.json\(\s*\{\s*error: 'temporarily_unavailable',/.test(
+        register
+      ) &&
+        register.split('checkIpRateLimit(').length === 2 &&
+        register.lastIndexOf('return invalid(') < registerLimit &&
+        register.lastIndexOf("'invalid_client_metadata'") < registerLimit &&
+        registerLimit < register.indexOf('db.insert(oauthClients)')
+    );
+
+    // The client address: one set of rules, shared by the page and the routes.
+    ok(
+      'a caller-supplied first hop does not choose the bucket',
+      clientIpFromHeaders(
+        new Headers({ 'x-forwarded-for': '6.6.6.6, 203.0.113.9' })
+      ) === '203.0.113.9'
+    );
+    ok(
+      'the platform header wins over a caller-supplied X-Forwarded-For',
+      clientIpFromHeaders(
+        new Headers({
+          'x-vercel-forwarded-for': '198.51.100.7',
+          'x-forwarded-for': '6.6.6.6',
+        })
+      ) === '198.51.100.7' && clientIpFromHeaders(new Headers()) === 'unknown'
+    );
+    const limiterSrc = withoutComments(
+      readFileSync('lib/ip-rate-limiter.ts', 'utf8')
+    );
+    const getClientIpFn = limiterSrc.slice(
+      limiterSrc.indexOf('export function getClientIp'),
+      limiterSrc.indexOf('export async function checkIpRateLimit')
+    );
+    ok(
+      'getClientIp delegates to clientIpFromHeaders and reads no header of its own',
+      getClientIpFn.includes('return clientIpFromHeaders(request.headers);') &&
+        !getClientIpFn.includes('.get(')
+    );
+
+    // The status read: one clock, and a wait when refused.
+    const statusFn = limiterSrc.slice(
+      limiterSrc.indexOf('export async function getIpRateLimitStatus'),
+      limiterSrc.indexOf('export function formatRateLimitHeaders')
+    );
+    ok(
+      'getIpRateLimitStatus reads the clock once and states the wait when it refuses',
+      (statusFn.match(/new Date\(\)/g) ?? []).length === 1 &&
+        !/getHourlyBucketKey\(\)|getResetTime\(\)/.test(statusFn) &&
+        statusFn.includes(
+          'secondsUntilNextAllowed(previousCount, count, config.limit, now)'
+        ) &&
+        /return \{\s*allowed,[\s\S]*?retryAfter,\s*\};/.test(statusFn)
+    );
+
+    // The authorize page: charged after the missing-parameter refusal and
+    // before the client is resolved; rendered, never redirected; the consent
+    // step is not charged.
+    const page = withoutComments(
+      readFileSync('app/oauth/authorize/page.tsx', 'utf8')
+    );
+    const fresh = page.slice(
+      page.indexOf('export default async function AuthorizePage'),
+      page.indexOf('async function renderConsent')
+    );
+    const consent = page.slice(page.indexOf('async function renderConsent'));
+    const pageLimit = fresh.indexOf(
+      "checkIpRateLimit(\n    clientIpFromHeaders(await headers()),\n    '/oauth/authorize'\n  )"
+    );
+    ok(
+      'a fresh authorization request is counted per address after the missing-parameter refusal and before the client is resolved',
+      pageLimit !== -1 &&
+        pageLimit > fresh.indexOf('if (!clientId || !redirectUri)') &&
+        pageLimit < fresh.indexOf('resolveClient(clientId)') &&
+        fresh.indexOf('renderConsent(requestId)') < pageLimit &&
+        fresh.split('checkIpRateLimit(').length === 2 &&
+        !consent.includes('checkIpRateLimit(')
+    );
+    const refused = fresh.slice(
+      fresh.indexOf('if (!limit.allowed) {'),
+      fresh.indexOf('resolveClient(clientId)')
+    );
+    ok(
+      'an authorization request over the limit renders a refusal and never redirects',
+      refused.includes('<Refusal') &&
+        !refused.includes('redirect(') &&
+        /if \(!limit\.allowed\) \{[\s\S]*?return \(\s*<Refusal/.test(refused)
+    );
+
+    // Revocation: shape first, then the peek, then the lookup, and a charge
+    // only on a miss.
+    const revoke = withoutComments(
+      readFileSync('app/api/oauth/revoke/route.ts', 'utf8')
+    );
+    const at = (needle: string) => revoke.indexOf(needle);
+    const shape = at(
+      'if (!isRefresh && !isWellFormedAccessToken(token)) return OK;'
+    );
+    ok(
+      'a string that is neither token shape is answered 200 before the limiter or the database',
+      revoke.includes('const isRefresh = isWellFormedRefreshToken(token);') &&
+        shape !== -1 &&
+        shape < at('getIpRateLimitStatus(') &&
+        shape < at('getDb()')
+    );
+    ok(
+      'revocation is refused before any lookup, so a live token and a dead one get the same answer',
+      revoke.split('getIpRateLimitStatus(').length === 2 &&
+        revoke.includes(
+          "const status = await getIpRateLimitStatus(ip, '/api/oauth/revoke');"
+        ) &&
+        at('getIpRateLimitStatus(') < at('.from(') &&
+        at('getIpRateLimitStatus(') < at('grantIdForRefreshToken(') &&
+        /if \(!status\.allowed\) \{\s*return NextResponse\.json\([\s\S]*?status: 503,[\s\S]*?'Retry-After': String\(status\.retryAfter/.test(
+          revoke
+        ) &&
+        !revoke.includes('status: 429')
+    );
+    ok(
+      'revocation sends a refresh-shaped token to the grant lookup and an access-shaped token to api_keys, and keeps the grant id each finds',
+      /if \(isRefresh\) \{\s*grantId = await grantIdForRefreshToken\(token\);\s*\} else \{[\s\S]*?\.from\(apiKeys\)\s*\.where\(eq\(apiKeys\.key, hashApiKey\(token\)\)\)[\s\S]*?grantId = key\?\.grantId \?\? null;\s*\}/.test(
+        revoke
+      )
+    );
+    ok(
+      'revocation charges only a token that named nothing, after both lookups',
+      revoke.split('checkIpRateLimit(').length === 2 &&
+        at('checkIpRateLimit(') > at('.from(apiKeys)') &&
+        at('checkIpRateLimit(') > at('grantIdForRefreshToken(') &&
+        /if \(grantId\) \{\s*await revokeGrant\(grantId, 'revoked by the client'\);\s*return OK;\s*\}\s*await checkIpRateLimit\(ip, '\/api\/oauth\/revoke'\);\s*return OK;\s*\}\s*$/.test(
+          revoke
+        )
+    );
+
+    // The docs state the numbers the code enforces.
+    const overview = readFileSync('PROJECT_OVERVIEW.md', 'utf8').replace(
+      /\s+/g,
+      ' '
+    );
+    ok(
+      'PROJECT_OVERVIEW states each OAuth endpoint limit the limiter enforces',
+      (
+        [
+          '/api/oauth/token:grant',
+          '/api/oauth/token',
+          '/api/oauth/revoke',
+          '/oauth/authorize',
+          '/api/oauth/register',
+        ] as const
+      ).every((k) =>
+        overview.includes(`${IP_RATE_LIMITS[k].limit} an hour under \`${k}\``)
+      )
+    );
+    ok(
+      'the MCP server page says token requests are limited per connection',
+      /token requests[^.]*limited per connection/i.test(
+        readFileSync('docs-site/mcp-server.mdx', 'utf8')
+      )
+    );
+  }
+
   // ------------------------------- OAuth: a code exchange is one statement
   // Spending the code, writing the refresh hash and minting the access token
   // were three statements. A failure after the spend left the code used up
@@ -5216,11 +5612,14 @@ async function main() {
     );
     ok(
       'every database call of both grant types sits under one catch that logs and answers the shared 503',
-      /try \{\s*if \(grantType === 'authorization_code'\) return await exchangeCode\(form\);\s*if \(grantType === 'refresh_token'\) return await exchangeRefresh\(form\);\s*\} catch \(error\) \{\s*console\.error\([\s\S]{0,120}?error\s*\);\s*return tokenServiceUnavailable\(\);/.test(
+      /try \{\s*if \(grantType === 'authorization_code'\) return await exchangeCode\(form, ip\);\s*if \(grantType === 'refresh_token'\) return await exchangeRefresh\(form, ip\);\s*\} catch \(error\) \{\s*console\.error\([\s\S]{0,120}?error\s*\);\s*return tokenServiceUnavailable\(\);/.test(
         post
       ) &&
-        (token.match(/exchangeCode\(form\)|exchangeRefresh\(form\)/g) ?? [])
-          .length === 2
+        (
+          token.match(
+            /exchangeCode\(form, ip\)|exchangeRefresh\(form, ip\)/g
+          ) ?? []
+        ).length === 2
     );
     ok(
       'a code spent on a revoked grant answers invalid_grant and revokes nothing',
