@@ -658,8 +658,8 @@ first-party identifier under the Chrome cap.
 
 **The figures are imported, never restated.** The page reads `CACHE_TTL_DAYS`,
 `ANALYTICS_RETENTION_DAYS`, `IP_BUCKET_RETENTION_HOURS`, `SESSION_DURATION_DAYS`,
-`MAGIC_LINK_DURATION_MINUTES`, `MAGIC_LINK_RETENTION_HOURS` and
-`NEGATIVE_RECHECK_DAYS`. `scripts/check-invariants.ts` asserts each is read as a
+`MAGIC_LINK_DURATION_MINUTES`, `MAGIC_LINK_RETENTION_HOURS`,
+`NEGATIVE_RECHECK_DAYS` and `OAUTH_TOKEN_RETENTION_DAYS`. `scripts/check-invariants.ts` asserts each is read as a
 constant rather than written as a digit, that each cleanup is actually called,
 and that the job is scheduled in `vercel.json`.
 
@@ -746,6 +746,31 @@ spent, so live and dead tokens are refused alike. A fresh request to the
 consent screen is counted per browser address, 30 an hour under
 `/oauth/authorize`, and registration counts only a registration that writes,
 10 an hour under `/api/oauth/register`.
+
+**The metadata-document fetch connects only where it checked** (STA-39 D).
+`fetchCimdDocument` in `lib/oauth/clients.ts` uses `https.request` rather than
+the global `fetch`, because only the former takes a `lookup`: `pinnedLookup`
+resolves the host once, refuses the whole answer when any address in it is not
+public, and hands the socket only addresses it checked. `agent: false`, the
+peer is checked again on connect, one 5-second deadline covers the whole fetch,
+the 64 KiB cap is counted in bytes as the body arrives, only identity encoding
+is accepted, and a redirect is refused. The classifier is two `node:net`
+BlockLists, one per family: a single list would match every IPv4 query against
+the `::ffff:0:0/96` rule. `clientIdUrlProblem` refuses a `client_id` that is
+not https, not canonical, has no path, carries credentials or a fragment, or
+names an IP address. The consent page shows `CimdError.publicMessage` only, one
+phrase for every failure to load a document. Registration keeps the grants in
+`GRANT_TYPES_SUPPORTED` (the same constant the metadata advertises) and drops
+the rest instead of refusing the request.
+
+**Spent access-token rows are deleted.** Every refresh writes a new `api_keys`
+row, so the daily cleanup deletes a token's row `OAUTH_TOKEN_RETENTION_DAYS`
+(400) after it stopped working, by expiry or revocation, fenced by both
+`oauth_grant_id` and the `wts_mcp_` prefix. The delete cascades to the row's
+`api_usage`, `rate_limit_buckets` and `idempotency_keys`, which is why the
+period must exceed the admin journey's 365-day window and a calendar month;
+`scripts/check-invariants.ts` pins both. No row is old enough before
+2027-09-29. Dashboard keys are never deleted.
 
 `server.json` at the repo root is the registry manifest. The server is published
 to the official MCP registry as `social.walletlink/wallet-identity` (reverse-DNS

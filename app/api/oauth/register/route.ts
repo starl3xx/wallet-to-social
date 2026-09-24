@@ -10,9 +10,9 @@
  * Grant types are substituted, not all-or-nothing: a request naming a grant
  * this server does not issue is registered with only the ones it does, and
  * the response's `grant_types` says which (RFC 7591 sections 2 and 3.2.1).
- * Hosted Claude's own metadata lists the jwt-bearer grant beside the two
- * supported ones, so refusing the whole registration would refuse it. See
- * `registrableGrantTypes`.
+ * Hosted Claude's metadata document lists the jwt-bearer grant beside the two
+ * supported ones, so a client that registers with the same list used to be
+ * refused whole. See `registrableGrantTypes`.
  *
  * The result is worth being clear-eyed about: this endpoint mints a
  * `client_id` for anybody who asks, and nothing it stores has been verified.

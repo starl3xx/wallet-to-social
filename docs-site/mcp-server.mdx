@@ -35,6 +35,16 @@ Both register as public clients, so PKCE with `S256` is required and no client
 secret is issued. Discovery starts at
 [`/.well-known/oauth-protected-resource`](https://walletlink.social/.well-known/oauth-protected-resource).
 
+A metadata document's URL, the `client_id`, must be `https` with a path, carry
+no credentials and no fragment, name a host rather than an IP address, and be
+written the way a URL parser prints it: a lowercase host, no default port, no
+`.` or `..` segments. Its host must resolve only to public addresses. The
+document is fetched within 5 seconds, uncompressed, with no redirect followed,
+and must be at most 64 KB and name its own URL as `client_id`; it is cached for
+a day. Registration keeps `authorization_code` and `refresh_token`, drops any
+other grant type it is sent, and returns the grant types it registered. A
+registration without `authorization_code` is refused.
+
 The consent screen always says where the reply goes: the host of the redirect
 in the request you are approving. When that host is this computer, it says so
 and asks you to approve only a connection you started yourself. That warning

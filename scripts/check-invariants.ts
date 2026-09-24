@@ -4660,6 +4660,10 @@ async function main() {
       }),
       3000
     );
+    // A connection the kernel took is accepted on a later turn of the event
+    // loop, possibly after the fetch has already refused it, so the listener
+    // gets a moment to see one before it is counted.
+    await settle(new Promise((r) => setTimeout(r, 150)));
     await settle(new Promise((r) => listener.close(() => r(null))));
     ok(
       'a real request to a host that resolves to loopback is refused, and the listener never sees a connection',
