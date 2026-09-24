@@ -2,6 +2,28 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (X handles UD verified, read from the chain)
+
+- **A one-off harvest of the X accounts Unstoppable Domains verified in 2020 to
+  2023, read from the chain with no request to UD**
+  (`scripts/harvest-ud-validations.ts`). UD signed the token id, the owner and
+  the handle together and stored the signature as a record, so a domain that
+  changed hands since fails the check by construction. New source
+  `ud_twitter_validation`, attested class, quality 45, wired into the class
+  map, the score, the verified flag and the published attested figure.
+- The verifier follows UD's own SDK byte for byte, and handles the five ways a
+  naive read loses records: the SDK's signer constant is not valid EIP-55, so
+  the compare is on lowercase; a `0x` handle is hashed as hex bytes; the
+  legacy CNS resolvers emit their own event; current state comes through
+  ProxyReader, not the latest event; and a bridged domain binds to Polygon.
+- The handles are three to six years old, so only live ones are ingested. The
+  2026-09-24 dry run found 1,020 validated domains and 868 candidate links
+  (8 handles verified for several owners and 21 wallets holding several
+  handles are left out); after a reachability check of the 781 never-seen
+  handles, 650 are live. Fill-only: 16 disagreements go to `handle_conflicts`.
+- The UD profile harvest stays stopped until UD answers the permission request
+  (Linear STA-13).
+
 ### 2026-09-24 (reverse lookups need an account)
 
 - **The reverse lookups refuse a key bought with USDC and no account,** with

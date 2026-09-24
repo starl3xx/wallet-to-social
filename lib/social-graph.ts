@@ -766,6 +766,7 @@ export function calculateQualityScore(
       case 'lens_profile':
       case 'opensea_profile':
       case 'ud_profile':
+      case 'ud_twitter_validation':
       /**
        * The owner, in person, on our own page: a wallet signature and an X
        * sign-in in one session.
@@ -845,6 +846,7 @@ export function isTwitterVerified(sources: string[]): boolean {
       s === 'lens_profile' ||
       s === 'opensea_profile' ||
       s === 'ud_profile' ||
+      s === 'ud_twitter_validation' ||
       s === 'basename_record' ||
       s === 'zora_profile' ||
       /**

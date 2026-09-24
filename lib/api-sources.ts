@@ -146,6 +146,7 @@ const SOURCE_CLASSES: Record<string, PublicSource | undefined> = {
    * text is skipped at the adapter, so this id never labels a weaker claim.
    */
   ud_profile: 'attested-social',
+  ud_twitter_validation: 'attested-social',
 
   /**
    * A creator profile where the social account is attached through a flow the

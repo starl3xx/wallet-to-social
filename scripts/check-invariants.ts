@@ -5237,6 +5237,101 @@ async function main() {
     );
   }
 
+  // ------------------------------- UD's onchain X validations (Linear STA-13)
+  // UD signed (token, owner, handle) for X accounts it verified in 2020 to 2023
+  // and wrote the signature onchain. Five ways a naive read loses records, and
+  // one source id that has to be known everywhere a live lookup recomputes a
+  // row, or the next lookup of an ingested wallet unmarks its handle.
+  {
+    const ud = await import('@/lib/ud-validations');
+    const { ethers } = await import('ethers');
+    ok(
+      "the signer is UD's key, compared in lowercase because the SDK constant is not valid EIP-55",
+      ud.UD_TWITTER_SIGNER ===
+        '0x12cfb13522F13a78b650a8bCbFCf50b7CB899d82'.toLowerCase() &&
+        withoutComments(readFileSync('lib/ud-validations.ts', 'utf8')).includes(
+          'return signer.toLowerCase() === UD_TWITTER_SIGNER;'
+        )
+    );
+    ok(
+      'a 0x value is hashed as bytes exactly as the SDK converts it: pairs, a non-hex pair as 0, an odd tail as its own digit',
+      JSON.stringify([...ud.sdkHexToBytes('0x0aff')]) === '[10,255]' &&
+        JSON.stringify([...ud.sdkHexToBytes('0xzz01')]) === '[0,1]' &&
+        JSON.stringify([...ud.sdkHexToBytes('0xabc')]) === '[171,12]'
+    );
+    const owner = '0x' + '11'.repeat(20);
+    const msg = ud.validationMessage('42', owner, '0xab');
+    ok(
+      'the signed message is the keccak of token, owner, key and handle, each 0x value as bytes and the rest as text',
+      msg ===
+        ethers.keccak256(ethers.toUtf8Bytes('42')) +
+          ethers.keccak256(ethers.getBytes(owner)) +
+          ethers.keccak256(ethers.toUtf8Bytes('social.twitter.username')) +
+          ethers.keccak256(Uint8Array.from([0xab]))
+    );
+    {
+      const stranger = ethers.Wallet.createRandom();
+      const signature = await stranger.signMessage(
+        ud.validationMessage('42', owner, 'someone')
+      );
+      ok(
+        'a signature by anybody but UD validates nothing',
+        !ud.isUdValidated({
+          tokenIdDecimal: '42',
+          owner,
+          handle: 'someone',
+          signature,
+        }) &&
+          !ud.isUdValidated({
+            tokenIdDecimal: '42',
+            owner,
+            handle: 'someone',
+            signature: '0xdead',
+          })
+      );
+    }
+    const lib = withoutComments(readFileSync('lib/ud-validations.ts', 'utf8'));
+    ok(
+      'the legacy CNS event is scanned, and a token binds to Polygon only when its Polygon owner is set',
+      (lib.match(/\[CNS_SET, /g) ?? []).length === 2 &&
+        lib.includes(
+          'const chain: UdChain = p && p.owner !== ethers.ZeroAddress ? 137 : 1;'
+        ) &&
+        /getData\(string\[\] keys, uint256 tokenId\)/.test(lib)
+    );
+    const script = withoutComments(
+      readFileSync('scripts/harvest-ud-validations.ts', 'utf8')
+    );
+    ok(
+      'the harvest ingests only live, uncontested links, through the fill-only ingest',
+      script.includes(
+        "const live = links.filter((l) => status.get(l.handle) === 'live');"
+      ) &&
+        script.includes('(l) => !contestedHandles.has(l.handle)') &&
+        script.includes('await ingestLinks(live, SOURCE);') &&
+        !/upsertLinks\(|INSERT INTO social_graph/.test(script)
+    );
+
+    const { publicSources, ATTESTED_SOURCE_IDS } =
+      await import('@/lib/api-sources');
+    const { isTwitterVerified, calculateQualityScore } =
+      await import('@/lib/social-graph');
+    const quality = Number(/quality: (\d+),/.exec(script)?.[1]);
+    ok(
+      'the new source is known everywhere a lookup recomputes a row: its class, the attested set, the verified flag, the score its ingest writes, and the published figure',
+      JSON.stringify(publicSources(['ud_twitter_validation'])) ===
+        '["attested-social"]' &&
+        ATTESTED_SOURCE_IDS.has('ud_twitter_validation') &&
+        isTwitterVerified(['ud_twitter_validation']) &&
+        calculateQualityScore(['ud_twitter_validation'], true, false) ===
+          quality &&
+        quality === 45 &&
+        readFileSync('scripts/check-published-figures.ts', 'utf8').includes(
+          "'ud_twitter_validation'"
+        )
+    );
+  }
+
   // ------------------------------------------------- OAuth: the grant cap
   // Two Approve clicks: only one can issue a code, and the loser's grant has
   // to go with it. Left behind it holds a slot in the per-account cap and
