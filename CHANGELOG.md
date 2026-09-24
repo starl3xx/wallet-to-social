@@ -20,7 +20,11 @@ All notable changes to walletlink.social. Newest first.
   push, comments on the copy asking for a rebase by hand.
 - The daily sweep closes a copy only when its Dependabot PR was closed
   unmerged. An original that was merged by hand, or cannot be found, leaves the
-  copy open with a warning, since closing it also deletes the copy branch. It runs on
+  copy open with a warning, since closing it also deletes the copy branch.
+- The daily run also copies or updates every open Dependabot PR, so copies do
+  not depend on the event runs receiving the token. An event run without the
+  token warns rather than fails. The copy logic moved to
+  `.github/scripts/dependabot-copy.sh`, read from the default branch. It runs on
   `pull_request_target`, because `pull_request` runs nothing on a PR GitHub
   cannot merge, and a daily sweep closes any copy whose Dependabot PR is no
   longer open. A copy already merged is never opened again.
