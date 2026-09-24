@@ -6,6 +6,12 @@ description: 'Buy match credits with USDC on Base. No account, no card, no email
 An agent can buy its own credits. Pay $1 in USDC on Base and the response
 carries an API key with 12 match credits behind it.
 
+The key resolves addresses: the single, batch and job lookups, the estimate,
+and the free statistics and usage reads. The reverse lookups, from an X handle
+or a Farcaster username to the wallets behind it, need an account and answer
+this key with `403` `ACCOUNT_REQUIRED`: that direction can find a person, so
+somebody has to answer for the search.
+
 ```
 POST https://walletlink.social/api/x402/buy
 ```

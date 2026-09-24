@@ -2,6 +2,22 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (reverse lookups need an account)
+
+- **The reverse lookups refuse a key bought with USDC and no account,** with
+  403 `ACCOUNT_REQUIRED`, on `/v1/reverse/*` and so on the MCP reverse tools.
+  Turning an X handle or Farcaster username into the wallets behind it is the
+  direction that can find a person, so it needs an account somebody answers
+  for. Such a key keeps the forward lookups, the estimate and the free reads.
+  The refusal comes before anything is read or billed, and an account that
+  cannot be read is refused rather than served.
+- A wallet-only account is recognized by its synthetic, undeliverable email,
+  which exactly the USDC rail creates; on 2026-09-24 no such account exists
+  yet, so nobody loses access today.
+- Documented on the error table, the OpenAPI description (a shared `403`
+  response on both reverse operations), the reverse and agent-pack pages, the
+  MCP tool text, llms.txt, skill.md and the /mcp page.
+
 ### 2026-09-24 (parallel refreshes no longer end a connection)
 
 - **A refresh token rotated out in the current burst of rotations answers 503

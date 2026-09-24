@@ -4,6 +4,10 @@ import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
 import { everySourceAttested } from '@/lib/social-graph';
 import {
+  isWalletOnlyAccount,
+  ACCOUNT_REQUIRED_MESSAGE,
+} from '@/lib/x402-account';
+import {
   authenticateApiRequest,
   apiSuccess,
   apiError,
@@ -56,6 +60,16 @@ export async function GET(
   }
 
   const { context } = authResult;
+
+  // A handle-to-wallets search needs a person who answers for it (Linear
+  // STA-41): a key bought with USDC and no account keeps the forward lookups.
+  // Refused before anything is read or billed.
+  if (await isWalletOnlyAccount(context.key.userId)) {
+    return apiError(ACCOUNT_REQUIRED_MESSAGE, 'ACCOUNT_REQUIRED', 403, {
+      ...context.rateLimitHeaders,
+      ...corsHeaders,
+    });
+  }
 
   // Validate Farcaster username
   if (!isValidFarcasterUsername(username)) {

@@ -481,7 +481,11 @@ exposes both as `walletlink_submit_job` and `walletlink_job_status`.
 ### Onchain rail (x402)
 
 `app/api/x402/buy/route.ts` sells the $1 Agent pack for USDC on Base with no
-account: pay, and the response carries a fresh API key. Off unless `X402_PAY_TO`
+account: pay, and the response carries a fresh API key. That key resolves
+addresses; the two `/v1/reverse/*` lookups refuse it with 403
+`ACCOUNT_REQUIRED` (`isWalletOnlyAccount` in `lib/x402-account.ts`, keyed on
+the synthetic email), because a handle-to-wallets search needs somebody who
+answers for it. Off unless `X402_PAY_TO`
 is set. `lib/x402.ts` holds the protocol layer (`@x402/core` plus `@x402/evm`,
 no Next peer requirement so no framework upgrade), `lib/x402-account.ts` mints
 the wallet-keyed account, and `grantPackBySettlement` in `lib/credits.ts` is

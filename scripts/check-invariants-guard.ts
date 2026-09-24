@@ -1557,6 +1557,30 @@ const MUTATIONS: Mutation[] = [
     to: '      revokedAt: oauthGrants.lastUsedAt,\n      rotatedJustNow',
   },
   {
+    name: '/v1 X reverse serves a key bought with USDC and no account',
+    file: 'app/api/v1/reverse/twitter/[handle]/route.ts',
+    from: '  if (await isWalletOnlyAccount(context.key.userId)) {',
+    to: '  if (false) {',
+  },
+  {
+    name: '/v1 Farcaster reverse serves a key bought with USDC and no account',
+    file: 'app/api/v1/reverse/farcaster/[username]/route.ts',
+    from: '  if (await isWalletOnlyAccount(context.key.userId)) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'an unreadable account passes as a real one, so the refusal fails open',
+    file: 'lib/x402-account.ts',
+    from: '  return !row || isWalletOnlyEmail(row.email);',
+    to: '  return !!row && isWalletOnlyEmail(row.email);',
+  },
+  {
+    name: 'the wallet-only test misses an upper-case synthetic email',
+    file: 'lib/x402-account.ts',
+    from: '    email.toLowerCase().endsWith(`@${SYNTHETIC_EMAIL_DOMAIN}`)',
+    to: '    email.endsWith(`@${SYNTHETIC_EMAIL_DOMAIN}`)',
+  },
+  {
     name: 'loadCode judges expiry again, so two clocks decide (Bugbot, 2026-08-25)',
     file: 'lib/oauth/requests.ts',
     from: '  return row ? { ok: true, row } : { ok: false };',

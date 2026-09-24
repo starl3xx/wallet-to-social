@@ -159,7 +159,9 @@ one of:
   start a sign-in, not a sign-in that failed. Ask the user for a key instead
   of retrying the connection.
 - **x402**: an autonomous agent can buy access with USDC on Base, no account
-  needed. See https://docs.walletlink.social/agent-pack.
+  needed. That key resolves addresses; the two reverse lookups need an account
+  and answer it with 403 ACCOUNT_REQUIRED. See
+  https://docs.walletlink.social/agent-pack.
 
 ## The tools
 
