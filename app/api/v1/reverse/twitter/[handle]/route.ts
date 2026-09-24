@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { and, asc, eq, inArray, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
+import { everySourceAttested } from '@/lib/social-graph';
 import {
   authenticateApiRequest,
   apiSuccess,
@@ -163,13 +164,16 @@ export async function GET(
    * route used before.
    */
   const secondary = await walletsBySecondaryHandle(normalizedHandle);
+  // Primary matches only where every source on the row is attested; a second
+  // account is filtered by its own source inside `walletsBySecondaryHandle`.
+  const primary = and(
+    eq(socialGraph.twitterHandle, normalizedHandle),
+    everySourceAttested()
+  );
   const matchesHandle =
     secondary.length > 0
-      ? or(
-          eq(socialGraph.twitterHandle, normalizedHandle),
-          inArray(socialGraph.wallet, secondary)
-        )
-      : eq(socialGraph.twitterHandle, normalizedHandle);
+      ? or(primary, inArray(socialGraph.wallet, secondary))
+      : primary;
 
   // Get total count first (for truncation detection)
   const [countResult] = await db

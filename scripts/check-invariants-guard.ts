@@ -1395,6 +1395,48 @@ const MUTATIONS: Mutation[] = [
     to: '',
   },
   {
+    name: '/v1 X reverse returns rows known only through correlated sources again',
+    file: 'app/api/v1/reverse/twitter/[handle]/route.ts',
+    from: '    eq(socialGraph.twitterHandle, normalizedHandle),\n    everySourceAttested()\n',
+    to: '    eq(socialGraph.twitterHandle, normalizedHandle)\n',
+  },
+  {
+    name: '/v1 Farcaster reverse returns correlated rows again',
+    file: 'app/api/v1/reverse/farcaster/[username]/route.ts',
+    from: '    eq(socialGraph.farcaster, normalizedUsername),\n    everySourceAttested()\n',
+    to: '    eq(socialGraph.farcaster, normalizedUsername)\n',
+  },
+  {
+    name: '/v1 Farcaster reverse counts every row but pages only attested ones',
+    file: 'app/api/v1/reverse/farcaster/[username]/route.ts',
+    from: '    .where(matchesName);',
+    to: '    .where(eq(socialGraph.farcaster, normalizedUsername));',
+  },
+  {
+    name: "the site's reverse search returns correlated rows again",
+    file: 'app/api/reverse/route.ts',
+    from: '  const primary = and(eq(primaryColumn, handle), everySourceAttested());',
+    to: '  const primary = and(eq(primaryColumn, handle));',
+  },
+  {
+    name: 'a row with no sources at all passes as attested',
+    file: 'lib/social-graph.ts',
+    from: 'sql`(cardinality(${socialGraph.sources}) > 0 AND ${socialGraph.sources} <@',
+    to: 'sql`(${socialGraph.sources} <@',
+  },
+  {
+    name: 'a second account from a correlated source is matched again',
+    file: 'lib/handle-reachability.ts',
+    from: '      AND w.their_source = ANY(${sql.param(ATTESTED_SOURCE_ID_LIST)}::text[])\n',
+    to: '',
+  },
+  {
+    name: 'the attested filter moves before the winner pick, so a search can return a wallet showing another second handle',
+    file: 'lib/handle-reachability.ts',
+    from: '        AND c.their_source = ANY(${sql.param(MAPPED_SOURCE_IDS)}::text[])',
+    to: '        AND c.their_source = ANY(${sql.param(ATTESTED_SOURCE_ID_LIST)}::text[])',
+  },
+  {
     name: 'loadCode judges expiry again, so two clocks decide (Bugbot, 2026-08-25)',
     file: 'lib/oauth/requests.ts',
     from: '  return row ? { ok: true, row } : { ok: false };',

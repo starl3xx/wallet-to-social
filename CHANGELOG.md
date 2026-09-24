@@ -2,6 +2,23 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (reverse lookups return attested links only)
+
+- **The reverse lookups (an X handle or Farcaster username to wallets) now
+  return only wallets whose every source is attested,** on `/v1/reverse/*`,
+  the MCP reverse tools and the site's reverse search alike, count and pages
+  together. They promised wallets "attested to" the handle and also returned
+  rows known only through correlated sources. Sources are recorded per wallet,
+  not per handle, so a row mixing attested and correlated sources cannot say
+  which supplied the handle; a row whose sources are all attested can.
+- Measured on 2026-09-24: this leaves out 5,471 of 1,196,630 X rows (0.46%)
+  and 11,941 of 4,710,162 Farcaster rows (0.25%). Single-wallet lookups are
+  unchanged and keep their per-row labels.
+- A wallet matched by its second X account is returned only when that
+  account's own source is attested. The winner of a wallet's second-account
+  pick is chosen exactly as the row displays it, then filtered, so a search
+  never returns a wallet whose row shows a different second handle.
+
 ### 2026-09-24 (the MCP balance tool says when an account is unmetered)
 
 - **`walletlink_account_balance` now returns `unmetered`.** On an account that

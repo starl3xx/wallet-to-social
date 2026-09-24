@@ -74,7 +74,11 @@
  */
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
-import { publicSources, MAPPED_SOURCE_IDS } from '@/lib/api-sources';
+import {
+  publicSources,
+  MAPPED_SOURCE_IDS,
+  ATTESTED_SOURCE_ID_LIST,
+} from '@/lib/api-sources';
 import type { TwitterAlso } from '@/lib/types';
 
 /** What the public API and the UI speak. */
@@ -375,6 +379,12 @@ export async function reachabilityForWallets(
  *     rather than named. Filtering on `MAPPED_SOURCE_IDS` rather than on the
  *     rendered class keeps one allowlist.
  *
+ * One condition is reverse's own, and it narrows rather than widens: the
+ * winner is kept only when its source is attested (Linear STA-40), because
+ * reverse lookups promise attested links. It is applied AFTER the winner is
+ * picked, never inside the pick, or a wallet whose displayed second account is
+ * correlated could be matched by a lesser attested one it does not display.
+ *
  * ## And it picks the same winner, not merely a qualifying row
  *
  * `alsoOnXForWallets` keeps **one** conflict per wallet: `DISTINCT ON (wallet)`
@@ -393,7 +403,7 @@ function secondaryHandleFrom(normalized: string) {
   return sql`
     FROM (
       SELECT DISTINCT ON (c.wallet)
-             c.wallet, lower(c.theirs) AS theirs
+             c.wallet, lower(c.theirs) AS theirs, c.their_source
       FROM handle_conflicts c
       JOIN x_accounts o ON o.handle = lower(c.ours)
       JOIN x_accounts t ON t.handle = lower(c.theirs)
@@ -409,6 +419,7 @@ function secondaryHandleFrom(normalized: string) {
       ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC
     ) w
     WHERE w.theirs = ${normalized}
+      AND w.their_source = ANY(${sql.param(ATTESTED_SOURCE_ID_LIST)}::text[])
   `;
 }
 

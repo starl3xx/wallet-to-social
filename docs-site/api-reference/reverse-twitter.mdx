@@ -4,7 +4,9 @@ description: 'GET /v1/reverse/twitter/{handle}'
 api: 'GET https://walletlink.social/api/v1/reverse/twitter/{handle}'
 ---
 
-Finds every wallet linked to an X handle. Costs **1 match credit per wallet returned**, 100 per page. A handle with no wallets attached costs nothing. Separately, each request weighs 2 units against your rate limit.
+Finds every wallet attested to an X handle. Costs **1 match credit per wallet returned**, 100 per page. A handle with no wallets attached costs nothing. Separately, each request weighs 2 units against your rate limit.
+
+Only attested links are returned: a wallet comes back when every source recorded for it is attested evidence (an onchain record, a Farcaster verification, an owner-signed link). A wallet known to carry the handle only through a [correlated](/concepts/data-quality) source is left out, even though a single-wallet lookup still shows it with its label. The total and every page follow the same rule.
 
 This runs the graph backwards, and it answers a question most wallet tooling cannot: given a person, what do they hold?
 
@@ -101,7 +103,7 @@ Multiple results are normal, not a bug. People keep a hot wallet and a vault, an
 
 A wallet is returned when the handle is its primary X account **or** its second attested one. Some owners have attested two live X accounts from the same wallet through different evidence; a single lookup shows that as [`twitter.also`](/api-reference/wallet#a-second-x-account), and searching either handle finds the wallet.
 
-A wallet matched this way has a different handle in its own `twitter.handle` field, and names the handle you searched for under `twitter.also`. The same conditions apply as for `twitter.also` itself: both accounts must be live, and where the attestation carried an account id it must still match. Nothing is returned on the strength of a handle we cannot corroborate.
+A wallet matched this way has a different handle in its own `twitter.handle` field, and names the handle you searched for under `twitter.also`. The same conditions apply as for `twitter.also` itself: both accounts must be live, and where the attestation carried an account id it must still match. Nothing is returned on the strength of a handle we cannot corroborate, and a second account from a correlated source is not matched.
 
 These wallets bill exactly as any other: 1 match credit per wallet returned.
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
+import { everySourceAttested } from '@/lib/social-graph';
 import {
   authenticateApiRequest,
   apiSuccess,
@@ -137,13 +138,20 @@ export async function GET(
     );
   }
 
+  // One predicate for the count and every page: this username, on a row whose
+  // every source is attested, which is what "attested to" promises.
+  const matchesName = and(
+    eq(socialGraph.farcaster, normalizedUsername),
+    everySourceAttested()
+  );
+
   // Get total count first (for truncation detection)
   const [countResult] = await db
     .select({
       count: sql<number>`COUNT(*)::int`,
     })
     .from(socialGraph)
-    .where(eq(socialGraph.farcaster, normalizedUsername));
+    .where(matchesName);
 
   const totalCount = countResult?.count ?? 0;
 
@@ -201,9 +209,7 @@ export async function GET(
     })
     .from(socialGraph)
     .where(
-      afterCursor === undefined
-        ? eq(socialGraph.farcaster, normalizedUsername)
-        : and(eq(socialGraph.farcaster, normalizedUsername), afterCursor)
+      afterCursor === undefined ? matchesName : and(matchesName, afterCursor)
     )
     .orderBy(
       sql`${socialGraph.fcFollowers} DESC NULLS LAST`,

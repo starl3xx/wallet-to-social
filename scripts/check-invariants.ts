@@ -5819,6 +5819,93 @@ async function main() {
     );
 
     /**
+     * Reverse lookups return attested links only (Linear STA-40).
+     *
+     * They promise wallets "attested to" a handle, and sources are recorded
+     * per wallet, not per handle, so only a row whose every source is attested
+     * can keep that promise. One predicate, used by the count and by every
+     * page on all three doors, because a total that disagrees with its pages
+     * is how a paginated endpoint reports wallets it will not hand out.
+     */
+    {
+      const { ATTESTED_SOURCE_ID_LIST, ATTESTED_SOURCE_IDS } =
+        await import('@/lib/api-sources');
+      ok(
+        'the attested list is the attested set, and names no correlated source',
+        ATTESTED_SOURCE_ID_LIST.length === ATTESTED_SOURCE_IDS.size &&
+          ATTESTED_SOURCE_ID_LIST.every((id) => ATTESTED_SOURCE_IDS.has(id)) &&
+          !ATTESTED_SOURCE_ID_LIST.includes('web3bio') &&
+          !ATTESTED_SOURCE_ID_LIST.includes('zora_profile') &&
+          !ATTESTED_SOURCE_ID_LIST.includes('none')
+      );
+      const sg = withoutComments(readFileSync('lib/social-graph.ts', 'utf8'));
+      ok(
+        'a row qualifies only when it has sources and every one is attested',
+        sg.includes(
+          'sql`(cardinality(${socialGraph.sources}) > 0 AND ${socialGraph.sources} <@ ${sql.param(ATTESTED_SOURCE_ID_LIST)}::text[])`'
+        )
+      );
+      const v1x = withoutComments(
+        readFileSync('app/api/v1/reverse/twitter/[handle]/route.ts', 'utf8')
+      );
+      ok(
+        '/v1 X reverse: the primary match requires an attested row, and the count and the pages share it',
+        /const primary = and\(\s*eq\(socialGraph\.twitterHandle, normalizedHandle\),\s*everySourceAttested\(\)\s*\);/.test(
+          v1x
+        ) &&
+          /\? or\(primary, inArray\(socialGraph\.wallet, secondary\)\)\s*: primary;/.test(
+            v1x
+          ) &&
+          /\.from\(socialGraph\)\s*\.where\(matchesHandle\);/.test(v1x) &&
+          (
+            v1x.match(/eq\(socialGraph\.twitterHandle, normalizedHandle\)/g) ??
+            []
+          ).length === 1
+      );
+      const v1f = withoutComments(
+        readFileSync('app/api/v1/reverse/farcaster/[username]/route.ts', 'utf8')
+      );
+      ok(
+        '/v1 Farcaster reverse: one attested predicate for the count and every page',
+        /const matchesName = and\(\s*eq\(socialGraph\.farcaster, normalizedUsername\),\s*everySourceAttested\(\)\s*\);/.test(
+          v1f
+        ) &&
+          /\.where\(matchesName\);/.test(v1f) &&
+          v1f.includes(
+            'afterCursor === undefined ? matchesName : and(matchesName, afterCursor)'
+          ) &&
+          (v1f.match(/eq\(socialGraph\.farcaster, normalizedUsername\)/g) ?? [])
+            .length === 1
+      );
+      const app = withoutComments(
+        readFileSync('app/api/reverse/route.ts', 'utf8')
+      );
+      ok(
+        "the site's reverse search applies the same predicate to its count and its rows",
+        app.includes(
+          'const primary = and(eq(primaryColumn, handle), everySourceAttested());'
+        ) &&
+          /\.from\(socialGraph\)\s*\.where\(primary\);/.test(app) &&
+          /\? or\(primary, inArray\(socialGraph\.wallet, secondary\)\)\s*: primary;/.test(
+            app
+          ) &&
+          (app.match(/eq\(primaryColumn, handle\)/g) ?? []).length === 1
+      );
+      ok(
+        'a second account is matched only when its own source is attested, filtered after the display winner is picked',
+        /c\.wallet, lower\(c\.theirs\) AS theirs, c\.their_source/.test(
+          reachCode
+        ) &&
+          /WHERE w\.theirs = \$\{normalized\}\s*AND w\.their_source = ANY\(\$\{sql\.param\(ATTESTED_SOURCE_ID_LIST\)\}::text\[\]\)/.test(
+            reachCode
+          ) &&
+          !/c\.their_source = ANY\(\$\{sql\.param\(ATTESTED_SOURCE_ID_LIST\)\}/.test(
+            reachCode
+          )
+      );
+    }
+
+    /**
      * A reassigned handle never carries a follower count.
      *
      * The other three unreachable states are safe by accident: `x_accounts`
