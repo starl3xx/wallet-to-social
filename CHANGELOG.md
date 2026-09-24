@@ -2,6 +2,38 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (every lookup job runs through one pipeline)
+
+- **Lists over ten addresses now run only in the worker pipeline,** the one
+  every smaller list already used. They were also sent to a second pipeline
+  (Inngest), which the worker raced on the same job. Over the 30 days to
+  2026-09-24 the worker finished almost all of them anyway: of 99 such lookups
+  from the app and the API, 91 carry the completion record only the worker
+  writes. For most lists, results do not change.
+- **A list the second pipeline finished could come back different from a
+  rerun, and no longer can.** That pipeline ran live sources on a fast scan,
+  did not run agent detection, and never added the second X account or the
+  Farcaster account id. Every list now gets what the worker gives: a fast
+  scan answers from the index and the cache alone, agents are detected, and
+  those fields appear wherever the worker finds them.
+- **A large list starts at once.** Its first slice now runs straight after
+  submission instead of waiting up to a minute for the worker's next round.
+  Each later slice of 3,000 addresses still waits for the next round, as it
+  always did.
+- **No lookup is worked twice at the same time.** A job is claimed by one
+  worker at a time and handed back after each slice. Before, a slow slice
+  could be picked up again by the next minute's round, or by the other
+  pipeline, which called the providers twice for the same addresses and could
+  save a lookup to history twice. Billing was never doubled: the charge is
+  keyed on the job.
+- Operator: `scripts/migrate-job-lease.ts` adds `lookup_jobs.leased_until` and
+  must run before this deploys. The Inngest route stays, registering nothing,
+  so runs started before the deploy end cleanly; the route, the client, the
+  package and the `INNGEST_*` variables go in a follow-up. Linear STA-44. The
+  twelve invariants that held the two pipelines in step are replaced by
+  eighteen that assert one pipeline and the claim, and the nine guard
+  mutations against the Inngest copy by twenty-one.
+
 ### 2026-09-24 (Dependabot PRs are copied so Bugbot reviews them)
 
 - **A new workflow, `dependabot-copy`, opens each Dependabot PR again as

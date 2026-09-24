@@ -143,7 +143,7 @@ Negatives are persisted deliberately. “Checked, nothing there” is an answer 
 | Database        | Neon PostgreSQL, Drizzle ORM                                         |
 | Styling         | Tailwind CSS v4                                                      |
 | UI              | Radix primitives                                                     |
-| Background jobs | Inngest                                                              |
+| Background jobs | Vercel Cron (`/api/jobs/worker`)                                     |
 | Payments        | Stripe                                                               |
 | Docs            | Mintlify at [docs.walletlink.social](https://docs.walletlink.social) |
 | Hosting         | Vercel                                                               |
