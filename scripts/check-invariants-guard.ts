@@ -1043,8 +1043,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the refresh drops the client_id it was sent',
     file: 'app/api/oauth/token/route.ts',
-    from: "      clientId: form.get('client_id') || null,",
-    to: '      clientId: null,',
+    from: "    clientId: form.get('client_id') || null,",
+    to: '    clientId: null,',
   },
   {
     name: 'a wrong requested resource answers invalid_grant, not invalid_target',
@@ -1061,8 +1061,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'a refresh checks only the first resource value, so ours plus another server gets tokens',
     file: 'app/api/oauth/token/route.ts',
-    from: "      resources: form.getAll('resource'),",
-    to: "      resources: form.getAll('resource').slice(0, 1),",
+    from: "    resources: form.getAll('resource'),",
+    to: "    resources: form.getAll('resource').slice(0, 1),",
   },
   {
     name: 'a bare trailing # passes the fragment rule again',
@@ -1073,8 +1073,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'an empty client_id on a refresh counts as a client named nothing',
     file: 'app/api/oauth/token/route.ts',
-    from: "      clientId: form.get('client_id') || null,",
-    to: "      clientId: form.get('client_id'),",
+    from: "    clientId: form.get('client_id') || null,",
+    to: "    clientId: form.get('client_id'),",
   },
   {
     name: 'a refresh without client_id is refused, so hosted Claude re-consents every hour',
@@ -1111,12 +1111,6 @@ const MUTATIONS: Mutation[] = [
     file: 'app/api/oauth/token/route.ts',
     from: '  if (repeated) {\n    return oauthError(',
     to: '  if (false) {\n    return oauthError(',
-  },
-  {
-    name: 'a failed refresh answers 503 without a log line, so a persistent failure is invisible',
-    file: 'app/api/oauth/token/route.ts',
-    from: "    console.error('Refresh failed on /api/oauth/token:', error);\n",
-    to: '',
   },
   {
     name: 'the 503 drops Retry-After',
@@ -1299,16 +1293,100 @@ const MUTATIONS: Mutation[] = [
     to: '${CREDIT_API_PLAN}, now() + make_interval(secs => ${refreshTtlS}), id\n      FROM granted',
   },
   {
-    name: 'a failed code exchange answers a bare 500 again',
-    file: 'app/api/oauth/token/route.ts',
-    from: "    console.error('Code exchange failed on /api/oauth/token:', error);\n    return tokenServiceUnavailable();",
-    to: '    throw error;',
-  },
-  {
     name: 'a code spent on a revoked grant revokes it as if it were a replay',
     file: 'app/api/oauth/token/route.ts',
     from: "  if (spent.outcome === 'replayed') {",
     to: "  if (spent.outcome === 'replayed' || spent.outcome === 'inactive') {",
+  },
+  {
+    name: 'the code exchange is returned unawaited, so its failure escapes the catch as a bare 500',
+    file: 'app/api/oauth/token/route.ts',
+    from: "    if (grantType === 'authorization_code') return await exchangeCode(form);",
+    to: "    if (grantType === 'authorization_code') return exchangeCode(form);",
+  },
+  {
+    name: 'the refresh is returned unawaited, so its failure escapes the catch as a bare 500',
+    file: 'app/api/oauth/token/route.ts',
+    from: "    if (grantType === 'refresh_token') return await exchangeRefresh(form);",
+    to: "    if (grantType === 'refresh_token') return exchangeRefresh(form);",
+  },
+  {
+    name: 'the code exchange runs outside the catch',
+    file: 'app/api/oauth/token/route.ts',
+    from: "  try {\n    if (grantType === 'authorization_code') return await exchangeCode(form);",
+    to: "  if (grantType === 'authorization_code') return await exchangeCode(form);\n  try {",
+  },
+  {
+    name: 'a token-endpoint failure answers 503 without a log line, so a persistent one is invisible',
+    file: 'app/api/oauth/token/route.ts',
+    from: '    console.error(\n      `Token request (${grantType}) failed on /api/oauth/token:`,\n      error\n    );\n',
+    to: '',
+  },
+  {
+    name: 'a token-endpoint failure answers a bare 500 again',
+    file: 'app/api/oauth/token/route.ts',
+    from: '    return tokenServiceUnavailable();\n  }\n  return oauthError(',
+    to: '    throw error;\n  }\n  return oauthError(',
+  },
+  {
+    name: 'the exchange writes the hash of the access token as the refresh hash, so the first refresh fails',
+    file: 'lib/oauth/grants.ts',
+    from: '    refreshHash: sha256(refreshToken),',
+    to: '    refreshHash: sha256(access),',
+  },
+  {
+    name: 'the refresh-hash CASE is inverted, so an offline grant keeps no refresh hash',
+    file: 'lib/oauth/grants.ts',
+    from: '            THEN ${input.refreshHash} ELSE refresh_token_hash END,',
+    to: '            THEN refresh_token_hash ELSE ${input.refreshHash} END,',
+  },
+  {
+    name: 'a refresh writes the hash of the access token as the next refresh hash',
+    file: 'lib/oauth/grants.ts',
+    from: '    nextHash: sha256(next),',
+    to: '    nextHash: sha256(access),',
+  },
+  {
+    name: 'the exchange result alias folds to lower case, so a committed exchange reads as failed',
+    file: 'lib/oauth/grants.ts',
+    from: 'g.refreshed,\n           (SELECT id FROM minted) AS minted_id',
+    to: 'g.refreshed,\n           (SELECT id FROM minted) AS mintedId',
+  },
+  {
+    name: 'the code is spent before the resource binding is checked',
+    file: 'app/api/oauth/token/route.ts',
+    from: "  if (\n    row.resource !== null &&\n    !resourcesAreOurs(form.getAll('resource'), row.resource)\n  ) {",
+    to: "  await redeemCode(code);\n  if (\n    row.resource !== null &&\n    !resourcesAreOurs(form.getAll('resource'), row.resource)\n  ) {",
+  },
+  {
+    name: 'a replayed code past its window reads as expired, and the Node clock decides',
+    file: 'lib/oauth/requests.ts',
+    from: "  if (existing.consumedAt) return 'replayed';",
+    to: "  if (existing.consumedAt && existing.codeExpiresAt! > new Date()) return 'replayed';",
+  },
+  {
+    name: 'a code that vanished reads as a replay and revokes',
+    file: 'lib/oauth/requests.ts',
+    from: "  if (!existing) return 'unknown';",
+    to: "  if (!existing) return 'replayed';",
+  },
+  {
+    name: 'a grace interval lets an expired code be spent',
+    file: 'lib/oauth/grants.ts',
+    from: '        AND code_expires_at > now()\n',
+    to: "        AND code_expires_at > now() - interval '5 minutes'\n",
+  },
+  {
+    name: 'the first access token is not linked to its grant, so a disconnect leaves it working on /v1',
+    file: 'lib/oauth/grants.ts',
+    from: '${accessTtlS}), id\n      FROM granted',
+    to: '${accessTtlS}), NULL\n      FROM granted',
+  },
+  {
+    name: 'a refreshed access token is not linked to its grant',
+    file: 'lib/oauth/grants.ts',
+    from: '${accessTtlS}), id\n      FROM rotated',
+    to: '${accessTtlS}), NULL\n      FROM rotated',
   },
   {
     name: 'loadCode judges expiry again, so two clocks decide (Bugbot, 2026-08-25)',

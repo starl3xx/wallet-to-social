@@ -11,13 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
 import { loadCode, pkceMatches } from '@/lib/oauth/requests';
-import {
-  redeemCode,
-  refreshGrant,
-  revokeGrant,
-  type RedeemResult,
-  type RefreshResult,
-} from '@/lib/oauth/grants';
+import { redeemCode, refreshGrant, revokeGrant } from '@/lib/oauth/grants';
 import { mcpResource } from '@/lib/oauth/metadata';
 import { repeatedFormParam, resourcesAreOurs } from '@/lib/oauth/params';
 
@@ -82,12 +76,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return oauthError('invalid_request', `${repeated} may appear only once.`);
   }
 
+  // One catch for every database call either grant type makes, so a failure
+  // anywhere answers the same 503. `return await`, not `return`: a promise
+  // returned unawaited rejects after the try has already been left.
   const grantType = form.get('grant_type');
-  if (grantType === 'authorization_code') {
-    return exchangeCode(form);
-  }
-  if (grantType === 'refresh_token') {
-    return exchangeRefresh(form);
+  try {
+    if (grantType === 'authorization_code') return await exchangeCode(form);
+    if (grantType === 'refresh_token') return await exchangeRefresh(form);
+  } catch (error) {
+    console.error(
+      `Token request (${grantType}) failed on /api/oauth/token:`,
+      error
+    );
+    return tokenServiceUnavailable();
   }
   return oauthError(
     'unsupported_grant_type',
@@ -96,18 +97,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 /**
- * A database failure inside an exchange or a refresh.
+ * A database failure inside a code exchange or a refresh.
  *
- * Not the client's fault, and after the atomic statements a retry with the
- * same code or refresh token is safe unless the commit itself was lost.
- * `temporarily_unavailable` is defined for the authorization endpoint, not
- * this one (OAuth 2.1 section 3.2.4); it is used deliberately, as the 429
- * above already does, because the MCP SDK reads it as an error to retry
- * rather than a reason to start consent over, which a bare 500 becomes.
+ * Not the client's fault. The code and the refresh token are each spent in one
+ * statement with what they buy, so a failure leaves them unspent and a retry
+ * with the same one works, unless the statement committed and only the reply
+ * was lost. `temporarily_unavailable` is defined for the authorization
+ * endpoint, not this one (OAuth 2.1 section 3.2.4); it is used deliberately,
+ * as the 429 above already does.
+ *
+ * On a refresh it matters to the MCP SDK, which reads it as an error to retry
+ * with the tokens it holds; a bare 500 makes it start consent over. On a code
+ * exchange the SDK surfaces either one as an error and retries nothing, so
+ * there the 503 only tells a client that does retry that the code is still
+ * good.
  *
  * A failure that repeats keeps answering 503. Consent would not mend a token
- * service that cannot write, so the caller's log line is where a persistent
- * one is noticed, not the person's browser.
+ * service that cannot write, so the log line is where a persistent one is
+ * noticed, not the person's browser.
  */
 function tokenServiceUnavailable(): NextResponse {
   return NextResponse.json(
@@ -229,13 +236,7 @@ async function exchangeCode(form: URLSearchParams): Promise<NextResponse> {
    * The spend and the credentials are one statement, so a failure here leaves
    * the code unspent and the client's retry works; see `tokenServiceUnavailable`.
    */
-  let spent: RedeemResult;
-  try {
-    spent = await redeemCode(code);
-  } catch (error) {
-    console.error('Code exchange failed on /api/oauth/token:', error);
-    return tokenServiceUnavailable();
-  }
+  const spent = await redeemCode(code);
 
   if (spent.outcome === 'replayed') {
     /**
@@ -300,19 +301,13 @@ async function exchangeRefresh(form: URLSearchParams): Promise<NextResponse> {
     return oauthError('invalid_request', 'refresh_token is required.');
   }
 
-  let result: RefreshResult;
-  try {
-    result = await refreshGrant({
-      refreshToken: token,
-      // Sent without a value is omitted (OAuth 2.1 section 3.2): `client_id=`
-      // is a refresh with no client_id, not one from a client named ''.
-      clientId: form.get('client_id') || null,
-      resources: form.getAll('resource'),
-    });
-  } catch (error) {
-    console.error('Refresh failed on /api/oauth/token:', error);
-    return tokenServiceUnavailable();
-  }
+  const result = await refreshGrant({
+    refreshToken: token,
+    // Sent without a value is omitted (OAuth 2.1 section 3.2): `client_id=`
+    // is a refresh with no client_id, not one from a client named ''.
+    clientId: form.get('client_id') || null,
+    resources: form.getAll('resource'),
+  });
 
   if (!result.ok) {
     if (result.reason === 'wrong_resource') {

@@ -4515,10 +4515,25 @@ async function main() {
       'the rotation aliases need no quoting (a folded camelCase alias reads undefined)',
       !/\bAS\s+[a-z]+[A-Z]\w*/.test(rotateSql)
     );
+    ok(
+      'the refreshed access token is linked to its grant, so revoking the grant ends it on /v1 too',
+      /INSERT INTO api_keys \(key, key_prefix, name, user_id, plan, expires_at, oauth_grant_id\)\s*SELECT [\s\S]*?, id\s*FROM rotated/.test(
+        mintedCte
+      )
+    );
 
     const refresh = grants.slice(
       grants.indexOf('export async function refreshGrant'),
       grants.indexOf('export async function revokeGrant')
+    );
+    ok(
+      'the hashes a refresh writes are the hashes of the tokens it returns',
+      rotatedCte.includes('SET refresh_token_hash = ${input.nextHash},') &&
+        rotatedCte.includes('previous_refresh_token_hash = ${input.hash},') &&
+        refresh.includes('nextHash: sha256(next),') &&
+        refresh.includes('accessHash: hashApiKey(access),') &&
+        refresh.includes('accessToken: access,') &&
+        refresh.includes('refreshToken: next,')
     );
     ok(
       'no JS Date crosses into the rotation, from inside it or from its caller',
@@ -4614,12 +4629,6 @@ async function main() {
       'the refresh passes client_id with an empty value as absent, and every resource value',
       exchange.includes("clientId: form.get('client_id') || null,\n") &&
         exchange.includes("resources: form.getAll('resource'),\n")
-    );
-    ok(
-      'a failure inside a refresh is logged and answers the shared 503',
-      /\} catch \(error\) \{\s*console\.error\('[^']+', error\);\s*return tokenServiceUnavailable\(\);/.test(
-        exchange
-      )
     );
     ok(
       'the shared answer is 503 temporarily_unavailable with Retry-After, not a bare 500',
@@ -4807,6 +4816,12 @@ async function main() {
       at('pkceMatches(') !== -1 && at('pkceMatches(') < at('await redeemCode(')
     );
     ok(
+      'the resource binding is checked before the code is spent',
+      at("resourcesAreOurs(form.getAll('resource'), row.resource)") !== -1 &&
+        at("resourcesAreOurs(form.getAll('resource'), row.resource)") <
+          at('await redeemCode(')
+    );
+    ok(
       'nothing is revoked before the caller has proved it is the right client',
       at('revokeGrant(') !== -1 &&
         at('await redeemCode(') !== -1 &&
@@ -4847,13 +4862,21 @@ async function main() {
     // And the replay branch has to be read before the expiry branch, or a code
     // that was spent and has since aged out reports as merely expired.
     const consumeBody = requests.slice(
-      requests.indexOf('export async function unspentCodeReason')
+      requests.indexOf('export async function unspentCodeReason'),
+      requests.indexOf('export async function cleanupAuthorizationRequests')
     );
     ok(
       'a spent code reports as replayed even once it has aged out',
       consumeBody.indexOf("return 'replayed'") !== -1 &&
         consumeBody.indexOf("return 'replayed'") <
           consumeBody.indexOf("return 'expired'")
+    );
+    ok(
+      'an unknown code is unknown, a spent code is a replay at any age, and no clock is read',
+      consumeBody.includes("if (!existing) return 'unknown';") &&
+        consumeBody.includes("if (existing.consumedAt) return 'replayed';") &&
+        (consumeBody.match(/return 'replayed'/g) ?? []).length === 1 &&
+        !/Date|codeExpiresAt/.test(withoutComments(consumeBody))
     );
 
     // RFC 6749 section 4.1.3 requires `redirect_uri` on the exchange whenever
@@ -4899,9 +4922,9 @@ async function main() {
     );
     ok(
       'the spend is conditional: this code, not yet spent, not expired, judged by Postgres',
-      consumedCte.includes('WHERE code_hash = ${input.codeHash}') &&
-        consumedCte.includes('AND consumed_at IS NULL') &&
-        consumedCte.includes('AND code_expires_at > now()')
+      /WHERE code_hash = \$\{input\.codeHash\}\n\s*AND consumed_at IS NULL\n\s*AND code_expires_at > now\(\)\n\s*RETURNING grant_id/.test(
+        consumedCte
+      )
     );
     ok(
       "credentials go only to the spent code's grant, and never to a revoked one",
@@ -4921,6 +4944,32 @@ async function main() {
         ) &&
         redeemFn.includes(
           'refreshToken: spent.refreshed ? refreshToken : null,'
+        )
+    );
+    ok(
+      'the refresh hash written is the hash of the refresh token returned, and the key is the access token returned',
+      grantedCte.includes(
+        'THEN ${input.refreshHash} ELSE refresh_token_hash END'
+      ) &&
+        /THEN now\(\) \+ make_interval\(secs => \$\{refreshTtlS\}\)\s*ELSE refresh_expires_at END/.test(
+          grantedCte
+        ) &&
+        redeemFn.includes('refreshHash: sha256(refreshToken),') &&
+        redeemFn.includes('accessHash: hashApiKey(access),') &&
+        redeemFn.includes('accessPrefix: access.slice(0, 12),') &&
+        redeemFn.includes('accessToken: access,')
+    );
+    ok(
+      'the first access token is linked to its grant, so revoking the grant ends it on /v1 too',
+      /INSERT INTO api_keys \(key, key_prefix, name, user_id, plan, expires_at, oauth_grant_id\)\s*SELECT [\s\S]*?, id\s*FROM granted/.test(
+        mintedCte
+      )
+    );
+    ok(
+      'the exchange aliases need no quoting, and the columns read are the columns returned',
+      !/\bAS\s+[a-z]+[A-Z]\w*/.test(spendSql) &&
+        /SELECT g\.id AS grant_id, g\.scope, g\.refreshed,\s*\(SELECT id FROM minted\) AS minted_id\s*FROM consumed c LEFT JOIN/.test(
+          spendSql
         )
     );
     ok(
@@ -4972,11 +5021,17 @@ async function main() {
       token.indexOf('async function exchangeCode'),
       token.indexOf('async function exchangeRefresh')
     );
+    const post = token.slice(
+      token.indexOf('export async function POST'),
+      token.indexOf('function tokenServiceUnavailable')
+    );
     ok(
-      'a failure inside the code exchange is logged and answers the shared 503, leaving the code for a retry',
-      /try \{\s*spent = await redeemCode\(code\);\s*\} catch \(error\) \{\s*console\.error\('[^']+', error\);\s*return tokenServiceUnavailable\(\);/.test(
-        exchange
-      )
+      'every database call of both grant types sits under one catch that logs and answers the shared 503',
+      /try \{\s*if \(grantType === 'authorization_code'\) return await exchangeCode\(form\);\s*if \(grantType === 'refresh_token'\) return await exchangeRefresh\(form\);\s*\} catch \(error\) \{\s*console\.error\([\s\S]{0,120}?error\s*\);\s*return tokenServiceUnavailable\(\);/.test(
+        post
+      ) &&
+        (token.match(/exchangeCode\(form\)|exchangeRefresh\(form\)/g) ?? [])
+          .length === 2
     );
     ok(
       'a code spent on a revoked grant answers invalid_grant and revokes nothing',

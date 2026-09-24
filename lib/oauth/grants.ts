@@ -3,8 +3,9 @@
  *
  * ## The access token is an API key
  *
- * Not "is like": is. Both statements that issue one, `redeemCode` at the code
- * exchange and `rotateAndMint` at a refresh, write an `api_keys` row whose
+ * Not "is like": is. Both statements that issue one, `spendAndMint` (called by
+ * `redeemCode`) at the code exchange and `rotateAndMint` at a refresh, write an
+ * `api_keys` row whose
  * `oauth_grant_id` points here, and the token returned is that row's key.
  * Everything downstream then works with no second implementation: the three
  * rate-limit windows in `lib/rate-limiter.ts`, the credit balance check in

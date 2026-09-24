@@ -55,8 +55,9 @@ A refresh must come from the client the connection was made with: send the same
 `client_id`, or none. Every `resource` on a refresh must name this server. If the
 token service is briefly unavailable it answers `503` with
 `temporarily_unavailable` and `Retry-After`, for a code exchange as for a
-refresh. Nothing was spent, so retry with the same code (it lasts a minute) or
-the same refresh token.
+refresh. Retry with the same code (it lasts a minute) or the same refresh token:
+a failure leaves both unspent. The one exception is a request that completed
+and lost only its reply; its retry is refused, and the client connects again.
 
 <Note>
   A connection can spend match credits, so it is worth knowing what it can

@@ -192,7 +192,8 @@ export type LoadedCode =
 /**
  * Read a code's row. It does not judge the row.
  *
- * Split from the consume below, and the split is the whole point. The first
+ * Split from the spend in `redeemCode` (lib/oauth/grants.ts), and the split is
+ * the whole point. The first
  * version consumed first and validated afterwards, which meant a single
  * exchange with a wrong `code_verifier` burned the code *and* made the real
  * client's retry look like a replay, which revoked the grant. Anybody who
@@ -201,7 +202,7 @@ export type LoadedCode =
  * right client ran after the damage.
  *
  * Deliberately no expiry check here, and that is the second thing this got
- * wrong. Checking it here read the Node clock while the consume below reads
+ * wrong. Checking it here read the Node clock while the spend reads
  * Postgres's, so a code near its boundary could pass one and fail the other,
  * and a failed consume was being read as a replay: an ordinary first exchange
  * arriving a moment late was answered by revoking the connection. It also hid

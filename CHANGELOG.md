@@ -15,7 +15,12 @@ All notable changes to walletlink.social. Newest first.
 - A replayed code still revokes its connection, an expired one still revokes
   nothing, and a code spent on a connection revoked since consent still
   answers `invalid_grant` without a replay.
-- Tests: 12 new invariants and 12 new guard mutations.
+- **Every database failure in the token endpoint answers the 503**, from one
+  catch around both grant types, where a failure outside the spend (reading
+  the code, revoking on a replay) answered a bare 500.
+- A connection without `offline_access` now records its exchange as its last
+  use. It showed "never used" before, which was untrue once it had connected.
+- Tests: invariants go from 1,309 to 1,327 and guard mutations from 299 to 324.
 
 ### 2026-09-23 (a refresh is one statement, and bound to its client)
 
