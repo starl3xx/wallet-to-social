@@ -256,11 +256,11 @@ Export to CSV or Twitter list
 Live credentials rather than records: read-only for CI, and deliberately absent
 from the nightly dump.
 
-| Table                          | Purpose                                                                                                       |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| `oauth_clients`                | Registered clients, and a fetch cache for client ID metadata documents (`is_cimd` tells them apart)           |
-| `oauth_authorization_requests` | One row per request, from arrival through consent to spent code. `consumed_at` is what makes a replay visible |
-| `oauth_grants`                 | One consent. Holds the rotating refresh token and the one it replaced, which is how a leak is recognized      |
+| Table                          | Purpose                                                                                                                                                                                                                          |
+| ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `oauth_clients`                | Registered clients, and a fetch cache for client ID metadata documents (`is_cimd` tells them apart)                                                                                                                              |
+| `oauth_authorization_requests` | One row per request, from arrival through consent to spent code. `consumed_at` is what makes a replay visible                                                                                                                    |
+| `oauth_grants`                 | One consent. Holds the rotating refresh token and the one it replaced, which is how a leak is recognized; `refresh_rotated_at` and `refresh_grace_hashes` hold off a replay from the same burst of rotations instead of revoking |
 
 ### Analytics Tables
 
@@ -708,7 +708,13 @@ the magic-link round trip has no attacker-controlled URL to carry.
 `isAllowedReturnPath` in `lib/auth.ts` accepts that one shape and no other.
 
 Three tables (`oauth_clients`, `oauth_grants`, `oauth_authorization_requests`)
-plus `api_keys.oauth_grant_id`, applied by `scripts/migrate-mcp-oauth.ts`. All
+plus `api_keys.oauth_grant_id`, applied by `scripts/migrate-mcp-oauth.ts`
+(`oauth_grants.refresh_rotated_at` and `refresh_grace_hashes` on an existing
+database by `scripts/migrate-oauth-refresh-grace.ts`). Presenting a refresh
+token a rotation replaced revokes the grant, except while rotations keep coming
+within 30 seconds of the last rotation: a token rotated out in that burst then
+answers 503 with `token_rotated` and no tokens, so parallel refreshes from one
+client do not end the connection. All
 three are in `READ_ONLY_TABLES` and deliberately not in `BACKUP_TABLES`: a grant
 is a live credential, and restoring one from last night would resurrect a
 connection somebody revoked this morning.

@@ -74,6 +74,8 @@ async function main() {
       refresh_token_hash text,
       previous_refresh_token_hash text,
       refresh_expires_at timestamp,
+      refresh_rotated_at timestamp,
+      refresh_grace_hashes text[],
       created_at timestamp NOT NULL DEFAULT now(),
       last_used_at timestamp,
       revoked_at timestamp,
@@ -144,7 +146,7 @@ async function main() {
 
   const expected: Record<string, number> = {
     oauth_clients: 11,
-    oauth_grants: 13,
+    oauth_grants: 15,
     oauth_authorization_requests: 14,
   };
 

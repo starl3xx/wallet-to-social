@@ -2,6 +2,38 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (parallel refreshes no longer end a connection)
+
+- **A refresh token rotated out in the current burst of rotations answers 503
+  `temporarily_unavailable` with `"token_rotated": true`, no tokens and no
+  revoke,** while rotations keep coming within 30 seconds of each other. An
+  MCP client sends one refresh per tool call that meets an expired token, and
+  the SDK refreshes on every 401 even after another call saved new tokens, so
+  one burst rotates the chain several times. Its slow members presented tokens
+  one or more steps old: the direct predecessor revoked the connection, and an
+  older one answered `invalid_grant`, which makes the SDK delete the live
+  tokens. Now the extra calls fail once and the connection carries on.
+- Not `invalid_grant`, for that reason. And no `Retry-After`, unlike the 503
+  for a service failure: this one must not be retried with the same refresh
+  token, which after the window revokes. `token_rotated` tells the two apart;
+  the docs say which to retry.
+- After the window, presenting the direct predecessor still revokes, as OAuth
+  2.1 and RFC 9700 describe (neither defines a grace, so this is a bounded,
+  deliberate deviation), and an older token is unknown, as before. A replay
+  inside the window is refused and not detected: a stolen token gains nothing
+  from it, and revocation needs a replay after the window while it is still
+  the direct predecessor. A held-off replay is logged with its grant id.
+- Known limit, unchanged: a retry after a lost reply still ends the connection.
+  A variant that handed the replay the same new refresh token was built and
+  reviewed, then set aside: a copy of stored tokens could replay on cue after
+  every rotation and never be caught.
+- Migration `scripts/migrate-oauth-refresh-grace.ts` adds two nullable columns,
+  `oauth_grants.refresh_rotated_at` and `refresh_grace_hashes` (the last ten
+  hashes of the burst, GIN-indexed), and runs before the deploy. Checked
+  against a real Postgres engine (PGlite): a three-step burst, the window's
+  edge, a new burst after a quiet spell, and the cap of ten.
+- Tests: invariants go from 1,335 to 1,344 and guard mutations from 337 to 352.
+
 ### 2026-09-24 (reverse lookups return attested links only)
 
 - **The reverse lookups (an X handle or Farcaster username to wallets) now

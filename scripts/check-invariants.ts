@@ -4590,7 +4590,7 @@ async function main() {
     ok(
       'the pre-read finds a grant by its current or its previous refresh token, so a reuse reaches the reuse branch',
       beforeRotation.includes(
-        'sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash}`'
+        'sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`'
       )
     );
     const afterRotation = refresh.slice(at('await rotateAndMint('));
@@ -4602,11 +4602,11 @@ async function main() {
       reusedAt > -1 &&
         reusedAt < revokeAt &&
         reuseLookup.includes(
-          'eq(oauthGrants.previousRefreshTokenHash, hash)'
+          'sql`${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`'
         ) &&
         !reuseLookup.includes('eq(oauthGrants.refreshTokenHash') &&
         refresh.split('revokeGrant(').length === 2 &&
-        /await revokeGrant\([^)]*\);\s*return \{ ok: false, reason: 'reused' \}/.test(
+        /if \(reused\.direct === true\) \{\s*await revokeGrant\(reused\.id, 'refresh token reused'\);\s*return \{ ok: false, reason: 'reused' \}/.test(
           afterRotation
         )
     );
@@ -5040,6 +5040,141 @@ async function main() {
       ) &&
         exchange.indexOf("spent.outcome === 'inactive'") >
           exchange.indexOf('revokeGrant(')
+    );
+  }
+
+  // ------------------------- OAuth: a refresh replayed moments after rotation
+  // An MCP client sends one refresh per tool call that meets an expired token,
+  // and the SDK refreshes on every 401 even after another call saved new
+  // tokens, so one burst rotates the chain several times. Its slow members
+  // presented tokens one or more steps old: the direct predecessor revoked the
+  // connection, an older one answered invalid_grant, which makes the SDK
+  // delete the live tokens. Now a token rotated out in the current burst is
+  // held off within REFRESH_REUSE_GRACE_MS: refused, no tokens, no revoke.
+  {
+    const { REFRESH_REUSE_GRACE_MS, REFRESH_GRACE_HASHES } =
+      await import('@/lib/oauth/grants');
+    const docs = readFileSync('docs-site/mcp-server.mdx', 'utf8');
+    const overview = readFileSync('PROJECT_OVERVIEW.md', 'utf8');
+    ok(
+      'the grace is 30 seconds over a burst of at most 10 hashes, and the docs state the same window and how to tell the hold-off apart',
+      REFRESH_REUSE_GRACE_MS === 30_000 &&
+        REFRESH_GRACE_HASHES === 10 &&
+        /within\s+30\s+seconds of each other/.test(docs) &&
+        /token_rotated/.test(docs) &&
+        /30 seconds of the last rotation/.test(overview)
+    );
+
+    const grants = withoutComments(readFileSync('lib/oauth/grants.ts', 'utf8'));
+    const rotateFn = grants.slice(
+      grants.indexOf('async function rotateAndMint'),
+      grants.indexOf('export async function refreshGrant')
+    );
+    // SQL line comments stripped: a stamp commented out is not a stamp.
+    const rotateSql = (
+      [...rotateFn.matchAll(/sql`([\s\S]*?)`/g)].map((m) => m[1])[0] ?? ''
+    ).replace(/--[^\n]*/g, '');
+    const setClause = rotateSql.slice(
+      0,
+      rotateSql.indexOf('WHERE refresh_token_hash')
+    );
+    ok(
+      'every rotation stamps refresh_rotated_at, which starts the window',
+      setClause.includes('refresh_rotated_at = now(),')
+    );
+    ok(
+      'a rotation within the window adds the rotated-out hash to the burst, keeping the last ten; after a quiet spell it starts a new one',
+      /refresh_grace_hashes = CASE\s*WHEN refresh_rotated_at > now\(\) - make_interval\(secs => \$\{graceS\}\)\s*THEN \(coalesce\(refresh_grace_hashes, ARRAY\[\]::text\[\]\)\)\[greatest\(cardinality\(refresh_grace_hashes\) - \$\{REFRESH_GRACE_HASHES - 2\}, 1\):\] \|\| \$\{input\.hash\}::text\s*ELSE ARRAY\[\$\{input\.hash\}::text\]\s*END,/.test(
+        setClause
+      ) &&
+        rotateFn.includes(
+          'const graceS = Math.floor(REFRESH_REUSE_GRACE_MS / 1000);'
+        )
+    );
+
+    const refresh = grants.slice(
+      grants.indexOf('export async function refreshGrant'),
+      grants.indexOf('export async function revokeGrant')
+    );
+    const reuse = refresh.slice(refresh.indexOf('const graceS'));
+    ok(
+      'the window is judged by Postgres, from the rotation stamp, over the grace constant',
+      reuse.startsWith(
+        'const graceS = Math.floor(REFRESH_REUSE_GRACE_MS / 1000);'
+      ) &&
+        reuse.includes(
+          'rotatedJustNow: sql<boolean>`${oauthGrants.refreshRotatedAt} > now() - make_interval(secs => ${graceS})`,'
+        ) &&
+        !/new Date\(|Date\.now\(\)/.test(refresh)
+    );
+    ok(
+      'the fresh read reports the grant revocation and whether the token is the direct predecessor, from the right columns',
+      reuse.includes('revokedAt: oauthGrants.revokedAt,') &&
+        reuse.includes(
+          'direct: sql<boolean>`${oauthGrants.previousRefreshTokenHash} = ${hash}`,'
+        )
+    );
+    const holdAt = reuse.indexOf(
+      'if (reused.rotatedJustNow === true && !reused.revokedAt) {'
+    );
+    const directAt = reuse.indexOf('if (reused.direct === true) {');
+    ok(
+      'a burst token on a live grant within the window is held off before anything revokes; a NULL stamp is never recent',
+      holdAt !== -1 &&
+        directAt !== -1 &&
+        holdAt < directAt &&
+        /if \(reused\.rotatedJustNow === true && !reused\.revokedAt\) \{\s*console\.log\([^;]*\);\s*return \{ ok: false, reason: 'just_rotated' \};\s*\}/.test(
+          reuse
+        )
+    );
+    ok(
+      'after the window only the direct predecessor revokes; an older burst token stays unknown, as before',
+      /if \(reused\.direct === true\) \{\s*await revokeGrant\(reused\.id, 'refresh token reused'\);/.test(
+        reuse
+      ) &&
+        (refresh.match(/ok: true/g) ?? []).length === 1 &&
+        refresh.split('revokeGrant(').length === 2
+    );
+
+    const token = withoutComments(
+      readFileSync('app/api/oauth/token/route.ts', 'utf8')
+    );
+    const exchange = token.slice(
+      token.indexOf('async function exchangeRefresh')
+    );
+    const held = exchange.slice(
+      exchange.indexOf("if (result.reason === 'just_rotated') {"),
+      exchange.indexOf("return oauthError('invalid_grant', description)")
+    );
+    ok(
+      'a held-off replay answers 503 temporarily_unavailable marked token_rotated and without Retry-After, never invalid_grant',
+      /return NextResponse\.json\(\s*\{\s*error: 'temporarily_unavailable',[\s\S]{0,400}?token_rotated: true,\s*\},\s*\{ status: 503, headers: NO_STORE \}\s*\);/.test(
+        held
+      ) &&
+        !held.includes('Retry-After') &&
+        !held.includes("oauthError('invalid_grant'")
+    );
+
+    const schema = readFileSync('db/schema.ts', 'utf8');
+    const migrate = readFileSync(
+      'scripts/migrate-oauth-refresh-grace.ts',
+      'utf8'
+    );
+    const base = readFileSync('scripts/migrate-mcp-oauth.ts', 'utf8');
+    ok(
+      'both columns exist in the schema, are added by their migration with the GIN index, and a fresh database gets them',
+      schema.includes("refreshRotatedAt: timestamp('refresh_rotated_at'),") &&
+        schema.includes(
+          "refreshGraceHashes: text('refresh_grace_hashes').array(),"
+        ) &&
+        /ADD COLUMN IF NOT EXISTS refresh_rotated_at timestamp/.test(migrate) &&
+        /ADD COLUMN IF NOT EXISTS refresh_grace_hashes text\[\]/.test(
+          migrate
+        ) &&
+        /USING gin \(refresh_grace_hashes\)/.test(migrate) &&
+        base.includes('      refresh_rotated_at timestamp,\n') &&
+        base.includes('      refresh_grace_hashes text[],\n') &&
+        base.includes('    oauth_grants: 15,')
     );
   }
 

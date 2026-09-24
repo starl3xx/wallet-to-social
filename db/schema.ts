@@ -1341,6 +1341,12 @@ export const oauthGrants = pgTable(
     refreshTokenHash: text('refresh_token_hash'),
     previousRefreshTokenHash: text('previous_refresh_token_hash'),
     refreshExpiresAt: timestamp('refresh_expires_at'),
+    // When the refresh token last rotated. Bounds the grace window in which
+    // the token it replaced is still forgiven (lib/oauth/grants.ts).
+    refreshRotatedAt: timestamp('refresh_rotated_at'),
+    // Every refresh hash rotated out in the current burst, the last ten. A
+    // replay of one within the grace window is held off (lib/oauth/grants.ts).
+    refreshGraceHashes: text('refresh_grace_hashes').array(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     lastUsedAt: timestamp('last_used_at'),
     revokedAt: timestamp('revoked_at'),
