@@ -1,0 +1,128 @@
+name: dependabot-copy
+
+# Copies each Dependabot PR into a PR opened by starl3xx, and keeps the copy in
+# step with Dependabot's pushes.
+#
+# Two things fail on a Dependabot PR and neither is about the code. Bugbot runs
+# on a personal Cursor plan that reviews only PRs whose author is the linked
+# GitHub account, and answers anything else with "GitHub account mismatch". And
+# a PR Dependabot opens gets no repository secrets, so `published-figures`
+# fails on it for no reason. A PR opened with starl3xx's token fixes both.
+#
+# The token is DEPENDABOT_COPY_TOKEN: a fine-grained token for starl3xx on this
+# repository only, with Contents, Pull requests and Workflows set to read and
+# write (the monthly github-actions updates change files under
+# .github/workflows, which no push may do without Workflows). It is stored in
+# BOTH secret stores: a run that Dependabot starts can read only Dependabot
+# secrets, and a run anyone else starts reads only Actions secrets. It expires
+# a year after 2026-09-24; Linear STA-42 is the reminder.
+#
+# The Dependabot PR is left open on purpose. Dependabot keeps rebasing an open
+# PR, each push reaches this workflow as `synchronize`, and the copy branch is
+# moved to the same commit, so the copy never needs a hand rebase. Merge the
+# copy; Dependabot then sees the update on main and closes its own PR.
+#
+# Nothing here checks out or runs the PR's code: every step is a GitHub API
+# call on refs and PRs, so a hostile dependency cannot reach the token.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Number of the Dependabot PR to copy
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-copy-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: false
+
+jobs:
+  copy:
+    # Only a PR Dependabot opened. The copy itself is opened by starl3xx, so
+    # its own events never re-enter here.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.DEPENDABOT_COPY_TOKEN }}
+      REPO: ${{ github.repository }}
+      NUMBER: ${{ github.event.pull_request.number || inputs.pr }}
+    steps:
+      - name: Copy or follow the Dependabot PR
+        run: |
+          set -euo pipefail
+
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::DEPENDABOT_COPY_TOKEN is missing from this run's secret store. It must be in both the Dependabot and the Actions stores (Linear STA-33)."
+            exit 1
+          fi
+
+          pr=$(gh api "repos/$REPO/pulls/$NUMBER")
+          author=$(jq -r '.user.login' <<<"$pr")
+          head=$(jq -r '.head.ref' <<<"$pr")
+          sha=$(jq -r '.head.sha' <<<"$pr")
+          state=$(jq -r '.state' <<<"$pr")
+          merged=$(jq -r '.merged' <<<"$pr")
+          same_repo=$(jq -r '.head.repo.full_name == .base.repo.full_name' <<<"$pr")
+
+          if [ "$author" != "dependabot[bot]" ] || [ "$same_repo" != "true" ]; then
+            echo "::error::#$NUMBER is not a Dependabot PR from this repository (author $author). Nothing copied."
+            exit 1
+          fi
+
+          copy="deps/copy/$head"
+          existing=$(gh pr list --repo "$REPO" --head "$copy" --state open \
+            --json number -q '.[0].number // empty')
+
+          if [ "$state" = "closed" ]; then
+            # Merged: nothing to do. Closed unmerged means Dependabot gave up
+            # on it (superseded, or the update is no longer wanted), and the
+            # copy goes with it. A copy already merged is not "open" here.
+            if [ "$merged" != "true" ] && [ -n "$existing" ]; then
+              gh pr close "$existing" --repo "$REPO" --delete-branch \
+                --comment "Dependabot closed #$NUMBER without merging it, so this copy is closed too."
+            fi
+            exit 0
+          fi
+
+          # Point the copy branch at Dependabot's head commit, creating it the
+          # first time and moving it (force) on every later push.
+          if gh api "repos/$REPO/git/ref/heads/$copy" >/dev/null 2>&1; then
+            gh api -X PATCH "repos/$REPO/git/refs/heads/$copy" \
+              -f sha="$sha" -F force=true >/dev/null
+            echo "Moved $copy to $sha."
+          else
+            gh api "repos/$REPO/git/refs" \
+              -f ref="refs/heads/$copy" -f sha="$sha" >/dev/null
+            echo "Created $copy at $sha."
+          fi
+
+          if [ -n "$existing" ]; then
+            echo "Copy #$existing follows #$NUMBER."
+            exit 0
+          fi
+
+          title=$(jq -r '.title' <<<"$pr")
+          body=$(printf '%s\n\n%s\n\n%s\n' \
+            "Copy of #$NUMBER, opened by starl3xx so Bugbot reviews it and CI gets the repository secrets. Made by the dependabot-copy workflow." \
+            "The Dependabot PR stays open so Dependabot keeps it rebased; this branch follows its pushes. Merge this one, and Dependabot then closes #$NUMBER on its own." \
+            "---" )
+          body="$body$(jq -r '(.body // "")[0:60000]' <<<"$pr")"
+          url=$(gh pr create --repo "$REPO" --base "$(jq -r '.base.ref' <<<"$pr")" \
+            --head "$copy" --title "$title" --body "$body")
+          echo "Opened $url."
+
+          # Carry Dependabot's labels over (no-docs-needed among them), so the
+          # copy is judged by the same gates the original would have been.
+          labels=$(jq -r '[.labels[].name] | join(",")' <<<"$pr")
+          if [ -n "$labels" ]; then
+            gh pr edit "$url" --repo "$REPO" --add-label "$labels" || true
+          fi
+          gh pr comment "$NUMBER" --repo "$REPO" \
+            --body "Copied to $url so Bugbot can review it. Merge the copy; this PR closes on its own once the update is on main."

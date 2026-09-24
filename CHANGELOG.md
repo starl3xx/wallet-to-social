@@ -2,6 +2,20 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (Dependabot PRs are copied so Bugbot reviews them)
+
+- **A new workflow, `dependabot-copy`, opens each Dependabot PR again as
+  starl3xx,** from branch `deps/copy/<dependabot branch>`, and moves that
+  branch on every Dependabot push. Bugbot reviews only PRs its linked account
+  opened, and a Dependabot PR gets no repository secrets, so both had to be
+  handled by hand until now (as with #364). The Dependabot PR stays open so
+  Dependabot keeps rebasing it, and it closes on its own once the copy merges;
+  a Dependabot PR closed unmerged takes its copy with it.
+- It uses a fine-grained token, `DEPENDABOT_COPY_TOKEN`, stored in both the
+  Dependabot and the Actions secret stores, and it never checks out or runs
+  the PR's code. `docs/OPERATIONS.md` records the rule: review and merge the
+  copy.
+
 ### 2026-09-24 (client metadata fetch pinned; spent access tokens cleaned up)
 
 - **The client metadata fetch connects only to an address it checked.** A
