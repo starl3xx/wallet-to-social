@@ -852,13 +852,19 @@ paths:
         Every wallet in the index attested to this X account, ordered by
         Farcaster follower count descending, then by address.
 
+        Attested links only: a wallet is returned when every source recorded
+        for it is attested evidence. A wallet known to carry the handle only
+        through a correlated source is left out of the results and the count,
+        though a single-wallet lookup still shows it with its label.
+
         A wallet matches when this handle is its primary X account **or** its
         second attested one. Some owners have attested two live X accounts from
         the same wallet through different evidence; a wallet matched on the
         second carries its other handle in `twitter.handle` and names the one
         you searched for under `twitter.also`. The conditions are the ones
         `twitter.also` itself requires: both accounts live, and any attested
-        account id still matching.
+        account id still matching. A second account from a correlated source
+        is not matched.
 
         Billed one match credit per wallet returned, on the same terms
         whichever half matched. A handle nobody holds returns an empty array
@@ -959,6 +965,11 @@ paths:
       description: |
         Every wallet in the index attested to this Farcaster account, ordered
         by follower count descending, then by address.
+
+        Attested links only: a wallet is returned when every source recorded
+        for it is attested evidence. A wallet known to carry the username only
+        through a correlated source is left out of the results and the count,
+        though a single-wallet lookup still shows it with its label.
 
         Billed one match credit per wallet returned. A username nobody holds
         returns an empty array and costs nothing.
