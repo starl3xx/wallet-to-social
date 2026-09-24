@@ -563,7 +563,7 @@ export function looksLikeAccessToken(raw: string): boolean {
 }
 
 export type AccessTokenCheck =
-  | { ok: true; scope: string }
+  | { ok: true; scope: string; userId: string }
   | { ok: false; reason: 'unknown' | 'expired' | 'revoked' | 'audience' };
 
 /**
@@ -601,6 +601,9 @@ export async function validateAccessToken(
       grantRevokedAt: oauthGrants.revokedAt,
       scope: oauthGrants.scope,
       resource: oauthGrants.resource,
+      // The account, so the MCP route can bound its discovery traffic per
+      // account rather than per the shared address hosted clients call from.
+      userId: apiKeys.userId,
     })
     .from(apiKeys)
     .innerJoin(oauthGrants, eq(apiKeys.oauthGrantId, oauthGrants.id))
@@ -620,7 +623,7 @@ export async function validateAccessToken(
   if (!isOurResource(row.resource)) {
     return { ok: false, reason: 'audience' };
   }
-  return { ok: true, scope: row.scope };
+  return { ok: true, scope: row.scope, userId: row.userId };
 }
 
 export async function listGrants(userId: string): Promise<OauthGrant[]> {

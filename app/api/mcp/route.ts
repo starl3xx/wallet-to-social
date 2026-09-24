@@ -28,7 +28,8 @@
  *
  * The one thing this layer must do about OAuth is refuse at the transport, not
  * in a tool result. `guarded` below answers 401 with a `WWW-Authenticate`
- * header when a tool call arrives with no credential or a dead one, because a
+ * header when a tool call arrives with no credential, or when any request
+ * arrives with a dead access token, because a
  * 200 carrying `isError: true` is read by a client as a tool that failed: the
  * model is handed the text and the turn moves on, no token is refreshed, and
  * nobody is offered a way to connect. Only a 401 makes a client run the flow
@@ -67,7 +68,12 @@ import {
 } from '@/lib/canonical-sentences';
 import { isAttestedSource } from '@/lib/api-sources';
 import serverManifest from '@/server.json';
-import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
+import {
+  checkIpRateLimit,
+  formatRateLimitHeaders,
+  getClientIp,
+  IP_RATE_LIMITS,
+} from '@/lib/ip-rate-limiter';
 import {
   callRoute,
   callRouteWithParams,
@@ -85,7 +91,14 @@ import { POST as jobsPost } from '@/app/api/v1/jobs/route';
 import { GET as jobStatusGet } from '@/app/api/v1/jobs/[id]/route';
 import { looksLikeAccessToken, validateAccessToken } from '@/lib/oauth/grants';
 import { wwwAuthenticate } from '@/lib/oauth/metadata';
-import { callsATool, isMetered } from '@/lib/mcp-gate';
+import {
+  decide,
+  isMetered,
+  refusalFor,
+  requestIdOf,
+  type McpCredential,
+} from '@/lib/mcp-gate';
+import { identifyApiKey } from '@/lib/api-keys';
 
 export const runtime = 'nodejs';
 
@@ -961,121 +974,86 @@ function challenge(
 }
 
 /**
- * Decide whether this tool call may proceed, before the MCP layer sees it.
+ * What the request's credential is, looked up once for every method.
  *
- * Three outcomes, and the third is the one that took a rewrite to get right.
- *
- * **No credential at all.** Challenge. This is the lazy-authentication shape:
- * `initialize` and `tools/list` still answer anonymously, so a client can
- * connect and see the tools, and the challenge arrives only when one is
- * actually called. A client that supports OAuth turns this into a consent
- * prompt; one that does not shows the description, which names the header.
- *
- * **An OAuth access token that no longer works.** Challenge, with
- * `error="invalid_token"`. An access token lasts an hour, so this is the
- * ordinary case, not the exceptional one, and it is the whole reason the
- * refusal has to be a 401: a client refreshes reactively on this status and
- * retries the same call. Answered as a tool error instead, the connection
- * would appear to work and every call would fail an hour after it was made.
- *
- * **Anything else.** Pass it through. A `wts_live_` key, valid or mistyped,
- * belongs to somebody who copied it out of the dashboard and has no OAuth
- * connection to repair; challenging them would answer a typo with a consent
- * screen. The v1 handler tells them their key is wrong, in words, which is
- * what they need to read.
+ * An OAuth access token is always checked, because a dead one is refused on
+ * every method (`decide` in lib/mcp-gate.ts). A `wts_live_` key is checked
+ * only when the body is not all tool calls: such a body skips the limit and
+ * reaches a v1 handler that validates the key itself, so reading it here would
+ * be a second read for nothing. Nothing about the credential is ever used as
+ * a bucket key; only the account it resolves to is.
  */
-async function gate(
-  body: string,
-  request: NextRequest
-): Promise<NextResponse | null> {
-  if (!callsATool(body)) return null;
-
-  const bearer = bearerFrom(request);
-  if (!bearer) {
-    return challenge(
-      undefined,
-      // The machine path rides along: for an autonomous caller a refusal
-      // without a remedy is a dead end, not a prompt. No double quotes, since
-      // this string is embedded in a quoted WWW-Authenticate parameter.
-      'This tool needs a walletlink.social account. Connect one, or set an Authorization header carrying an API key. An agent holding a wallet can buy a key with USDC at POST https://walletlink.social/api/x402/buy, documented at https://docs.walletlink.social/agent-pack.'
-    );
+async function credentialFor(
+  bearer: string | null,
+  body: string | undefined
+): Promise<McpCredential> {
+  if (!bearer) return { kind: 'none' };
+  if (looksLikeAccessToken(bearer)) {
+    const check = await validateAccessToken(bearer);
+    return check.ok
+      ? { kind: 'account', userId: check.userId }
+      : { kind: 'dead-token', reason: check.reason };
   }
-
-  if (!looksLikeAccessToken(bearer)) return null;
-
-  const check = await validateAccessToken(bearer);
-  if (check.ok) return null;
-
-  return challenge(
-    'invalid_token',
-    check.reason === 'expired'
-      ? 'This access token has expired. Refresh it.'
-      : check.reason === 'audience'
-        ? 'This access token was issued for a different server. Connect again.'
-        : check.reason === 'revoked'
-          ? 'This connection was revoked. Connect again.'
-          : 'This access token is not recognized.'
-  );
+  if (body !== undefined && isMetered(body)) return { kind: 'unverified' };
+  const key = await identifyApiKey(bearer);
+  return key ? { kind: 'account', userId: key.userId } : { kind: 'unverified' };
 }
 
 /**
- * Bounds the one surface no key can bound.
+ * Challenges, bounds or passes every request before the MCP layer sees it.
  *
  * A tool call carries the caller's key into a v1 handler, which meters it per
  * key on three windows. Protocol chatter reaches no handler, so nothing meters
  * it, and `initialize` and `tools/list` answer without a key on purpose. That
- * is a real unauthenticated endpoint and it gets a real bound.
+ * is a real unauthenticated endpoint and it gets a real bound: per account
+ * when the request carries a credential that works, per address otherwise.
+ * The policy itself is `decide` in lib/mcp-gate.ts, where it can be asserted.
  *
- * The test is the JSON-RPC method, deliberately not the presence of an
- * `Authorization` header. Gating on the header was the first version and it
- * was wrong twice over: any junk string in that header removed the only cap on
- * discovery, and a header proves nothing about whether a request will ever
- * reach something that meters. `Bearer hunter2` is not a key, and treating it
- * as evidence of metering left the endpoint uncapped to anyone who sent one.
+ * The bucket is chosen by what the credential resolves to, never by whether
+ * an Authorization header is present. Gating on the header was the first
+ * version and it was wrong twice over: any junk string in that header removed
+ * the only cap on discovery, and a header proves nothing. `Bearer hunter2`
+ * resolves to no account, so it lands in the address bucket like no header
+ * at all.
  *
- * Everything is bounded here except a body whose calls are all `tools/call`.
- * That one skips it because it reaches `validateApiKey`, which is a format
- * check, a hash and one indexed read before it refuses, and that costs us less
- * than the bucket write this would add. What it must not do is cost a paying
- * caller their allowance for sharing an address with a stranger.
+ * Per account, because hosted Claude calls from Anthropic's shared outbound
+ * range: an address bucket there is one bucket for every Claude user at once.
  */
 async function guarded(request: NextRequest): Promise<Response> {
   // GET opens a stream and DELETE tears a session down. Neither carries a
   // JSON-RPC body, and neither reaches a handler.
-  let metered = false;
   let body: string | undefined;
-
   if (request.method === 'POST') {
     // Read once and rebuild: the handler needs this stream too, and a stream
     // can only be drained a single time.
     body = await request.text();
-    metered = isMetered(body);
-
-    // Before the IP limit, so a client whose token expired is told to refresh
-    // rather than told it is sending too many requests.
-    const refusal = await gate(body, request);
-    if (refusal) return refusal;
   }
 
-  if (!metered) {
-    const limit = await checkIpRateLimit(getClientIp(request), '/api/mcp');
+  const cred = await credentialFor(bearerFrom(request), body);
+  const decision = decide(body, cred, getClientIp(request));
+
+  // Before any bucket, so a client whose token expired is told to refresh
+  // rather than told it is sending too many requests.
+  if (decision.action === 'challenge') {
+    return challenge(decision.error, decision.description);
+  }
+
+  if (decision.action === 'limit') {
+    const limit = await checkIpRateLimit(decision.subject, decision.endpoint);
     if (!limit.allowed) {
       return NextResponse.json(
         {
           jsonrpc: '2.0',
           error: {
             code: -32000,
-            message:
-              'Too many requests to this endpoint. Configure a walletlink.social API key, or try again later.',
+            message: refusalFor(cred, {
+              anonymous: IP_RATE_LIMITS['/api/mcp'].limit,
+              account: IP_RATE_LIMITS['/api/mcp:account'].limit,
+            }),
           },
-          id: null,
+          id: requestIdOf(body),
         },
-        {
-          status: 429,
-          headers: limit.retryAfter
-            ? { 'Retry-After': String(limit.retryAfter) }
-            : undefined,
-        }
+        { status: 429, headers: formatRateLimitHeaders(limit) }
       );
     }
   }

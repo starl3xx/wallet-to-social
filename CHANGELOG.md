@@ -2,6 +2,26 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (MCP limits count per account; expired tokens get 401 everywhere)
+
+- **MCP requests that are not tool calls are now limited per account when they
+  carry a credential that works:** 600 an hour, shared by every key and
+  connection on the account. Without one, the limit stays 120 an hour per
+  address. Hosted Claude calls every MCP server from Anthropic's shared
+  addresses, so the per-address limit was one limit for every Claude user at
+  once. A string that is not a working credential is still counted by address.
+- **An expired or revoked OAuth access token is refused with 401 on every
+  request,** `initialize`, `tools/list`, GET and DELETE included, not only on
+  tool calls, as the MCP authorization spec requires. A client refreshes and
+  retries. These refusals are not counted against any limit. A mistyped API key
+  is unchanged: it reaches the API, which says the key is wrong.
+- **Each 429 now says which limit was reached and what to do.** The old text
+  told everyone to configure an API key, including callers who had one, and a
+  key never lifted that limit. The refusal also carries the request's own
+  JSON-RPC id and the `X-RateLimit-*` headers.
+- Checking an API key for this no longer updates its last-used time; only a
+  metered call does. Part of STA-39 (C), with 23 new invariants and 9 new guard mutations.
+
 ### 2026-09-24 (large lookup jobs honor the removal list)
 
 - **Jobs over ten addresses now apply the suppression list,** as the smaller

@@ -354,11 +354,14 @@ https://walletlink.social/pricing to continue, or buy one with USDC, no account
 needed, at POST https://walletlink.social/api/x402/buy."
 
 Authentication is the exception, and deliberately. A tool call arriving with no
-credential, or with an OAuth access token that has expired or been revoked, is
-refused with HTTP 401 and a `WWW-Authenticate` header rather than a tool error.
+credential is refused with HTTP 401 and a `WWW-Authenticate` header rather than
+a tool error, and so is any request at all, `initialize` and `tools/list`
+included, that carries an OAuth access token which has expired or been revoked.
 A client reads that as a signal to refresh its token or ask you to sign in, and
-then retries the same call; a tool error would be handed to the model as text
-and the turn would move on with nothing fixed.
+then retries the same request; a tool error would be handed to the model as
+text and the turn would move on with nothing fixed. A request with no
+credential that is not a tool call still answers, so a client can connect and
+list the tools first.
 
 A mistyped API key is not treated that way. It reaches the API and comes back as
 a tool error saying the key is invalid, which is what somebody who has just
@@ -369,9 +372,21 @@ pasted one needs to read.
 Tool calls are limited per key, on the same three windows as the REST API. See
 [rate limits](/api-reference/rate-limits).
 
-Everything except a tool call is limited per IP address, at 120 requests an
-hour. That covers `initialize`, `tools/list` and every other method, all of
-which answer without reaching the API and so are not metered against any key.
+Everything except a tool call answers without reaching the API, so it is not
+metered against any key, and it is limited per hour instead. That covers
+`initialize`, `tools/list` and every other method:
 
-Tool calls are not subject to it. They are metered against your key instead, on
-the three windows above.
+- **With a credential that works**, an API key or an OAuth connection, the
+  limit is 600 requests an hour per account. Every key and connection on the
+  account shares it.
+- **Without one**, including a key that does not validate, the limit is 120
+  requests an hour per IP address.
+
+The split matters for hosted clients. Claude on the web, desktop and mobile
+calls MCP servers from Anthropic’s shared addresses, so a per-address limit
+would be shared by everybody using it at once; a connected account is counted
+on its own. Each refusal is a 429 with `Retry-After` whose message says which
+limit was reached and what to do about it.
+
+Tool calls are not subject to either. They are metered against your key
+instead, on the three windows above.

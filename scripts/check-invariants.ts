@@ -4373,6 +4373,174 @@ async function main() {
     ok('an empty batch is bounded by the IP limit', !isMetered('[]'));
   }
 
+  // ---------------------------- OAuth: who pays for discovery (STA-39 C)
+  // Hosted Claude calls every MCP server from Anthropic's shared outbound
+  // range, so an address-keyed bucket is one bucket for every Claude user at
+  // once, and anybody pointing a connector at the endpoint can empty it. A
+  // credential that works is bounded per account; anything else, a string
+  // that merely looks like a credential included, stays on the address.
+  {
+    const g = await import('@/lib/mcp-gate');
+    const { IP_RATE_LIMITS } = await import('@/lib/ip-rate-limiter');
+    const init = '{"jsonrpc":"2.0","id":7,"method":"initialize","params":{}}';
+    const list = '{"jsonrpc":"2.0","id":2,"method":"tools/list"}';
+    const toolCall =
+      '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{}}';
+    const mixed = `[${list},${toolCall}]`;
+    const egress = '160.79.104.10';
+    const acct = (userId: string) => ({ kind: 'account' as const, userId });
+
+    const u1 = g.decide(list, acct('u1'), egress);
+    const u2 = g.decide(list, acct('u2'), egress);
+    ok(
+      'two Claude users behind Anthropic’s shared egress never share a discovery bucket',
+      u1.action === 'limit' &&
+        u2.action === 'limit' &&
+        u1.subject !== u2.subject &&
+        u1.subject !== egress &&
+        u1.endpoint === '/api/mcp:account' &&
+        u2.endpoint === '/api/mcp:account'
+    );
+    const junk = g.decide(list, { kind: 'unverified' }, egress);
+    ok(
+      'Bearer hunter2 still buys nothing: an unverified credential shares the address bucket',
+      junk.action === 'limit' &&
+        junk.subject === egress &&
+        junk.endpoint === '/api/mcp'
+    );
+    ok(
+      'a mixed batch from an account is bounded, not passed',
+      g.decide(mixed, acct('u1'), egress).action === 'limit'
+    );
+    const anon = g.decide(init, { kind: 'none' }, egress);
+    ok(
+      'a keyless handshake is still answered, lazy authentication kept',
+      anon.action === 'limit' && anon.subject === egress
+    );
+    const keyless = g.decide(toolCall, { kind: 'none' }, egress);
+    ok(
+      'a keyless tool call is challenged, with no error code (RFC 6750 3.1)',
+      keyless.action === 'challenge' && keyless.error === undefined
+    );
+    ok(
+      'a mistyped key on a tool call passes to the handler, never a consent screen',
+      g.decide(toolCall, { kind: 'unverified' }, egress).action === 'pass'
+    );
+    ok(
+      'a working credential on a tool call passes, unbounded here',
+      g.decide(toolCall, acct('u1'), egress).action === 'pass'
+    );
+    for (const reason of [
+      'expired',
+      'revoked',
+      'unknown',
+      'audience',
+    ] as const) {
+      const every = [init, list, toolCall, mixed, undefined].map((body) =>
+        g.decide(body, { kind: 'dead-token', reason }, egress)
+      );
+      ok(
+        `a ${reason} access token is refused with 401 invalid_token on every method, GET and DELETE included`,
+        every.every(
+          (d) => d.action === 'challenge' && d.error === 'invalid_token'
+        )
+      );
+    }
+    ok(
+      'an account never gets less headroom than a stranger',
+      IP_RATE_LIMITS['/api/mcp:account'].limit >=
+        IP_RATE_LIMITS['/api/mcp'].limit
+    );
+
+    const limits = {
+      anonymous: IP_RATE_LIMITS['/api/mcp'].limit,
+      account: IP_RATE_LIMITS['/api/mcp:account'].limit,
+    };
+    const forAccount = g.refusalFor(acct('u'), limits);
+    ok(
+      'a connected account is never told to configure a key it already has',
+      !/API key|configure/i.test(forAccount) &&
+        forAccount.includes(String(limits.account))
+    );
+    const forAnon = g.refusalFor({ kind: 'none' }, limits);
+    ok(
+      'the anonymous refusal names its limit and both ways in',
+      forAnon.includes(String(limits.anonymous)) &&
+        forAnon.includes('sign-in') &&
+        forAnon.includes('Authorization')
+    );
+    const forJunk = g.refusalFor({ kind: 'unverified' }, limits);
+    ok(
+      'a credential that did not work is told so, with its limit',
+      forJunk.includes(String(limits.anonymous)) &&
+        forJunk.includes('did not carry a working')
+    );
+    ok(
+      'a refusal answers with the request’s own id, or null when there is none',
+      g.requestIdOf(list) === 2 &&
+        g.requestIdOf(mixed) === null &&
+        g.requestIdOf(undefined) === null &&
+        g.requestIdOf('not json') === null
+    );
+
+    const route = withoutComments(readFileSync('app/api/mcp/route.ts', 'utf8'));
+    const guardedFn = route.slice(route.indexOf('async function guarded('));
+    const at = (needle: string) => guardedFn.indexOf(needle);
+    ok(
+      'the route decides and challenges before it charges any bucket',
+      at('decide(') !== -1 &&
+        at("decision.action === 'challenge'") !== -1 &&
+        at('decide(') < at('checkIpRateLimit(') &&
+        at("decision.action === 'challenge'") < at('checkIpRateLimit(')
+    );
+    ok(
+      'a bucket is keyed on the decision, never on the raw credential',
+      guardedFn.includes(
+        'checkIpRateLimit(decision.subject, decision.endpoint)'
+      ) && !/checkIpRateLimit\([^)]*bearer/.test(route)
+    );
+    ok(
+      'the credential is read for every method, outside the POST branch',
+      at('credentialFor(') > at("if (request.method === 'POST')") &&
+        at('credentialFor(') > at('body = await request.text();')
+    );
+    ok(
+      'only a key that validates names an account',
+      route.includes(
+        "return key ? { kind: 'account', userId: key.userId } : { kind: 'unverified' };"
+      )
+    );
+    ok(
+      'the old advice to configure an API key is gone',
+      !route.includes('Configure a walletlink.social API key')
+    );
+    // The published numbers are the configured ones. The page stated 120 as a
+    // literal nothing tied to the limiter; now both are asserted.
+    const mdx = readFileSync('docs-site/mcp-server.mdx', 'utf8').replace(
+      /\s+/g,
+      ' '
+    );
+    ok(
+      'the MCP page states both discovery limits exactly as configured',
+      mdx.includes(
+        `the limit is ${IP_RATE_LIMITS['/api/mcp:account'].limit} requests an hour per account`
+      ) &&
+        mdx.includes(
+          `the limit is ${IP_RATE_LIMITS['/api/mcp'].limit} requests an hour per IP address`
+        )
+    );
+    const keys = withoutComments(readFileSync('lib/api-keys.ts', 'utf8'));
+    ok(
+      'identifying a key applies exactly the rules validating it does',
+      /export async function validateApiKey[\s\S]*?await lookupActiveKey\(rawKey\)/.test(
+        keys
+      ) &&
+        /export async function identifyApiKey[\s\S]*?await lookupActiveKey\(rawKey\)/.test(
+          keys
+        )
+    );
+  }
+
   // ----------------------------------------------- OAuth: the credential shape
   {
     const { ACCEPTED_KEY_PREFIXES } = await import('@/lib/api-keys');
@@ -4768,15 +4936,12 @@ async function main() {
           validate.lastIndexOf('return { ok: true')
     );
     const mcp = withoutComments(readFileSync('app/api/mcp/route.ts', 'utf8'));
-    const gate = mcp.slice(
-      mcp.indexOf('const check = await validateAccessToken(bearer);')
-    );
-    const gateBody = gate.slice(0, gate.indexOf('\n}\n'));
+    const credFn = mcp.slice(mcp.indexOf('async function credentialFor('));
     ok(
-      'the MCP gate lets a token through only on check.ok, never on a failure reason',
-      /^const check = await validateAccessToken\(bearer\);\s*if \(check\.ok\) return null;/.test(
-        gate
-      ) && (gateBody.match(/return null/g) ?? []).length === 1
+      'the MCP route counts a token as an account only on check.ok, never on a failure reason',
+      /const check = await validateAccessToken\(bearer\);\s*return check\.ok\s*\? \{ kind: 'account', userId: check\.userId \}\s*: \{ kind: 'dead-token', reason: check\.reason \};/.test(
+        credFn
+      )
     );
   }
 

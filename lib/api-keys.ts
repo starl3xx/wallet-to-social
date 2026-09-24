@@ -152,10 +152,13 @@ export async function createApiKeyIfUnderCap(
 }
 
 /**
- * Validates an API key and returns the key record with plan details
- * Returns null if key is invalid, inactive, or expired
+ * The active key behind a raw string, with its plan, and no side effect.
+ *
+ * Split out of `validateApiKey` so the MCP route can ask which account a key
+ * belongs to without a second copy of the validity rules: a key the metered
+ * path would refuse must not buy the account's discovery bucket either.
  */
-export async function validateApiKey(
+async function lookupActiveKey(
   rawKey: string
 ): Promise<{ key: ApiKey; plan: ApiPlan } | null> {
   const db = getDb();
@@ -199,13 +202,38 @@ export async function validateApiKey(
     return null;
   }
 
+  return { key, plan };
+}
+
+/**
+ * Validates an API key and returns the key record with plan details
+ * Returns null if key is invalid, inactive, or expired
+ */
+export async function validateApiKey(
+  rawKey: string
+): Promise<{ key: ApiKey; plan: ApiPlan } | null> {
+  const found = await lookupActiveKey(rawKey);
+  if (!found) return null;
+
   // Update last used timestamp (fire and forget)
-  db.update(apiKeys)
+  getDb()
+    ?.update(apiKeys)
     .set({ lastUsedAt: new Date() })
-    .where(eq(apiKeys.id, key.id))
+    .where(eq(apiKeys.id, found.key.id))
     .catch(console.error);
 
-  return { key, plan };
+  return found;
+}
+
+/**
+ * Which account a key belongs to, under exactly the rules `validateApiKey`
+ * applies, and without touching `last_used_at`: a handshake is not a use.
+ */
+export async function identifyApiKey(
+  rawKey: string
+): Promise<{ keyId: string; userId: string } | null> {
+  const found = await lookupActiveKey(rawKey);
+  return found ? { keyId: found.key.id, userId: found.key.userId } : null;
 }
 
 /**
