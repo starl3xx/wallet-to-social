@@ -74,7 +74,11 @@
  */
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
-import { publicSources, MAPPED_SOURCE_IDS } from '@/lib/api-sources';
+import {
+  publicSources,
+  MAPPED_SOURCE_IDS,
+  ATTESTED_SOURCE_ID_LIST,
+} from '@/lib/api-sources';
 import type { TwitterAlso } from '@/lib/types';
 
 /** What the public API and the UI speak. */
@@ -375,6 +379,17 @@ export async function reachabilityForWallets(
  *     rather than named. Filtering on `MAPPED_SOURCE_IDS` rather than on the
  *     rendered class keeps one allowlist.
  *
+ * They are applied AFTER the pick, in the outer WHERE, exactly where
+ * `alsoOnXForWallets` applies them: it picks one conflict per wallet in SQL
+ * and only then checks ours, theirs and the source in JavaScript, dropping
+ * the wallet rather than falling back to another conflict. Filtering inside
+ * the pick instead could pick a conflict the display never shows (2026-09-24
+ * review, STA-40).
+ *
+ * One condition is reverse's own, and it narrows rather than widens: the
+ * winner is kept only when its source is attested (Linear STA-40), because
+ * reverse lookups promise attested links.
+ *
  * ## And it picks the same winner, not merely a qualifying row
  *
  * `alsoOnXForWallets` keeps **one** conflict per wallet: `DISTINCT ON (wallet)`
@@ -393,7 +408,8 @@ function secondaryHandleFrom(normalized: string) {
   return sql`
     FROM (
       SELECT DISTINCT ON (c.wallet)
-             c.wallet, lower(c.theirs) AS theirs
+             c.wallet, lower(c.ours) AS ours, lower(c.theirs) AS theirs,
+             c.their_source, lower(g.twitter_handle) AS primary_handle
       FROM handle_conflicts c
       JOIN x_accounts o ON o.handle = lower(c.ours)
       JOIN x_accounts t ON t.handle = lower(c.theirs)
@@ -403,12 +419,13 @@ function secondaryHandleFrom(normalized: string) {
         AND o.status = 'live'
         AND t.status = 'live'
         AND (c.their_user_id IS NULL OR c.their_user_id = t.user_id)
-        AND lower(c.ours) = lower(g.twitter_handle)
-        AND lower(c.theirs) <> lower(g.twitter_handle)
-        AND c.their_source = ANY(${sql.param(MAPPED_SOURCE_IDS)}::text[])
       ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC
     ) w
     WHERE w.theirs = ${normalized}
+      AND w.ours = w.primary_handle
+      AND w.theirs <> w.primary_handle
+      AND w.their_source = ANY(${sql.param(MAPPED_SOURCE_IDS)}::text[])
+      AND w.their_source = ANY(${sql.param(ATTESTED_SOURCE_ID_LIST)}::text[])
   `;
 }
 

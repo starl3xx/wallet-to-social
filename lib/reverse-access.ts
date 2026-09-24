@@ -107,7 +107,7 @@ export function lockedReverseBody(
  */
 export const MISS_EXPLANATION: Record<ReversePlatform, string> = {
   farcaster:
-    'Farcaster coverage is complete, so this account genuinely has no addresses attached.',
+    'Farcaster coverage is complete, so this account has no address in the index whose link is attested alone.',
   twitter:
     'X handles are only known when the owner published the link, so this is an absence of evidence rather than evidence of absence.',
 };
@@ -125,8 +125,9 @@ export function lockedReverseMessage(
 ): string {
   const network = platform === 'twitter' ? 'X' : 'Farcaster';
   if (totalCount === 0) {
-    return `No wallet in the index carries this ${network} handle. ${MISS_EXPLANATION[platform]}`;
+    return `No wallet in the index is attested to this ${network} handle. ${MISS_EXPLANATION[platform]}`;
   }
   const noun = totalCount === 1 ? 'wallet' : 'wallets';
-  return `${totalCount.toLocaleString()} ${noun} in the index carry this ${network} handle. Credits show you which ones.`;
+  const verb = totalCount === 1 ? 'is' : 'are';
+  return `${totalCount.toLocaleString()} ${noun} in the index ${verb} attested to this ${network} handle. Credits show you which ones.`;
 }

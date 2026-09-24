@@ -8,7 +8,7 @@ import {
   type NewSocialGraphHistory,
 } from '@/db';
 import { inArray, sql, gt, lt, and, or, isNotNull } from 'drizzle-orm';
-import { asSourceList } from '@/lib/api-sources';
+import { asSourceList, ATTESTED_SOURCE_ID_LIST } from '@/lib/api-sources';
 import type { WalletSocialResult } from './types';
 
 // Default staleness period in days
@@ -1593,4 +1593,23 @@ export async function propagateManualCorrection(
     console.error('propagateManualCorrection failed:', error);
     return amended;
   }
+}
+
+/**
+ * A graph row every one of whose sources is attested, so every handle on it is.
+ *
+ * The reverse lookups promise wallets "attested to" a handle, and sources are
+ * recorded per wallet, not per handle: a row carrying an attested source and a
+ * correlated one cannot say which supplied the handle. A row whose sources are
+ * all attested can, whichever supplied it. Measured 2026-09-24, this excludes
+ * about 0.46% of X rows and 0.25% of Farcaster rows (Linear STA-40).
+ *
+ * `none` is removed first: it is a negative marker ("checked, nothing found"),
+ * not a source, and `mergeSources` drops it once a real source arrives, but
+ * 71 rows still carry it beside attested sources. `cardinality > 0` because
+ * an empty list is contained in everything and carries no provenance at all;
+ * a NULL list fails both tests.
+ */
+export function everySourceAttested() {
+  return sql`(cardinality(array_remove(${socialGraph.sources}, 'none')) > 0 AND array_remove(${socialGraph.sources}, 'none') <@ ${sql.param(ATTESTED_SOURCE_ID_LIST)}::text[])`;
 }

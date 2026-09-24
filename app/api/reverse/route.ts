@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { eq, inArray, or, sql } from 'drizzle-orm';
+import { and, eq, inArray, or, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { socialGraph } from '@/db/schema';
+import { everySourceAttested } from '@/lib/social-graph';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { hasPaidAccess } from '@/lib/credits';
@@ -210,10 +211,14 @@ export async function POST(request: NextRequest) {
   const primaryColumn =
     platform === 'twitter' ? socialGraph.twitterHandle : socialGraph.farcaster;
 
+  // Attested rows only, as on /v1/reverse: the same question gets the same
+  // answer through the browser and through the API.
+  const primary = and(eq(primaryColumn, handle), everySourceAttested());
+
   const [countRow] = await db
     .select({ count: sql<number>`COUNT(*)::int` })
     .from(socialGraph)
-    .where(eq(primaryColumn, handle));
+    .where(primary);
   const secondaryCount =
     platform === 'twitter' ? await countBySecondaryHandle(handle) : 0;
   const totalCount = (countRow?.count ?? 0) + secondaryCount;
@@ -241,8 +246,8 @@ export async function POST(request: NextRequest) {
     platform === 'twitter' ? await walletsBySecondaryHandle(handle) : [];
   const matchesHandle =
     secondary.length > 0
-      ? or(eq(primaryColumn, handle), inArray(socialGraph.wallet, secondary))
-      : eq(primaryColumn, handle);
+      ? or(primary, inArray(socialGraph.wallet, secondary))
+      : primary;
 
   const rows = await db
     .select({

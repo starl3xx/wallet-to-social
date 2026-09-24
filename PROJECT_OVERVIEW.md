@@ -420,17 +420,17 @@ Main page orchestrating:
 
 ### Public API (for external developers)
 
-| Endpoint                               | Method | Match credits                                         | Purpose                   |
-| -------------------------------------- | ------ | ----------------------------------------------------- | ------------------------- |
-| `/api/v1/wallet/[address]`             | GET    | 1 if it resolves, 0 if not                            | Single wallet lookup      |
-| `/api/v1/batch`                        | POST   | 1/match; unresolved wallets are free                  | Batch lookup              |
-| `/api/v1/reverse/twitter/[handle]`     | GET    | 1 per wallet returned, 100 per page (keyset `cursor`) | Find wallets by Twitter   |
-| `/api/v1/reverse/farcaster/[username]` | GET    | 1 per wallet returned, 100 per page (keyset `cursor`) | Find wallets by Farcaster |
-| `/api/v1/stats`                        | GET    | 0                                                     | Dataset statistics        |
-| `/api/v1/usage`                        | GET    | 0                                                     | API key usage             |
-| `/api/v1/jobs`                         | POST   | 1/match at completion via `chargeForJob`; misses free | Submit async lookup job   |
-| `/api/v1/jobs/[id]`                    | GET    | 0                                                     | Poll job, read results    |
-| `/api/v1/estimate`                     | POST   | 0, at any balance                                     | Dry-run counts for a list |
+| Endpoint                               | Method | Match credits                                         | Purpose                                        |
+| -------------------------------------- | ------ | ----------------------------------------------------- | ---------------------------------------------- |
+| `/api/v1/wallet/[address]`             | GET    | 1 if it resolves, 0 if not                            | Single wallet lookup                           |
+| `/api/v1/batch`                        | POST   | 1/match; unresolved wallets are free                  | Batch lookup                                   |
+| `/api/v1/reverse/twitter/[handle]`     | GET    | 1 per wallet returned, 100 per page (keyset `cursor`) | Find wallets by Twitter (attested rows only)   |
+| `/api/v1/reverse/farcaster/[username]` | GET    | 1 per wallet returned, 100 per page (keyset `cursor`) | Find wallets by Farcaster (attested rows only) |
+| `/api/v1/stats`                        | GET    | 0                                                     | Dataset statistics                             |
+| `/api/v1/usage`                        | GET    | 0                                                     | API key usage                                  |
+| `/api/v1/jobs`                         | POST   | 1/match at completion via `chargeForJob`; misses free | Submit async lookup job                        |
+| `/api/v1/jobs/[id]`                    | GET    | 0                                                     | Poll job, read results                         |
+| `/api/v1/estimate`                     | POST   | 0, at any balance                                     | Dry-run counts for a list                      |
 
 Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted, an estimate weighs 1 per address like the batch it previews, a job submission weighs 1 for the whole list, a job poll weighs 0); see `docs-site/api-reference/introduction.mdx`, "Two meters".
 

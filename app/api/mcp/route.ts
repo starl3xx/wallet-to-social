@@ -488,7 +488,7 @@ const handler = createMcpHandler(
       {
         title: 'Find wallets behind an X handle',
         description: [
-          'Find every wallet in the index attested to an X account. The reverse of resolving an address.',
+          'Find the wallets in the index attested to an X account. The reverse of resolving an address. Only wallets whose recorded sources are all attested come back, so a wallet whose attested link sits beside a correlated source is left out; resolving that address still shows it, labeled.',
           'COST: one match credit per wallet returned, and a page holds up to 100. A handle nobody holds returns an empty list and is free. The free allowance is 100 matches per 30 days, so a single widely held handle can spend all of it in one call. Check the balance first with walletlink_account_balance if that matters. A retried call bills its returned wallets again.',
           'Results are ordered by Farcaster follower count, highest first. When more_pages is true, pass next_cursor back to continue.',
         ].join('\n\n'),
@@ -550,7 +550,7 @@ const handler = createMcpHandler(
       {
         title: 'Find wallets behind a Farcaster username',
         description: [
-          'Find every wallet in the index attested to a Farcaster account.',
+          'Find the wallets in the index attested to a Farcaster account. Only wallets whose recorded sources are all attested come back, so a wallet whose Farcaster verification sits beside a correlated source is left out; resolving that address still shows it, labeled.',
           'COST: one match credit per wallet returned, and a page holds up to 100. A username nobody holds returns an empty list and is free. A retried call bills its returned wallets again.',
           'Pass the username whole, including any .eth suffix: an ENS name attached to a Farcaster account is a large share of the index, and stripping the suffix will find nothing. Results are ordered by follower count, highest first.',
         ].join('\n\n'),

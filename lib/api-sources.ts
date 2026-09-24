@@ -293,6 +293,9 @@ export const ATTESTED_SOURCE_IDS: ReadonlySet<string> = new Set(
     .map(([id]) => id)
 );
 
+/** The same set as a list, for a SQL `ANY(...)` or `<@` parameter. */
+export const ATTESTED_SOURCE_ID_LIST: string[] = [...ATTESTED_SOURCE_IDS];
+
 /** Whether an internal source id carries attested evidence. */
 export function isAttestedSourceId(value: unknown): boolean {
   return typeof value === 'string' && ATTESTED_SOURCE_IDS.has(value);

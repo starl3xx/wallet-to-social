@@ -1,6 +1,7 @@
 import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { ingestState, socialGraph } from '@/db/schema';
+import { everySourceAttested } from '@/lib/social-graph';
 import {
   isKindSuppressed,
   loadSuppressionList,
@@ -100,7 +101,10 @@ export async function refreshHeroSnapshot(): Promise<HeroSnapshot> {
         and(
           eq(socialGraph.fcFid, seed.fid),
           eq(socialGraph.farcaster, seed.fc),
-          eq(socialGraph.farcasterVerified, true)
+          eq(socialGraph.farcasterVerified, true),
+          // The rule the reverse lookups use, so the hero never shows a
+          // wallet a paid reverse search for the same account leaves out.
+          everySourceAttested()
         )
       )
       .orderBy(socialGraph.wallet)

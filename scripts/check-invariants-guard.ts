@@ -173,7 +173,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the secondary gate drops the public source allowlist',
     file: 'lib/handle-reachability.ts',
-    from: 'AND c.their_source = ANY(${sql.param(MAPPED_SOURCE_IDS)}::text[])',
+    from: '      AND w.their_source = ANY(${sql.param(MAPPED_SOURCE_IDS)}::text[])\n',
     to: '',
   },
   {
@@ -427,14 +427,14 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'both networks get the coverage excuse again (Bugbot, 2026-08-25)',
     file: 'lib/reverse-access.ts',
-    from: '    return `No wallet in the index carries this ${network} handle. ${MISS_EXPLANATION[platform]}`;',
-    to: '    return `No wallet in the index carries this ${network} handle. That is a fact about our coverage, not about the account.`;',
+    from: '    return `No wallet in the index is attested to this ${network} handle. ${MISS_EXPLANATION[platform]}`;',
+    to: '    return `No wallet in the index is attested to this ${network} handle. That is a fact about our coverage, not about the account.`;',
   },
   {
     name: 'the two networks swap their miss explanations',
     file: 'lib/reverse-access.ts',
-    from: '    return `No wallet in the index carries this ${network} handle. ${MISS_EXPLANATION[platform]}`;',
-    to: "    return `No wallet in the index carries this ${network} handle. ${MISS_EXPLANATION[platform === 'twitter' ? 'farcaster' : 'twitter']}`;",
+    from: '    return `No wallet in the index is attested to this ${network} handle. ${MISS_EXPLANATION[platform]}`;',
+    to: "    return `No wallet in the index is attested to this ${network} handle. ${MISS_EXPLANATION[platform === 'twitter' ? 'farcaster' : 'twitter']}`;",
   },
   {
     name: 'the empty state goes back to its own copy of the Farcaster sentence',
@@ -1393,6 +1393,78 @@ const MUTATIONS: Mutation[] = [
     file: 'app/api/mcp/route.ts',
     from: '          unmetered: asBoolean(credits.unmetered, false),\n',
     to: '',
+  },
+  {
+    name: '/v1 X reverse returns rows known only through correlated sources again',
+    file: 'app/api/v1/reverse/twitter/[handle]/route.ts',
+    from: '    eq(socialGraph.twitterHandle, normalizedHandle),\n    everySourceAttested()\n',
+    to: '    eq(socialGraph.twitterHandle, normalizedHandle)\n',
+  },
+  {
+    name: '/v1 Farcaster reverse returns correlated rows again',
+    file: 'app/api/v1/reverse/farcaster/[username]/route.ts',
+    from: '    eq(socialGraph.farcaster, normalizedUsername),\n    everySourceAttested()\n',
+    to: '    eq(socialGraph.farcaster, normalizedUsername)\n',
+  },
+  {
+    name: '/v1 Farcaster reverse counts every row but pages only attested ones',
+    file: 'app/api/v1/reverse/farcaster/[username]/route.ts',
+    from: '    .where(matchesName);',
+    to: '    .where(eq(socialGraph.farcaster, normalizedUsername));',
+  },
+  {
+    name: "the site's reverse search returns correlated rows again",
+    file: 'app/api/reverse/route.ts',
+    from: '  const primary = and(eq(primaryColumn, handle), everySourceAttested());',
+    to: '  const primary = and(eq(primaryColumn, handle));',
+  },
+  {
+    name: 'a row with no sources at all passes as attested',
+    file: 'lib/social-graph.ts',
+    from: "sql`(cardinality(array_remove(${socialGraph.sources}, 'none')) > 0 AND array_remove(${socialGraph.sources}, 'none') <@",
+    to: "sql`(array_remove(${socialGraph.sources}, 'none') <@",
+  },
+  {
+    name: 'a second account from a correlated source is matched again',
+    file: 'lib/handle-reachability.ts',
+    from: '      AND w.their_source = ANY(${sql.param(ATTESTED_SOURCE_ID_LIST)}::text[])\n',
+    to: '',
+  },
+  {
+    name: 'the attested filter moves before the winner pick, so a search can return a wallet showing another second handle',
+    file: 'lib/handle-reachability.ts',
+    from: '        AND (c.their_user_id IS NULL OR c.their_user_id = t.user_id)\n      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC\n    ) w',
+    to: '        AND (c.their_user_id IS NULL OR c.their_user_id = t.user_id)\n        AND c.their_source = ANY(${sql.param(ATTESTED_SOURCE_ID_LIST)}::text[])\n      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC\n    ) w',
+  },
+  {
+    name: 'the none marker is no longer ignored, so 71 attested rows drop out of reverse',
+    file: 'lib/social-graph.ts',
+    from: "array_remove(${socialGraph.sources}, 'none') <@",
+    to: '${socialGraph.sources} <@',
+  },
+  {
+    name: 'the second-account pick filters on ours again before choosing, so it can pick a conflict the display never shows',
+    file: 'lib/handle-reachability.ts',
+    from: '        AND (c.their_user_id IS NULL OR c.their_user_id = t.user_id)\n      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC\n    ) w',
+    to: '        AND (c.their_user_id IS NULL OR c.their_user_id = t.user_id)\n        AND lower(c.ours) = lower(g.twitter_handle)\n      ORDER BY c.wallet, (c.their_user_id IS NOT NULL) DESC, c.last_seen_at DESC\n    ) w',
+  },
+  {
+    name: '/check counts wallets the reverse lookup will not return',
+    file: 'app/api/reachability/route.ts',
+    from: '            AND ${everySourceAttested()}) AS wallets,',
+    to: ') AS wallets,',
+  },
+  {
+    name: 'the homepage hero shows a wallet the reverse lookup leaves out',
+    file: 'lib/identity-hero/server.ts',
+    from: '          eq(socialGraph.farcasterVerified, true),\n',
+    to: '          eq(socialGraph.farcasterVerified, true)\n',
+  },
+  {
+    name: '/v1 X reverse pages drop the attested predicate while the count keeps it',
+    file: 'app/api/v1/reverse/twitter/[handle]/route.ts',
+    from: '        ? matchesHandle\n        : and(matchesHandle, afterCursor)',
+    to: '        ? eq(socialGraph.twitterHandle, normalizedHandle)\n        : and(eq(socialGraph.twitterHandle, normalizedHandle), afterCursor)',
   },
   {
     name: 'loadCode judges expiry again, so two clocks decide (Bugbot, 2026-08-25)',

@@ -5807,7 +5807,7 @@ async function main() {
     );
     ok(
       'the secondary gate filters on the public source allowlist',
-      /c\.their_source = ANY\(\$\{sql\.param\(MAPPED_SOURCE_IDS\)\}/.test(
+      /w\.their_source = ANY\(\$\{sql\.param\(MAPPED_SOURCE_IDS\)\}/.test(
         reachCode
       )
     );
@@ -5817,6 +5817,126 @@ async function main() {
         withoutComments(readFileSync('lib/api-sources.ts', 'utf8'))
       )
     );
+
+    /**
+     * Reverse lookups return attested links only (Linear STA-40).
+     *
+     * They promise wallets "attested to" a handle, and sources are recorded
+     * per wallet, not per handle, so only a row whose every source is attested
+     * can keep that promise. One predicate, used by the count and by every
+     * page on all three doors, because a total that disagrees with its pages
+     * is how a paginated endpoint reports wallets it will not hand out.
+     */
+    {
+      const { ATTESTED_SOURCE_ID_LIST, ATTESTED_SOURCE_IDS } =
+        await import('@/lib/api-sources');
+      ok(
+        'the attested list is the attested set, and names no correlated source',
+        ATTESTED_SOURCE_ID_LIST.length === ATTESTED_SOURCE_IDS.size &&
+          ATTESTED_SOURCE_ID_LIST.every((id) => ATTESTED_SOURCE_IDS.has(id)) &&
+          !ATTESTED_SOURCE_ID_LIST.includes('web3bio') &&
+          !ATTESTED_SOURCE_ID_LIST.includes('zora_profile') &&
+          !ATTESTED_SOURCE_ID_LIST.includes('none')
+      );
+      const sg = withoutComments(readFileSync('lib/social-graph.ts', 'utf8'));
+      const predStart = sg.indexOf('export function everySourceAttested()');
+      const predBody = sg.slice(predStart, sg.indexOf('\n}', predStart) + 2);
+      ok(
+        'a row qualifies only when it has real sources and every one is attested; the none marker is ignored',
+        predStart !== -1 &&
+          /^export function everySourceAttested\(\) \{\s*return sql`\(cardinality\(array_remove\(\$\{socialGraph\.sources\}, 'none'\)\) > 0 AND array_remove\(\$\{socialGraph\.sources\}, 'none'\) <@ \$\{sql\.param\(ATTESTED_SOURCE_ID_LIST\)\}::text\[\]\)`;\s*\}$/.test(
+            predBody
+          )
+      );
+      const v1x = withoutComments(
+        readFileSync('app/api/v1/reverse/twitter/[handle]/route.ts', 'utf8')
+      );
+      ok(
+        '/v1 X reverse: the primary match requires an attested row, and the count and the pages share it',
+        /const primary = and\(\s*eq\(socialGraph\.twitterHandle, normalizedHandle\),\s*everySourceAttested\(\)\s*\);/.test(
+          v1x
+        ) &&
+          /\? or\(primary, inArray\(socialGraph\.wallet, secondary\)\)\s*: primary;/.test(
+            v1x
+          ) &&
+          /\.from\(socialGraph\)\s*\.where\(matchesHandle\);/.test(v1x) &&
+          /afterCursor === undefined\s*\?\s*matchesHandle\s*:\s*and\(matchesHandle, afterCursor\)/.test(
+            v1x
+          ) &&
+          !/twitter_handle|twitterHandle\s*[=)]|ilike|lower\(\$\{socialGraph\.twitterHandle/.test(
+            v1x.slice(v1x.indexOf('const primary = and('))
+          ) &&
+          (
+            v1x.match(/eq\(socialGraph\.twitterHandle, normalizedHandle\)/g) ??
+            []
+          ).length === 1
+      );
+      const v1f = withoutComments(
+        readFileSync('app/api/v1/reverse/farcaster/[username]/route.ts', 'utf8')
+      );
+      ok(
+        '/v1 Farcaster reverse: one attested predicate for the count and every page',
+        /const matchesName = and\(\s*eq\(socialGraph\.farcaster, normalizedUsername\),\s*everySourceAttested\(\)\s*\);/.test(
+          v1f
+        ) &&
+          /\.where\(matchesName\);/.test(v1f) &&
+          v1f.includes(
+            'afterCursor === undefined ? matchesName : and(matchesName, afterCursor)'
+          ) &&
+          (v1f.match(/eq\(socialGraph\.farcaster, normalizedUsername\)/g) ?? [])
+            .length === 1
+      );
+      const app = withoutComments(
+        readFileSync('app/api/reverse/route.ts', 'utf8')
+      );
+      ok(
+        "the site's reverse search applies the same predicate to its count and its rows",
+        app.includes(
+          'const primary = and(eq(primaryColumn, handle), everySourceAttested());'
+        ) &&
+          /\.from\(socialGraph\)\s*\.where\(primary\);/.test(app) &&
+          /\.from\(socialGraph\)[\s\S]{0,200}?\.where\(matchesHandle\)/.test(
+            app
+          ) &&
+          /\? or\(primary, inArray\(socialGraph\.wallet, secondary\)\)\s*: primary;/.test(
+            app
+          ) &&
+          (app.match(/eq\(primaryColumn, handle\)/g) ?? []).length === 1
+      );
+      const pickStart = reachCode.indexOf('SELECT DISTINCT ON (c.wallet)');
+      const pick = reachCode.slice(
+        reachCode.indexOf('WHERE c.platform', pickStart),
+        reachCode.indexOf('ORDER BY c.wallet', pickStart)
+      );
+      const after = reachCode.slice(
+        reachCode.indexOf(') w', pickStart),
+        reachCode.indexOf('`;', pickStart)
+      );
+      ok(
+        'the second-account pick uses only the conditions the display picks with, and every other filter runs after it, as the display does',
+        pickStart !== -1 &&
+          pick.length > 0 &&
+          !/their_source|c\.ours|c\.theirs\) <>|twitter_handle/.test(pick) &&
+          /WHERE w\.theirs = \$\{normalized\}\s*AND w\.ours = w\.primary_handle\s*AND w\.theirs <> w\.primary_handle\s*AND w\.their_source = ANY\(\$\{sql\.param\(MAPPED_SOURCE_IDS\)\}::text\[\]\)\s*AND w\.their_source = ANY\(\$\{sql\.param\(ATTESTED_SOURCE_ID_LIST\)\}::text\[\]\)/.test(
+            after
+          )
+      );
+      const reachRoute = withoutComments(
+        readFileSync('app/api/reachability/route.ts', 'utf8')
+      );
+      const hero = withoutComments(
+        readFileSync('lib/identity-hero/server.ts', 'utf8')
+      );
+      ok(
+        "/check's wallet count and the homepage hero use the reverse rule, so no surface counts a wallet reverse will not return",
+        /WHERE lower\(twitter_handle\) = \$\{handle\}\s*AND \$\{everySourceAttested\(\)\}\) AS wallets/.test(
+          reachRoute
+        ) &&
+          /eq\(socialGraph\.farcasterVerified, true\),\s*everySourceAttested\(\)/.test(
+            hero
+          )
+      );
+    }
 
     /**
      * A reassigned handle never carries a follower count.
