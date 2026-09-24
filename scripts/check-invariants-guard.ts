@@ -1121,8 +1121,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the pre-read stops matching the previous token, so a reuse is never revoked',
     file: 'lib/oauth/grants.ts',
-    from: '      sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`',
-    to: '      eq(oauthGrants.refreshTokenHash, hash)',
+    from: '  return sql`${oauthGrants.refreshTokenHash} = ${hash} OR ${oauthGrants.previousRefreshTokenHash} = ${hash} OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`;',
+    to: '  return sql`${oauthGrants.refreshTokenHash} = ${hash}`;',
   },
   {
     name: 'the reuse and stale lookups swap columns, so a reuse answers expired and revokes nothing',
@@ -1301,20 +1301,20 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the code exchange is returned unawaited, so its failure escapes the catch as a bare 500',
     file: 'app/api/oauth/token/route.ts',
-    from: "    if (grantType === 'authorization_code') return await exchangeCode(form);",
-    to: "    if (grantType === 'authorization_code') return exchangeCode(form);",
+    from: "    if (grantType === 'authorization_code') return await exchangeCode(form, ip);",
+    to: "    if (grantType === 'authorization_code') return exchangeCode(form, ip);",
   },
   {
     name: 'the refresh is returned unawaited, so its failure escapes the catch as a bare 500',
     file: 'app/api/oauth/token/route.ts',
-    from: "    if (grantType === 'refresh_token') return await exchangeRefresh(form);",
-    to: "    if (grantType === 'refresh_token') return exchangeRefresh(form);",
+    from: "    if (grantType === 'refresh_token') return await exchangeRefresh(form, ip);",
+    to: "    if (grantType === 'refresh_token') return exchangeRefresh(form, ip);",
   },
   {
     name: 'the code exchange runs outside the catch',
     file: 'app/api/oauth/token/route.ts',
-    from: "  try {\n    if (grantType === 'authorization_code') return await exchangeCode(form);",
-    to: "  if (grantType === 'authorization_code') return await exchangeCode(form);\n  try {",
+    from: "  try {\n    if (grantType === 'authorization_code') return await exchangeCode(form, ip);",
+    to: "  if (grantType === 'authorization_code') return await exchangeCode(form, ip);\n  try {",
   },
   {
     name: 'a token-endpoint failure answers 503 without a log line, so a persistent one is invisible',
@@ -1523,8 +1523,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the pre-read stops finding a token rotated out in the burst, so it answers invalid_grant',
     file: 'lib/oauth/grants.ts',
-    from: ' OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`\n    )\n    .limit(1);\n  if (!row) return',
-    to: '`\n    )\n    .limit(1);\n  if (!row) return',
+    from: ' OR ${oauthGrants.refreshGraceHashes} @> ARRAY[${hash}]::text[]`;',
+    to: '`;',
   },
   {
     name: 'an older burst token revokes after the window, where it was unknown',
@@ -1555,6 +1555,179 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/oauth/grants.ts',
     from: '      revokedAt: oauthGrants.revokedAt,\n      rotatedJustNow',
     to: '      revokedAt: oauthGrants.lastUsedAt,\n      rotatedJustNow',
+  },
+  // The OAuth endpoint limits (Linear STA-39, C2). Hosted clients call the
+  // token and revocation endpoints from shared outbound addresses, so the
+  // token endpoint counts per connection and sorts before it charges.
+  {
+    name: 'a code exchange is counted by client_id, which every user of a hosted client shares',
+    file: 'app/api/oauth/token/route.ts',
+    from: '    `grant:${row.grantId ?? row.id}`,',
+    to: '    `client:${clientId}`,',
+  },
+  {
+    name: 'the token endpoint charges the address before the form is parsed',
+    file: 'app/api/oauth/token/route.ts',
+    from: 'export async function POST(request: NextRequest): Promise<NextResponse> {\n  let form: URLSearchParams;',
+    to: "export async function POST(request: NextRequest): Promise<NextResponse> {\n  await checkIpRateLimit(getClientIp(request), '/api/oauth/token');\n  let form: URLSearchParams;",
+  },
+  {
+    name: 'a well-formed credential that names nothing is answered without being counted',
+    file: 'app/api/oauth/token/route.ts',
+    from: "  const limit = await checkIpRateLimit(ip, '/api/oauth/token');\n  if (!limit.allowed) {\n    return tooManyRequests(limit, 'Too many token requests from this address.');\n  }\n",
+    to: '',
+  },
+  {
+    name: 'a malformed code is read from the database again',
+    file: 'app/api/oauth/token/route.ts',
+    from: '  if (!isWellFormedCode(code)) {',
+    to: '  if (!code) {',
+  },
+  {
+    name: 'a malformed refresh token is looked up again',
+    file: 'app/api/oauth/token/route.ts',
+    from: '  if (!isWellFormedRefreshToken(token)) {',
+    to: '  if (!token) {',
+  },
+  {
+    name: 'a refresh that names a grant is counted per address again',
+    file: 'app/api/oauth/token/route.ts',
+    from: "    `grant:${grantId}`,\n    '/api/oauth/token:grant'",
+    to: "    ip,\n    '/api/oauth/token'",
+  },
+  {
+    name: 'a refresh token that names nothing is answered without being counted',
+    file: 'app/api/oauth/token/route.ts',
+    from: "    return unknownCredential(ip, 'The refresh token is unknown.');",
+    to: "    return oauthError('invalid_grant', 'The refresh token is unknown.');",
+  },
+  {
+    name: 'isWellFormedRefreshToken accepts any string, so every string costs a read',
+    file: 'lib/oauth/grants.ts',
+    from: '    raw.startsWith(REFRESH_TOKEN_PREFIX) &&\n    TOKEN_BODY.test(raw.slice(REFRESH_TOKEN_PREFIX.length))',
+    to: '    raw.length >= 0',
+  },
+  {
+    name: 'isWellFormedAccessToken accepts any string, so revocation looks up every one',
+    file: 'lib/oauth/grants.ts',
+    from: '    raw.startsWith(ACCESS_TOKEN_PREFIX) &&\n    TOKEN_BODY.test(raw.slice(ACCESS_TOKEN_PREFIX.length))',
+    to: '    raw.length >= 0',
+  },
+  {
+    name: 'isWellFormedCode accepts any string',
+    file: 'lib/oauth/requests.ts',
+    from: '  return /^[A-Za-z0-9_-]{43}$/.test(raw);',
+    to: '  return raw.length >= 0;',
+  },
+  {
+    // Proves the shape checks are tested against the real mints: a mint that
+    // drifts from the shape would refuse every real credential as malformed.
+    name: 'the code mint drifts from the shape the token endpoint accepts',
+    file: 'lib/oauth/requests.ts',
+    from: "  return randomBytes(32).toString('base64url');",
+    to: "  return randomBytes(32).toString('hex');",
+  },
+  {
+    name: 'the token mint drifts from the shape the token endpoint accepts',
+    file: 'lib/oauth/grants.ts',
+    from: "  return `${prefix}${randomBytes(32).toString('base64url')}`;",
+    to: "  return `${prefix}${randomBytes(24).toString('base64url')}`;",
+  },
+  {
+    name: 'the limiter stops finding a refresh token rotated out in the burst, so it disagrees with a refresh',
+    file: 'lib/oauth/grants.ts',
+    from: '    .where(matchesRefreshHash(sha256(raw)))',
+    to: '    .where(eq(oauthGrants.refreshTokenHash, sha256(raw)))',
+  },
+  {
+    name: 'registration loses its limit, an unbounded unauthenticated write',
+    file: 'app/api/oauth/register/route.ts',
+    from: "  const limit = await checkIpRateLimit(\n    getClientIp(request),\n    '/api/oauth/register'\n  );",
+    to: '  const limit = { allowed: true, retryAfter: 0 };',
+  },
+  {
+    name: 'registration is charged before the body is read, so a malformed request counts',
+    file: 'app/api/oauth/register/route.ts',
+    from: 'export async function POST(request: NextRequest): Promise<NextResponse> {\n  // RFC 7591',
+    to: "export async function POST(request: NextRequest): Promise<NextResponse> {\n  await checkIpRateLimit(getClientIp(request), '/api/oauth/register');\n  // RFC 7591",
+  },
+  {
+    name: 'registration is charged but never refused',
+    file: 'app/api/oauth/register/route.ts',
+    from: "  if (!limit.allowed) {\n    return NextResponse.json(\n      {\n        error: 'temporarily_unavailable',\n        error_description: 'Too many registrations from this address.',",
+    to: "  if (!limit.allowed && limit.remaining < 0) {\n    return NextResponse.json(\n      {\n        error: 'temporarily_unavailable',\n        error_description: 'Too many registrations from this address.',",
+  },
+  {
+    name: 'the authorize page loses its limit',
+    file: 'app/oauth/authorize/page.tsx',
+    from: "  const limit = await checkIpRateLimit(\n    clientIpFromHeaders(await headers()),\n    '/oauth/authorize'\n  );",
+    to: '  const limit = { allowed: true, retryAfter: 0 };',
+  },
+  {
+    name: 'the client is resolved before the authorize request is counted',
+    file: 'app/oauth/authorize/page.tsx',
+    from: "  const limit = await checkIpRateLimit(\n    clientIpFromHeaders(await headers()),\n    '/oauth/authorize'\n  );",
+    to: "  await resolveClient(clientId);\n  const limit = await checkIpRateLimit(\n    clientIpFromHeaders(await headers()),\n    '/oauth/authorize'\n  );",
+  },
+  {
+    name: 'an authorize request over the limit is sent to a reply address nobody has checked',
+    file: 'app/oauth/authorize/page.tsx',
+    from: '  if (!limit.allowed) {\n    const minutes',
+    to: '  if (!limit.allowed) {\n    redirect(redirectUri);\n    const minutes',
+  },
+  {
+    name: 'the consent step is counted too, so one connection costs two units',
+    file: 'app/oauth/authorize/page.tsx',
+    from: '  if (requestId) return renderConsent(requestId);',
+    to: "  await checkIpRateLimit(clientIpFromHeaders(await headers()), '/oauth/authorize');\n  if (requestId) return renderConsent(requestId);",
+  },
+  {
+    name: 'revocation charges every well-formed token before the lookup',
+    file: 'app/api/oauth/revoke/route.ts',
+    from: "  const status = await getIpRateLimitStatus(ip, '/api/oauth/revoke');",
+    to: "  const status = await checkIpRateLimit(ip, '/api/oauth/revoke');",
+  },
+  {
+    name: 'revocation refuses with 429, which RFC 7009 does not define',
+    file: 'app/api/oauth/revoke/route.ts',
+    from: "        status: 503,\n        headers: {\n          'Cache-Control': 'no-store',\n          'Retry-After': String(status.retryAfter",
+    to: "        status: 429,\n        headers: {\n          'Cache-Control': 'no-store',\n          'Retry-After': String(status.retryAfter",
+  },
+  {
+    name: 'revocation looks up any string, whatever its shape',
+    file: 'app/api/oauth/revoke/route.ts',
+    from: '  if (!isRefresh && !isWellFormedAccessToken(token)) return OK;\n',
+    to: '',
+  },
+  {
+    name: 'revocation counts a token that named a grant, at the shared address a hosted client disconnects from',
+    file: 'app/api/oauth/revoke/route.ts',
+    from: "  if (grantId) {\n    await revokeGrant(grantId, 'revoked by the client');\n    return OK;\n  }\n",
+    to: "  await checkIpRateLimit(ip, '/api/oauth/revoke');\n  if (grantId) {\n    await revokeGrant(grantId, 'revoked by the client');\n    return OK;\n  }\n",
+  },
+  {
+    name: 'the client address trusts the first X-Forwarded-For hop',
+    file: 'lib/ip-rate-limiter.ts',
+    from: '    if (hops.length) return hops[hops.length - 1];',
+    to: '    if (hops.length) return hops[0];',
+  },
+  {
+    name: 'getClientIp reads a header of its own instead of the shared rules',
+    file: 'lib/ip-rate-limiter.ts',
+    from: '  return clientIpFromHeaders(request.headers);',
+    to: "  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';",
+  },
+  {
+    name: 'the status read states no wait when it refuses',
+    file: 'lib/ip-rate-limiter.ts',
+    from: "      retryAfter,\n    };\n  } catch (error) {\n    console.error('IP rate limit status check error:', error);",
+    to: "    };\n  } catch (error) {\n    console.error('IP rate limit status check error:', error);",
+  },
+  {
+    name: 'the status read takes its bucket key from a second clock reading',
+    file: 'lib/ip-rate-limiter.ts',
+    from: '  const bucketKey = getHourlyBucketKey(now);\n  const previousBucketKey = getHourlyBucketKey(\n    new Date(now.getTime() - 60 * 60 * 1000)\n  );\n\n  try {',
+    to: '  const bucketKey = getHourlyBucketKey();\n  const previousBucketKey = getHourlyBucketKey(\n    new Date(now.getTime() - 60 * 60 * 1000)\n  );\n\n  try {',
   },
   {
     name: '/v1 X reverse serves a key bought with USDC and no account',

@@ -731,6 +731,21 @@ three are in `READ_ONLY_TABLES` and deliberately not in `BACKUP_TABLES`: a grant
 is a live credential, and restoring one from last night would resurrect a
 connection somebody revoked this morning.
 
+Every endpoint here has a limit in `lib/ip-rate-limiter.ts`, and the token
+endpoint's is per connection. A code or refresh token that names a grant is
+counted against that grant, 60 an hour under `/api/oauth/token:grant`: hosted
+Claude exchanges and refreshes from Anthropic's shared outbound addresses,
+where a count per address would be one count for every Claude user. A
+credential that is not the shape we mint is refused before any read, and a
+well-formed one that names nothing is counted per address, 120 an hour under
+`/api/oauth/token`. No `client_id` keys a limit, since every client is public.
+Revocation reads its bucket before the lookup and counts only a token that
+names nothing, 60 an hour under `/api/oauth/revoke`, answering 503 while it is
+spent, so live and dead tokens are refused alike. A fresh request to the
+consent screen is counted per browser address, 30 an hour under
+`/oauth/authorize`, and registration counts only a registration that writes,
+10 an hour under `/api/oauth/register`.
+
 `server.json` at the repo root is the registry manifest. The server is published
 to the official MCP registry as `social.walletlink/wallet-identity` (reverse-DNS
 of the domain, which the registry requires), verified by a DNS TXT record on the

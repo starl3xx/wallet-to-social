@@ -29,12 +29,24 @@
  *    known origin such as claude.ai) gets the error delivered there, because
  *    that is where the client is waiting and a page it never sees is a hung
  *    connection.
+ *
+ * ## The limit
+ *
+ * A fresh request is counted per address, 30 an hour under `/oauth/authorize`,
+ * once both parameters it cannot do without are present and before the client
+ * is resolved, because resolving can mean fetching a metadata document and
+ * every fresh request writes a row. The page opens in the person's own
+ * browser, so the address is theirs whichever client sent them. Over the
+ * limit it renders a refusal and never redirects: at that point `redirect_uri`
+ * is still a string nobody has checked, which is rule 1 above. The consent
+ * step (`?req=`) is not counted, so one connection costs one unit.
  */
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import type { Metadata } from 'next';
 import { PageShell } from '@/components/ui/page-shell';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
+import { checkIpRateLimit, clientIpFromHeaders } from '@/lib/ip-rate-limiter';
 import {
   resolveClient,
   redirectUriAllowed,
@@ -128,6 +140,22 @@ export default async function AuthorizePage({
       <Refusal
         title="This connection request is incomplete"
         detail="It arrived without naming the application asking, or without saying where to send the reply. Both are required, so there is nowhere safe to send a result."
+      />
+    );
+  }
+
+  // Counted before the client is resolved; rendered, never redirected (see
+  // the header).
+  const limit = await checkIpRateLimit(
+    clientIpFromHeaders(await headers()),
+    '/oauth/authorize'
+  );
+  if (!limit.allowed) {
+    const minutes = Math.max(1, Math.ceil((limit.retryAfter ?? 60) / 60));
+    return (
+      <Refusal
+        title="Too many connection requests"
+        detail={`More connection requests came from this network in the last hour than we accept. Try again in ${minutes === 1 ? 'a minute' : `${minutes} minutes`}.`}
       />
     );
   }

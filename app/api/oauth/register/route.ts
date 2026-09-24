@@ -13,6 +13,11 @@
  * which shows the redirect host of the request being approved and marks it
  * unverified, rather than showing the name it gave itself or any host from
  * its registered list.
+ *
+ * The limit, 10 an hour per address, is charged after every validation and
+ * before the insert, so it counts registrations that write a row and nothing
+ * else. A malformed request is refused for free. Per address because nothing
+ * at registration names a caller.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
@@ -37,25 +42,6 @@ function asStringArray(value: unknown): string[] | null {
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const limit = await checkIpRateLimit(
-    getClientIp(request),
-    '/api/oauth/register'
-  );
-  if (!limit.allowed) {
-    return NextResponse.json(
-      {
-        error: 'temporarily_unavailable',
-        error_description: 'Too many registrations from this address.',
-      },
-      {
-        status: 429,
-        headers: limit.retryAfter
-          ? { 'Retry-After': String(limit.retryAfter) }
-          : undefined,
-      }
-    );
-  }
-
   // RFC 7591 section 3.1 says JSON here, unlike the token endpoint's form
   // encoding. Two different parsers on two adjacent endpoints is a real
   // source of 415s, so the content type is checked rather than assumed.
@@ -127,6 +113,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (typeof authMethod === 'string' && authMethod !== 'none') {
     return invalid(
       'token_endpoint_auth_method must be "none". This server registers public clients and issues no client secrets; authenticate the token request with PKCE.'
+    );
+  }
+
+  // Charged here, after the last validation and before the write, so only a
+  // registration that would store a row counts against the address.
+  const limit = await checkIpRateLimit(
+    getClientIp(request),
+    '/api/oauth/register'
+  );
+  if (!limit.allowed) {
+    return NextResponse.json(
+      {
+        error: 'temporarily_unavailable',
+        error_description: 'Too many registrations from this address.',
+      },
+      {
+        status: 429,
+        headers: limit.retryAfter
+          ? { 'Retry-After': String(limit.retryAfter) }
+          : undefined,
+      }
     );
   }
 

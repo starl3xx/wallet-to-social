@@ -150,6 +150,20 @@ export async function declineRequest(id: string): Promise<boolean> {
   return declined.length === 1;
 }
 
+/** A fresh authorization code: 32 random bytes in base64url, 43 characters. */
+export function newAuthorizationCode(): string {
+  return randomBytes(32).toString('base64url');
+}
+
+/**
+ * Whether a string has the shape `newAuthorizationCode` mints, judged without
+ * the database. The token endpoint refuses anything else before any read and
+ * before any limit is charged, because no row can match it.
+ */
+export function isWellFormedCode(raw: string): boolean {
+  return /^[A-Za-z0-9_-]{43}$/.test(raw);
+}
+
 /**
  * Turn an approved request into a code, once.
  *
@@ -165,7 +179,7 @@ export async function issueCode(
 ): Promise<string | null> {
   const db = getDb();
   if (!db) return null;
-  const code = randomBytes(32).toString('base64url');
+  const code = newAuthorizationCode();
   const updated = await db
     .update(oauthAuthorizationRequests)
     .set({
