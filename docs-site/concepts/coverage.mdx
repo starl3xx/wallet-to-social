@@ -88,7 +88,8 @@ X handles are a different shape of problem. There is no protocol-level registry 
   on a Layer 2 name registry. Arrives as `onchain`.
 - The owner established both halves themselves: proving the wallet with a
   signature and the account with a sign-in on an identity platform, an onchain
-  attestation issued after that same proof, or a token deploy the account itself
+  attestation issued after that same proof, an X verification an identity
+  platform signed and published onchain, or a token deploy the account itself
   requested. All arrive as `attested-social`.
 - We reviewed the record directly. Arrives as `manual`, and it is a handful of
   records rather than a route at scale.
@@ -96,11 +97,13 @@ X handles are a different shape of problem. There is no protocol-level registry 
 All four are attested rather than inferred, and together they account for **over 99.8% of the 1.20 million wallets with a linked X handle**.
 
 The third route is the newest and it is worth saying what it adds beyond reach.
-The first two record a handle as a string, captured once. This one records the
-account’s permanent numeric id alongside it, so when a handle is a name its
-owner later changed, that is something we can detect rather than something that
-silently rots. See [when a handle stops being
-true](/concepts/data-quality#when-a-handle-stops-being-true).
+The first two record a handle as a string, captured once. Where the platform
+supplies it, this one records the account’s permanent numeric id alongside it,
+so when a handle is a name its owner later changed, that is something we can
+detect rather than something that silently rots. See [when a handle stops being
+true](/concepts/data-quality#when-a-handle-stops-being-true). The onchain X
+verifications carry the handle only, so each one is added only after its handle
+has been checked live.
 
 **Beyond those, we resolve against identity indexes.** These correlate a handle with an address rather than carrying the owner’s own signature, so the evidence is real but weaker, and it is never dressed up as attestation. It arrives in the `sources` array as `aggregated`, and a record backed by nothing else is the weakest position a record can be in. Today that is a few hundred wallets out of the million.
 
