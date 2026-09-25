@@ -4,6 +4,7 @@ import { getBalance } from '@/lib/credits';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { fulfilPackPurchase } from '@/lib/pack-fulfilment';
 import { PACKS, isPackId } from '@/lib/packs';
+import { termsAcceptanceFrom } from '@/lib/terms';
 import { getCheckoutSession, resolveCheckoutEmail } from '@/lib/stripe';
 import {
   getUserAccess,
@@ -102,7 +103,10 @@ export async function GET(request: NextRequest) {
         email,
         pack,
         paymentIntentId,
-        session.amount_total ?? PACKS[pack].priceCents
+        session.amount_total ?? PACKS[pack].priceCents,
+        // The same metadata the webhook reads, so whichever grants first
+        // records the same acceptance.
+        termsAcceptanceFrom(session.metadata)
       );
       const balance = await getBalance(userId);
 
