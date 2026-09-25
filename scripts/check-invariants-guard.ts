@@ -3814,6 +3814,48 @@ const MUTATIONS: Mutation[] = [
     to: '',
   },
   {
+    name: 'STA-46 the claim withdrawal loses its join and withdraws every claim in the table',
+    file: 'lib/removal-admin.ts',
+    from: '      FROM snap\n      WHERE g.id = snap.id\n      RETURNING g.id\n',
+    to: '      FROM snap\n      RETURNING g.id\n',
+  },
+  {
+    name: 'STA-46 the claim withdrawal clears only pending rows, so a completed claim keeps naming the pair',
+    file: 'lib/removal-admin.ts',
+    from: '      WHERE g.id = snap.id\n',
+    to: "      WHERE g.id = snap.id AND snap.status = 'awaiting_x'\n",
+  },
+  {
+    name: 'STA-46 a refused claim restore deletes the only quarantine copy',
+    file: 'lib/removal-admin.ts',
+    from: "        AND (src.row_data ->> 'id')::uuid IN (SELECT id FROM upd)\n",
+    to: '',
+  },
+  {
+    name: 'STA-46 a restored claim comes back completed with no handle',
+    file: 'lib/removal-admin.ts',
+    from: "            x_handle   = s.row_data ->> 'x_handle',\n",
+    to: '',
+  },
+  {
+    name: 'STA-46 un-suppressing an X handle never restores its claim',
+    file: 'lib/removal-admin.ts',
+    from:
+      "  if (kind === 'wallet' || kind === 'twitter') {\n" +
+      '    const res = (await db.execute(sql`\n' +
+      '      WITH src AS (',
+    to:
+      "  if (kind === 'wallet') {\n" +
+      '    const res = (await db.execute(sql`\n' +
+      '      WITH src AS (',
+  },
+  {
+    name: 'STA-46 a removed wallet whose only trace is its checked stamp keeps it (the body counts as unchanged)',
+    file: 'lib/idempotency.ts',
+    from: '    if (kept.length !== checked.length) {\n      touched = true;\n',
+    to: '    if (kept.length !== checked.length) {\n',
+  },
+  {
     name: 'STA-46 a claim pending across a handle removal completes with that handle',
     file: 'lib/claim-callback.ts',
     from: "    const hits = await isSuppressed('twitter', [handle]);",

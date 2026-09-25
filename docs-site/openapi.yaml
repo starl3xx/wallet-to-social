@@ -234,8 +234,9 @@ paths:
         positionally aligned with the deduplicated address list, holding `null`
         wherever nothing is attached.
 
-        Billed on matches after deduplication: `meta.matched` is the number you
-        were charged, and it is the number to reconcile against your balance.
+        Billed on matches after deduplication: on a fresh call, `meta.matched` is
+        the number you were charged, and it is the number to reconcile against
+        your balance. A replay is different; see below.
         `meta.found` is larger, because it counts records carrying only an ENS
         name, a Lens profile or a GitHub account, and none of those cost
         anything.
@@ -250,7 +251,12 @@ paths:
         identical request with the same key inside 24 hours replays the stored
         response, marked `Idempotency-Replayed: true`, and bills nothing. The
         dedup is scoped to your API key and pinned to the request body; only a
-        200 consumes a key, and rate limits still apply to a replay.
+        200 consumes a key, and rate limits still apply to a replay. A replay
+        honors removals made since the original request: an address or account
+        whose owner asked to be removed in the meantime is left out, and
+        `found`, `not_found` and `matched` count what the replay returns, so
+        `matched` can be below what the original call billed. Your usage and
+        balance remain the billing record.
       x-match-credits: 1 per address that resolves to X or Farcaster, after duplicates are removed
       x-rate-limit-units: 1 per address submitted
       parameters:
@@ -1405,7 +1411,9 @@ components:
       description: |
         Present, with the value `true`, only when this response was replayed
         from the idempotency store instead of being resolved again. A replay
-        bills nothing. `POST /batch` only.
+        bills nothing. The replayed body is filtered against removals made
+        since the original request, so its `meta` counts can be below the
+        original’s. `POST /batch` only.
       required: false
       schema:
         type: string
@@ -1910,9 +1918,13 @@ components:
         matched:
           type: integer
           description: |
-            What this call was billed: addresses that resolved to an X handle
-            or a Farcaster account. This is the number to reconcile against
-            your balance.
+            Addresses in this response that resolve to an X handle or a
+            Farcaster account. On a fresh call this is what the call billed,
+            and the number to reconcile against your balance. On a replay
+            (`Idempotency-Replayed: true`) it counts what the replay serves,
+            which can be below what the original call billed if a removal
+            landed in between; your usage and balance remain the billing
+            record.
         previously_checked:
           type: object
           additionalProperties:

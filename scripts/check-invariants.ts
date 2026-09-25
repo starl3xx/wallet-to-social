@@ -12831,6 +12831,25 @@ async function main() {
         byWallet.meta.requested === 3
     );
 
+    // The same removal where the wallet's ONLY trace is its checked stamp:
+    // nothing in `data` changes, so the stamp alone has to mark the body as
+    // touched, or the amend reads it as clean and every replay keeps it.
+    const missInput = stored();
+    const byMiss = scrubStoredBatchResponse(
+      missInput,
+      setsOf([['wallet', [W3]]])
+    ) as ReturnType<typeof stored>;
+    ok(
+      'a wallet removed while a checked miss loses its stamp even when nothing else in the body changes',
+      byMiss !== missInput &&
+        byMiss.meta.previously_checked === undefined &&
+        !JSON.stringify(byMiss).includes(W3) &&
+        JSON.stringify(byMiss.data) === JSON.stringify(missInput.data) &&
+        byMiss.meta.found === 2 &&
+        byMiss.meta.not_found === 1 &&
+        byMiss.meta.matched === 2
+    );
+
     // A handle stored mixed case, removed lowercase, and the row it leaves
     // with no identity at all.
     const byHandle = scrubStoredBatchResponse(
@@ -13045,6 +13064,11 @@ async function main() {
       claimStmt.includes(
         "SET status = 'withdrawn', x_user_id = NULL, x_handle = NULL, signature = NULL, code_verifier = NULL, state_nonce = NULL, updated_at = now()"
       ) &&
+        // The join that applies the snapshot to the UPDATE. Without it the
+        // UPDATE ... FROM is a cross join and withdraws every claim in the
+        // table; narrowed, it leaves completed claims naming the pair. The
+        // stubbed counts above cannot see either, so the text is pinned.
+        claimStmt.includes('FROM snap WHERE g.id = snap.id RETURNING g.id') &&
         !claimStmt.includes('x_user_id_hmac = NULL') &&
         !/LIMIT/.test(claimStmt) &&
         !/user_id = \$/.test(claimStmt)
@@ -13058,36 +13082,59 @@ async function main() {
 
     // Un-suppress puts a claim back only where no sibling suppression still
     // covers its wallet or its handle: the table has no trigger to refuse.
-    const restoreSent: string[] = [];
-    await unsuppressIdentifier(
-      {
-        execute: async (query: Parameters<typeof dialect.sqlToQuery>[0]) => {
-          const flat = dialect
-            .sqlToQuery(query)
-            .sql.replace(/\s+/g, ' ')
-            .trim();
-          restoreSent.push(flat);
-          if (flat.includes('AS past_retention')) {
-            return { rows: [{ past_retention: false }] };
-          }
-          if (flat.includes('count(*)::int AS n FROM suppression_quarantine')) {
-            return { rows: [{ n: 1 }] };
-          }
-          return { rows: [] };
-        },
-      } as unknown as Parameters<typeof unsuppressIdentifier>[0],
-      'wallet',
-      W1,
-      false
-    );
-    const claimRestore =
-      restoreSent.find((s) => s.includes('UPDATE identity_attestations g')) ??
-      '';
+    // Run for both kinds that can name a claim, since each reaches it.
+    const unsuppressSent = async (kind: 'wallet' | 'twitter', id: string) => {
+      const sent: string[] = [];
+      await unsuppressIdentifier(
+        {
+          execute: async (query: Parameters<typeof dialect.sqlToQuery>[0]) => {
+            const flat = dialect
+              .sqlToQuery(query)
+              .sql.replace(/\s+/g, ' ')
+              .trim();
+            sent.push(flat);
+            if (flat.includes('AS past_retention')) {
+              return { rows: [{ past_retention: false }] };
+            }
+            if (
+              flat.includes('count(*)::int AS n FROM suppression_quarantine')
+            ) {
+              return { rows: [{ n: 1 }] };
+            }
+            return { rows: [] };
+          },
+        } as unknown as Parameters<typeof unsuppressIdentifier>[0],
+        kind,
+        id,
+        false
+      );
+      return (
+        sent.find((s) => s.includes('UPDATE identity_attestations g')) ?? ''
+      );
+    };
+    const claimRestore = await unsuppressSent('wallet', W1);
+    const handleRestore = await unsuppressSent('twitter', 'bob');
     ok(
       'a restored claim never re-pairs a wallet or handle that another suppression still covers',
       claimRestore.includes(
         "WHERE g.id = (s.row_data ->> 'id')::uuid AND g.status = 'withdrawn' AND g.x_handle IS NULL AND NOT EXISTS ( SELECT 1 FROM suppressed_identifiers x WHERE (x.kind = 'wallet' AND x.identifier = g.wallet) OR (x.kind = 'twitter' AND x.identifier = lower(s.row_data ->> 'x_handle')) )"
       )
+    );
+    ok(
+      'a restored claim gets back its handle, its account id and its signature',
+      claimRestore.includes(
+        "SET status = 'completed', x_user_id = s.row_data ->> 'x_user_id', x_handle = s.row_data ->> 'x_handle', signature = s.row_data ->> 'signature', updated_at = now()"
+      )
+    );
+    ok(
+      'a claim copy is deleted only when its restore landed, so a refused one is kept',
+      claimRestore.includes(
+        "DELETE FROM suppression_quarantine q USING src WHERE q.id = src.id AND (src.row_data ->> 'id')::uuid IN (SELECT id FROM upd)"
+      )
+    );
+    ok(
+      'un-suppressing an X handle restores the claim record too',
+      handleRestore.length > 0 && handleRestore === claimRestore
     );
 
     // The signed withdrawal reaches the claim through the same erase and no

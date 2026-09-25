@@ -63,8 +63,9 @@ curl -X POST https://walletlink.social/api/v1/batch \
       GitHub.
     </ResponseField>
     <ResponseField name="matched" type="number">
-      How many resolved to an X handle or a Farcaster account. This is the
-      number billed, and it is never more than `found`.
+      How many resolved to an X handle or a Farcaster account. On a fresh
+      request this is the number billed, and it is never more than `found`. For
+      a replay, see [retries](#retries-and-the-idempotency-key).
     </ResponseField>
     <ResponseField name="not_found" type="number">
       Unique addresses with no identity at all: `requested` minus `found`.
@@ -153,7 +154,9 @@ and it is the only way to see the quality metadata.
 ## Cost
 
 Match credits are charged on the addresses that **resolve to an X handle or a
-Farcaster account**, after deduplication. `meta.matched` is exactly that count.
+Farcaster account**, after deduplication. On a fresh request, `meta.matched` is
+exactly that count; for a replay, see
+[retries](#retries-and-the-idempotency-key).
 An address that carries only an ENS name, a Lens profile or a GitHub account is
 returned and counted in `found`, but not billed. Submitting `[A, B, A]` where A
 matches and B does not costs 1 credit and returns 2 records. Deduplicating
@@ -171,13 +174,15 @@ header on any batch you might have to retry, and a resend of the identical
 request replays the stored response instead:
 
 - The dedup is scoped to your API key and pinned to the exact request body, and
-  lasts 24 hours. A replay returns the original body and status with an
-  `Idempotency-Replayed: true` header, bills no matches, and resolves nothing.
+  lasts 24 hours. A replay returns the original status and the original body,
+  less any removals (below), with an `Idempotency-Replayed: true` header, bills
+  no matches, and resolves nothing.
 - A replay honors removals made since the original request. An address or
   account whose owner asked to be removed in the meantime is left out of the
   replay exactly as a fresh request would leave it out, and `found`,
-  `not_found` and `matched` count what the replay returns. What the original
-  request billed is unchanged, and so is your balance.
+  `not_found` and `matched` count what the replay returns, so `matched` can be
+  below what the original request billed. The replay itself bills nothing, and
+  your usage and balance remain the billing record.
 - Rate limits still apply to a replay: the request weight is spent at the gate,
   before the store is consulted.
 - Reusing a key with a **different** body is refused with
