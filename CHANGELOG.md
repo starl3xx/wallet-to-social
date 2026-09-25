@@ -2,6 +2,31 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-25 (a removal reaches retry copies and the claim record)
+
+- **A removal now reaches the API's retry copies.** A batch sent with an
+  `Idempotency-Key` keeps its response for 24 hours so a resend can replay
+  it. A removal made inside that window now rewrites every stored response
+  that names the removed address or account, and every replay is checked
+  against the removal list before it is served, so a request that was in
+  flight during the removal cannot bring the link back either. The stored
+  response is rewritten, not deleted: a deleted key would turn the
+  customer's retry into a new request, billed again. A replay's `found`,
+  `not_found` and `matched` count what it returns; what the original
+  request billed does not change.
+- **A removal by email now clears the claim record.** A wallet and X account
+  paired on `/claim` stayed on record, marked completed, when the removal
+  came by email instead of the withdraw button. Both paths now run the same
+  step: every claim naming the wallet or the handle is marked withdrawn, and
+  the handle, account id, signature and any unfinished authorization are
+  cleared. The grant key stays, as before. A mistaken removal can still be
+  undone within 30 days, claims included.
+- **A claim that was mid-authorization when its X handle was removed is
+  refused,** as one was already refused when its wallet had been removed.
+- **Runbook:** after a backup restore, keep today's removal list over the
+  backup's and re-run the removals (`docs/OPERATIONS.md`; commands in the
+  private ops runbook).
+
 ### 2026-09-24 (every lookup job runs through one pipeline)
 
 - **Lists over ten addresses now run only in the worker pipeline,** the one

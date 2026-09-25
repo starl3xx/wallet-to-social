@@ -333,8 +333,13 @@ agent surface that violates one needs to say so and say why.
    entry so row counts align. A saved lookup whose SUBJECT is the removed
    identifier (a reverse lookup saved as "Wallets for @handle") is
    quarantined and deleted whole, because its name plus row membership is
-   the mapping and no per-element amend can make it honest. **The
-   promise** is laddered: the
+   the mapping and no per-element amend can make it honest. The same
+   holds for the API retry copies (`idempotency_keys`) and the claim record
+   (`identity_attestations`) since 2026-09-25: a stored batch response is
+   rewritten at removal and filtered at every replay, never deleted,
+   because a deleted key re-bills the retry; a claim naming the wallet or
+   handle is withdrawn by the same statement the signed withdrawal runs.
+   **The promise** is laddered: the
    privacy page states exactly what each stage ships, and keeps the
    no-proof sentence, the jurisdiction-blind stance and the 30-day SLA.
 

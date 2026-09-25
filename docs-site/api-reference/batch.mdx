@@ -173,6 +173,11 @@ request replays the stored response instead:
 - The dedup is scoped to your API key and pinned to the exact request body, and
   lasts 24 hours. A replay returns the original body and status with an
   `Idempotency-Replayed: true` header, bills no matches, and resolves nothing.
+- A replay honors removals made since the original request. An address or
+  account whose owner asked to be removed in the meantime is left out of the
+  replay exactly as a fresh request would leave it out, and `found`,
+  `not_found` and `matched` count what the replay returns. What the original
+  request billed is unchanged, and so is your balance.
 - Rate limits still apply to a replay: the request weight is spent at the gate,
   before the store is consulted.
 - Reusing a key with a **different** body is refused with
