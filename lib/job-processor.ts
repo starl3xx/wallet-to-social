@@ -447,6 +447,29 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
   try {
     /**
+     * A restart is written down before anything reads the row again.
+     *
+     * `completionState` calls a job saved when `processed_count` covers the
+     * list, which is true of the row a restart came from: an Inngest-shaped
+     * leftover carries a full count and no saved rows. Left in the row, the
+     * cap below would take it for saved and fall through instead of stopping
+     * it, and every claim would start the list again, without bound (Bugbot
+     * on #393). Persisting the reset makes the row say what this claim will
+     * do, so "saved" has one meaning: every row is there to finalize from.
+     */
+    if (job !== claimed) {
+      await writeOwned(db, job, {
+        processedCount: 0,
+        partialResults: null,
+        twitterFound: 0,
+        farcasterFound: 0,
+        anySocialFound: 0,
+        cacheHits: 0,
+        updatedAt: new Date(),
+      });
+    }
+
+    /**
      * Past the cap. A job whose rows are all saved is finished from them
      * (it falls through to finalize below). Anything else stops here, and
      * the answer depends on whether it was charged: a billed job is never

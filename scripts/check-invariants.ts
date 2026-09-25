@@ -12154,11 +12154,25 @@ async function main() {
         MAX_SLICE_ATTEMPTS <= 6 &&
         /Submit the list again\./.test(SLICES_EXHAUSTED)
     );
+    /**
+     * "Saved" has one meaning: every row is there to finalize from. The cap
+     * reads it from the row, so a restart that `resumeFromSavedPrefix`
+     * decided in memory is written to the row first, fenced, before the cap
+     * or the failure path can read it. Otherwise an Inngest-shaped leftover
+     * (a full count, no rows) reads as saved at the cap, falls through, and
+     * starts the list again on every claim without bound (Bugbot on #393).
+     */
     ok(
-      'the attempt cap is checked first on every claim, and the slice is sized by the attempt count',
-      /try \{\s*if \(job\.sliceAttempts > MAX_SLICE_ATTEMPTS\) \{\s*const \{ saved, billed \} = await completionState\(db, job\.id\);/.test(
+      'a restart is persisted before the cap reads the row, and the cap comes right after it',
+      /try \{\s*if \(job !== claimed\) \{\s*await writeOwned\(db, job, \{\s*processedCount: 0,\s*partialResults: null,\s*twitterFound: 0,\s*farcasterFound: 0,\s*anySocialFound: 0,\s*cacheHits: 0,\s*updatedAt: new Date\(\),\s*\}\);\s*\}\s*if \(job\.sliceAttempts > MAX_SLICE_ATTEMPTS\) \{\s*const \{ saved, billed \} = await completionState\(db, job\.id\);/.test(
         chunkFn
-      ) &&
+      )
+    );
+    ok(
+      'the attempt cap is checked on every claim before any work, and the slice is sized by the attempt count',
+      chunkFn.indexOf('if (job.sliceAttempts > MAX_SLICE_ATTEMPTS) {') !== -1 &&
+        chunkFn.indexOf('if (job.sliceAttempts > MAX_SLICE_ATTEMPTS) {') <
+          chunkFn.indexOf('const options = job.options as JobOptions;') &&
         /startIndex \+ sliceSizeFor\(job\.sliceAttempts\)/.test(chunkFn) &&
         !/startIndex \+ CHUNK_SIZE/.test(chunkFn)
     );
