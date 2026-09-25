@@ -2470,7 +2470,9 @@ const MUTATIONS: Mutation[] = [
     name: 'the ledger check correlates through columns again, so it compares credit_ledger to itself',
     file: 'lib/job-processor.ts',
     from: "exists (select 1 from credit_ledger cl where cl.job_id = ${jobId}::uuid and cl.paid_from <> 'unlock')",
-    to: "exists (select 1 from ${creditLedger} where ${creditLedger.jobId} = ${lookupJobs.id} and ${creditLedger.paidFrom} <> 'unlock')",
+    // The same bug in the names in scope here: `${lookupJobs.id}` renders as
+    // a bare "id", which inside the subquery is credit_ledger's own id.
+    to: "exists (select 1 from credit_ledger where job_id = ${lookupJobs.id} and paid_from <> 'unlock')",
   },
   {
     name: 'an unlock row counts as the charge',
