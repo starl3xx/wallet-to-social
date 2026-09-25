@@ -2,6 +2,52 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-25 (USDC buyers are screened against the sanctions list)
+
+- **The wallet paying for an Agent pack is screened before any money
+  moves.** On `/api/x402/buy`, the paying wallet is checked against the EVM
+  addresses on OFAC's SDN list as soon as the payment is read, before it is
+  verified or settled. A listed wallet gets `403 SANCTIONED_PAYER` with one
+  sentence, "This payment cannot be accepted.", and nothing more.
+- **The screen fails closed.** When there is no list, when the list's last
+  successful refresh is 7 days old, or when the check cannot run, the buy
+  answers `503 SCREENING_UNAVAILABLE` with a `Retry-After`, and nothing is
+  charged.
+- **The list is OFAC's own, refreshed every six hours.** A new cron,
+  `/api/cron/sanctions-refresh`, reads SDN.XML and keeps every EVM address in
+  it, whatever token it is filed under: 124 in the 2026-09-23 publication. The
+  free onchain oracle was measured first and was stale; it missed 42 of those 124. A refresh never replaces the list with an empty parse, an older
+  publication or a list more than 20% smaller; an operator can accept a real
+  delisting of that size only by naming its exact count.
+- **A wallet listed after it bought is frozen, never refunded.** After every
+  refresh, each past USDC payer is checked again. The payer of every
+  purchase was already stored (in the purchase's settlement reference), so
+  nothing new is recorded for it. An account a listed wallet paid for,
+  including a top-up to an email account, is marked frozen with the reason
+  and the time, and its keys are switched off. Its keys stay refused even if
+  one is minted later, and it cannot start a lookup or spend credits.
+- **Both checkouts refuse comprehensively sanctioned regions.** The USDC buy
+  and card checkout answer `403 REGION_RESTRICTED` ("Purchases are not
+  available in your region.") for a request from Cuba, Iran, North Korea,
+  Syria, Crimea, Sevastopol, Donetsk or Luhansk, by the location Vercel
+  reports for the IP. The rest of the site is open everywhere. The list is
+  one constant the lawyer may adjust (Linear STA-49).
+- **Every screening is recorded and kept five years.** The address, the list
+  date, the verdict and the time, in a new table the daily cleanup purges
+  after five years and the nightly backup includes.
+- **Alerts** are on the admin health panel: the refresh row goes late after
+  36 hours without a success, and a freeze in the last 30 days turns the
+  panel red. The runbook is in `docs/OPERATIONS.md`.
+- Operator: run `scripts/migrate-sanctions-screening.ts` (two tables, two
+  `users` columns, and the first copy of the list) and then
+  `scripts/migrate-grant-readonly.ts`, both before merge. Linear STA-41.
+  Fifty-seven new invariants drive the parser on a fixture in the real
+  SDN.XML shape, the refresh guard, the screen and its answers, the freeze,
+  the geoblock and the purge through the real functions, and pin the route
+  order; forty-five new guard mutations, each caught. A local Postgres
+  scenario ran the real buy route up to verify, the refresh cron on the real
+  SDN.XML, the freeze and the purge: 64 checks.
+
 ### 2026-09-25 (the retention periods the privacy page states are enforced)
 
 - **Expired cache copies are deleted.** A cached lookup result was already
