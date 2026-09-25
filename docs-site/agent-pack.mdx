@@ -46,6 +46,34 @@ answers `402` with a `PAYMENT-REQUIRED` header describing what to pay:
 }
 ```
 
+The same `402` states the [terms of service](https://walletlink.social/terms)
+the purchase is made under, and paying the challenge accepts them. Nothing
+extra is sent to do so: the request that pays is the same request it was
+before. The terms appear in three places, because x402 clients read different
+parts of the response:
+
+- The resource description inside `PAYMENT-REQUIRED` ends with the terms URL
+  and version, so a client that pays automatically has read them.
+- The JSON body carries them as fields:
+
+  ```json
+  {
+    "error": "Payment required: 12 match credits for $1.00 in USDC on Base.",
+    "code": "PAYMENT_REQUIRED",
+    "terms": {
+      "url": "https://walletlink.social/terms",
+      "version": "2026-09-25",
+      "note": "Paying accepts the terms of service at https://walletlink.social/terms, version 2026-09-25."
+    }
+  }
+  ```
+
+- A `Link: <https://walletlink.social/terms>; rel="terms-of-service"` header
+  ([RFC 6903](https://www.rfc-editor.org/rfc/rfc6903)).
+
+The version is the date the terms were last updated. The credits your payment
+buys record the version in force when the payment settled, and the time.
+
 Sign it and post again with a `PAYMENT-SIGNATURE` header. Any x402 client does
 this for you. On success:
 
