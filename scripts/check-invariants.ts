@@ -17566,6 +17566,13 @@ async function main() {
       'a truncated download is refused, not parsed as a shorter list',
       parseRefuses(fixture.slice(0, Math.floor(fixture.length * 0.6)))
     );
+    // The one cut the entry count cannot see: every entry arrived and the
+    // file stops before its closing tag. Only the closing-tag check refuses
+    // it, so this is the assertion that check answers to.
+    ok(
+      'a download that stops before its closing tag is refused, even with every entry present',
+      parseRefuses(fixture.replace('</sdnList>', ''))
+    );
     ok(
       'a file whose entries disagree with its own Record_Count is refused',
       parseRefuses(sdnXml(cuba + entries.join(''), 6)) &&
