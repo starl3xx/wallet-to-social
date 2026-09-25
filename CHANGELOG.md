@@ -918,6 +918,10 @@ All notable changes to walletlink.social. Newest first.
   exact delivery markers; use canonical IDs for follow-up threading.
 - Add individually reviewed discovery drafts without inventing buying intent
   or bypassing suppression and exact-message approval.
+- A follow-up that fails before Gmail's send request (the earlier message does
+  not verify in Sent Mail, or authorization fails) stays queued and is retried.
+  It no longer becomes `uncertain`, which blocked every later send. Only a
+  failure during or after the send request is uncertain.
 - Shorten generated outreach into casual notes with clear questions.
 - Preserve the reviewed sender display name in email headers and bind it to
   approval. Query the explicit users schema for reliable exclusion syncs.

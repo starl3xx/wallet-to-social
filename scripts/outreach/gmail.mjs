@@ -1,4 +1,4 @@
-import { email } from './engine.mjs';
+import { email, NotSubmittedError } from './engine.mjs';
 
 const ROOT = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const header = (message, name) =>
@@ -52,7 +52,7 @@ export class Gmail {
     this.aliases = [];
   }
 
-  async request(path, options = {}) {
+  async authorize() {
     if (!this.token) {
       const clientId = this.env.OUTREACH_GOOGLE_CLIENT_ID;
       const secret = this.env.OUTREACH_GOOGLE_CLIENT_SECRET;
@@ -77,6 +77,10 @@ export class Gmail {
       this.token = (await response.json()).access_token;
       if (!this.token) throw new Error('Gmail authorization returned no token');
     }
+  }
+
+  async request(path, options = {}) {
+    await this.authorize();
     const response = await this.fetcher(`${ROOT}${path}`, {
       ...options,
       signal: AbortSignal.timeout(20_000),
@@ -155,29 +159,37 @@ export class Gmail {
   }
 
   async send(lead, message, index) {
-    // Read canonical IDs before sending a follow-up. A failure here sends nothing.
-    const previousMessages = [];
+    // Everything before the send request only reads: authorization, the
+    // canonical IDs of earlier messages, and the MIME. A failure here submitted
+    // nothing, so it is thrown as NotSubmittedError and the message stays queued.
+    // The send request itself must stay outside this block: once it starts,
+    // a failure can follow a delivery, and the engine treats it as uncertain.
+    let raw;
     let threadId;
-    for (const previous of lead.messages.slice(0, index)) {
-      const receipt = await this.findSent(previous.rfcId, {
-        lead,
-        message: previous,
-      });
-      if (!receipt)
-        throw new Error('Previous message is not verified in Sent Mail');
-      previousMessages.push({ ...previous, rfcId: receipt.rfcId });
-      threadId = receipt.threadId;
+    try {
+      await this.authorize();
+      const previousMessages = [];
+      for (const previous of lead.messages.slice(0, index)) {
+        const receipt = await this.findSent(previous.rfcId, {
+          lead,
+          message: previous,
+        });
+        if (!receipt)
+          throw new Error('Previous message is not verified in Sent Mail');
+        previousMessages.push({ ...previous, rfcId: receipt.rfcId });
+        threadId = receipt.threadId;
+      }
+      raw = mime(
+        { ...lead, messages: [...previousMessages, message] },
+        message,
+        index
+      );
+    } catch (error) {
+      throw new NotSubmittedError(error);
     }
     return this.request('/messages/send', {
       method: 'POST',
-      body: JSON.stringify({
-        raw: mime(
-          { ...lead, messages: [...previousMessages, message] },
-          message,
-          index
-        ),
-        ...(threadId ? { threadId } : {}),
-      }),
+      body: JSON.stringify({ raw, ...(threadId ? { threadId } : {}) }),
     });
   }
 

@@ -230,8 +230,17 @@ matches or an incomplete scan require manual reconciliation. Metadata is
 read, not message bodies. A missing match leaves all sending blocked.
 
 Follow-ups fetch the verified canonical IDs from Gmail before constructing
-References and In-Reply-To. No uncertain attempt is automatically resubmitted,
-including after an empty search result or provider error.
+References and In-Reply-To. That lookup and Gmail authorization run before the
+send request. If either fails, nothing was submitted: the message returns to
+the queue as a draft, the event log records `send-not-submitted`, the tick
+tries the next due prospect, and the next tick retries the message. The tick
+exits with an error when nothing else was sent. A follow-up whose earlier
+message no longer verifies in Sent Mail (for example, it was deleted) fails
+this way on every tick until you stop that prospect.
+
+Only a failure during or after the send request marks the message
+`uncertain`. No uncertain attempt is automatically resubmitted, including
+after an empty search result or provider error.
 
 If a receipt never appears, investigate the provider and mailbox before
 manually recovering the state. Do not clear an uncertain record just to

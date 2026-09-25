@@ -17,6 +17,7 @@ import {
   excludeEmails,
   refreshEvidence,
   candidates,
+  NotSubmittedError,
 } from './engine.mjs';
 import { openStore } from './store.mjs';
 import { Gmail, mime } from './gmail.mjs';
@@ -259,6 +260,65 @@ test('uncertain delivery blocks all sending and is not automatically retried', a
   assert.equal(f.calls.filter((c) => c === 'send').length, 1);
 });
 
+test('a failure before submission leaves the message queued, not uncertain', async () => {
+  const f = fixture();
+  f.provider.send = async () => {
+    f.calls.push('send');
+    throw new NotSubmittedError(new Error('lookup failed'));
+  };
+  await assert.rejects(
+    tick(f.state, f.provider, f.persist, { now: NOW, live: true }),
+    /Nothing was submitted/
+  );
+  const [message] = f.lead.messages;
+  assert.equal(message.status, 'draft');
+  assert.equal(f.saved.at(-1).leads[0].messages[0].status, 'draft');
+  for (const key of ['rfcId', 'deliveryId', 'attemptedAt'])
+    assert.ok(!Object.hasOwn(message, key), key);
+  const types = f.state.events.map((e) => e.type);
+  assert.ok(types.includes('send-not-submitted'));
+  assert.ok(!types.includes('delivery-uncertain'));
+  // Nothing blocks the queue: the next tick retries and sends the same message.
+  f.provider.send = async () => {
+    f.calls.push('send');
+    return { id: 'remote', threadId: 'thread' };
+  };
+  const result = await tick(f.state, f.provider, f.persist, {
+    now: NOW + 60_000,
+    live: true,
+  });
+  assert.equal(result.mode, 'sent');
+  assert.equal(result.messageId, message.id);
+  assert.equal(message.status, 'sent');
+  assert.equal(f.calls.filter((c) => c === 'send').length, 2);
+});
+
+test('a prospect that fails before submission does not hold back the next one', async () => {
+  const f = fixture({ approved: false });
+  importLeads(f.state, [{ ...prospect, email: 'second@example.org' }], NOW);
+  plan(f.state, NOW);
+  for (const lead of f.state.leads)
+    if (lead.status === 'review') approve(f.state, lead.id, digest(lead), NOW);
+  const [first, second] = f.state.leads;
+  f.provider.send = async (lead) => {
+    f.calls.push(lead.id);
+    if (lead.id === first.id)
+      throw new NotSubmittedError(new Error('lookup failed'));
+    return { id: 'remote', threadId: 'thread' };
+  };
+  const result = await tick(f.state, f.provider, f.persist, {
+    now: NOW,
+    live: true,
+  });
+  const sends = f.calls.filter((c) => c === first.id || c === second.id);
+  assert.deepEqual(sends, [first.id, second.id]);
+  assert.equal(result.mode, 'sent');
+  assert.equal(result.leadId, second.id);
+  assert.deepEqual(result.notSubmitted, [first.messages[0].id]);
+  assert.equal(first.messages[0].status, 'draft');
+  assert.equal(second.messages[0].status, 'sent');
+});
+
 test('crashed submission reconciles by stable ID without sending again', async () => {
   const f = fixture();
   f.lead.messages[0].status = 'sending';
@@ -385,6 +445,9 @@ function gmailMock(responses, configuration = config) {
       calls.push({ url, options });
       assert.ok(responses.length, `Unexpected request: ${url}`);
       const next = responses.shift();
+      // An Error stands for a request that failed in flight (for example, a
+      // connection dropped after Gmail may already have accepted the message).
+      if (next instanceof Error) throw next;
       return { ok: true, status: 200, json: async () => next };
     },
   });
@@ -701,6 +764,106 @@ test('follow-up references use Gmail canonical IDs after rewriting', async () =>
   const raw = Buffer.from(sent.raw, 'base64url').toString();
   assert.match(raw, /In-Reply-To: <rewritten@mail.gmail.com>/);
   assert.equal(sent.threadId, remote.threadId);
+});
+
+// A sent first message with a stored Gmail receipt, and its follow-up due.
+function followupFixture() {
+  const f = fixture();
+  const [first, followup] = f.lead.messages;
+  Object.assign(first, {
+    status: 'sent',
+    sentAt: NOW,
+    rfcId: `<${first.id}@example.com>`,
+    deliveryId: first.id,
+    attemptedAt: NOW,
+    providerId: 'gmail-id',
+    threadId: 'gmail-thread',
+  });
+  const remote = {
+    id: 'gmail-id',
+    threadId: 'gmail-thread',
+    internalDate: String(NOW),
+    labelIds: ['SENT'],
+    payload: {
+      headers: [
+        { name: 'Message-ID', value: first.rfcId },
+        { name: 'From', value: `Operator <${config.sender}>` },
+        { name: 'To', value: f.lead.email },
+      ],
+    },
+  };
+  return { ...f, followup, remote, due: NOW + 4 * DAY };
+}
+const submissions = (calls) =>
+  calls.filter((c) => c.url.endsWith('/messages/send')).length;
+
+test('Gmail reports a failure before its send request as not submitted', async () => {
+  const { lead, followup, remote } = followupFixture();
+  delete remote.labelIds; // The earlier message no longer verifies in Sent Mail.
+  const unverified = gmailMock([{ access_token: 'token' }, remote]);
+  await assert.rejects(
+    unverified.client.send(lead, followup, 1),
+    NotSubmittedError
+  );
+  assert.equal(submissions(unverified.calls), 0);
+  const unauthorized = gmailMock([{}]); // Authorization returns no token.
+  await assert.rejects(
+    unauthorized.client.send(lead, lead.messages[0], 0),
+    NotSubmittedError
+  );
+  assert.equal(submissions(unauthorized.calls), 0);
+});
+
+test('an unverifiable earlier message keeps the follow-up queued and retryable', async () => {
+  const f = followupFixture();
+  const unverified = structuredClone(f.remote);
+  delete unverified.labelIds;
+  const gmail = gmailMock([
+    { access_token: 'token' },
+    unverified,
+    f.remote,
+    { id: 'gmail-next', threadId: f.remote.threadId },
+  ]);
+  f.provider.send = (lead, message, index) =>
+    gmail.client.send(lead, message, index);
+  await assert.rejects(
+    tick(f.state, f.provider, f.persist, { now: f.due, live: true }),
+    /Nothing was submitted/
+  );
+  assert.equal(f.followup.status, 'draft');
+  assert.equal(submissions(gmail.calls), 0);
+  // The lookup succeeds on the next tick, and the follow-up is sent once.
+  const result = await tick(f.state, f.provider, f.persist, {
+    now: f.due + 5 * 60_000,
+    live: true,
+  });
+  assert.equal(result.mode, 'sent');
+  assert.equal(f.followup.status, 'sent');
+  assert.equal(submissions(gmail.calls), 1);
+});
+
+test('a failure during the Gmail send request is uncertain and blocks sending', async () => {
+  const f = followupFixture();
+  const gmail = gmailMock([
+    { access_token: 'token' },
+    f.remote,
+    new Error('connection reset after the request was written'),
+  ]);
+  f.provider.send = (lead, message, index) =>
+    gmail.client.send(lead, message, index);
+  await assert.rejects(
+    tick(f.state, f.provider, f.persist, { now: f.due, live: true }),
+    /Delivery is uncertain/
+  );
+  assert.equal(f.followup.status, 'uncertain');
+  assert.equal(submissions(gmail.calls), 1);
+  assert.ok(!f.state.events.some((e) => e.type === 'send-not-submitted'));
+  const result = await tick(f.state, f.provider, f.persist, {
+    now: f.due + DAY,
+    live: true,
+  });
+  assert.equal(result.mode, 'blocked');
+  assert.equal(submissions(gmail.calls), 1);
 });
 
 test('explicit discovery drafts one prospect without inventing qualification or authorizing a send', async () => {

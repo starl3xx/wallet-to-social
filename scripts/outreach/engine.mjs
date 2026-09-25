@@ -11,6 +11,18 @@ export const TERMINAL = new Set([
 ]);
 const SEGMENTS = { agency: 30, campaign: 25, developer: 20, researcher: 10 };
 
+/**
+ * A provider's send throws this only when nothing reached the provider's send
+ * endpoint: for example, a follow-up whose earlier messages could not be
+ * verified. Any other error from send means delivery is uncertain.
+ */
+export class NotSubmittedError extends Error {
+  constructor(cause) {
+    super('Nothing was submitted', { cause });
+    this.name = 'NotSubmittedError';
+  }
+}
+
 function text(value, name, max = 1000) {
   if (
     typeof value !== 'string' ||
@@ -386,7 +398,11 @@ export function candidates(state, now) {
     });
 }
 
-/** Provider contract: profile, hasReply, send, findSent. No outbound call without live=true. */
+/**
+ * Provider contract: profile, hasReply, send, findSent. No outbound call without
+ * live=true. send throws NotSubmittedError for a failure before submission;
+ * any other error from send is treated as a possible delivery.
+ */
 export async function tick(
   state,
   provider,
@@ -464,6 +480,7 @@ export async function tick(
     return { mode: 'daily-limit' };
   if (sent.some((m) => now - m.sentAt < state.config.minGapMinutes * 60_000))
     return { mode: 'spacing' };
+  const notSubmitted = [];
   for (const { lead, message, index } of candidates(state, now)) {
     // Includes new threads from a recipient, not just replies in the original thread.
     if (await provider.hasReply(lead)) {
@@ -492,8 +509,31 @@ export async function tick(
       message.threadId = receipt.threadId;
       audit(state, 'sent', { leadId: lead.id, messageId: message.id }, now);
       persist(state);
-      return { mode: 'sent', leadId: lead.id, messageId: message.id };
-    } catch {
+      return {
+        mode: 'sent',
+        leadId: lead.id,
+        messageId: message.id,
+        ...(notSubmitted.length ? { notSubmitted } : {}),
+      };
+    } catch (error) {
+      if (error instanceof NotSubmittedError) {
+        // Nothing reached the provider, so there is nothing to reconcile. The
+        // message goes back to the queue unchanged, and the next tick retries it.
+        // The next candidate is still tried, so one prospect cannot hold the queue.
+        message.status = 'draft';
+        delete message.rfcId;
+        delete message.deliveryId;
+        delete message.attemptedAt;
+        audit(
+          state,
+          'send-not-submitted',
+          { leadId: lead.id, messageId: message.id },
+          now
+        );
+        persist(state);
+        notSubmitted.push(message.id);
+        continue;
+      }
       message.status = 'uncertain';
       audit(
         state,
@@ -508,6 +548,11 @@ export async function tick(
       );
     }
   }
+  // Deliberately omit provider errors, which may contain private message data.
+  if (notSubmitted.length)
+    throw new Error(
+      'Nothing was submitted. Each due message stays queued, and the next tick retries it.'
+    );
   return { mode: 'idle' };
 }
 
