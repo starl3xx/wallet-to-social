@@ -27,7 +27,10 @@ All notable changes to walletlink.social. Newest first.
   `.github/scripts/dependabot-copy.sh`, read from the default branch.
 - When a copy has commits of its own and Dependabot moves on, the copy is asked
   to rebase once per Dependabot commit, by whichever run sees it first, the
-  daily sweep included. It runs on
+  daily sweep included.
+- A failed close in the daily sweep no longer skips the copy step, which runs
+  whenever the job was not cancelled, and the rebase check reads the comments
+  before searching them, so a broken pipe cannot post the request twice. It runs on
   `pull_request_target`, because `pull_request` runs nothing on a PR GitHub
   cannot merge, and a daily sweep closes any copy whose Dependabot PR is no
   longer open. A copy already merged is never opened again.

@@ -69,8 +69,13 @@ if copy_head=$(gh api "repos/$REPO/git/ref/heads/$copy" -q .object.sha 2>/dev/nu
       # Asked once per Dependabot commit, from whichever run sees it first:
       # the event run if it has the token, or else the daily sweep. A comment
       # already naming this commit means the question has been asked.
-      if [ -n "$existing" ] && ! gh api "repos/$REPO/issues/$existing/comments" --paginate \
-        -q '.[].body' | grep -qF "$sha"; then
+      # Read into a variable first: `grep -q` in a pipe can exit before
+      # `gh` finishes, and under pipefail the SIGPIPE would read as a miss.
+      asked=""
+      if [ -n "$existing" ]; then
+        asked=$(gh api "repos/$REPO/issues/$existing/comments" --paginate -q '.[].body')
+      fi
+      if [ -n "$existing" ] && ! grep -qF "$sha" <<<"$asked"; then
         gh pr comment "$existing" --repo "$REPO" \
           --body "Dependabot updated #$NUMBER to $sha, but this branch has $own commit(s) of its own, so the workflow did not move it. Rebase it onto $sha by hand, then the workflow follows Dependabot again."
       fi

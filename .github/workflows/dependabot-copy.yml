@@ -87,15 +87,21 @@ jobs:
             # MISSING one are left for a person, because closing would also
             # delete the copy branch and any commit added to it.
             if [ "$state" = "CLOSED" ]; then
-              gh pr close "$copy_number" --repo "$REPO" --delete-branch \
-                --comment "Dependabot closed the PR this copied without merging it, so this copy is closed too."
-              echo "Closed copy #$copy_number."
+              if gh pr close "$copy_number" --repo "$REPO" --delete-branch \
+                --comment "Dependabot closed the PR this copied without merging it, so this copy is closed too."; then
+                echo "Closed copy #$copy_number."
+              else
+                echo "::warning::Could not close copy #$copy_number; the next sweep tries again."
+              fi
             elif [ "$state" != "OPEN" ]; then
               echo "::warning::Copy #$copy_number: its Dependabot PR is $state. Left open for a person to decide."
             fi
           done
 
+      # Runs even if the closer above failed: this is the backstop for event
+      # runs that got no token, so one bad close must not switch it off.
       - name: Copy or update every open Dependabot PR
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           gh pr list --repo "$REPO" --state open --limit 200 \
