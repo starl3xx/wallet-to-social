@@ -1,0 +1,16 @@
+[
+  {
+    "email": "alex@example.org",
+    "name": "Alex",
+    "company": "Example agency (fictional)",
+    "segment": "agency",
+    "sourceUrl": "https://example.org/services",
+    "contactSourceUrl": "https://example.org/contact",
+    "observation": "Your services page describes community campaign work.",
+    "observedAt": "2026-09-21T00:00:00Z",
+    "hasWalletAudience": true,
+    "nearTermProject": true,
+    "budgetOwner": true,
+    "campaign": "agency-pilot"
+  }
+]
