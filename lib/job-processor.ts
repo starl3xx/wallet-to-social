@@ -1286,6 +1286,16 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       });
     } catch (writeError) {
       if (!(writeError instanceof LeaseLostError)) throw writeError;
+      // Lost while handling the error: another invocation holds it now.
+      return {
+        completed: false,
+        busy: true,
+        processedCount: job.processedCount,
+        twitterFound: job.twitterFound,
+        farcasterFound: job.farcasterFound,
+        anySocialFound: job.anySocialFound,
+        cacheHits: job.cacheHits,
+      };
     }
 
     return {
