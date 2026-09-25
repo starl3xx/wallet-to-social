@@ -270,9 +270,10 @@ export async function POST(request: NextRequest) {
 
   /**
    * Same dispatch as `/api/jobs`: small jobs run inline so a short list does
-   * not wait out a cron tick, larger ones are kicked after the response. The
-   * kick and the cron worker both go through the claim in `processJobChunk`,
-   * so they cannot work the job at once. See `/api/jobs` for the whole case.
+   * not wait out a cron tick, larger ones are kicked after the response, and
+   * the kick keeps taking slices while its budget lasts. The kick and the
+   * cron worker both go through the claim in `processJobChunk`, so they
+   * cannot work the job at once. See `/api/jobs` for the whole case.
    */
   let status = 'pending';
   if (uniqueWallets.length <= INLINE_PROCESSING_THRESHOLD) {

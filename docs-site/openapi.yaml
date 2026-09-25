@@ -440,7 +440,11 @@ paths:
         Jobs of 10 addresses or fewer are processed inline, so the 202 can
         already report `status: completed`; poll the status URL once to
         collect the results. Larger jobs are queued: a worker normally picks
-        them up within seconds, and a fallback sweep runs every minute.
+        them up within seconds, and a fallback sweep runs every minute. A
+        worker takes a job 3,000 addresses at a time for up to four minutes,
+        so most jobs finish in the pass that picked them up; a longer one
+        continues at the next pass, a minute later at most, and
+        `progress.processed` rises in steps rather than address by address.
       x-match-credits: 1 per address that resolves to X or Farcaster, debited when the job completes; nothing at submission
       x-rate-limit-units: 1 per submission, regardless of list size
       requestBody:

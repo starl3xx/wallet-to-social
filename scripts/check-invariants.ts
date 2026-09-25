@@ -11810,8 +11810,10 @@ async function main() {
     const processorSrc = withoutComments(
       readFileSync('lib/job-processor.ts', 'utf8')
     );
+    // One slice, claim to handback. `processJobChunk` only loops over it;
+    // the loop is asserted on its own below.
     const chunkFn = processorSrc.slice(
-      processorSrc.indexOf('export async function processJobChunk('),
+      processorSrc.indexOf('async function processJobSlice('),
       processorSrc.indexOf('function mergeGraphRow(')
     );
     const claimAt = chunkFn.indexOf('.update(lookupJobs)');
@@ -11820,7 +11822,7 @@ async function main() {
       chunkFn.indexOf('.returning()', claimAt)
     );
     ok(
-      'the first write processJobChunk makes is the claim: this job, pending or processing, and claimable',
+      'the first write each slice makes is the claim: this job, pending or processing, and claimable',
       // The whole WHERE, id included. Without `eq(lookupJobs.id, jobId)` the
       // UPDATE leases every claimable job and returns the first, and the
       // slice then works another customer's wallets into this job's row.
@@ -12003,8 +12005,8 @@ async function main() {
         )
     );
     ok(
-      'the failure path hands a saved or billed job back rather than failing it',
-      /const \{ saved, billed \} = await completionState\(db, job\.id\);\s*if \(saved \|\| billed\) \{\s*await writeOwned\(db, job, \{\s*updatedAt: new Date\(\),\s*leasedUntil: sql`now\(\)`,\s*\}\);\s*return \{/.test(
+      'the failure path hands a saved or billed job back rather than failing it, and reports the error, so the slice loop waits for the cron',
+      /const \{ saved, billed \} = await completionState\(db, job\.id\);\s*if \(saved \|\| billed\) \{\s*await writeOwned\(db, job, \{\s*updatedAt: new Date\(\),\s*leasedUntil: sql`now\(\)`,\s*\}\);\s*return \{\s*completed: false,\s*processedCount: job\.processedCount,\s*twitterFound: job\.twitterFound,\s*farcasterFound: job\.farcasterFound,\s*anySocialFound: job\.anySocialFound,\s*cacheHits: job\.cacheHits,\s*error: error instanceof Error \? error\.message : 'Unknown error',\s*\};/.test(
         catchBody
       ) &&
         catchBody.indexOf('await completionState(db, job.id)') <
@@ -12227,11 +12229,377 @@ async function main() {
         )
     );
     ok(
-      'the worker gives ENS a deadline and its failed-wallet set',
-      processorSrc
+      'the worker gives ENS a deadline and its failed-wallet set, and every wallet ENS left is failed, before anything is cached or stored as a negative',
+      /const ensDeadline = ensDeadlineFor\(sliceStartedAt, invocationDeadline\);\s*const ensUnreached = new Set<string>\(\);/.test(
+        chunkFn
+      ) &&
+        processorSrc
+          .replace(/\s+/g, ' ')
+          .includes(
+            'batchLookupENS(uncachedWallets, undefined, undefined, undefined, { deadline: ensDeadline, failedWallets: ensUnreached, })'
+          ) &&
+        /for \(const wallet of ensUnreached\) \{\s*apiFailedWallets\.add\(wallet\);\s*if \(ensDeadline === invocationDeadline\) cutShort\.add\(wallet\);\s*\}/.test(
+          chunkFn
+        ) &&
+        chunkFn.indexOf('for (const wallet of ensUnreached)') >
+          chunkFn.indexOf(
+            'const [ensResults, neynarResults] = await Promise.all('
+          ) &&
+        chunkFn.indexOf('for (const wallet of ensUnreached)') <
+          chunkFn.indexOf('const walletsToCache') &&
+        chunkFn.indexOf('for (const wallet of ensUnreached)') <
+          chunkFn.indexOf('await upsertNegativeWallets(negativeWallets);')
+    );
+
+    /**
+     * One invocation keeps taking slices of a job while its budget lasts. It
+     * took one and left the rest to the cron, one slice a tick, so a
+     * 10,000-address fast scan, whose slices each take seconds, took four
+     * ticks: about four minutes for what the docs say comes back in seconds.
+     *
+     * The budget ends a minute inside the shortest route that runs a slice,
+     * for what still runs after it (a request a source has in flight, the
+     * save, finalize, the route's own work before the loop), and so under the
+     * lease. It holds a whole ENS budget twice over, so the first slice's ENS
+     * pass is never cut by it and still leaves Web3Bio its room.
+     */
+    const { INVOCATION_BUDGET_MS, runSlices, ensDeadlineFor } = jobProcessor;
+    ok(
+      `the invocation budget ends a minute inside the shortest route, under the lease, with room for two ENS budgets (${INVOCATION_BUDGET_MS} ms, routes ${shortestRoute} s, lease ${LEASE_SECONDS} s)`,
+      INVOCATION_BUDGET_MS > 0 &&
+        INVOCATION_BUDGET_MS <= shortestRoute * 1000 - 60_000 &&
+        INVOCATION_BUDGET_MS < LEASE_SECONDS * 1000 &&
+        INVOCATION_BUDGET_MS >= 2 * ENS_SLICE_BUDGET_MS
+    );
+
+    /**
+     * The loop, through the real function on a fake clock. Each fake slice
+     * advances the clock by its duration and reports progress, as a slice
+     * that saved does, unless told otherwise.
+     */
+    type SliceResult = Awaited<ReturnType<typeof runSlices>>;
+    const T0 = 1_000_000;
+    const driveSlices = async (
+      budgetMs: number,
+      plan: (n: number) => { ms: number; result?: Partial<SliceResult> }
+    ) => {
+      let clock = T0;
+      const deadlines: number[] = [];
+      let taken = 0;
+      const last = await runSlices(
+        async (deadline) => {
+          deadlines.push(deadline);
+          taken++;
+          // A loop that would never stop is ended here, so a broken one
+          // fails the counts below instead of hanging this script.
+          if (taken > 100) {
+            return {
+              completed: true,
+              processedCount: 0,
+              twitterFound: 0,
+              farcasterFound: 0,
+              anySocialFound: 0,
+              cacheHits: 0,
+            };
+          }
+          const step = plan(taken);
+          clock += step.ms;
+          return {
+            completed: false,
+            processedCount: 3000 * taken,
+            twitterFound: 0,
+            farcasterFound: 0,
+            anySocialFound: 0,
+            cacheHits: 0,
+            ...step.result,
+          };
+        },
+        budgetMs,
+        () => clock
+      );
+      return { taken, deadlines, last, clock };
+    };
+    const steady = await driveSlices(INVOCATION_BUDGET_MS, () => ({
+      ms: 50_000,
+    }));
+    ok(
+      `with 50-second slices the loop takes every slice that fits the budget and none it expects to overrun it (${steady.taken} taken, ended at ${(steady.clock - T0) / 1000} s)`,
+      steady.taken === Math.floor(INVOCATION_BUDGET_MS / 50_000) &&
+        steady.clock - T0 <= INVOCATION_BUDGET_MS &&
+        steady.clock - T0 + 50_000 > INVOCATION_BUDGET_MS &&
+        !steady.last.completed
+    );
+    ok(
+      'every slice is given the same deadline: the invocation start plus the budget',
+      steady.deadlines.length === steady.taken &&
+        steady.deadlines.every((d) => d === T0 + INVOCATION_BUDGET_MS)
+    );
+    const fastScan = await driveSlices(INVOCATION_BUDGET_MS, (n) => ({
+      ms: 5_000,
+      result:
+        n * 3000 >= 10_000
+          ? { completed: true, processedCount: 10_000 }
+          : undefined,
+    }));
+    ok(
+      `a 10,000-address job whose slices take seconds finishes in the one invocation (${fastScan.taken} slices)`,
+      fastScan.taken === 4 && fastScan.last.completed
+    );
+    const busy = await driveSlices(INVOCATION_BUDGET_MS, () => ({
+      ms: 10,
+      result: { busy: true },
+    }));
+    ok(
+      'a slice that finds the job held, or loses it, ends the loop: no spinning on refused claims',
+      busy.taken === 1 && busy.last.busy === true
+    );
+    const erred = await driveSlices(INVOCATION_BUDGET_MS, (n) => ({
+      ms: 10,
+      result: n === 2 ? { error: 'upstream exploded' } : undefined,
+    }));
+    ok(
+      'a slice that ends in an error, even one handed back unfailed, ends the loop',
+      erred.taken === 2 && erred.last.error === 'upstream exploded'
+    );
+    const stuck = await driveSlices(INVOCATION_BUDGET_MS, () => ({
+      ms: 10,
+      result: { processedCount: 3000 },
+    }));
+    ok('a slice that saved no progress ends the loop', stuck.taken === 2);
+    const overlong = await driveSlices(INVOCATION_BUDGET_MS, () => ({
+      ms: INVOCATION_BUDGET_MS + 1,
+    }));
+    ok(
+      'the first slice always runs, and one that outran the budget is the last',
+      overlong.taken === 1
+    );
+    /**
+     * The estimate is the last slice's time scaled to the next slice's size.
+     * A slice halved after a kill (1,500) is followed by a full one (3,000)
+     * on the next claim, which takes about twice as long; gated on the
+     * halved slice's time, it started with half the time it needed. And the
+     * last, shorter piece of a list is not held back by a full slice's time.
+     */
+    const halved = await driveSlices(INVOCATION_BUDGET_MS, () => ({
+      ms: INVOCATION_BUDGET_MS * 0.4,
+      result: { sliceSize: 1500, nextSliceSize: 3000 },
+    }));
+    const tail = await driveSlices(INVOCATION_BUDGET_MS, (n) => ({
+      ms: INVOCATION_BUDGET_MS * 0.375,
+      result:
+        n === 3
+          ? { completed: true, processedCount: 7000 }
+          : { sliceSize: 3000, nextSliceSize: n === 2 ? 1000 : 3000 },
+    }));
+    ok(
+      `the estimate scales the last slice's time to the next slice's size (a halved slice then a full one: ${halved.taken} taken; two full then a third-size tail: ${tail.taken} taken)`,
+      halved.taken === 1 && tail.taken === 3 && tail.last.completed
+    );
+    /**
+     * Every drive above injects its clock, so the default is pinned here.
+     * The slice and its sources compare the deadline the loop hands them
+     * against Date.now(): on any other epoch (performance.now(), say) it
+     * lands in 1970, ENS and Web3Bio stop before their first batch with every
+     * wallet unreached, and the loop itself still looks healthy.
+     */
+    let wallDeadline = 0;
+    const wallBefore = Date.now();
+    await runSlices(async (deadline) => {
+      wallDeadline = deadline;
+      return {
+        completed: true,
+        processedCount: 0,
+        twitterFound: 0,
+        farcasterFound: 0,
+        anySocialFound: 0,
+        cacheHits: 0,
+      };
+    }, INVOCATION_BUDGET_MS);
+    const wallAfter = Date.now();
+    ok(
+      `on its default clock the loop hands a slice a wall-clock deadline, the budget from now (${new Date(wallDeadline).toISOString()})`,
+      wallDeadline >= wallBefore + INVOCATION_BUDGET_MS &&
+        wallDeadline <= wallAfter + INVOCATION_BUDGET_MS
+    );
+
+    /**
+     * ENS in a slice is bounded by both clocks. From the slice's own claim,
+     * or a later slice would start with its ENS time spent and record every
+     * wallet unreached; and never past the invocation's deadline, or a slice
+     * the loop started late would read ENS into the platform's kill.
+     */
+    const firstEns = ensDeadlineFor(T0, T0 + INVOCATION_BUDGET_MS);
+    const laterEns = ensDeadlineFor(T0 + 100_000, T0 + INVOCATION_BUDGET_MS);
+    const lateEns = ensDeadlineFor(T0 + 200_000, T0 + INVOCATION_BUDGET_MS);
+    ok(
+      `a slice's ENS budget runs from its own claim and stops at the invocation's deadline (${[firstEns, laterEns, lateEns].map((d) => (d - T0) / 1000).join(', ')} s)`,
+      firstEns === T0 + ENS_SLICE_BUDGET_MS &&
+        laterEns ===
+          Math.min(
+            T0 + 100_000 + ENS_SLICE_BUDGET_MS,
+            T0 + INVOCATION_BUDGET_MS
+          ) &&
+        lateEns === T0 + INVOCATION_BUDGET_MS &&
+        laterEns > firstEns
+    );
+    const { waveDeadline } = await import('@/lib/web3bio');
+    ok(
+      "Web3Bio stops starting waves at its own ceiling or the caller's deadline, whichever is first",
+      waveDeadline(T0, 3000) === T0 + batchDeadlineMs(3000) &&
+        waveDeadline(T0, 3000, T0 + 10_000) === T0 + 10_000 &&
+        waveDeadline(T0, 3000, T0 + 10_000_000) === T0 + batchDeadlineMs(3000)
+    );
+    const web3bioSrc = withoutComments(readFileSync('lib/web3bio.ts', 'utf8'));
+    ok(
+      "a slice gives every deadline-bound source the invocation's deadline, and Web3Bio uses it",
+      /const deadline = waveDeadline\(startTime, wallets\.length, opts\?\.deadline\);/.test(
+        web3bioSrc
+      ) &&
+        /batchFetchWeb3Bio\(\s*walletsNeedingWeb3Bio,\s*undefined,\s*undefined,\s*\{\s*failedWallets: apiFailedWallets,\s*deadline: invocationDeadline,\s*cutShort,\s*\}\s*\)/.test(
+          chunkFn
+        )
+    );
+
+    /**
+     * What the invocation's deadline cut short is never saved as done.
+     *
+     * The review of #397: a slice the loop started late, slower than the one
+     * before it, lost the tail of its Web3Bio pass to the deadline while
+     * every upstream was healthy, and the slice still saved its whole list
+     * as processed. Those wallets finished as plain misses, never asked. So
+     * the sources say which wallets the caller's deadline (not their own
+     * ceiling) kept them from, and the slice saves only up to the first.
+     */
+    const { cutByCaller } = await import('@/lib/web3bio');
+    ok(
+      "Web3Bio calls a wallet cut short only when the caller's deadline came before its own ceiling",
+      cutByCaller(T0, 3000, T0 + 10_000) &&
+        !cutByCaller(T0, 3000) &&
+        !cutByCaller(T0, 3000, T0 + batchDeadlineMs(3000)) &&
+        !cutByCaller(T0, 3000, T0 + 10_000_000)
+    );
+    const w3bBail = web3bioSrc.slice(
+      web3bioSrc.indexOf('if (Date.now() >= deadline)')
+    );
+    ok(
+      "Web3Bio records the wallets the caller's deadline cut, and only those, as cut short",
+      /const callerCuts = cutByCaller\(startTime, wallets\.length, opts\?\.deadline\);/.test(
+        web3bioSrc
+      ) &&
+        /for \(const wallet of wallets\.slice\(i\)\) \{\s*if \(callerCuts\) opts\?\.cutShort\?\.add\(wallet\.toLowerCase\(\)\);\s*errorCount\+\+;\s*opts\?\.failedWallets\?\.add\(wallet\.toLowerCase\(\)\);\s*\}\s*break;/.test(
+          w3bBail
+        ) &&
+        (web3bioSrc.match(/cutShort\?\.add\(/g) ?? []).length === 1
+    );
+    const { reachedPrefix, unsavedTail } = jobProcessor;
+    const sliceList = ['0xA1', '0xB2', '0xC3', '0xD4', '0xE5'];
+    ok(
+      'the saved prefix ends at the first wallet cut short, in list order, and never past the list',
+      reachedPrefix(sliceList, new Set()) === 5 &&
+        reachedPrefix(sliceList, new Set(['0xd4', '0xc3'])) === 2 &&
+        reachedPrefix(sliceList, new Set(['0xa1'])) === 0 &&
+        reachedPrefix(sliceList, new Set(['0xff'])) === 5
+    );
+    const dropped = unsavedTail(
+      ['0xZ0', '0xC3', ...sliceList],
+      2,
+      sliceList,
+      2
+    );
+    ok(
+      `a slice drops the rows past its saved prefix, except a repeated address the saved part still needs (${[...dropped].join(', ')})`,
+      JSON.stringify([...dropped]) === JSON.stringify(['0xd4', '0xe5']) &&
+        unsavedTail(sliceList, 0, sliceList, 5).size === 0
+    );
+    ok(
+      'a slice saves, counts and resumes from only the prefix every source was asked about, after the scrub and before the stats',
+      chunkFn
         .replace(/\s+/g, ' ')
         .includes(
-          'batchLookupENS(uncachedWallets, undefined, undefined, undefined, { deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS, failedWallets: apiFailedWallets, })'
+          'const reached = reachedPrefix(walletsToProcess, cutShort); for (const wallet of unsavedTail( allWallets, startIndex, walletsToProcess, reached )) { results.delete(wallet); if (cacheHitWallets.has(wallet)) cacheHits--; } const chunkResults = walletsToProcess .slice(0, reached) .map((w) => results.get(w.toLowerCase())!);'
+        ) &&
+        /const newProcessedCount = startIndex \+ reached;/.test(chunkFn) &&
+        !/startIndex \+ walletsToProcess\.length/.test(chunkFn) &&
+        chunkFn.indexOf('const reached = reachedPrefix(') >
+          chunkFn.indexOf('scrubResultRow(result, suppression)') &&
+        chunkFn.indexOf('const reached = reachedPrefix(') <
+          chunkFn.indexOf('const isComplete =') &&
+        /cacheHitWallets\.add\(wallet\);/.test(chunkFn) &&
+        (chunkFn.match(/cutShort\.add\(/g) ?? []).length === 1
+    );
+    ok(
+      "a slice that saved progress tells the loop its size and the next claim's, full size after the handback",
+      /sliceSize: walletsToProcess\.length,\s*nextSliceSize: Math\.min\(\s*sliceSizeFor\(1\),\s*allWallets\.length - newProcessedCount\s*\),\s*\};/.test(
+        chunkFn
+      )
+    );
+
+    /**
+     * Every slice the loop takes is claimed on its own: processJobChunk is
+     * the loop over processJobSlice and nothing else, and each slice's first
+     * write is the claim (asserted above), which mints a fresh token and
+     * counts an attempt after the last slice's handback reset it. Pinned
+     * whole, and every caller passes the job id alone, so no route can widen
+     * its own budget past the margin above.
+     */
+    ok(
+      'processJobChunk takes every slice through processJobSlice, on the default budget',
+      flatFn(
+        'export async function processJobChunk(',
+        'async function processJobSlice('
+      ) ===
+        'export async function processJobChunk( jobId: string, budgetMs: number = INVOCATION_BUDGET_MS ): Promise<ProcessResult> { return runSlices( (invocationDeadline) => processJobSlice(jobId, invocationDeadline), budgetMs ); }'
+    );
+    const callArgs = callers.flatMap((file) =>
+      [
+        ...withoutComments(readFileSync(file, 'utf8')).matchAll(
+          /processJobChunk\(([^)]*)\)/g
+        ),
+      ].map((m) => m[1].trim())
+    );
+    ok(
+      `every route calls processJobChunk with the job id alone (${callArgs.join('; ')})`,
+      callArgs.length >= 5 &&
+        callArgs.every((a) => a === 'jobId' || a === 'job.id')
+    );
+
+    /**
+     * The page that said a fast scan "of any size comes back in seconds" is
+     * what this loop was built to make true, and it now says how, in the
+     * code's own numbers: the slice size and one pass's budget.
+     */
+    const scanDepthPage = readFileSync(
+      'docs-site/concepts/scan-depth.mdx',
+      'utf8'
+    );
+    const minutesInWords = [
+      'zero',
+      'one',
+      'two',
+      'three',
+      'four',
+      'five',
+      'six',
+    ][INVOCATION_BUDGET_MS / 60_000];
+    const sliceInWords = sliceSizeFor(1).toLocaleString('en-US');
+    ok(
+      `the scan depth page states the slice size and the pass budget the code uses (${sliceInWords} addresses, ${minutesInWords} minutes)`,
+      minutesInWords !== undefined &&
+        scanDepthPage.includes(`list ${sliceInWords} addresses at a time`) &&
+        scanDepthPage.includes(
+          `keeps taking the next ${sliceInWords} for up to ${minutesInWords} minutes`
+        ) &&
+        !/of any size/.test(scanDepthPage)
+    );
+    const openapiJobs = readFileSync('docs-site/openapi.yaml', 'utf8').replace(
+      /\s+/g,
+      ' '
+    );
+    ok(
+      `the API description states the same slice size and pass budget (${sliceInWords} addresses, ${minutesInWords} minutes)`,
+      minutesInWords !== undefined &&
+        openapiJobs.includes(
+          `A worker takes a job ${sliceInWords} addresses at a time for up to ${minutesInWords} minutes`
         )
     );
 

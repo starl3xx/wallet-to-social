@@ -22,8 +22,8 @@ const INLINE_PROCESSING_THRESHOLD = 10;
 
 export const runtime = 'nodejs';
 /**
- * Declared, not left to the platform default, because the kick below runs a
- * slice inside this invocation and holds the job's lease while it does. The
+ * Declared, not left to the platform default, because the kick below runs
+ * slices inside this invocation and holds the job's lease while it does. The
  * lease (`LEASE_SECONDS` in lib/job-processor.ts) is safe only while it
  * outlasts every holder, so every route that calls `processJobChunk` states a
  * duration below it. Asserted in scripts/check-invariants.ts.
@@ -453,12 +453,14 @@ export async function POST(request: NextRequest) {
      * One pipeline, started now rather than at the next cron tick.
      *
      * Small jobs run inline, so the response can carry the finished job. A
-     * larger one is kicked after the response is sent: `after()` runs its
-     * first slice in this invocation, and the cron worker takes each slice
-     * after that. Both go through the claim in `processJobChunk`, so the kick
-     * and a tick cannot work the job at once; whichever claims first does the
-     * slice and the other finds it held and does nothing. A kick that fails or
-     * is refused leaves the job `pending` for the next tick, a minute at most.
+     * larger one is kicked after the response is sent: `after()` works it in
+     * this invocation, slice after slice while `INVOCATION_BUDGET_MS` lasts,
+     * which finishes most jobs outright (a fast scan of 10,000 addresses
+     * among them), and the cron worker takes whatever is left. Every slice
+     * goes through the claim in `processJobChunk`, so the kick and a tick
+     * cannot work the job at once; whichever claims first does the slice and
+     * the other finds it held and does nothing. A kick that fails or is
+     * refused leaves the job `pending` for the next tick, a minute at most.
      *
      * Jobs over ten addresses went to Inngest until 2026-09-24 (STA-44). The
      * cron worker raced it on every such job and finalized nearly all of them,
