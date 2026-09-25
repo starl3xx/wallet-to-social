@@ -89,6 +89,25 @@ export function waveDeadline(
 }
 
 /**
+ * Whether the caller's deadline ends the batch before its own ceiling would.
+ *
+ * Wallets a batch leaves unreached are then cut short by the caller, which
+ * can ask about them again, rather than given up on by this source. The job
+ * worker saves a slice only up to the first of them (`reachedPrefix` in
+ * lib/job-processor.ts), so a healthy batch the loop began late loses none.
+ */
+export function cutByCaller(
+  startTime: number,
+  walletCount: number,
+  callerDeadline?: number
+): boolean {
+  return (
+    callerDeadline !== undefined &&
+    callerDeadline < startTime + batchDeadlineMs(walletCount)
+  );
+}
+
+/**
  * Creates an AbortController with a timeout
  * Returns both the controller and a cleanup function
  */
@@ -228,6 +247,12 @@ export async function batchFetchWeb3Bio(
     failedWallets?: Set<string>;
     /** A wall-clock time after which no new wave starts; see `waveDeadline`. */
     deadline?: number;
+    /**
+     * Populated with the wallets never reached because `deadline` came before
+     * the batch's own ceiling (`cutByCaller`). They are in `failedWallets`
+     * too; this says which of them the caller may ask about again.
+     */
+    cutShort?: Set<string>;
   }
 ): Promise<Map<string, Web3BioResult>> {
   const results = new Map<string, Web3BioResult>();
@@ -236,6 +261,7 @@ export async function batchFetchWeb3Bio(
   const startTime = Date.now();
   let errorCount = 0;
   const deadline = waveDeadline(startTime, wallets.length, opts?.deadline);
+  const callerCuts = cutByCaller(startTime, wallets.length, opts?.deadline);
   let abandonedAt: number | null = null;
 
   // Process in batches with rate limiting
@@ -256,6 +282,7 @@ export async function batchFetchWeb3Bio(
     if (Date.now() >= deadline) {
       abandonedAt = i;
       for (const wallet of wallets.slice(i)) {
+        if (callerCuts) opts?.cutShort?.add(wallet.toLowerCase());
         errorCount++;
         opts?.failedWallets?.add(wallet.toLowerCase());
       }

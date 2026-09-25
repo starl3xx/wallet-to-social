@@ -16,25 +16,38 @@ All notable changes to walletlink.social. Newest first.
   the live sources, so a long deep scan can take more than one pass; what is
   left continues at the next round, a minute later at most.
 - **A pass never starts a batch it expects to overrun.** It stops when the
-  next batch, judged by how long the last one took, would end past its four
-  minutes, and hands the lookup back as before. The onchain ENS pass and
-  Web3Bio also stop starting requests when the four minutes are up, so a
-  batch slower than the last one still ends in time. Addresses they did not
-  reach are left unchecked, never recorded as having nothing, so the next
-  lookup asks again.
+  next batch, judged by how long the last one took (scaled to the next
+  batch's size), would end past its four minutes, and hands the lookup back
+  as before. The onchain ENS pass and Web3Bio also stop starting requests
+  when the four minutes are up, so a batch slower than the last one still
+  ends in time.
+- **An address a batch ran out of time for is asked in the next batch, never
+  saved unasked.** When the four minutes stop ENS or Web3Bio part-way
+  through a batch, the batch saves only the addresses before the first one
+  they did not reach, and the next batch starts from there with the full time
+  a batch gets. Every address in a deep scan is asked, however the batches
+  fall. (Found in review before release: without it, a batch that started
+  late and ran slower than the one before could finish some addresses as
+  misses without asking about them.) When a source stops at its own limit
+  instead, which only a slow upstream reaches, those addresses are left
+  unchecked as before, never recorded as having nothing.
 - **Every batch is still claimed and handed back on its own,** so everything
-  in the 2026-09-24 one-pipeline entry below holds for each batch: one worker at a time,
-  the attempt limit, the save before the charge, one history entry per
-  lookup, and removal requests honored from the next batch on.
+  in the 2026-09-24 one-pipeline entry below holds for each batch: one worker
+  at a time, the attempt limit, the save before the charge, one history entry
+  per lookup, and removal requests honored from the next batch on.
 - Operator: `INVOCATION_BUDGET_MS` (240 s) in `lib/job-processor.ts`, a
   minute inside the 300-second routes and under the 330-second lease. No
-  migration. Linear STA-44. Fourteen new invariants drive the loop on a fake
-  clock and pin the budget against the routes and the lease, each slice's
-  ENS and Web3Bio deadlines, the one way every route calls the loop, and the
-  scan depth page's figures against the code; twenty new guard mutations. A
-  local Postgres scenario ran the real pipeline with stubbed sources: a fast
-  10,000-address job finished in one call, in four slices under four claims,
-  charged once with one history row, where `main` took four calls.
+  migration. Linear STA-44. Twenty-two new invariants drive the loop on a
+  fake clock and on its real default clock, and pin the budget against the
+  routes and the lease, each slice's ENS and Web3Bio deadlines, the prefix
+  save (`reachedPrefix`, `unsavedTail`, `cutByCaller`), the size-scaled
+  estimate, the one way every route calls the loop, the error a handed-back
+  job reports, and the scan depth page's figures against the code;
+  thirty-seven new guard mutations. A local Postgres scenario ran the real
+  pipeline with stubbed sources: a fast 10,000-address job finished in one
+  call, in four slices under four claims, charged once with one history row,
+  where `main` took four calls; a deep job whose late slice was cut by the
+  deadline saved only what was asked and completed with every address asked.
 
 ### 2026-09-25 (a removal reaches retry copies and the claim record)
 

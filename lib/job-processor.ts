@@ -133,14 +133,58 @@ export const INVOCATION_BUDGET_MS = 240_000;
  * would start with its ENS time already spent and record every wallet in it
  * as unreached. Measured from the slice alone, a slice the loop started late
  * would read ENS past the invocation's end, into the kill the deadline exists
- * to prevent. The first slice of an invocation is never cut short by this:
- * its own budget ends first.
+ * to prevent. What ENS leaves at the invocation's deadline is handed on to
+ * the next slice, never saved as done (`reachedPrefix`). The first slice of an
+ * invocation is never cut short by this: its own budget ends first.
  */
 export function ensDeadlineFor(
   sliceStartedAt: number,
   invocationDeadline: number
 ): number {
   return Math.min(sliceStartedAt + ENS_SLICE_BUDGET_MS, invocationDeadline);
+}
+
+/**
+ * How many of a slice's wallets, from the front, every live source was asked
+ * about: up to the first one a source left because the invocation's deadline
+ * cut it short, or all of them.
+ *
+ * Counted in list order, because the slice saves a prefix: `processed_count`
+ * is a position in the list, and a wallet past it is taken again by the next
+ * slice. Never more than the list, whatever the set holds.
+ */
+export function reachedPrefix(
+  wallets: readonly string[],
+  cutShort: ReadonlySet<string>
+): number {
+  if (cutShort.size === 0) return wallets.length;
+  const at = wallets.findIndex((w) => cutShort.has(w.toLowerCase()));
+  return at === -1 ? wallets.length : at;
+}
+
+/**
+ * The rows a slice that saved only `reached` of its wallets drops, so the next
+ * claim starts those wallets fresh: its wallets past `reached`, lowercased,
+ * except any the job's saved part also holds. A list can repeat an address,
+ * and that row answers for its earlier place; dropping it would leave the
+ * saved part short a row, and the resume check would start the job again.
+ */
+export function unsavedTail(
+  allWallets: readonly string[],
+  startIndex: number,
+  sliceWallets: readonly string[],
+  reached: number
+): Set<string> {
+  if (reached >= sliceWallets.length) return new Set();
+  const kept = new Set(
+    allWallets.slice(0, startIndex + reached).map((w) => w.toLowerCase())
+  );
+  return new Set(
+    sliceWallets
+      .slice(reached)
+      .map((w) => w.toLowerCase())
+      .filter((w) => !kept.has(w))
+  );
 }
 
 /**
@@ -160,14 +204,17 @@ export function ensDeadlineFor(
  * - the slice ended in an error, even one that handed the job back unfailed:
  *   the next try waits for the cron rather than coming straight back;
  * - the slice saved no progress, which no healthy slice does;
- * - the next slice, estimated at what the last one took, would end past the
- *   deadline.
+ * - the next slice, estimated at what the last one took scaled to the next
+ *   one's size, would end past the deadline. Scaled, because a slice halved
+ *   after a kill is followed by a full one on the next claim.
  *
  * The estimate is only the gate at the start of a slice. The live sources in
  * a slice also stop starting work at the deadline (`ensDeadlineFor`, and
  * Web3Bio's `deadline`), so a slice slower than its estimate still ends
- * inside the route, and what they did not reach is recorded as failed, never
- * cached or stored as a negative.
+ * inside the route. What they did not reach for that reason is not saved as
+ * done: the slice saves only the prefix every source was asked about
+ * (`reachedPrefix`), and the next claim takes the rest with a new slice's
+ * full budgets.
  *
  * `now` is a parameter so scripts/check-invariants.ts can drive this with a
  * fake slice and a fake clock.
@@ -188,7 +235,11 @@ export async function runSlices(
     }
     if (result.processedCount <= savedThrough) return result;
     savedThrough = result.processedCount;
-    if (now() + lastSliceMs > invocationDeadline) return result;
+    const estimateMs =
+      result.sliceSize && result.nextSliceSize
+        ? (lastSliceMs * result.nextSliceSize) / result.sliceSize
+        : lastSliceMs;
+    if (now() + estimateMs > invocationDeadline) return result;
   }
 }
 
@@ -445,6 +496,12 @@ export interface ProcessResult {
    * error: the holder finishes the slice and the next tick takes the job.
    */
   busy?: boolean;
+  /**
+   * On a slice that saved progress: the wallets it took, and the wallets the
+   * next claim will take. `runSlices` scales the slice's time by the two.
+   */
+  sliceSize?: number;
+  nextSliceSize?: number;
 }
 
 /**
@@ -738,6 +795,9 @@ async function processJobSlice(
 
     const neynarApiKey = process.env.NEYNAR_API_KEY;
     let cacheHits = job.cacheHits;
+    // Which of this slice's wallets the cache answered, to take back out of
+    // `cacheHits` any that the slice hands on unsaved (`reachedPrefix`).
+    const cacheHitWallets = new Set<string>();
     let graphHits = 0;
     let graphNegativeHits = 0;
     let uncachedWallets = activeWallets;
@@ -892,6 +952,7 @@ async function processJobSlice(
       cacheHits += cached.size;
 
       for (const [wallet, data] of cached) {
+        cacheHitWallets.add(wallet);
         const isNegativeHit =
           data.source.length === 1 && data.source[0] === 'none';
         const existing = results.get(wallet)!;
@@ -935,6 +996,12 @@ async function processJobSlice(
     // be persisted as negatives, or an API outage would poison the graph with
     // false "no socials" answers for the whole recheck window.
     const apiFailedWallets = new Set<string>();
+    /**
+     * The subset a live source left only because the invocation's deadline
+     * came first: not checked, and not to be saved as done. See the prefix
+     * save below the stats.
+     */
+    const cutShort = new Set<string>();
 
     if (uncachedWallets.length > 0 && !options.fastMode) {
       const canUseNeynar = neynarApiKey && options.canUseNeynar !== false;
@@ -943,11 +1010,13 @@ async function processJobSlice(
       // Run ENS + Neynar in parallel (ENS is slow RPC, Neynar is fast batch)
       await updateJobStage(db, job, canUseENS ? 'ens' : 'neynar');
 
+      const ensDeadline = ensDeadlineFor(sliceStartedAt, invocationDeadline);
+      const ensUnreached = new Set<string>();
       const [ensResults, neynarResults] = await Promise.all([
         canUseENS
           ? batchLookupENS(uncachedWallets, undefined, undefined, undefined, {
-              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),
-              failedWallets: apiFailedWallets,
+              deadline: ensDeadline,
+              failedWallets: ensUnreached,
             }).catch((error) => {
               console.error('ENS lookup error:', error);
               return new Map<
@@ -988,6 +1057,17 @@ async function processJobSlice(
             })
           : Promise.resolve(new Map<string, NeynarResult>()),
       ]);
+
+      /**
+       * ENS records only the wallets its deadline kept it from. Unchecked
+       * either way, so never cached or stored as a negative; and when that
+       * deadline was the invocation's rather than ENS's own budget, cut
+       * short, so this slice hands them on unsaved.
+       */
+      for (const wallet of ensUnreached) {
+        apiFailedWallets.add(wallet);
+        if (ensDeadline === invocationDeadline) cutShort.add(wallet);
+      }
 
       // Apply ENS results
       for (const [wallet, data] of ensResults) {
@@ -1080,6 +1160,7 @@ async function processJobSlice(
           {
             failedWallets: apiFailedWallets,
             deadline: invocationDeadline,
+            cutShort,
           }
         );
 
@@ -1303,10 +1384,36 @@ async function processJobSlice(
       }
     }
 
-    // Calculate stats for this chunk
-    const chunkResults = walletsToProcess.map((w) =>
-      results.get(w.toLowerCase())!
-    );
+    /**
+     * The prefix every live source was asked about, and only that, is saved.
+     *
+     * A source stops at the invocation's deadline as well as at its own
+     * ceiling, and a slice the loop starts late meets that deadline while
+     * every upstream is healthy. Its unreached wallets used to be saved past
+     * as plain misses, so a paid deep scan finished without asking about
+     * them (review of #397). Now the slice saves up to the first of them in
+     * list order, drops the rows it started for the rest (a wallet the saved
+     * part also holds keeps its row), and the next claim takes them fresh,
+     * with a new slice's full budgets. A wallet a source's own ceiling
+     * stopped keeps its old meaning: unchecked, never cached or stored as a
+     * negative, and not asked again, which is what a degraded upstream earns.
+     * A slice that reached nothing saves no progress, and the loop stops.
+     */
+    const reached = reachedPrefix(walletsToProcess, cutShort);
+    for (const wallet of unsavedTail(
+      allWallets,
+      startIndex,
+      walletsToProcess,
+      reached
+    )) {
+      results.delete(wallet);
+      if (cacheHitWallets.has(wallet)) cacheHits--;
+    }
+
+    // Calculate stats for the saved prefix
+    const chunkResults = walletsToProcess
+      .slice(0, reached)
+      .map((w) => results.get(w.toLowerCase())!);
     const twitterFound =
       job.twitterFound + chunkResults.filter((r) => r.twitter_handle).length;
     const farcasterFound =
@@ -1315,7 +1422,7 @@ async function processJobSlice(
       job.anySocialFound +
       chunkResults.filter((r) => r.twitter_handle || r.farcaster).length;
 
-    const newProcessedCount = startIndex + walletsToProcess.length;
+    const newProcessedCount = startIndex + reached;
     const allResults = Array.from(results.values());
 
     // Check if job is complete
@@ -1363,6 +1470,11 @@ async function processJobSlice(
       farcasterFound,
       anySocialFound,
       cacheHits,
+      sliceSize: walletsToProcess.length,
+      nextSliceSize: Math.min(
+        sliceSizeFor(1),
+        allWallets.length - newProcessedCount
+      ),
     };
   } catch (error) {
     /**

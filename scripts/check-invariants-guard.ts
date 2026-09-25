@@ -2366,14 +2366,14 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the worker gives ENS no deadline',
     file: 'lib/job-processor.ts',
-    from: '              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),\n',
+    from: '              deadline: ensDeadline,\n',
     to: '',
   },
   {
-    name: 'the worker gives ENS no failed-wallet set, so what it skips is stored as a negative',
+    name: 'the worker drops what ENS skipped from the failed set, so it is stored as a negative',
     file: 'lib/job-processor.ts',
-    from: '              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),\n              failedWallets: apiFailedWallets,\n',
-    to: '              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),\n',
+    from: '        apiFailedWallets.add(wallet);\n        if (ensDeadline === invocationDeadline) cutShort.add(wallet);',
+    to: '        if (ensDeadline === invocationDeadline) cutShort.add(wallet);',
   },
   // --- the verify pass on #393 ---------------------------------------------
   {
@@ -2623,13 +2623,13 @@ const MUTATIONS: Mutation[] = [
     // 200 s of 240 and it ends at 250.
     name: 'slice loop: a slice starts with no estimate of its length, so the last one overruns the budget',
     file: 'lib/job-processor.ts',
-    from: '    if (now() + lastSliceMs > invocationDeadline) return result;',
+    from: '    if (now() + estimateMs > invocationDeadline) return result;',
     to: '    if (now() > invocationDeadline) return result;',
   },
   {
     name: 'slice loop: nothing stops it for time, so it runs slices into the platform kill',
     file: 'lib/job-processor.ts',
-    from: '    if (now() + lastSliceMs > invocationDeadline) return result;\n',
+    from: '    if (now() + estimateMs > invocationDeadline) return result;\n',
     to: '',
   },
   {
@@ -2699,14 +2699,124 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'slice loop: the slice gives ENS its per-slice deadline alone',
     file: 'lib/job-processor.ts',
-    from: '              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),\n',
-    to: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n',
+    from: '      const ensDeadline = ensDeadlineFor(sliceStartedAt, invocationDeadline);',
+    to: '      const ensDeadline = sliceStartedAt + ENS_SLICE_BUDGET_MS;',
   },
   {
     name: 'slice loop: the slice gives Web3Bio no deadline, so a late slice runs its waves into the kill',
     file: 'lib/job-processor.ts',
     from: '            deadline: invocationDeadline,\n',
     to: '',
+  },
+  // --- the prefix save (review of #397) -----------------------------------
+  // A late slice slower than the one before it lost the tail of its Web3Bio
+  // pass to the invocation deadline with every upstream healthy, and saved
+  // those wallets as done. Each mutation below puts part of that back.
+  {
+    name: 'prefix save: the slice saves past the wallets the deadline cut, so they finish as misses never asked',
+    file: 'lib/job-processor.ts',
+    from: '    const newProcessedCount = startIndex + reached;',
+    to: '    const newProcessedCount = startIndex + walletsToProcess.length;',
+  },
+  {
+    name: 'prefix save: the stats count the wallets handed on, so the next slice counts them twice',
+    file: 'lib/job-processor.ts',
+    from: '    const chunkResults = walletsToProcess\n      .slice(0, reached)\n',
+    to: '    const chunkResults = walletsToProcess\n',
+  },
+  {
+    name: 'prefix save: the saved prefix ignores what was cut',
+    file: 'lib/job-processor.ts',
+    from: '  if (cutShort.size === 0) return wallets.length;\n  const at = wallets.findIndex(',
+    to: '  if (cutShort.size >= 0) return wallets.length;\n  const at = wallets.findIndex(',
+  },
+  {
+    name: 'prefix save: the saved prefix runs to the last wallet cut, not the first',
+    file: 'lib/job-processor.ts',
+    from: '  const at = wallets.findIndex((w) => cutShort.has(w.toLowerCase()));',
+    to: '  const at = wallets.findLastIndex((w) => cutShort.has(w.toLowerCase()));',
+  },
+  {
+    name: 'prefix save: a cut slice keeps the rows it handed on, so the next slice merges into half-done rows',
+    file: 'lib/job-processor.ts',
+    from: '      results.delete(wallet);\n      if (cacheHitWallets.has(wallet)) cacheHits--;',
+    to: '      if (cacheHitWallets.has(wallet)) cacheHits--;',
+  },
+  {
+    // A repeated address answers for its earlier place: dropping its row
+    // leaves the saved part short a row, and the resume check restarts the job.
+    name: 'prefix save: the drop takes a row the saved part still needs',
+    file: 'lib/job-processor.ts',
+    from: '      .filter((w) => !kept.has(w))\n',
+    to: '',
+  },
+  {
+    name: 'prefix save: cache hits keep the wallets handed on, so they are counted again',
+    file: 'lib/job-processor.ts',
+    from: '      if (cacheHitWallets.has(wallet)) cacheHits--;\n',
+    to: '',
+  },
+  {
+    name: 'prefix save: ENS wallets the invocation cut are saved as done',
+    file: 'lib/job-processor.ts',
+    from: '        if (ensDeadline === invocationDeadline) cutShort.add(wallet);\n',
+    to: '',
+  },
+  {
+    // ENS's own budget stopping it is a degraded upstream: unchecked, not
+    // retried, as on main. Handing those on too would redo them every slice.
+    name: "prefix save: ENS's own budget is taken for the invocation's, and its skips are retried every slice",
+    file: 'lib/job-processor.ts',
+    from: '        if (ensDeadline === invocationDeadline) cutShort.add(wallet);',
+    to: '        cutShort.add(wallet);',
+  },
+  {
+    name: 'prefix save: the worker gives Web3Bio no cut set, so its cut wallets are saved as done',
+    file: 'lib/job-processor.ts',
+    from: '            deadline: invocationDeadline,\n            cutShort,\n',
+    to: '            deadline: invocationDeadline,\n',
+  },
+  {
+    name: "prefix save: Web3Bio calls every unreached wallet cut, its own ceiling's included",
+    file: 'lib/web3bio.ts',
+    from: '        if (callerCuts) opts?.cutShort?.add(wallet.toLowerCase());',
+    to: '        opts?.cutShort?.add(wallet.toLowerCase());',
+  },
+  {
+    name: 'prefix save: Web3Bio never records a cut wallet',
+    file: 'lib/web3bio.ts',
+    from: '        if (callerCuts) opts?.cutShort?.add(wallet.toLowerCase());\n',
+    to: '',
+  },
+  {
+    name: 'prefix save: Web3Bio takes any caller deadline for a cut, even one past its own ceiling',
+    file: 'lib/web3bio.ts',
+    from: '    callerDeadline < startTime + batchDeadlineMs(walletCount)',
+    to: '    callerDeadline > 0',
+  },
+  {
+    name: 'slice loop: the estimate is not scaled to the next slice, so a full slice after a halved one is under-gated',
+    file: 'lib/job-processor.ts',
+    from: '        ? (lastSliceMs * result.nextSliceSize) / result.sliceSize\n',
+    to: '        ? lastSliceMs\n',
+  },
+  {
+    name: "slice loop: the next slice's size is reported as the one just taken",
+    file: 'lib/job-processor.ts',
+    from: '      nextSliceSize: Math.min(\n        sliceSizeFor(1),',
+    to: '      nextSliceSize: Math.min(\n        walletsToProcess.length,',
+  },
+  {
+    name: "slice loop: the loop's default clock is not the wall clock, so every deadline it hands a slice is in 1970 and ENS and Web3Bio reach no wallet",
+    file: 'lib/job-processor.ts',
+    from: '  now: () => number = Date.now\n',
+    to: '  now: () => number = () => performance.now()\n',
+  },
+  {
+    name: 'a saved or billed job handed back after an error reports no error, so the loop reclaims it at once',
+    file: 'lib/job-processor.ts',
+    from: "          cacheHits: job.cacheHits,\n          error: error instanceof Error ? error.message : 'Unknown error',\n        };\n      }\n      await writeOwned(db, job, {\n        status: 'failed',",
+    to: "          cacheHits: job.cacheHits,\n        };\n      }\n      await writeOwned(db, job, {\n        status: 'failed',",
   },
   {
     name: 'slice loop: the scan depth page states a slice size the code does not use',

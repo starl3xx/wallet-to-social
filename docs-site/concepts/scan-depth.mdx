@@ -53,7 +53,7 @@ The deep figure is deliberately conservative: ten seconds of live sources and ei
 
 Every lookup works its list 3,000 addresses at a time, and one pass keeps taking the next 3,000 for up to four minutes. It stops early rather than start a batch it expects to run past that, judging by how long the last batch took, and whatever is left is picked up by the next pass, a minute later at most.
 
-A fast scan’s batches read only the index, so each takes seconds and a fast scan of 10,000 addresses finishes in its first pass. A deep scan waits on live sources in every batch, so a long one can take several passes, and its time follows the deep figure above.
+A fast scan’s batches read only the index, so each takes seconds and a fast scan of 10,000 addresses finishes in its first pass. A deep scan waits on live sources in every batch, so a long one can take several passes, and its time follows the deep figure above. If a pass runs out of time part-way through a batch, the addresses not yet asked about are carried into the next batch rather than counted as done, so every address in a deep scan is asked.
 
 ## Fast scans never write
 
