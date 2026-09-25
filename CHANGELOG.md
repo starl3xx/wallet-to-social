@@ -2,6 +2,80 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (every lookup job runs through one pipeline)
+
+- **Lists over ten addresses now run only in the worker pipeline,** the one
+  every smaller list already used. They were also sent to a second pipeline
+  (Inngest), which the worker raced on the same job. Over the 30 days to
+  2026-09-24 the worker finished almost all of them anyway: of 99 such lookups
+  from the app and the API, 91 carry the completion record only the worker
+  writes. For most lists, results do not change.
+- **A list the second pipeline finished could come back different from a
+  rerun, and no longer can.** That pipeline ran live sources on a fast scan,
+  did not run agent detection, and never added the second X account or the
+  Farcaster account id. Every list now gets what the worker gives: a fast
+  scan answers from the index and the cache alone, agents are detected, and
+  those fields appear wherever the worker finds them.
+- **A large list starts at once.** Its first slice now runs straight after
+  submission instead of waiting up to a minute for the worker's next round.
+  Each later slice of 3,000 addresses still waits for the next round, as it
+  always did.
+- **No lookup is worked twice at the same time.** A job is claimed by one
+  worker at a time and handed back after each slice. Before, a slow slice
+  could be picked up again by the next minute's round, or by the other
+  pipeline, which called the providers twice for the same addresses and could
+  save a lookup to history twice. Billing was never doubled: the charge is
+  keyed on the job. Each claim also carries its own token, and every write
+  to the job after it must match that token: a worker the platform suspended
+  past its turn and later resumed finds its writes refused, so it can no
+  longer cut a finished lookup back to a partial one or mark it failed.
+- **A list that keeps running out of time now stops, with an answer.** If
+  the platform stops a slice before it finishes, the next attempt takes half
+  as many addresses, down to an eighth. After five attempts in a row that
+  never finish, the lookup fails, unbilled, with "Submit the list again."
+  Before, it was retried every few minutes for as long as a source stayed
+  slow, and the app gave up waiting after ten minutes.
+- **A lookup that has been charged is never told to submit again.** The
+  finished results are saved before the charge, so a lookup stopped after it
+  is finished from them on the next attempt, with no second pass over the
+  sources and no second charge. Neither the attempt limit nor an error after
+  the charge can turn it into "Submit the list again", which would have left
+  the charge standing and billed the resubmission as well. In the one case
+  where a charged lookup cannot be finished (its results were never saved,
+  for example a rerun that keeps failing), it stops after five attempts with
+  "Processing stopped after this lookup was charged. Contact
+  help@walletlink.social for a rerun or a refund."
+- **A lookup is saved to your history once.** A lookup finished twice (stopped
+  after the save, or a worker resumed after its turn) could appear twice in
+  saved history. Each job's save is now keyed on the job and written at most
+  once. If a later pass decides a different match limit than the first (the
+  first pass's charge failed), the saved copy takes the later limit, so a
+  saved lookup never shows more matches than the lookup itself. When support
+  reruns a lookup, the rerun is saved as a new copy and the earlier copy
+  stays as it was. A worker that lost its turn can no longer save a stale
+  copy over the rerun's: the save writes only while the worker still holds
+  the lookup, checked in the same statement.
+- **The onchain ENS pass on a deep scan has a time limit,** as Web3Bio
+  already had: it stops starting new batches two minutes into a slice.
+  Addresses it did not reach are left unchecked rather than recorded as
+  having no ENS name, so the next lookup asks again.
+- Operator: `scripts/migrate-job-lease.ts` adds `lookup_jobs.leased_until`,
+  `lease_token` and `slice_attempts`, and a unique index on
+  `lookup_history.job_id` (built concurrently, after a check for duplicates;
+  production had none on 2026-09-24), and must run before this deploys. The
+  admin's retry, rerun and cancel now reset the attempt count and clear the
+  lease, and a retry or rerun detaches the previous saved lookup. The
+  Inngest route stays, registering nothing, so runs started before the
+  deploy end cleanly; the route, the client, the package and the
+  `INNGEST_*` variables go in a follow-up. Linear STA-44. The twelve
+  invariants that held the two pipelines in step are replaced by forty-three
+  that assert one pipeline, the claim, the fenced writes, the attempt cap,
+  the billed-job rule (on the SQL it actually sends) and the once-per-job
+  history save, and the nine guard mutations against the Inngest copy by
+  eighty-three.
+- A later pass never clears a history row's match gate: only a pass that decided
+  a gate writes it, so a retry whose charge threw cannot reopen locked matches.
+
 ### 2026-09-24 (Dependabot PRs are copied so Bugbot reviews them)
 
 - **A new workflow, `dependabot-copy`, opens each Dependabot PR again as

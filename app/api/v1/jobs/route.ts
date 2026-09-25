@@ -13,7 +13,7 @@
  * guard the web surface already applies), and one active job per account
  * keeps a single key from queueing the pipeline solid.
  */
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { and, inArray, eq } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { lookupJobs } from '@/db/schema';
@@ -29,10 +29,12 @@ import { trackApiUsage } from '@/lib/api-usage';
 import { createJob, processJobChunk } from '@/lib/job-processor';
 import { canSubmit, legacyTierIsUnmetered } from '@/lib/credits';
 import { effectiveTierForUserId } from '@/lib/access';
-import { inngest } from '@/inngest/client';
 import { getSiteUrl } from '@/lib/site-url';
 
 export const runtime = 'nodejs';
+// Below LEASE_SECONDS, like every route that calls processJobChunk; see
+// app/api/jobs/route.ts for why it is declared.
+export const maxDuration = 300;
 
 // CORS headers for public API
 const corsHeaders = {
@@ -65,8 +67,8 @@ const MAX_BODY_BYTES = 4_500_000;
 
 /**
  * Jobs at or under this size are processed inline, same threshold as
- * `/api/jobs`. Above it the job is queued for Inngest with the cron worker
- * as fallback, and the caller polls.
+ * `/api/jobs`. Above it the first slice is kicked after the response and the
+ * cron worker takes the rest, and the caller polls.
  */
 const INLINE_PROCESSING_THRESHOLD = 10;
 
@@ -268,8 +270,9 @@ export async function POST(request: NextRequest) {
 
   /**
    * Same dispatch as `/api/jobs`: small jobs run inline so a short list does
-   * not wait out a cron tick, larger ones go to Inngest with the cron worker
-   * as the fallback if the send fails.
+   * not wait out a cron tick, larger ones are kicked after the response. The
+   * kick and the cron worker both go through the claim in `processJobChunk`,
+   * so they cannot work the job at once. See `/api/jobs` for the whole case.
    */
   let status = 'pending';
   if (uniqueWallets.length <= INLINE_PROCESSING_THRESHOLD) {
@@ -285,17 +288,16 @@ export async function POST(request: NextRequest) {
       );
     }
   } else {
-    try {
-      await inngest.send({
-        name: 'wallet/lookup.requested',
-        data: { jobId },
-      });
-    } catch (error) {
-      console.log(
-        'Inngest trigger skipped (cron will process):',
-        error instanceof Error ? error.message : error
-      );
-    }
+    after(async () => {
+      try {
+        await processJobChunk(jobId);
+      } catch (error) {
+        console.error(
+          'Job kick failed (cron will retry):',
+          error instanceof Error ? error.message : error
+        );
+      }
+    });
   }
 
   return apiSuccess(

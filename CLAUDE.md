@@ -120,8 +120,8 @@ logarithm compresses the double-count to almost nothing.
 `stampReachability` runs in the finalize step, so the mid-pipeline pass sets a
 Farcaster-only score and the finalize pass recomputes it with both. It recomputes **after**
 the paid-field strip, so a free job's score is built from the inputs it always had and a
-paid signal never folds into a free row. Both pipelines do this: `lib/job-processor.ts` and
-`inngest/functions/wallet-lookup.ts`, which is registered and live behind `/v1/jobs`.
+paid signal never folds into a free row. `lib/job-processor.ts` does this, and it is the only
+lookup pipeline: the Inngest copy that ran jobs over ten addresses was retired in STA-44.
 
 ### Pricing and entitlement
 
@@ -197,7 +197,7 @@ Two rules when adding to that file:
   version of the HMAC assertion did exactly that and passed while the HMAC's
   coverage of the timestamp was deleted.
 
-`scripts/check-invariants-guard.ts` reintroduces 217 real defects and requires
+`scripts/check-invariants-guard.ts` reintroduces 513 real defects and requires
 each to be caught, because a guard verified only against passing code proves
 nothing, and this repo has had three guards report clean over live violations.
 

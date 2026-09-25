@@ -418,7 +418,8 @@ fixture-first) to refuse drift the way figures drift is refused today.
 ### Tier C: capabilities (decisions recorded 2026-09-01)
 
 15. **`/v1/jobs`: the async surface.** Wrap the existing pipeline
-    (`createJob`, chunked, resumable, Inngest plus cron) behind
+    (`createJob`, chunked, resumable; Inngest plus cron then, the cron worker
+    alone since STA-44) behind
     `authenticateApiRequest`, bounded by the existing `SUBMISSION_MULTIPLIER`
     rule, billed by the existing idempotent `chargeForJob`. This is the
     single biggest capability gap: the paid surface is sync-only while the

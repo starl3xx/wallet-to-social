@@ -63,8 +63,10 @@ export const lookupHistory = pgTable(
      *
      * History stores the full payload, so a gated job's saved lookup must
      * carry its own gate or "save to history" is a free bypass of the lock.
-     * `jobId` exists solely so an unlock can find and clear this mirror;
-     * history rows predating the gate carry null in both and serve in full.
+     * `jobId` lets an unlock find and clear this mirror, and since STA-44 it
+     * is set on every save a job makes and unique, so a finalize that runs
+     * twice saves the lookup once. Rows saved outside a job, and rows from
+     * before, carry null and serve in full.
      */
     jobId: uuid('job_id'),
     matchesDelivered: integer('matches_delivered'),
@@ -76,6 +78,9 @@ export const lookupHistory = pgTable(
     index('lookup_history_user_created_idx').on(table.userId, table.createdAt),
     // The unlock's clear: find the history mirror of a gated job.
     index('lookup_history_job_id_idx').on(table.jobId),
+    // One saved lookup per job: the save is ON CONFLICT (job_id) DO NOTHING.
+    // scripts/migrate-job-lease.ts, built concurrently.
+    uniqueIndex('lookup_history_job_id_key').on(table.jobId),
   ]
 );
 
@@ -233,6 +238,28 @@ export const lookupJobs = pgTable(
      * and nobody is charged for a match they were not shown.
      */
     matchesDelivered: integer('matches_delivered'),
+
+    /**
+     * Until when one worker holds this job. Set only by the claim in
+     * `processJobChunk`, which is one conditional UPDATE, so two invocations
+     * can never start the same job at once: the web kick, the API kick and
+     * every cron tick all go through it. Handed back (set to now) on every
+     * exit, so the next tick takes the job at once; a holder that is killed
+     * simply lets it run out. `scripts/migrate-job-lease.ts`.
+     */
+    leasedUntil: timestamp('leased_until', { withTimezone: true }),
+    /**
+     * A fresh uuid per claim. Every write after the claim matches on it, so a
+     * holder that outlived its lease finds its writes match nothing and stops,
+     * rather than overwriting the holder that claimed after it.
+     */
+    leaseToken: uuid('lease_token'),
+    /**
+     * Claims since the job was last handed back. The claim adds one and every
+     * handback resets it, so it counts slices the platform killed in a row:
+     * each halves the next slice, and past `MAX_SLICE_ATTEMPTS` the job fails.
+     */
+    sliceAttempts: integer('slice_attempts').default(0).notNull(),
   },
   (table) => [
     index('lookup_jobs_status_idx').on(table.status),

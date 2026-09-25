@@ -1862,24 +1862,6 @@ const MUTATIONS: Mutation[] = [
     to: '          wallet: walletLower,\n          source: [],\n          holdings,\n          ...walletData,',
   },
   {
-    name: 'the Inngest pipeline overwrites owned fields again (Bugbot, 2026-08-25)',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '              ...walletData,\n              wallet: walletLower,\n              source: [],\n              holdings,',
-    to: '              wallet: walletLower,\n              source: [],\n              holdings,\n              ...walletData,',
-  },
-  {
-    name: 'the Inngest batch initializer overwrites owned fields again',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '                ...walletData,\n                wallet: walletLower,\n                source: [],\n                holdings,',
-    to: '                wallet: walletLower,\n                source: [],\n                holdings,\n                ...walletData,',
-  },
-  {
-    name: 'the Inngest path reloads its partial results without normalising them',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: 'resultsMap.set(r.wallet, { ...r, source: asSourceList(r.source) });',
-    to: 'resultsMap.set(r.wallet, r);',
-  },
-  {
     // The 2026-08-25 job's actual failure: `.some is not a function`, thrown
     // from the write path because nothing normalised `source` before reading it.
     name: 'the index write takes source on trust, so a joined string reaches .some',
@@ -2105,52 +2087,521 @@ const MUTATIONS: Mutation[] = [
     from: '    anySocialFound = results.filter(\n      (r) => r.twitter_handle || r.farcaster\n    ).length;\n',
     to: '',
   },
-  // The same three guards in the Inngest pipeline, which runs every job over
-  // ten addresses and carried none of them until 2026-09-24.
+  // --- one lookup pipeline (STA-44) --------------------------------------
+
   {
-    name: 'the Inngest pre-flight filter is deleted, so a suppressed wallet reaches every provider',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from:
-      '    const activeWallets =\n' +
-      '      suppressedWallets.size === 0\n' +
-      '        ? allWallets\n' +
-      '        : allWallets.filter((w) => !suppressedWallets.has(w.toLowerCase()));',
-    to: '    const activeWallets = allWallets;',
+    // The dispatch this change removed, put back beside the kick. The two
+    // pipelines then race on the job row again, which is the defect.
+    name: 'a job route sends the lookup event to Inngest again, so two pipelines race',
+    file: 'app/api/jobs/route.ts',
+    from: '      after(async () => {\n        try {\n          await processJobChunk(jobId);',
+    to: "      after(async () => {\n        try {\n          await inngest.send({ name: 'wallet/lookup.requested', data: { jobId } });\n          await processJobChunk(jobId);",
   },
   {
-    name: 'the Inngest pre-flight result is ignored, so nothing is ever filtered',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '    const suppressedWallets = new Set(suppressedInJob);',
-    to: '    const suppressedWallets = new Set<string>();\n    void suppressedInJob;',
+    name: 'the Inngest route registers a lookup function again',
+    file: 'app/api/inngest/route.ts',
+    from: '  functions: [],',
+    to: '  functions: [walletLookup],',
   },
   {
-    name: 'the Inngest cache read takes the raw list, suppressed wallets included',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '        cached = await getCachedWallets(activeWallets);',
-    to: '        cached = await getCachedWallets(allWallets);',
+    name: 'the API route stops kicking the worker, so a large job waits for a tick',
+    file: 'app/api/v1/jobs/route.ts',
+    from: '    after(async () => {\n      try {\n        await processJobChunk(jobId);',
+    to: '    after(async () => {\n      try {\n        void jobId;',
   },
   {
-    name: 'the Inngest graph enrichment reads suppressed wallets again',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '        const graphData = await getSocialGraphData(activeWallets);',
-    to: '        const graphData = await getSocialGraphData(allWallets);',
+    // The race itself: a claim that ignores the lease takes a job a live
+    // holder is working, so a tick and a kick run one job at once.
+    name: 'the claim ignores a live lease, so the cron and a kick work one job at once',
+    file: 'lib/job-processor.ts',
+    from: "        inArray(lookupJobs.status, ['pending', 'processing']),\n        claimable()\n",
+    to: "        inArray(lookupJobs.status, ['pending', 'processing'])\n",
   },
   {
-    name: 'the Inngest batch scrub is deleted, so a suppressed handle is counted and cached',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from:
-      '                batchResultsMap.set(\n' +
-      '                  wallet,\n' +
-      '                  scrubResultRow(result, suppression)\n' +
-      '                );\n',
-    to: '                void wallet;\n                void result;\n',
+    name: 'a refused claim still writes the row another invocation holds',
+    file: 'lib/job-processor.ts',
+    from: '    return { completed: false, busy: true, ...stats };',
+    to: "    await db\n      .update(lookupJobs)\n      .set({ status: 'processing', updatedAt: new Date() })\n      .where(eq(lookupJobs.id, jobId));\n    return { completed: false, busy: true, ...stats };",
   },
   {
-    name: 'the Inngest finalize skips the scrub, so a removal is billed and saved to history',
-    file: 'inngest/functions/wallet-lookup.ts',
-    from: '          allResults[i] = scrubResultRow(allResults[i], suppression);\n',
+    // A lease shorter than a holder's life runs out under it, and the next
+    // tick takes the job while the first is still working it.
+    name: 'the lease is shorter than the routes that hold it',
+    file: 'lib/job-processor.ts',
+    from: 'export const LEASE_SECONDS = 330;',
+    to: 'export const LEASE_SECONDS = 120;',
+  },
+  {
+    name: 'the worker route outlives the lease it holds',
+    file: 'app/api/jobs/worker/route.ts',
+    from: 'export const maxDuration = 300;',
+    to: 'export const maxDuration = 800;',
+  },
+  {
+    // An undeclared duration is the platform default, which this repo cannot
+    // read and Vercel has changed before.
+    name: 'the API route stops declaring how long it can hold a lease',
+    file: 'app/api/v1/jobs/route.ts',
+    from: 'export const maxDuration = 300;\n',
     to: '',
   },
+  {
+    name: 'a lease that has not run out is free to take',
+    file: 'lib/job-processor.ts',
+    from: '    ${lookupJobs.leasedUntil} <= now()\n',
+    to: '    ${lookupJobs.leasedUntil} IS NOT NULL\n',
+  },
+  {
+    // A processing row with no lease belongs to a pre-lease holder that may
+    // still be running: the Inngest step in flight at the deploy.
+    name: 'a processing job with no lease is taken at once, racing the holder from before the deploy',
+    file: 'lib/job-processor.ts',
+    from: '      ${lookupJobs.leasedUntil} IS NULL\n      AND (',
+    to: '      ${lookupJobs.leasedUntil} IS NULL\n      OR (',
+  },
+  {
+    // The Drizzle raw-SQL trap: updated_at holds UTC wall time, and a bare
+    // now() reads through the session zone.
+    name: 'the pre-lease wait compares UTC wall time with the session zone',
+    file: 'lib/job-processor.ts',
+    from: "OR ${lookupJobs.updatedAt} < (now() AT TIME ZONE 'UTC') - make_interval",
+    to: 'OR ${lookupJobs.updatedAt} < now() - make_interval',
+  },
+  {
+    name: 'a slice keeps its lease, so the job sits out five minutes between slices',
+    file: 'lib/job-processor.ts',
+    from: '      // Handed back for the next slice. Now, not NULL: see claimable().\n      leasedUntil: sql`now()`,\n',
+    to: '',
+  },
+  {
+    name: 'a slice hands the lease back as NULL, which reads as a holder from before leases',
+    file: 'lib/job-processor.ts',
+    from: '      // Handed back for the next slice. Now, not NULL: see claimable().\n      leasedUntil: sql`now()`,\n',
+    to: '      leasedUntil: null,\n',
+  },
+  {
+    name: 'a failed job keeps its lease',
+    file: 'lib/job-processor.ts',
+    from: '        retryCount: job.retryCount + 1,\n        updatedAt: new Date(),\n        leasedUntil: sql`now()`,\n',
+    to: '        retryCount: job.retryCount + 1,\n        updatedAt: new Date(),\n',
+  },
+  {
+    name: 'a completed job keeps its lease',
+    file: 'lib/job-processor.ts',
+    from: '    matchesDelivered,\n    leasedUntil: sql`now()`,\n',
+    to: '    matchesDelivered,\n',
+  },
+  {
+    // Admitted against the wallet budget, then refused by the claim: the
+    // tick spends its budget on a job it cannot work.
+    name: "the worker's candidate read admits jobs another invocation holds",
+    file: 'lib/job-processor.ts',
+    from: ".where(and(eq(lookupJobs.status, 'processing'), claimable()))",
+    to: ".where(eq(lookupJobs.status, 'processing'))",
+  },
+  {
+    // Review of #393: the claim's WHERE was checked for its status clause
+    // and claimable(), not for the row key. Without it the UPDATE leases every
+    // claimable job and returns the first, and this slice works another
+    // customer's wallets into this job's row.
+    name: "the claim is not keyed on the job id, so one invocation leases every claimable job and works another customer's",
+    file: 'lib/job-processor.ts',
+    from: '      and(\n        eq(lookupJobs.id, jobId),\n        inArray(',
+    to: '      and(\n        inArray(',
+  },
+  {
+    // Review of #393: a substring check kept passing with this, and no job
+    // is ever claimable again: the queue stops.
+    name: 'the lease test and the no-lease test are ANDed, so no job is ever claimable',
+    file: 'lib/job-processor.ts',
+    from: '    ${lookupJobs.leasedUntil} <= now()\n    OR (\n',
+    to: '    ${lookupJobs.leasedUntil} <= now()\n    AND (\n',
+  },
+  {
+    // Review of #393: the fragment `<= now()` survives a suffix, and every
+    // live 330-second lease is free to the next tick.
+    name: 'a lease is free before it runs out',
+    file: 'lib/job-processor.ts',
+    from: '    ${lookupJobs.leasedUntil} <= now()\n',
+    to: "    ${lookupJobs.leasedUntil} <= now() + interval '6 minutes'\n",
+  },
+  {
+    // The finding the review confirmed: writes after the claim matched on the
+    // id alone, so a holder resumed after its lease ran out cut a completed,
+    // billed job back to its own stale rows.
+    name: 'a write after the claim matches the job id alone, so a stale holder overwrites a completed job',
+    file: 'lib/job-processor.ts',
+    from: '    .where(owned(job.id, job.leaseToken!))',
+    to: '    .where(eq(lookupJobs.id, job.id))',
+  },
+  {
+    name: 'the fence drops the token, so any holder of a running job can write it',
+    file: 'lib/job-processor.ts',
+    from: '    eq(lookupJobs.leaseToken, token),\n',
+    to: '',
+  },
+  {
+    // A stale holder's catch would then write 'failed' over a job another
+    // invocation had just completed.
+    name: 'the fence drops the running check, so a stale holder can write a finished job',
+    file: 'lib/job-processor.ts',
+    from: "    eq(lookupJobs.leaseToken, token),\n    eq(lookupJobs.status, 'processing')\n",
+    to: '    eq(lookupJobs.leaseToken, token)\n',
+  },
+  {
+    name: 'a fenced write that matched nothing carries on, so a holder that lost the job keeps working it',
+    file: 'lib/job-processor.ts',
+    from: '  if (rows.length === 0) throw new LeaseLostError(job.id);\n',
+    to: '',
+  },
+  {
+    name: 'every claim keeps the old token, so a stale holder still matches the fence',
+    file: 'lib/job-processor.ts',
+    from: '      leaseToken: sql`gen_random_uuid()`,\n',
+    to: '',
+  },
+  {
+    name: 'a stage write bypasses the fence',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, { currentStage: stage, updatedAt: new Date() });',
+    to: '  await db\n    .update(lookupJobs)\n    .set({ currentStage: stage, updatedAt: new Date() })\n    .where(eq(lookupJobs.id, job.id));',
+  },
+  {
+    name: 'a holder that lost the job marks it failed anyway, over the invocation that holds it',
+    file: 'lib/job-processor.ts',
+    from: '    if (error instanceof LeaseLostError) {\n      console.warn(error.message);\n',
+    to: '    if (!error) {\n      console.warn(String(error));\n',
+  },
+  {
+    name: 'a lost lease in the failure write escapes as an error, reporting a job this holder never failed',
+    file: 'lib/job-processor.ts',
+    from: '      if (!(writeError instanceof LeaseLostError)) throw writeError;',
+    to: '      throw writeError;',
+  },
+  {
+    name: 'finalize charges without re-asserting the claim',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    processedCount: job.wallets.length,',
+    to: '  if (options.fastMode) await writeOwned(db, job, {\n    processedCount: job.wallets.length,',
+  },
+  {
+    // A second history row for one job, the duplicate the review found.
+    name: 'finalize saves history without re-asserting the claim',
+    file: 'lib/job-processor.ts',
+    from: '    await renewLease(db, job);\n    try {\n      // Always keyed on the job',
+    to: '    try {\n      // Always keyed on the job',
+  },
+  {
+    name: 'finalize writes the graph without re-asserting the claim',
+    file: 'lib/job-processor.ts',
+    from: '    await renewLease(db, job);\n    const writeResult = await upsertSocialGraphWithRetry(',
+    to: '    const writeResult = await upsertSocialGraphWithRetry(',
+  },
+  {
+    // A slice the platform kills never reaches its catch, so without the
+    // count it is retaken for as long as the upstream stays slow.
+    name: 'the claim stops counting attempts, so a slice killed every time is retaken for ever',
+    file: 'lib/job-processor.ts',
+    from: '      sliceAttempts: sql`${lookupJobs.sliceAttempts} + 1`,\n',
+    to: '',
+  },
+  {
+    name: 'a saved slice keeps its attempt count, so ordinary progress walks a job into the cap',
+    file: 'lib/job-processor.ts',
+    from: '      leasedUntil: sql`now()`,\n      sliceAttempts: 0,\n    });\n\n    return {\n      completed: false,',
+    to: '      leasedUntil: sql`now()`,\n    });\n\n    return {\n      completed: false,',
+  },
+  {
+    name: 'an exhausted job keeps its count, so an admin rerun fails again at once',
+    file: 'lib/job-processor.ts',
+    from: '          errorMessage: message,\n          updatedAt: new Date(),\n          leasedUntil: sql`now()`,\n          sliceAttempts: 0,\n',
+    to: '          errorMessage: message,\n          updatedAt: new Date(),\n          leasedUntil: sql`now()`,\n',
+  },
+  {
+    name: 'a killed slice is retried at full size, so it is killed again the same way',
+    file: 'lib/job-processor.ts',
+    from: '  return CHUNK_SIZE >> Math.min(Math.max(attempts - 1, 0), 3);',
+    to: '  return CHUNK_SIZE;',
+  },
+  {
+    name: 'the slice ignores the attempt count',
+    file: 'lib/job-processor.ts',
+    from: '      startIndex + sliceSizeFor(job.sliceAttempts)',
+    to: '      startIndex + CHUNK_SIZE',
+  },
+  {
+    name: 'the attempt cap never fires',
+    file: 'lib/job-processor.ts',
+    from: '    if (job.sliceAttempts > MAX_SLICE_ATTEMPTS) {',
+    to: '    if (job.sliceAttempts > MAX_SLICE_ATTEMPTS * 100) {',
+  },
+  {
+    name: 'the attempt cap is raised until it never binds',
+    file: 'lib/job-processor.ts',
+    from: 'export const MAX_SLICE_ATTEMPTS = 5;',
+    to: 'export const MAX_SLICE_ATTEMPTS = 500;',
+  },
+  {
+    // The review's trigger: 60 serial batches, each able to wait out a
+    // 15-second RPC timeout, outrun a 300-second invocation.
+    name: 'ENS reverse resolution ignores the deadline',
+    file: 'lib/ens.ts',
+    from: '    if (ensPastDeadline(opts?.deadline, wallets.slice(i), opts?.failedWallets))\n      break;\n',
+    to: '',
+  },
+  {
+    name: 'ENS text records ignore the deadline',
+    file: 'lib/ens.ts',
+    from: '    if (\n      ensPastDeadline(\n        opts?.deadline,\n        walletsWithENS.slice(i).map(([wallet]) => wallet),\n        opts?.failedWallets\n      )\n    )\n      break;\n',
+    to: '',
+  },
+  {
+    // Bugbot's 2026-08-25 High, on the ENS side: a wallet nobody reached is
+    // cached as "checked, has nothing" and stored as a negative.
+    name: 'ENS wallets past the deadline are not recorded as failed, so they are cached as empty',
+    file: 'lib/ens.ts',
+    from: '  for (const wallet of unreached) failedWallets?.add(wallet.toLowerCase());\n',
+    to: '',
+  },
+  {
+    name: 'the worker gives ENS no deadline',
+    file: 'lib/job-processor.ts',
+    from: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n',
+    to: '',
+  },
+  {
+    name: 'the worker gives ENS no failed-wallet set, so what it skips is stored as a negative',
+    file: 'lib/job-processor.ts',
+    from: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n              failedWallets: apiFailedWallets,\n',
+    to: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n',
+  },
+  // --- the verify pass on #393 ---------------------------------------------
+  {
+    // Finding 6: the renewal's body was never read. A rotated token makes the
+    // next fenced write find the job lost after its charge, and every job
+    // then ends failed and billed.
+    name: 'a renewal rotates the token, so the write after the charge finds the job lost',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+    to: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n    leaseToken: sql`gen_random_uuid()`,\n  });\n}',
+  },
+  {
+    name: 'a renewal hands the lease back just before the history save and the graph write',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+    to: '  await writeOwned(db, job, {\n    leasedUntil: sql`now()`,\n  });\n}',
+  },
+  {
+    name: 'a renewal is not awaited, so a holder that lost the job saves and writes the graph anyway',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+    to: '  void writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+  },
+  {
+    name: 'a renewal swallows a lost lease',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  });\n}',
+    to: '  await writeOwned(db, job, {\n    leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,\n  }).catch(() => {});\n}',
+  },
+  {
+    // Finding 7: a substring check passed a conditional renewal.
+    name: 'the renewal before the history save is conditional, so a stale holder saves a second copy',
+    file: 'lib/job-processor.ts',
+    from: '  if (options.saveToHistory) {\n    await renewLease(db, job);',
+    to: '  if (options.saveToHistory) {\n    if (options.fastMode) await renewLease(db, job);',
+  },
+  {
+    name: 'the renewal before the graph write is conditional',
+    file: 'lib/job-processor.ts',
+    from: '  if (positiveResults.length > 0) {\n    await renewLease(db, job);',
+    to: '  if (positiveResults.length > 0) {\n    if (options.fastMode) await renewLease(db, job);',
+  },
+  {
+    // Findings 0 and 4: without the save, a job billed and then killed goes
+    // back through the providers, counts toward the cap, and can end failed
+    // with the debit standing.
+    name: 'the finished rows are not saved before the charge, so a job killed after it can be failed billed',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, {\n    processedCount: job.wallets.length,\n    partialResults: results,\n',
+    to: '  await writeOwned(db, job, {\n',
+  },
+  {
+    // Final check on #393: past the cap, a saved job must be finished.
+    name: 'the attempt cap fails a job whose rows are all saved',
+    file: 'lib/job-processor.ts',
+    from: '      if (!saved) {\n        const message',
+    to: '      if (true) {\n        const message',
+  },
+  {
+    // Past the cap a billed, unsaved job must stop: retrying it for ever is
+    // what an admin rerun of a billed job under a persistent error did.
+    name: 'a billed job that never saves is retried past the cap for ever',
+    file: 'lib/job-processor.ts',
+    from: '      if (!saved) {\n        const message',
+    to: '      if (!saved && !billed) {\n        const message',
+  },
+  {
+    name: 'a billed job stopped at the cap is told to submit again, and charged twice when it does',
+    file: 'lib/job-processor.ts',
+    from: '        const message = billed ? BILLED_STOPPED : SLICES_EXHAUSTED;',
+    to: '        const message = SLICES_EXHAUSTED;',
+  },
+  {
+    name: 'a billed job stops at the cap with no line for ops to act on',
+    file: 'lib/job-processor.ts',
+    from: '        if (billed) {\n          console.error(',
+    to: '        if (billed) {\n          console.log(',
+  },
+  {
+    name: 'the charged-job answer tells the customer to submit again',
+    file: 'lib/job-processor.ts',
+    from: "  'Processing stopped after this lookup was charged. Contact help@walletlink.social for a rerun or a refund.';",
+    to: "  'Processing stopped after this lookup was charged. Submit the list again.';",
+  },
+  {
+    name: 'the failure path fails a job whose charge has landed',
+    file: 'lib/job-processor.ts',
+    from: '      if (saved || billed) {',
+    to: '      if (saved) {',
+  },
+  {
+    // The final check's finding: this is the form that read correctly and
+    // never matched, because Drizzle renders both columns unqualified.
+    name: 'the ledger check correlates through columns again, so it compares credit_ledger to itself',
+    file: 'lib/job-processor.ts',
+    from: "exists (select 1 from credit_ledger cl where cl.job_id = ${jobId}::uuid and cl.paid_from <> 'unlock')",
+    // The same bug in the names in scope here: `${lookupJobs.id}` renders as
+    // a bare "id", which inside the subquery is credit_ledger's own id.
+    to: "exists (select 1 from credit_ledger where job_id = ${lookupJobs.id} and paid_from <> 'unlock')",
+  },
+  {
+    name: 'an unlock row counts as the charge',
+    file: 'lib/job-processor.ts',
+    from: "cl.job_id = ${jobId}::uuid and cl.paid_from <> 'unlock')",
+    to: 'cl.job_id = ${jobId}::uuid)',
+  },
+  {
+    // Finding 1 of the verify pass: ungated saves carried no job id, so
+    // nothing stopped a second.
+    name: 'an ungated job saves history without its job id, so a second finalize saves it again',
+    file: 'lib/job-processor.ts',
+    from: '        { jobId: job.id, matchesDelivered, leaseToken: job.leaseToken! }\n',
+    to: '        matchesDelivered !== null\n          ? { jobId: job.id, matchesDelivered, leaseToken: job.leaseToken! }\n          : undefined\n',
+  },
+  {
+    name: "a second pass keeps the first pass's gate, so a saved copy of a gated job opens every match",
+    file: 'lib/history.ts',
+    from: 'DO UPDATE SET matches_delivered = excluded.matches_delivered WHERE',
+    to: 'DO UPDATE SET matches_delivered = lookup_history.matches_delivered WHERE',
+  },
+  {
+    name: "a job's history save goes back to DO NOTHING, and the gate decided later never reaches history",
+    file: 'lib/history.ts',
+    from: 'ON CONFLICT (job_id) DO UPDATE SET matches_delivered = excluded.matches_delivered WHERE excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered',
+    to: 'ON CONFLICT (job_id) DO NOTHING',
+  },
+  {
+    name: 'a gate correction counts as a save, so history_saved fires twice for one lookup',
+    file: 'lib/history.ts',
+    from: '  if (row) return row.inserted ? row.id : null;',
+    to: '  if (row) return row.id;',
+  },
+  {
+    // Final check on #393: the rerun's results never reached saved history.
+    name: "an admin rerun keeps the old saved lookup attached, so the rerun's results are never saved",
+    file: 'app/api/admin/jobs/route.ts',
+    from: '      await db\n        .update(lookupHistory)\n        .set({ jobId: null })\n        .where(eq(lookupHistory.jobId, id));\n',
+    to: '',
+  },
+  {
+    name: 'history_saved counts a save that wrote nothing',
+    file: 'lib/job-processor.ts',
+    from: '      if (lookupId) {\n',
+    to: '      if (lookupId || true) {\n',
+  },
+  {
+    name: 'the history index is not unique, so ON CONFLICT has nothing to meet',
+    file: 'scripts/migrate-job-lease.ts',
+    from: 'CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS lookup_history_job_id_key',
+    to: 'CREATE INDEX CONCURRENTLY IF NOT EXISTS lookup_history_job_id_key',
+  },
+  {
+    // Findings 2 and 3: the admin's retry kept the kills of the run it
+    // replaced, and the next claim failed the job before any work.
+    name: 'an admin retry keeps the attempt count, so a job killed five times fails at its first claim',
+    file: 'app/api/admin/jobs/route.ts',
+    from: "          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n",
+    to: "          // old attempt is fenced out, since the row is no longer its token's.\n",
+  },
+  {
+    name: 'an admin retry keeps the old lease, so the rerun waits out a holder that is gone',
+    file: 'app/api/admin/jobs/route.ts',
+    from: "          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n          leasedUntil: null,\n",
+    to: "          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n",
+  },
+  {
+    // Finding 8: an unbounded budget lets a slow RPC run the slice to the kill.
+    name: 'the ENS deadline is widened past the invocation',
+    file: 'lib/job-processor.ts',
+    from: 'export const ENS_SLICE_BUDGET_MS = 120_000;',
+    to: 'export const ENS_SLICE_BUDGET_MS = 1_200_000;',
+  },
+  {
+    // Finding 9: only `.update(lookupJobs)` was counted.
+    name: 'a stage write goes through raw SQL, around the fence',
+    file: 'lib/job-processor.ts',
+    from: '  await writeOwned(db, job, { currentStage: stage, updatedAt: new Date() });',
+    to: '  await db.execute(\n    sql`UPDATE lookup_jobs SET current_stage = ${stage} WHERE id = ${job.id}`\n  );',
+  },
+  {
+    // Finding 10: every job path names every schema column.
+    name: 'the schema names the attempt column differently from the migration',
+    file: 'db/schema.ts',
+    from: "    sliceAttempts: integer('slice_attempts').default(0).notNull(),",
+    to: "    sliceAttempts: integer('slice_attempt').default(0).notNull(),",
+  },
+  {
+    name: 'the migration adds an attempt column the schema does not name',
+    file: 'scripts/migrate-job-lease.ts',
+    from: 'ADD COLUMN IF NOT EXISTS slice_attempts integer NOT NULL DEFAULT 0',
+    to: 'ADD COLUMN IF NOT EXISTS slice_attempt integer NOT NULL DEFAULT 0',
+  },
+  {
+    // A job Inngest left mid-run: processed_count is its count, and no rows
+    // were saved, so trusting it completes the job without those wallets.
+    name: 'a resume trusts processed_count alone, and finishes a job without the wallets before it',
+    file: 'lib/job-processor.ts',
+    from: '  const job = resumeFromSavedPrefix(claimed);',
+    to: '  const job = claimed;',
+  },
+  {
+    name: 'a restart keeps the counts from the run it discards, counting matches twice',
+    file: 'lib/job-processor.ts',
+    from: '        twitterFound: 0,\n        farcasterFound: 0,\n        anySocialFound: 0,\n        cacheHits: 0,\n      };',
+    to: '      };',
+  },
+  {
+    // The job's wallets keep the submitted case; the saved rows are lowered.
+    name: "the resume check compares case, so the worker's own progress restarts every slice",
+    file: 'lib/job-processor.ts',
+    from: "typeof w === 'string' ? w.toLowerCase() : w",
+    to: 'w',
+  },
+  {
+    name: 'the resume check compares lengths, so a repeated address restarts the job for ever',
+    file: 'lib/job-processor.ts',
+    from: '  const upTo = Math.min(job.processedCount, job.wallets.length);\n',
+    to: '  const upTo = Math.min(job.processedCount, job.wallets.length);\n  if (saved.size < upTo) return { ...job, processedCount: 0 };\n',
+  },
+  {
+    // The retention sweep nulls the wallets of a job untouched for 30 days,
+    // and this runs before the failure handler exists.
+    name: 'the resume check throws on a stripped wallet list, stranding the job under its lease',
+    file: 'lib/job-processor.ts',
+    from: "typeof w === 'string' ? w.toLowerCase() : w",
+    to: '(w as string).toLowerCase()',
+  },
+
   {
     // The load-bearing order: suppression rows commit FIRST, then the
     // erasure. Fired without awaiting, the deletes race an in-flight sweep
@@ -3166,6 +3617,56 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/oauth/clients.ts',
     from: "  ['fc00::', 7],",
     to: "  ['fc00::', 6],",
+  },
+  {
+    name: 'a pass whose charge threw writes its null gate over a real one, reopening every locked match in history',
+    file: 'lib/history.ts',
+    from: 'excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered',
+    to: 'lookup_history.matches_delivered',
+  },
+  {
+    name: 'the history save drops its fence, so a holder that lost the job still saves a linked copy (Bugbot, #393)',
+    file: 'lib/history.ts',
+    from: "\nWHERE EXISTS (SELECT 1 FROM lookup_jobs WHERE id = ${values.jobId}::uuid AND lease_token = ${leaseToken}::uuid AND status = 'processing' FOR SHARE)",
+    to: '',
+  },
+  {
+    name: 'the history fence does not lock the job row, so a save racing the admin reset lands after the detach',
+    file: 'lib/history.ts',
+    from: "status = 'processing' FOR SHARE)",
+    to: "status = 'processing')",
+  },
+  {
+    name: 'the history fence ignores the token, so any running attempt of the job can save',
+    file: 'lib/history.ts',
+    from: 'AND lease_token = ${leaseToken}::uuid ',
+    to: '',
+  },
+  {
+    name: 'a fenced save that wrote nothing is taken as agreement, so a holder that lost the job carries on',
+    file: 'lib/history.ts',
+    from: '  if (!held) throw new LeaseLostError(gate.jobId);\n',
+    to: '',
+  },
+  {
+    name: 'the worker logs a lost lease from the history save and carries on',
+    file: 'lib/job-processor.ts',
+    from: '      if (error instanceof LeaseLostError) throw error;\n',
+    to: '',
+  },
+  {
+    name: 'the admin detaches history before the reset, leaving a gap for a stale save to land linked',
+    file: 'app/api/admin/jobs/route.ts',
+    from: "      // Reset failed or completed job to pending to reprocess\n      const [updated] = await db\n        .update(lookupJobs)\n        .set({\n          status: 'pending',\n          errorMessage: null,\n          processedCount: 0,\n          currentStage: null,\n          partialResults: null,\n          twitterFound: 0,\n          farcasterFound: 0,\n          anySocialFound: 0,\n          cacheHits: 0,\n          startedAt: null,\n          completedAt: null,\n          updatedAt: new Date(),\n          options: updatedOptions,\n          // A clean start for the worker's claim (lib/job-processor.ts): no\n          // kills carried over from the run being retried, which would fail\n          // it at the first claim, and no lease or token. A NULL lease on a\n          // pending row is claimable at once, and a holder still running the\n          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n          leasedUntil: null,\n          leaseToken: null,\n        })\n        .where(eq(lookupJobs.id, id))\n        .returning();\n\n      if (!updated) {\n        return NextResponse.json({ error: 'Job not found' }, { status: 404 });\n      }\n\n      /**\n       * The previous run's saved lookup is detached from the job, so the\n       * rerun saves a fresh one. `lookup_history.job_id` is unique and a\n       * job's save only corrects the gate on a conflict, so without this the\n       * rerun's results would never reach the customer's saved lookups.\n       *\n       * AFTER the reset, not before. A holder still running the old attempt\n       * saves history in one statement fenced on its token, and that fence\n       * locks the job row FOR SHARE until the insert commits, so the reset\n       * above waited for any such save, and every later one finds the token\n       * gone and inserts nothing. Detaching now therefore catches every row\n       * the old attempt could write. Detaching first left a gap: a save\n       * landing between the detach and the reset still passed the fence and\n       * stayed linked (Bugbot on #393).\n       *\n       * The old copy stays as it was, results and gate. Once detached, an\n       * unlock of this job (`clearLookupGate`, keyed on job_id) reaches only\n       * the rerun's copy; a gated old copy keeps its lock.\n       */\n      await db\n        .update(lookupHistory)\n        .set({ jobId: null })\n        .where(eq(lookupHistory.jobId, id));\n",
+    to: "      await db\n        .update(lookupHistory)\n        .set({ jobId: null })\n        .where(eq(lookupHistory.jobId, id));\n\n      // Reset failed or completed job to pending to reprocess\n      const [updated] = await db\n        .update(lookupJobs)\n        .set({\n          status: 'pending',\n          errorMessage: null,\n          processedCount: 0,\n          currentStage: null,\n          partialResults: null,\n          twitterFound: 0,\n          farcasterFound: 0,\n          anySocialFound: 0,\n          cacheHits: 0,\n          startedAt: null,\n          completedAt: null,\n          updatedAt: new Date(),\n          options: updatedOptions,\n          // A clean start for the worker's claim (lib/job-processor.ts): no\n          // kills carried over from the run being retried, which would fail\n          // it at the first claim, and no lease or token. A NULL lease on a\n          // pending row is claimable at once, and a holder still running the\n          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n          leasedUntil: null,\n          leaseToken: null,\n        })\n        .where(eq(lookupJobs.id, id))\n        .returning();\n\n      if (!updated) {\n        return NextResponse.json({ error: 'Job not found' }, { status: 404 });\n      }\n\n",
+  },
+  {
+    // Bugbot on #393: the restart lived only in memory, so the cap read the
+    // Inngest-shaped row (a full count, no rows) as saved and let it through.
+    name: 'a restart is not written down, so the cap reads a full count with no rows as saved and retries it without bound',
+    file: 'lib/job-processor.ts',
+    from: '    if (job !== claimed) {\n      await writeOwned(db, job, {\n        processedCount: 0,',
+    to: '    if (job !== claimed && false) {\n      await writeOwned(db, job, {\n        processedCount: 0,',
   },
 ];
 
