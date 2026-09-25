@@ -31,7 +31,8 @@
  *   the response.
  * - `freezeListedBuyers`: a wallet listed after it bought. Its accounts are
  *   frozen and their keys deactivated. Never refunded.
- * - `deleteOldScreenings`: the five-year purge the daily cleanup runs.
+ * - The five-year purge of the screening record is `deleteOldScreenings` in
+ *   lib/retention.ts, beside the other retention deletes the cleanup runs.
  *
  * ## Fail closed
  *
@@ -672,34 +673,4 @@ export function sanctionsRefusal(verdict: ScreenVerdict): NextResponse | null {
       headers: { 'Retry-After': String(SCREENING_RETRY_AFTER_SECONDS) },
     }
   );
-}
-
-// ----------------------------------------------------------------- purge
-
-/**
- * One batch of screening records older than `years`.
- *
- * The shape of the retention deletes in the daily cleanup: a bounded batch
- * selected in a CTE, deleted by primary key with the age predicate repeated
- * on the row. `screened_at` is `timestamptz`, so it compares with `now()`
- * directly, with no UTC wall-time conversion.
- */
-export async function deleteOldScreenings(
-  db: SanctionsDb,
-  years: number,
-  limit: number
-): Promise<number> {
-  const cutoff = sql`now() - make_interval(years => ${years}::int)`;
-  return rowsOf(
-    await db.execute(sql`
-      WITH due AS (
-        SELECT id FROM sanctions_screenings
-        WHERE screened_at < ${cutoff}
-        LIMIT ${limit}
-      )
-      DELETE FROM sanctions_screenings s USING due
-      WHERE s.id = due.id AND s.screened_at < ${cutoff}
-      RETURNING 1
-    `)
-  ).length;
 }

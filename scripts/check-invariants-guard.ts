@@ -4549,21 +4549,21 @@ const MUTATIONS: Mutation[] = [
   },
   {
     name: 'STA-41 the purge deletes the young records',
-    file: 'lib/sanctions.ts',
+    file: 'lib/retention.ts',
     from: '        WHERE screened_at < ${cutoff}',
     to: '        WHERE screened_at > ${cutoff}',
   },
   {
     name: 'STA-41 the purge stops re-checking the row it deletes',
-    file: 'lib/sanctions.ts',
+    file: 'lib/retention.ts',
     from: '      WHERE s.id = due.id AND s.screened_at < ${cutoff}',
     to: '      WHERE s.id = due.id',
   },
   {
     name: 'STA-41 the daily cleanup never runs the purge',
     file: 'app/api/cron/cleanup/route.ts',
-    from: '    sanctionsScreenings = await deleteOldScreenings(',
-    to: '    sanctionsScreenings = 0 && await deleteOldScreenings(',
+    from: '    sanctionsScreenings = await drainBatches(',
+    to: '    sanctionsScreenings = 0 && await drainBatches(',
   },
   {
     name: 'STA-41 the refresh runs once a day',

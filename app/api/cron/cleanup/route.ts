@@ -22,7 +22,6 @@
  * | Idempotency replay rows    | 24 hours (lib/idempotency.ts)     |
  * | Job payloads               | 30 days, row and stats kept       |
  * | Removal quarantine copies  | Until purge_after, then deleted   |
- * | Sanctions screenings       | 5 years                           |
  * | OAuth access tokens        | 400 days after they stop working, |
  * |                            | with their usage rows             |
  * | Wallet cache rows          | 7 days (lib/cache-constants.ts)   |
@@ -30,6 +29,7 @@
  * | API rate-limit buckets     | 2 days after their period ends    |
  * | Credit ledger rows         | 7 years, then deleted             |
  * | Credit lots, Stripe ids    | 7 years; purge written, OFF       |
+ * | Sanctions screenings       | 5 years, then deleted             |
  * | Lifecycle email records    | While the account exists          |
  *
  * The two removal-system rows run FIRST, and each catches its own errors.
@@ -40,8 +40,9 @@
  * fail: past `purge_after` the copy has no reason to exist at all.
  *
  * The retention branches added for STA-45 (cache, API usage, API buckets,
- * payment records) are isolated the same way, each in its own try, because
- * each is a period the privacy page states. They run before the housekeeping
+ * payment records) and STA-41 (sanctions screenings) are isolated the same
+ * way, each in its own try, because each is a period the privacy page states
+ * or will. They run before the housekeeping
  * tail and share one time budget, so a large backlog (the cache had about
  * 498,000 expired rows when it was first wired up) drains over a few daily
  * runs instead of pushing the rest of this job past `maxDuration`.
@@ -70,7 +71,6 @@ import { lt, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { analyticsEvents } from '@/db/schema';
 import { cleanupExpiredAuth } from '@/lib/auth';
-import { deleteOldScreenings } from '@/lib/sanctions';
 import { cleanupOldIpBuckets } from '@/lib/ip-rate-limiter';
 import { cleanupAuthorizationRequests } from '@/lib/oauth/requests';
 import { cleanupAbandonedListJobs } from '@/lib/x-list-worker';
@@ -86,6 +86,7 @@ import {
   deleteOldApiUsage,
   deleteOldLedgerRows,
   deleteOldLots,
+  deleteOldScreenings,
   drainBatches,
   RETENTION_DELETE_BATCH,
 } from '@/lib/retention';
@@ -116,20 +117,6 @@ export const JOB_PAYLOAD_RETENTION_DAYS = 30;
  * backlog in a few days. Steady state is well under one batch per day.
  */
 export const JOB_PAYLOAD_STRIP_BATCH = 500;
-
-/**
- * How long a sanctions screening record is kept (`sanctions_screenings`: the
- * payer, the list's publish date, the verdict, the time). Five years, decided
- * 2026-09-25 (Linear STA-41); the lawyer may lengthen it (Linear STA-49).
- */
-export const SANCTIONS_SCREENING_RETENTION_YEARS = 5;
-
-/**
- * Screening rows deleted per run. One batch a day, far above what the rail
- * screens in a day. When the retention PR (#398) lands, this branch moves
- * onto its `drainBatches` and shared deadline like the other periods.
- */
-export const SANCTIONS_SCREENING_DELETE_BATCH = 5000;
 
 /**
  * How long an OAuth access token's `api_keys` row is kept after the token
@@ -181,6 +168,13 @@ export const API_BUCKET_RETENTION_DAYS = 2;
  * after that are in lib/retention.ts.
  */
 export const PAYMENT_RECORD_RETENTION_YEARS = 7;
+
+/**
+ * How long a sanctions screening record is kept (`sanctions_screenings`: the
+ * payer, the list's publish date, the verdict, the time). Five years, decided
+ * 2026-09-25 (Linear STA-41); the lawyer may lengthen it (Linear STA-49).
+ */
+export const SANCTIONS_SCREENING_RETENTION_YEARS = 5;
 
 /**
  * Whether the purge may delete `credit_lots` rows and clear the Stripe ids on
@@ -301,23 +295,6 @@ async function run(request: NextRequest): Promise<NextResponse> {
   }
 
   /**
-   * Sanctions screening records past their five years, isolated the same
-   * way: a retention period with its own try, so an unrelated failure below
-   * cannot extend it. The statement is `deleteOldScreenings` in
-   * lib/sanctions.ts. `null` in the response means it did not run.
-   */
-  let sanctionsScreenings: number | null = null;
-  try {
-    sanctionsScreenings = await deleteOldScreenings(
-      db,
-      SANCTIONS_SCREENING_RETENTION_YEARS,
-      SANCTIONS_SCREENING_DELETE_BATCH
-    );
-  } catch (error) {
-    console.error('Sanctions screening cleanup error:', error);
-  }
-
-  /**
    * OAuth access tokens that can never authenticate again, isolated the same
    * way. A row goes only when all of these hold:
    *
@@ -397,6 +374,22 @@ async function run(request: NextRequest): Promise<NextResponse> {
     );
   } catch (error) {
     console.error('Credit ledger cleanup error:', error);
+  }
+
+  // STA-41: the screening record, five years (deleteOldScreenings).
+  let sanctionsScreenings: number | null = null;
+  try {
+    sanctionsScreenings = await drainBatches(
+      () =>
+        deleteOldScreenings(
+          db,
+          SANCTIONS_SCREENING_RETENTION_YEARS,
+          RETENTION_DELETE_BATCH
+        ),
+      retentionDeadline
+    );
+  } catch (error) {
+    console.error('Sanctions screening cleanup error:', error);
   }
 
   /**
@@ -481,11 +474,11 @@ async function run(request: NextRequest): Promise<NextResponse> {
     // the logs); 0 means it ran and found nothing due.
     quarantinePurged,
     jobPayloadsStripped,
-    sanctionsScreenings,
     oauthAccessTokens,
     apiUsageRows,
     apiBuckets,
     creditLedgerRows,
+    sanctionsScreenings,
     purchaseRecords,
     walletCacheRows,
   });

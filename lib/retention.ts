@@ -232,3 +232,31 @@ export async function clearOldStripeIds(
     `)
   );
 }
+
+/**
+ * One batch of sanctions screening records older than `years` (Linear
+ * STA-41; the rows are written by `screenPayer` in lib/sanctions.ts).
+ *
+ * The one statement here on a `timestamptz` column, so it compares with
+ * `now()` itself rather than `UTC_NOW`: the column carries its zone, and the
+ * UTC wall-time conversion would be the error.
+ */
+export async function deleteOldScreenings(
+  db: RetentionDb,
+  years: number,
+  limit: number
+): Promise<number> {
+  const cutoff = sql`now() - make_interval(years => ${years}::int)`;
+  return rowCount(
+    await db.execute(sql`
+      WITH due AS (
+        SELECT id FROM sanctions_screenings
+        WHERE screened_at < ${cutoff}
+        LIMIT ${limit}
+      )
+      DELETE FROM sanctions_screenings s USING due
+      WHERE s.id = due.id AND s.screened_at < ${cutoff}
+      RETURNING 1
+    `)
+  );
+}

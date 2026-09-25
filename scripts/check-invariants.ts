@@ -18058,10 +18058,12 @@ async function main() {
       const db = fakeDb(() => ({ rows: [{}, {}, {}] }));
       const { SANCTIONS_SCREENING_RETENTION_YEARS } =
         await import('@/app/api/cron/cleanup/route');
-      const removed = await S.deleteOldScreenings(
+      const { deleteOldScreenings, RETENTION_DELETE_BATCH } =
+        await import('@/lib/retention');
+      const removed = await deleteOldScreenings(
         db,
         SANCTIONS_SCREENING_RETENTION_YEARS,
-        5000
+        RETENTION_DELETE_BATCH
       );
       const purge = db.sent[0];
       ok(
@@ -18084,16 +18086,18 @@ async function main() {
       const runPart = cleanupRun.slice(
         cleanupRun.indexOf('async function run(')
       );
-      const purgeAt = runPart.indexOf(
-        'sanctionsScreenings = await deleteOldScreenings( db, SANCTIONS_SCREENING_RETENTION_YEARS, SANCTIONS_SCREENING_DELETE_BATCH );'
-      );
+      // The shape of every STA-45 retention branch: its own try, drained in
+      // bounded batches against the shared deadline, reported by name.
       ok(
-        'the daily cleanup runs the purge in its own try and reports it',
-        purgeAt !== -1 &&
-          /let sanctionsScreenings: number \| null = null; try \{ sanctionsScreenings = await deleteOldScreenings\( db, SANCTIONS_SCREENING_RETENTION_YEARS, SANCTIONS_SCREENING_DELETE_BATCH \); \} catch \(error\) \{ console\.error\('Sanctions screening cleanup error:', error\); \}/.test(
+        'the daily cleanup drains the purge in its own try, inside the retention budget, and reports it',
+        /let sanctionsScreenings: number \| null = null; try \{ sanctionsScreenings = await drainBatches\( \(\) => deleteOldScreenings\( db, SANCTIONS_SCREENING_RETENTION_YEARS, RETENTION_DELETE_BATCH \), retentionDeadline \); \} catch \(error\) \{ console\.error\('Sanctions screening cleanup error:', error\); \}/.test(
+          runPart
+        ) &&
+          runPart.indexOf('const retentionDeadline') <
+            runPart.indexOf('sanctionsScreenings = await') &&
+          /creditLedgerRows, sanctionsScreenings, purchaseRecords,/.test(
             runPart
-          ) &&
-          /sanctionsScreenings, oauthAccessTokens, \}\);/.test(runPart)
+          )
       );
     }
 
