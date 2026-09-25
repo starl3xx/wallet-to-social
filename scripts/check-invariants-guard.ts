@@ -3668,6 +3668,207 @@ const MUTATIONS: Mutation[] = [
     from: '    if (job !== claimed) {\n      await writeOwned(db, job, {\n        processedCount: 0,',
     to: '    if (job !== claimed && false) {\n      await writeOwned(db, job, {\n        processedCount: 0,',
   },
+  // ------------- STA-46: a removal reaches retry copies and the claim record
+  {
+    name: 'STA-46 a replay serves the stored body unfiltered again',
+    file: 'app/api/v1/batch/route.ts',
+    from: '      return NextResponse.json(replayed, {',
+    to: '      return NextResponse.json(prior.response, {',
+  },
+  {
+    name: 'STA-46 an unreadable suppression list lets the replay through unfiltered',
+    file: 'app/api/v1/batch/route.ts',
+    from:
+      "        console.error('Suppression check failed on /v1/batch replay:', error);\n" +
+      '        return apiError(',
+    to:
+      "        console.error('Suppression check failed on /v1/batch replay:', error);\n" +
+      '        replaySuppression = new Map();\n' +
+      '      }\n' +
+      '      if (!replaySuppression) {\n' +
+      '        return apiError(',
+  },
+  {
+    name: 'STA-46 the removal deletes the retry copy, so the retry bills again',
+    file: 'lib/removal-admin.ts',
+    from:
+      '        UPDATE idempotency_keys\n' +
+      '        SET response = ${JSON.stringify(scrubbed)}::jsonb\n' +
+      '        WHERE key_id = ${row.key_id}',
+    to: '        DELETE FROM idempotency_keys\n        WHERE key_id = ${row.key_id}',
+  },
+  {
+    name: 'STA-46 the rewrite loses its condition and can put back an older body',
+    file: 'lib/removal-admin.ts',
+    from: '          AND md5(response::text) = ${row.digest}\n',
+    to: '',
+  },
+  {
+    name: 'STA-46 the erase stops reaching the retry copies',
+    file: 'lib/removal-admin.ts',
+    from: '  const retryRows = await amendRetryCopies(db, kind, identifier);',
+    to: '  const retryRows = 0;',
+  },
+  {
+    name: 'STA-46 a lost write race is reported clean instead of re-read',
+    file: 'lib/removal-admin.ts',
+    from: '      row = again.rows[0];',
+    to: '      row = undefined;',
+  },
+  {
+    name: 'STA-46 a driver returning jsonb as text turns the amend into a silent no-op',
+    file: 'lib/removal-admin.ts',
+    from: "    typeof value === 'string' ? (JSON.parse(value) as unknown) : value;",
+    to: '    value;',
+  },
+  {
+    name: 'STA-46 the candidate read turns case-sensitive and misses a mixed-case handle',
+    file: 'lib/removal-admin.ts',
+    from: '      AND strpos(lower(response::text), ${needle}) > 0',
+    to: '      AND strpos(response::text, ${needle}) > 0',
+  },
+  {
+    name: "STA-46 a removed wallet's checked stamp survives the replay",
+    file: 'lib/idempotency.ts',
+    from: "      ([wallet]) => !isKindSuppressed(sets, 'wallet', wallet)",
+    to: '      () => true',
+  },
+  {
+    name: 'STA-46 the replayed counts keep what the original held',
+    file: 'lib/idempotency.ts',
+    from:
+      '      matched: data.filter(\n' +
+      '        (entry) => isRecord(entry) && (entry.twitter || entry.farcaster)\n' +
+      '      ).length,\n',
+    to: '',
+  },
+  {
+    name: 'STA-46 a replayed row left with no identity keeps its wallet',
+    file: 'lib/idempotency.ts',
+    from: '    return hasSocials ? next : null;',
+    to: '    return next;',
+  },
+  {
+    name: 'STA-46 a removed second X handle rides back in on the replay',
+    file: 'lib/idempotency.ts',
+    from: "        isKindSuppressed(sets, 'twitter', entry.twitter.also.handle)",
+    to: '        false',
+  },
+  {
+    name: 'STA-46 the claim is withdrawn before the amends, so a failed amend strands the signed retry',
+    file: 'lib/removal-admin.ts',
+    from: '  const historyRows = await amendSavedCopies(\n',
+    to:
+      "  if (kind === 'wallet' || kind === 'twitter') {\n" +
+      '    await withdrawClaimRecords(db, kind, identifier);\n' +
+      '  }\n' +
+      '  const historyRows = await amendSavedCopies(\n',
+  },
+  {
+    name: 'STA-46 an emailed removal leaves the claim record naming the pair (the gap as it was)',
+    file: 'lib/removal-admin.ts',
+    from: '    const claims = await withdrawClaimRecords(db, kind, identifier);',
+    to: '    const claims = { withdrawn: 0, quarantined: 0 };',
+  },
+  {
+    name: 'STA-46 an X handle removal no longer reaches the claim record',
+    file: 'lib/removal-admin.ts',
+    from:
+      "  if (kind === 'wallet' || kind === 'twitter') {\n" +
+      '    const claims = await withdrawClaimRecords(db, kind, identifier);',
+    to:
+      "  if (kind === 'wallet') {\n" +
+      '    const claims = await withdrawClaimRecords(db, kind, identifier);',
+  },
+  {
+    name: 'STA-46 the claim withdrawal clears the grant key, so the grant can be farmed',
+    file: 'lib/removal-admin.ts',
+    from:
+      "      SET status        = 'withdrawn',\n" +
+      '          x_user_id     = NULL,\n',
+    to:
+      "      SET status        = 'withdrawn',\n" +
+      '          x_user_id_hmac = NULL,\n' +
+      '          x_user_id     = NULL,\n',
+  },
+  {
+    name: 'STA-46 a pending claim survives the removal and can complete after it',
+    file: 'lib/removal-admin.ts',
+    from:
+      '      WHERE ${match}\n' +
+      "        AND t.status IN ('completed', 'awaiting_x')",
+    to: '      WHERE ${match}\n' + "        AND t.status = 'completed'",
+  },
+  {
+    name: "STA-46 a pending claim's authorization is kept in quarantine",
+    file: 'lib/removal-admin.ts',
+    from: "      FROM snap\n      WHERE snap.status = 'completed'\n",
+    to: '      FROM snap\n',
+  },
+  {
+    name: 'STA-46 un-suppress restores a claim a sibling suppression still covers',
+    file: 'lib/removal-admin.ts',
+    from:
+      "               OR (x.kind = 'twitter'\n" +
+      "                   AND x.identifier = lower(s.row_data ->> 'x_handle'))\n",
+    to: '',
+  },
+  {
+    name: 'STA-46 the claim withdrawal loses its join and withdraws every claim in the table',
+    file: 'lib/removal-admin.ts',
+    from: '      FROM snap\n      WHERE g.id = snap.id\n      RETURNING g.id\n',
+    to: '      FROM snap\n      RETURNING g.id\n',
+  },
+  {
+    name: 'STA-46 the claim withdrawal clears only pending rows, so a completed claim keeps naming the pair',
+    file: 'lib/removal-admin.ts',
+    from: '      WHERE g.id = snap.id\n',
+    to: "      WHERE g.id = snap.id AND snap.status = 'awaiting_x'\n",
+  },
+  {
+    name: 'STA-46 a refused claim restore deletes the only quarantine copy',
+    file: 'lib/removal-admin.ts',
+    from: "        AND (src.row_data ->> 'id')::uuid IN (SELECT id FROM upd)\n",
+    to: '',
+  },
+  {
+    name: 'STA-46 a restored claim comes back completed with no handle',
+    file: 'lib/removal-admin.ts',
+    from: "            x_handle   = s.row_data ->> 'x_handle',\n",
+    to: '',
+  },
+  {
+    name: 'STA-46 un-suppressing an X handle never restores its claim',
+    file: 'lib/removal-admin.ts',
+    from:
+      "  if (kind === 'wallet' || kind === 'twitter') {\n" +
+      '    const res = (await db.execute(sql`\n' +
+      '      WITH src AS (',
+    to:
+      "  if (kind === 'wallet') {\n" +
+      '    const res = (await db.execute(sql`\n' +
+      '      WITH src AS (',
+  },
+  {
+    name: 'STA-46 a removed wallet whose only trace is its checked stamp keeps it (the body counts as unchanged)',
+    file: 'lib/idempotency.ts',
+    from: '    if (kept.length !== checked.length) {\n      touched = true;\n',
+    to: '    if (kept.length !== checked.length) {\n',
+  },
+  {
+    name: 'STA-46 a claim pending across a handle removal completes with that handle',
+    file: 'lib/claim-callback.ts',
+    from: "    const hits = await isSuppressed('twitter', [handle]);",
+    to: '    const hits = new Set<string>();',
+  },
+  {
+    name: 'STA-46 a failed handle suppression read lets the claim complete',
+    file: 'lib/claim-callback.ts',
+    from:
+      "    console.error('claim handle suppression read failed; refusing:', error);\n" +
+      "    return back('unavailable', claim.id);",
+    to: "    console.error('claim handle suppression read failed; refusing:', error);",
+  },
 ];
 
 function invariantsPass(): boolean {

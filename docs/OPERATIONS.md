@@ -83,7 +83,8 @@ shared `ADMIN_PASSWORD` via `lib/admin-auth.ts`) for the named identifiers.
 The endpoint owns the load-bearing order: insert and COMMIT the suppression
 rows FIRST, then copy-and-delete (one atomic statement per table moves each
 affected row into quarantine as it is deleted or blanked), then amend saved
-results (non-fail-soft: a failed amend is an error, never a silent
+results and the API retry copies, then withdraw the claim record
+(non-fail-soft throughout: a failed step is an error, never a silent
 success). Deleting before the suppression commits would leave a window in
 which an in-flight sweep batch re-inserts the row; the other way round the
 race is harmless, because the committed suppression rows feed the storage
@@ -92,6 +93,39 @@ identifier, inserted with jittered timestamps so the rows cannot be joined
 back into one request. Never insert a suppression row by hand in `psql`:
 the quarantine copy and the commit-then-delete order are exactly what a
 hand-run skips.
+
+**What the erase reaches beyond the index** (STA-46, 2026-09-25). Two
+copies of a mapping sat outside it until then:
+
+- **API retry copies.** A `POST /v1/batch` sent with an `Idempotency-Key`
+  stores its response for 24 hours, and a resend replays it. The removal
+  rewrites every stored response that names the identifier
+  (`idempotency_keys` in the step list), and every replay is also filtered
+  against the live suppression list before it is served, which covers a
+  request that was in flight across the erase. The copies are rewritten,
+  never deleted: a deleted key turns the customer's retry into a fresh
+  request, and a fresh request bills again. Never "clean up" by deleting
+  rows from that table.
+- **The claim record.** An X account and wallet paired on `/claim` live in
+  `identity_attestations`. A removal of the wallet or of the X handle marks
+  every claim row naming it `withdrawn` and clears the handle, account id,
+  signature and any pending authorization, the same statement a signed
+  withdrawal on the claim page runs (both lanes call `eraseIdentifier`).
+  It is the erase's LAST step, so a failed run leaves the claim intact for
+  the re-run. Completed claims are quarantined and come back on
+  un-suppress, unless a sibling suppression still covers the wallet or the
+  handle, in which case the copy is kept and reported like any other. A
+  claim that was mid-authorization when the handle was removed is refused
+  at the callback.
+
+**After a backup restore, keep today's suppression list.** The nightly dump
+carries `suppressed_identifiers`, so a restore can bring back an older list
+and, with it, rows for people who asked to be removed after the backup was
+taken. Export today's list BEFORE restoring, put it back over the
+backup's afterwards, then re-run the erase for every identifier on it (the
+endpoint is idempotent). The exact commands are in the restore section of
+the private ops runbook (starl3xx/walletlink-ops, `docs/SECURITY.md`),
+beside the restore they belong to.
 
 **Un-suppress.** Operator-only, within 30 days of the removal: it deletes
 the suppression row, then restores the quarantined rows. A copy whose

@@ -27,6 +27,7 @@ import {
   findIdempotentReplay,
   storeIdempotentResponse,
   idempotencyBodyHash,
+  scrubStoredBatchResponse,
   IDEMPOTENCY_KEY_MAX_LENGTH,
   IDEMPOTENCY_TTL_HOURS,
 } from '@/lib/idempotency';
@@ -202,6 +203,32 @@ export async function POST(request: NextRequest) {
       );
     }
     if (prior.kind === 'replay') {
+      /**
+       * A replay is filtered against the suppression list exactly as a live
+       * response is. The removal endpoint rewrites the stored copies too, but
+       * a removal can land between the store and this replay (a request in
+       * flight when the erase ran, or an erase that failed and awaits its
+       * re-run), and the stored body would then serve the removed link for
+       * the rest of the window. Fail closed, like the live path below: a 503
+       * stores nothing and bills nothing, and the key stays replayable.
+       */
+      let replaySuppression: SuppressionSets;
+      try {
+        replaySuppression = await loadSuppressionList();
+      } catch (error) {
+        console.error('Suppression check failed on /v1/batch replay:', error);
+        return apiError(
+          'Service temporarily unavailable',
+          'SERVICE_UNAVAILABLE',
+          503,
+          { ...context.rateLimitHeaders, ...corsHeaders }
+        );
+      }
+      const replayed = scrubStoredBatchResponse(
+        prior.response,
+        replaySuppression
+      );
+
       trackApiUsage({
         apiKeyId: context.key.id,
         endpoint: '/v1/batch',
@@ -214,7 +241,7 @@ export async function POST(request: NextRequest) {
         matches: null,
       }).catch(console.error);
 
-      return NextResponse.json(prior.response, {
+      return NextResponse.json(replayed, {
         status: prior.status,
         headers: {
           'Content-Type': 'application/json',

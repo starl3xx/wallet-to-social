@@ -2138,11 +2138,31 @@ async function main() {
          * and the page said the address was claimed. The gap between what we
          * tell somebody and what we did is the thing being closed.
          */
+        /**
+         * The clearing itself lives in `withdrawClaimRecords`, the last step
+         * of the erase, since 2026-09-25: an emailed removal left the claim
+         * record naming the pair because only this route cleared it. Read
+         * there, and reached from here through `eraseIdentifier`.
+         */
+        const adminFlat = withoutComments(
+          readFileSync('lib/removal-admin.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        const claimFnAt = adminFlat.indexOf(
+          'async function withdrawClaimRecords('
+        );
+        const claimFn =
+          claimFnAt === -1
+            ? ''
+            : adminFlat.slice(
+                claimFnAt,
+                adminFlat.indexOf('const RESULT_MATCH_KEY', claimFnAt)
+              );
         ok(
           'a withdrawal covers every row for that wallet, not just the newest',
-          /WHERE user_id = \$\{session\.user\.id\} AND wallet = \$\{wallet\} AND status IN \('completed', 'awaiting_x'\)/.test(
-            withdraw
-          ) && !/LIMIT 1/.test(withdraw)
+          claimFn.includes('? sql`t.wallet = ${identifier}`') &&
+            claimFn.includes("AND t.status IN ('completed', 'awaiting_x')") &&
+            !/LIMIT/.test(claimFn) &&
+            /await eraseIdentifier\(db, 'wallet', wallet\)/.test(withdraw)
         );
         {
           // The CALL SITE, not the identifier: `X_TOKEN_URL` appears in the
@@ -2166,9 +2186,9 @@ async function main() {
           // The HMAC outliving the identity is what stops the grant being
           // farmed by claiming and withdrawing in a loop, and it is the
           // reason the column is an HMAC rather than the id.
-          /x_handle = NULL/.test(withdraw) &&
-            /signature = NULL/.test(withdraw) &&
-            !/x_user_id_hmac = NULL/.test(withdraw)
+          /x_handle = NULL/.test(claimFn) &&
+            /signature = NULL/.test(claimFn) &&
+            !/x_user_id_hmac = NULL/.test(claimFn)
         );
 
         ok(
@@ -12727,6 +12747,427 @@ async function main() {
         adminSrc.includes('any_social_found = (SELECT count(*)::int') &&
         adminSrc.includes("countOf('twitter_handle')") &&
         adminSrc.includes("countOf('farcaster')")
+    );
+  }
+
+  // ---------------- right-to-removal: API retry copies and the claim record
+  /**
+   * Two places a removed mapping outlived its removal, closed 2026-09-25
+   * (STA-46), and asserted through the code that closes them.
+   *
+   * A stored `/v1/batch` response under an `Idempotency-Key` is replayable
+   * for a day. It is rewritten at removal time AND every replay is filtered
+   * against the live list, because a request in flight across the erase can
+   * store a pre-removal body after the rewrite ran. It is never deleted: a
+   * deleted key makes the retry a miss, and a miss bills again.
+   *
+   * And an emailed removal left the claim record (`identity_attestations`)
+   * naming the pair, `completed`, because only the signed withdrawal route
+   * cleared it. The clearing now lives in the erase both lanes run, as its
+   * last step, so a failure before it leaves the claim retryable.
+   */
+  {
+    const { scrubStoredBatchResponse } = await import('@/lib/idempotency');
+    const { eraseIdentifier, unsuppressIdentifier } =
+      await import('@/lib/removal-admin');
+    const { PgDialect } = await import('drizzle-orm/pg-core');
+    const dialect = new PgDialect();
+    type Sets = Parameters<typeof scrubStoredBatchResponse>[1];
+    const setsOf = (entries: Array<[string, string[]]>) =>
+      new Map(entries.map(([k, v]) => [k, new Set(v)])) as unknown as Sets;
+
+    const W1 = '0x' + '1'.repeat(40);
+    const W2 = '0x' + '2'.repeat(40);
+    const W3 = '0x' + '3'.repeat(40);
+    const stored = () => ({
+      data: [
+        {
+          wallet: W1,
+          twitter: { handle: 'alice', url: 'https://x.com/alice' },
+          farcaster: { username: 'alicefc', fid: 11 },
+          ens_name: 'alice.eth',
+          last_updated: '2026-09-25T00:00:00.000Z',
+          stale: false,
+        },
+        {
+          wallet: W2,
+          twitter: {
+            handle: 'Bob',
+            url: 'https://x.com/Bob',
+            also: { handle: 'bobalt', url: 'https://x.com/bobalt' },
+          },
+          last_updated: '2026-09-25T00:00:00.000Z',
+          stale: false,
+        },
+        null,
+      ],
+      meta: {
+        requested: 3,
+        found: 2,
+        not_found: 1,
+        matched: 2,
+        previously_checked: { [W3]: '2026-09-20T00:00:00.000Z' },
+      },
+    });
+
+    // As the replayer: the wallet was removed after the store.
+    const byWallet = scrubStoredBatchResponse(
+      stored(),
+      setsOf([['wallet', [W1, W3]]])
+    ) as ReturnType<typeof stored>;
+    ok(
+      'a replay after a wallet removal serves that wallet as never indexed, and its checked stamp goes too',
+      byWallet.data[0] === null &&
+        !JSON.stringify(byWallet).includes(W1) &&
+        !JSON.stringify(byWallet).includes('alice') &&
+        !JSON.stringify(byWallet).includes(W3) &&
+        byWallet.meta.previously_checked === undefined
+    );
+    ok(
+      'the replayed counts describe what is served, not what the original held',
+      byWallet.meta.found === 1 &&
+        byWallet.meta.not_found === 2 &&
+        byWallet.meta.matched === 1 &&
+        byWallet.meta.requested === 3
+    );
+
+    // The same removal where the wallet's ONLY trace is its checked stamp:
+    // nothing in `data` changes, so the stamp alone has to mark the body as
+    // touched, or the amend reads it as clean and every replay keeps it.
+    const missInput = stored();
+    const byMiss = scrubStoredBatchResponse(
+      missInput,
+      setsOf([['wallet', [W3]]])
+    ) as ReturnType<typeof stored>;
+    ok(
+      'a wallet removed while a checked miss loses its stamp even when nothing else in the body changes',
+      byMiss !== missInput &&
+        byMiss.meta.previously_checked === undefined &&
+        !JSON.stringify(byMiss).includes(W3) &&
+        JSON.stringify(byMiss.data) === JSON.stringify(missInput.data) &&
+        byMiss.meta.found === 2 &&
+        byMiss.meta.not_found === 1 &&
+        byMiss.meta.matched === 2
+    );
+
+    // A handle stored mixed case, removed lowercase, and the row it leaves
+    // with no identity at all.
+    const byHandle = scrubStoredBatchResponse(
+      stored(),
+      setsOf([['twitter', ['bob']]])
+    ) as ReturnType<typeof stored>;
+    ok(
+      'a replay after an X handle removal drops that handle whatever its stored case, and a row left bare is a miss',
+      byHandle.data[1] === null &&
+        !JSON.stringify(byHandle).toLowerCase().includes('"bob"') &&
+        byHandle.meta.found === 1 &&
+        byHandle.meta.matched === 1
+    );
+    const byAlso = scrubStoredBatchResponse(
+      stored(),
+      setsOf([['twitter', ['bobalt']]])
+    ) as ReturnType<typeof stored>;
+    ok(
+      'a removed second X handle leaves the replay while the first handle stays',
+      !JSON.stringify(byAlso).includes('bobalt') &&
+        (byAlso.data[1] as { twitter: { handle: string } }).twitter.handle ===
+          'Bob'
+    );
+    const byOthers = scrubStoredBatchResponse(
+      stored(),
+      setsOf([
+        ['farcaster', ['alicefc']],
+        ['ens', ['alice.eth']],
+        ['twitter', ['ali']],
+      ])
+    ) as ReturnType<typeof stored>;
+    ok(
+      'a removed Farcaster account and ENS name leave the replay, and a handle inside a longer one is not a match',
+      !JSON.stringify(byOthers).includes('alicefc') &&
+        !JSON.stringify(byOthers).includes('alice.eth') &&
+        (byOthers.data[0] as { twitter: { handle: string } }).twitter.handle ===
+          'alice'
+    );
+
+    // The replay path goes through it, fail closed, and serves nothing else.
+    const b = withoutComments(
+      readFileSync('app/api/v1/batch/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const replayAt = b.indexOf("if (prior.kind === 'replay') {");
+    const replayBlock = replayAt === -1 ? '' : b.slice(replayAt);
+    const rLoad = replayBlock.indexOf(
+      'replaySuppression = await loadSuppressionList();'
+    );
+    const rFail = replayBlock.indexOf(
+      "console.error('Suppression check failed on /v1/batch replay:', error); return apiError( 'Service temporarily unavailable', 'SERVICE_UNAVAILABLE', 503,"
+    );
+    const rScrub = replayBlock.indexOf(
+      'const replayed = scrubStoredBatchResponse( prior.response, replaySuppression );'
+    );
+    const rTrack = replayBlock.indexOf('trackApiUsage(');
+    const rServe = replayBlock.indexOf('return NextResponse.json(replayed, {');
+    ok(
+      'a replay is filtered against the live list before it is served, and an unreadable list refuses it unbilled',
+      rLoad !== -1 &&
+        rFail > rLoad &&
+        rScrub > rFail &&
+        rTrack > rScrub &&
+        rServe > rTrack &&
+        !b.includes('NextResponse.json(prior.response')
+    );
+
+    /**
+     * The erase, run against a database that records every statement. The
+     * candidate read returns one stored body naming the removed wallet, as
+     * TEXT (a driver that hands jsonb back unparsed must not make the scrub
+     * a silent no-op), and the first conditional write loses a race to a
+     * body that changed underneath it.
+     */
+    const run = async (
+      kind: 'wallet' | 'twitter' | 'farcaster',
+      identifier: string,
+      opts: { loseRaces: number }
+    ) => {
+      const sent: Array<{ sql: string; params: unknown[] }> = [];
+      let races = opts.loseRaces;
+      const changed = stored();
+      (changed.data[1] as { ens_name?: string }).ens_name = 'arrived.eth';
+      const db = {
+        execute: async (query: Parameters<typeof dialect.sqlToQuery>[0]) => {
+          const q = dialect.sqlToQuery(query);
+          const flat = q.sql.replace(/\s+/g, ' ').trim();
+          sent.push({ sql: flat, params: q.params });
+          if (
+            flat.includes('FROM idempotency_keys WHERE response IS NOT NULL')
+          ) {
+            return {
+              rows: [
+                {
+                  key_id: 'K',
+                  idem_key: 'I',
+                  response: JSON.stringify(stored()),
+                  digest: 'd0',
+                },
+              ],
+            };
+          }
+          if (flat.startsWith('UPDATE idempotency_keys')) {
+            if (races > 0) {
+              races--;
+              return { rows: [] };
+            }
+            return { rows: [{ key_id: 'K' }] };
+          }
+          if (flat.includes('FROM idempotency_keys WHERE key_id =')) {
+            return {
+              rows: [
+                { key_id: 'K', idem_key: 'I', response: changed, digest: 'd1' },
+              ],
+            };
+          }
+          if (flat.includes('FROM identity_attestations t')) {
+            return { rows: [{ withdrawn: 2, quarantined: 1 }] };
+          }
+          return { rows: [] };
+        },
+      };
+      let threw: unknown = null;
+      let report: Awaited<ReturnType<typeof eraseIdentifier>> | null = null;
+      try {
+        report = await eraseIdentifier(
+          db as unknown as Parameters<typeof eraseIdentifier>[0],
+          kind,
+          identifier
+        );
+      } catch (error) {
+        threw = error;
+      }
+      return { sent, report, threw };
+    };
+
+    const walletRun = await run('wallet', W1, { loseRaces: 1 });
+    const writes = walletRun.sent.filter((s) =>
+      s.sql.startsWith('UPDATE idempotency_keys')
+    );
+    const lastWrite = writes.at(-1);
+    const lastBody =
+      typeof lastWrite?.params[0] === 'string' ? lastWrite.params[0] : '';
+    ok(
+      'a removal rewrites the stored retry copy and never deletes its key, since a deleted key bills the retry again',
+      writes.length === 2 &&
+        !walletRun.sent.some((s) =>
+          /DELETE FROM idempotency_keys/.test(s.sql)
+        ) &&
+        lastBody.length > 0 &&
+        !lastBody.includes(W1) &&
+        !lastBody.includes('alice') &&
+        walletRun.report?.steps.some(
+          (s) =>
+            s.table === 'idempotency_keys' &&
+            s.action === 'amended' &&
+            s.rows === 1
+        ) === true
+    );
+    ok(
+      'each rewrite is conditional on the body it read, and a lost race re-reads and scrubs what is there now',
+      writes.every((w) =>
+        w.sql.includes(
+          'WHERE key_id = $2 AND idem_key = $3 AND md5(response::text) = $4'
+        )
+      ) &&
+        writes[0]?.params[3] === 'd0' &&
+        writes[1]?.params[3] === 'd1' &&
+        lastBody.includes('arrived.eth')
+    );
+    const candidateRead = walletRun.sent.find((s) =>
+      s.sql.includes('FROM idempotency_keys WHERE response IS NOT NULL')
+    );
+    ok(
+      'the candidate read is case-insensitive over the whole stored body',
+      candidateRead?.sql.includes(
+        'AND strpos(lower(response::text), $1) > 0'
+      ) === true && candidateRead.params[0] === W1
+    );
+    const stuck = await run('wallet', W1, { loseRaces: 3 });
+    ok(
+      'a stored copy that keeps changing under the amend aborts the removal instead of reporting it clean',
+      stuck.threw instanceof Error &&
+        /changed under the amend/.test((stuck.threw as Error).message)
+    );
+
+    // The claim record: reached by both kinds that can name it, last.
+    const claimSql = (sent: Array<{ sql: string }>) =>
+      sent.filter((s) => s.sql.includes('FROM identity_attestations t'));
+    const wClaims = claimSql(walletRun.sent);
+    const twitterRun = await run('twitter', 'bob', { loseRaces: 0 });
+    const tClaims = claimSql(twitterRun.sent);
+    const fcRun = await run('farcaster', 'bobfc', { loseRaces: 0 });
+    ok(
+      'an emailed removal of a wallet or an X handle withdraws the claim record, and it is the last statement of the erase',
+      wClaims.length === 1 &&
+        walletRun.sent.at(-1) === wClaims[0] &&
+        wClaims[0].sql.includes(
+          "WHERE t.wallet = $1 AND t.status IN ('completed', 'awaiting_x')"
+        ) &&
+        tClaims.length === 1 &&
+        twitterRun.sent.at(-1) === tClaims[0] &&
+        tClaims[0].sql.includes(
+          "WHERE lower(t.x_handle) = $1 AND t.status IN ('completed', 'awaiting_x')"
+        ) &&
+        claimSql(fcRun.sent).length === 0 &&
+        walletRun.report?.steps.at(-1)?.table === 'identity_attestations' &&
+        walletRun.report?.steps.at(-1)?.rows === 2
+    );
+    const claimStmt = wClaims[0]?.sql ?? '';
+    ok(
+      'the withdrawal clears the handle, the account, the signature and any pending authorization, and keeps the grant key',
+      claimStmt.includes(
+        "SET status = 'withdrawn', x_user_id = NULL, x_handle = NULL, signature = NULL, code_verifier = NULL, state_nonce = NULL, updated_at = now()"
+      ) &&
+        // The join that applies the snapshot to the UPDATE. Without it the
+        // UPDATE ... FROM is a cross join and withdraws every claim in the
+        // table; narrowed, it leaves completed claims naming the pair. The
+        // stubbed counts above cannot see either, so the text is pinned.
+        claimStmt.includes('FROM snap WHERE g.id = snap.id RETURNING g.id') &&
+        !claimStmt.includes('x_user_id_hmac = NULL') &&
+        !/LIMIT/.test(claimStmt) &&
+        !/user_id = \$/.test(claimStmt)
+    );
+    ok(
+      'only a completed claim is copied to quarantine; a pending authorization is not kept',
+      claimStmt.includes(
+        "SELECT $2, $3, 'identity_attestations', snap.payload FROM snap WHERE snap.status = 'completed'"
+      )
+    );
+
+    // Un-suppress puts a claim back only where no sibling suppression still
+    // covers its wallet or its handle: the table has no trigger to refuse.
+    // Run for both kinds that can name a claim, since each reaches it.
+    const unsuppressSent = async (kind: 'wallet' | 'twitter', id: string) => {
+      const sent: string[] = [];
+      await unsuppressIdentifier(
+        {
+          execute: async (query: Parameters<typeof dialect.sqlToQuery>[0]) => {
+            const flat = dialect
+              .sqlToQuery(query)
+              .sql.replace(/\s+/g, ' ')
+              .trim();
+            sent.push(flat);
+            if (flat.includes('AS past_retention')) {
+              return { rows: [{ past_retention: false }] };
+            }
+            if (
+              flat.includes('count(*)::int AS n FROM suppression_quarantine')
+            ) {
+              return { rows: [{ n: 1 }] };
+            }
+            return { rows: [] };
+          },
+        } as unknown as Parameters<typeof unsuppressIdentifier>[0],
+        kind,
+        id,
+        false
+      );
+      return (
+        sent.find((s) => s.includes('UPDATE identity_attestations g')) ?? ''
+      );
+    };
+    const claimRestore = await unsuppressSent('wallet', W1);
+    const handleRestore = await unsuppressSent('twitter', 'bob');
+    ok(
+      'a restored claim never re-pairs a wallet or handle that another suppression still covers',
+      claimRestore.includes(
+        "WHERE g.id = (s.row_data ->> 'id')::uuid AND g.status = 'withdrawn' AND g.x_handle IS NULL AND NOT EXISTS ( SELECT 1 FROM suppressed_identifiers x WHERE (x.kind = 'wallet' AND x.identifier = g.wallet) OR (x.kind = 'twitter' AND x.identifier = lower(s.row_data ->> 'x_handle')) )"
+      )
+    );
+    ok(
+      'a restored claim gets back its handle, its account id and its signature',
+      claimRestore.includes(
+        "SET status = 'completed', x_user_id = s.row_data ->> 'x_user_id', x_handle = s.row_data ->> 'x_handle', signature = s.row_data ->> 'signature', updated_at = now()"
+      )
+    );
+    ok(
+      'a claim copy is deleted only when its restore landed, so a refused one is kept',
+      claimRestore.includes(
+        "DELETE FROM suppression_quarantine q USING src WHERE q.id = src.id AND (src.row_data ->> 'id')::uuid IN (SELECT id FROM upd)"
+      )
+    );
+    ok(
+      'un-suppressing an X handle restores the claim record too',
+      handleRestore.length > 0 && handleRestore === claimRestore
+    );
+
+    // The signed withdrawal reaches the claim through the same erase and no
+    // longer carries a clearing statement of its own.
+    const withdrawRoute = withoutComments(
+      readFileSync('app/api/claim/withdraw/route.ts', 'utf8')
+    );
+    ok(
+      'the signed withdrawal clears the claim through the shared erase, not a copy of it',
+      /const erased = await eraseIdentifier\(db, 'wallet', wallet\);/.test(
+        withdrawRoute
+      ) && !/identity_attestations\s+SET/.test(withdrawRoute)
+    );
+
+    // A pending claim names no handle until the callback, so the removal of
+    // a handle cannot reach it; the callback asks the list once it knows.
+    const cbFlat = withoutComments(
+      readFileSync('lib/claim-callback.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const cbIdentity = cbFlat.indexOf('handle = json.data.username;');
+    const cbCheck = cbFlat.indexOf(
+      "const hits = await isSuppressed('twitter', [handle]); if (hits.size > 0) return back('not_found', claim.id);"
+    );
+    const cbFail = cbFlat.indexOf(
+      "console.error('claim handle suppression read failed; refusing:', error); return back('unavailable', claim.id);"
+    );
+    const cbWrite = cbFlat.indexOf('x_handle = ${handle.toLowerCase()},');
+    ok(
+      'a claim pending across a handle removal cannot complete with that handle, and a failed read refuses',
+      cbIdentity !== -1 &&
+        cbCheck > cbIdentity &&
+        cbFail > cbCheck &&
+        cbWrite > cbFail
     );
   }
 
