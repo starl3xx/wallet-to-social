@@ -50,7 +50,8 @@ export async function saveLookup(
    * twice for one job (a slice killed after the save, a holder resumed after
    * losing its lease), and each run used to add another copy of the lookup to
    * the customer's history. `lookup_history.job_id` is unique, so the second
-   * insert writes nothing and this returns null.
+   * run inserts nothing and this returns null; see `historyInsertForJob` for
+   * the one thing it does write.
    */
   gate?: { jobId: string; matchesDelivered: number | null }
 ): Promise<string | null> {
@@ -71,15 +72,46 @@ export async function saveLookup(
     jobId: gate?.jobId ?? null,
     matchesDelivered: gate?.matchesDelivered ?? null,
   };
-  const [inserted] = gate
-    ? await db
-        .insert(lookupHistory)
-        .values(values)
-        .onConflictDoNothing({ target: lookupHistory.jobId })
-        .returning()
-    : await db.insert(lookupHistory).values(values).returning();
+  if (!gate) {
+    const [inserted] = await db
+      .insert(lookupHistory)
+      .values(values)
+      .returning();
+    return inserted?.id ?? null;
+  }
+  const [row] = await historyInsertForJob(db, values);
+  // An id only for a row this call created, so `history_saved` counts saves.
+  return row?.inserted ? row.id : null;
+}
 
-  return inserted?.id ?? null;
+/**
+ * A job's history save: insert once, and on a later pass correct the gate.
+ *
+ * The first pass's row is kept, but not its gate. A charge that threw on the
+ * first finalize saved the row ungated; the pass that completes the job then
+ * charges and gates it, and a plain DO NOTHING would leave every match open
+ * in the saved copy, the bypass `matches_delivered` exists to close. So the
+ * conflict brings the stored gate in line with this pass's, and only when it
+ * differs, so a re-run that agrees touches nothing. Results are never
+ * rewritten here: a customer may have grown the saved copy since.
+ *
+ * `inserted` is `xmax = 0`: true for a row this statement created, false for
+ * one it updated. Exported so scripts/check-invariants.ts renders the SQL.
+ */
+export function historyInsertForJob(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  values: typeof lookupHistory.$inferInsert
+) {
+  return db
+    .insert(lookupHistory)
+    .values(values)
+    .onConflictDoUpdate({
+      target: lookupHistory.jobId,
+      set: { matchesDelivered: sql`excluded.matches_delivered` },
+      setWhere: sql`lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered`,
+    })
+    .returning({ id: lookupHistory.id, inserted: sql<boolean>`(xmax = 0)` });
 }
 
 export async function getLookupHistory(

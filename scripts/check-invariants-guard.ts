@@ -2314,8 +2314,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'an exhausted job keeps its count, so an admin rerun fails again at once',
     file: 'lib/job-processor.ts',
-    from: '        errorMessage: SLICES_EXHAUSTED,\n        updatedAt: new Date(),\n        leasedUntil: sql`now()`,\n        sliceAttempts: 0,\n',
-    to: '        errorMessage: SLICES_EXHAUSTED,\n        updatedAt: new Date(),\n        leasedUntil: sql`now()`,\n',
+    from: '          errorMessage: message,\n          updatedAt: new Date(),\n          leasedUntil: sql`now()`,\n          sliceAttempts: 0,\n',
+    to: '          errorMessage: message,\n          updatedAt: new Date(),\n          leasedUntil: sql`now()`,\n',
   },
   {
     name: 'a killed slice is retried at full size, so it is killed again the same way',
@@ -2332,8 +2332,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the attempt cap never fires',
     file: 'lib/job-processor.ts',
-    from: '      job.sliceAttempts > MAX_SLICE_ATTEMPTS &&\n',
-    to: '      job.sliceAttempts > MAX_SLICE_ATTEMPTS * 100 &&\n',
+    from: '    if (job.sliceAttempts > MAX_SLICE_ATTEMPTS) {',
+    to: '    if (job.sliceAttempts > MAX_SLICE_ATTEMPTS * 100) {',
   },
   {
     name: 'the attempt cap is raised until it never binds',
@@ -2426,22 +2426,57 @@ const MUTATIONS: Mutation[] = [
     to: '  await writeOwned(db, job, {\n',
   },
   {
-    name: 'the attempt cap fails a job whose charge has landed',
+    // Final check on #393: past the cap, a saved job must be finished.
+    name: 'the attempt cap fails a job whose rows are all saved',
     file: 'lib/job-processor.ts',
-    from: '      job.sliceAttempts > MAX_SLICE_ATTEMPTS &&\n      !(await billedOrSaved(db, job.id))\n',
-    to: '      job.sliceAttempts > MAX_SLICE_ATTEMPTS\n',
+    from: '      if (!saved) {\n        const message',
+    to: '      if (true) {\n        const message',
+  },
+  {
+    // Past the cap a billed, unsaved job must stop: retrying it for ever is
+    // what an admin rerun of a billed job under a persistent error did.
+    name: 'a billed job that never saves is retried past the cap for ever',
+    file: 'lib/job-processor.ts',
+    from: '      if (!saved) {\n        const message',
+    to: '      if (!saved && !billed) {\n        const message',
+  },
+  {
+    name: 'a billed job stopped at the cap is told to submit again, and charged twice when it does',
+    file: 'lib/job-processor.ts',
+    from: '        const message = billed ? BILLED_STOPPED : SLICES_EXHAUSTED;',
+    to: '        const message = SLICES_EXHAUSTED;',
+  },
+  {
+    name: 'a billed job stops at the cap with no line for ops to act on',
+    file: 'lib/job-processor.ts',
+    from: '        if (billed) {\n          console.error(',
+    to: '        if (billed) {\n          console.log(',
+  },
+  {
+    name: 'the charged-job answer tells the customer to submit again',
+    file: 'lib/job-processor.ts',
+    from: "  'Processing stopped after this lookup was charged. Contact help@walletlink.social for a rerun or a refund.';",
+    to: "  'Processing stopped after this lookup was charged. Submit the list again.';",
   },
   {
     name: 'the failure path fails a job whose charge has landed',
     file: 'lib/job-processor.ts',
-    from: '      if (await billedOrSaved(db, job.id)) {',
-    to: '      if (false) {',
+    from: '      if (saved || billed) {',
+    to: '      if (saved) {',
   },
   {
-    name: 'a billed job with rows still missing counts as failable',
+    // The final check's finding: this is the form that read correctly and
+    // never matched, because Drizzle renders both columns unqualified.
+    name: 'the ledger check correlates through columns again, so it compares credit_ledger to itself',
     file: 'lib/job-processor.ts',
-    from: '  return Boolean(row?.saved || row?.billed);',
-    to: '  return Boolean(row?.saved);',
+    from: "exists (select 1 from credit_ledger cl where cl.job_id = ${jobId}::uuid and cl.paid_from <> 'unlock')",
+    to: "exists (select 1 from ${creditLedger} where ${creditLedger.jobId} = ${lookupJobs.id} and ${creditLedger.paidFrom} <> 'unlock')",
+  },
+  {
+    name: 'an unlock row counts as the charge',
+    file: 'lib/job-processor.ts',
+    from: "cl.job_id = ${jobId}::uuid and cl.paid_from <> 'unlock')",
+    to: 'cl.job_id = ${jobId}::uuid)',
   },
   {
     // Finding 1: ungated saves carried no job id, so nothing stopped a second.
@@ -2451,9 +2486,28 @@ const MUTATIONS: Mutation[] = [
     to: '        matchesDelivered !== null ? { jobId: job.id, matchesDelivered } : undefined\n',
   },
   {
-    name: 'the history insert ignores the unique job id',
+    name: "a second pass keeps the first pass's gate, so a saved copy of a gated job opens every match",
     file: 'lib/history.ts',
-    from: '        .onConflictDoNothing({ target: lookupHistory.jobId })\n',
+    from: '      set: { matchesDelivered: sql`excluded.matches_delivered` },',
+    to: '      set: { matchesDelivered: sql`lookup_history.matches_delivered` },',
+  },
+  {
+    name: "a job's history save goes back to DO NOTHING, and the gate decided later never reaches history",
+    file: 'lib/history.ts',
+    from: '    .onConflictDoUpdate({\n      target: lookupHistory.jobId,\n      set: { matchesDelivered: sql`excluded.matches_delivered` },\n      setWhere: sql`lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered`,\n    })',
+    to: '    .onConflictDoNothing({ target: lookupHistory.jobId })',
+  },
+  {
+    name: 'a gate correction counts as a save, so history_saved fires twice for one lookup',
+    file: 'lib/history.ts',
+    from: '  return row?.inserted ? row.id : null;',
+    to: '  return row?.id ?? null;',
+  },
+  {
+    // Final check on #393: the rerun's results never reached saved history.
+    name: "an admin rerun keeps the old saved lookup attached, so the rerun's results are never saved",
+    file: 'app/api/admin/jobs/route.ts',
+    from: '      await db\n        .update(lookupHistory)\n        .set({ jobId: null })\n        .where(eq(lookupHistory.jobId, id));\n',
     to: '',
   },
   {

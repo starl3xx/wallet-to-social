@@ -11877,7 +11877,10 @@ async function main() {
         .trim();
     ok(
       'a renewal extends this claim, under the same token, and is awaited',
-      flatFn('async function renewLease(', 'async function billedOrSaved(') ===
+      flatFn(
+        'async function renewLease(',
+        'export function completionStateQuery('
+      ) ===
         "async function renewLease( db: any, job: Pick<LookupJob, 'id' | 'leaseToken'> ): Promise<void> { await writeOwned(db, job, { leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`, }); }"
     );
     ok(
@@ -11934,64 +11937,114 @@ async function main() {
     );
 
     /**
-     * A job whose charge has landed, or whose rows are all saved, is never
-     * failed with "submit the list again": the debit would stand, and the
-     * resubmission is a new job, charged again. The attempt cap and the
-     * failure path both ask first, and the question reads the ledger the way
-     * `chargeForJob` writes it.
+     * A job whose charge has landed is never failed with "submit the list
+     * again": the debit would stand, and the resubmission is a new job,
+     * charged again. The cap and the failure path both ask what stands behind
+     * the job first.
+     *
+     * Asserted on the SQL the question actually sends, rendered through the
+     * production driver. The first version read correctly as source and never
+     * matched: Drizzle rendered `${creditLedger.jobId} = ${lookupJobs.id}`
+     * unqualified inside a single-table select, so the subquery compared
+     * credit_ledger's own columns. The job id is now a bound parameter.
      */
-    const billedFn = processorSrc
-      .slice(
-        processorSrc.indexOf('async function billedOrSaved('),
-        processorSrc.indexOf('export async function processJobChunk(')
-      )
-      .replace(/\s+/g, ' ');
+    const { neon: neonHttp } = await import('@neondatabase/serverless');
+    const { drizzle: drizzleHttp } = await import('drizzle-orm/neon-http');
+    const dbSchema = await import('@/db/schema');
+    // Renders only; nothing is sent to this address.
+    const renderDb = drizzleHttp(
+      neonHttp('postgresql://render:only@ep-render.invalid/db'),
+      { schema: dbSchema }
+    );
+    const stateSql = jobProcessor.completionStateQuery(renderDb, 'J').toSQL();
     ok(
-      'a job is billed when the ledger holds its non-unlock row, and saved when every row is',
-      billedFn.includes(
-        'saved: sql<boolean>`${lookupJobs.processedCount} >= jsonb_array_length(${lookupJobs.wallets})`'
-      ) &&
-        billedFn.includes(
-          "billed: sql<boolean>`exists (select 1 from ${creditLedger} where ${creditLedger.jobId} = ${lookupJobs.id} and ${creditLedger.paidFrom} <> 'unlock')`"
-        ) &&
-        billedFn.includes('return Boolean(row?.saved || row?.billed);') &&
+      'the billed-or-saved question binds the job id and reads the ledger the way chargeForJob writes it',
+      stateSql.sql ===
+        `select "processed_count" >= jsonb_array_length("wallets"), exists (select 1 from credit_ledger cl where cl.job_id = $1::uuid and cl.paid_from <> 'unlock') from "lookup_jobs" where "lookup_jobs"."id" = $2 limit $3` &&
+        JSON.stringify(stateSql.params) === JSON.stringify(['J', 'J', 1]) &&
         // The key chargeForJob reads its own duplicate back by.
         /and\(eq\(creditLedger\.jobId, jobId\), ne\(creditLedger\.paidFrom, 'unlock'\)\)/.test(
           readFileSync('lib/credits.ts', 'utf8')
         )
     );
+    const { BILLED_STOPPED } = jobProcessor;
     ok(
-      'neither the attempt cap nor the failure path fails a billed or fully saved job',
-      /if \(\s*job\.sliceAttempts > MAX_SLICE_ATTEMPTS &&\s*!\(await billedOrSaved\(db, job\.id\)\)\s*\) \{\s*await writeOwned\(db, job, \{\s*status: 'failed',/.test(
+      'a billed job stopped at the cap is told to contact support, never to submit again',
+      BILLED_STOPPED.includes('help@walletlink.social') &&
+        !/submit/i.test(BILLED_STOPPED)
+    );
+    ok(
+      'past the cap a saved job is finished, a billed one stops with the support answer and a log line, and only an unbilled one is told to submit again',
+      /if \(job\.sliceAttempts > MAX_SLICE_ATTEMPTS\) \{\s*const \{ saved, billed \} = await completionState\(db, job\.id\);\s*if \(!saved\) \{\s*const message = billed \? BILLED_STOPPED : SLICES_EXHAUSTED;\s*if \(billed\) \{\s*console\.error\(/.test(
         chunkFn
       ) &&
-        /if \(await billedOrSaved\(db, job\.id\)\) \{\s*await writeOwned\(db, job, \{\s*updatedAt: new Date\(\),\s*leasedUntil: sql`now\(\)`,\s*\}\);\s*return \{/.test(
-          catchBody
-        ) &&
-        catchBody.indexOf('await billedOrSaved(db, job.id)') <
+        /await writeOwned\(db, job, \{\s*status: 'failed',\s*errorMessage: message,/.test(
+          chunkFn
+        )
+    );
+    ok(
+      'the failure path hands a saved or billed job back rather than failing it',
+      /const \{ saved, billed \} = await completionState\(db, job\.id\);\s*if \(saved \|\| billed\) \{\s*await writeOwned\(db, job, \{\s*updatedAt: new Date\(\),\s*leasedUntil: sql`now\(\)`,\s*\}\);\s*return \{/.test(
+        catchBody
+      ) &&
+        catchBody.indexOf('await completionState(db, job.id)') <
           catchBody.indexOf("status: 'failed',")
     );
 
     /**
      * And history is saved once per job however many times finalize runs:
-     * every job's save carries its id, the insert yields to the unique index,
-     * and `history_saved` counts only a row that was written.
+     * every job's save carries its id, a second pass only brings the stored
+     * gate in line with its own, and `history_saved` counts only a row that
+     * was created. Rendered, for the same reason as the ledger question.
      */
     const historySrc = withoutComments(readFileSync('lib/history.ts', 'utf8'));
+    const { historyInsertForJob } = await import('@/lib/history');
+    const historySql = historyInsertForJob(renderDb, {
+      name: null,
+      userId: null,
+      walletCount: 0,
+      twitterFound: 0,
+      farcasterFound: 0,
+      results: [],
+      inputSource: null,
+      jobId: 'J',
+      matchesDelivered: 4,
+    }).toSQL().sql;
     ok(
-      "a job's lookup is saved to history once, however many times finalize runs",
-      /saveLookup\(\s*results,\s*options\.historyName,\s*options\.userId \|\| job\.userId \|\| undefined,\s*options\.inputSource,\s*\{ jobId: job\.id, matchesDelivered \}\s*\)/.test(
-        finalizeFn
+      "a job's lookup is saved to history once, and a later pass corrects only its gate",
+      historySql.endsWith(
+        ' on conflict ("job_id") do update set "matches_delivered" = excluded.matches_delivered where lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered returning "id", (xmax = 0)'
       ) &&
-        /\.onConflictDoNothing\(\{ target: lookupHistory\.jobId \}\)/.test(
+        /saveLookup\(\s*results,\s*options\.historyName,\s*options\.userId \|\| job\.userId \|\| undefined,\s*options\.inputSource,\s*\{ jobId: job\.id, matchesDelivered \}\s*\)/.test(
+          finalizeFn
+        ) &&
+        /const \[row\] = await historyInsertForJob\(db, values\);\s*return row\?\.inserted \? row\.id : null;/.test(
           historySrc
         ) &&
-        historySrc.includes('return inserted?.id ?? null;') &&
         /if \(lookupId\) \{\s*trackEvent\('history_saved'/.test(finalizeFn) &&
         leaseMigration.includes(
           'CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS lookup_history_job_id_key ON lookup_history (job_id)'
         ) &&
         leaseMigration.includes('i.indisvalid AS valid')
+    );
+
+    /**
+     * An admin rerun saves a fresh history row: the previous run's copy is
+     * detached from the job before the job is reset, or the unique job id
+     * would keep the old results as the only saved copy.
+     */
+    const adminJobsRaw = withoutComments(
+      readFileSync('app/api/admin/jobs/route.ts', 'utf8')
+    );
+    const detachAt = adminJobsRaw.search(
+      /\.update\(lookupHistory\)\s*\.set\(\{ jobId: null \}\)\s*\.where\(eq\(lookupHistory\.jobId, id\)\);/
+    );
+    ok(
+      'an admin rerun detaches the previous saved lookup before it resets the job',
+      detachAt !== -1 &&
+        detachAt >
+          adminJobsRaw.indexOf("action === 'retry' || action === 'rerun'") &&
+        detachAt < adminJobsRaw.indexOf("status: 'pending',")
     );
 
     /**
@@ -12015,7 +12068,7 @@ async function main() {
     for (const [exit, marker] of [
       ['a slice that saves progress', 'partialResults: allResults,'],
       ['a job that fails', 'retryCount: job.retryCount + 1,'],
-      ['a job that used up its attempts', 'errorMessage: SLICES_EXHAUSTED,'],
+      ['a job that used up its attempts', 'errorMessage: message,'],
       ['a job that completes', "status: 'completed',"],
     ] as const) {
       const call = exitWrite(marker);
@@ -12081,7 +12134,7 @@ async function main() {
     );
     ok(
       'the attempt cap is checked first on every claim, and the slice is sized by the attempt count',
-      /try \{\s*if \(\s*job\.sliceAttempts > MAX_SLICE_ATTEMPTS &&\s*!\(await billedOrSaved\(db, job\.id\)\)\s*\) \{\s*await writeOwned\(db, job, \{\s*status: 'failed',\s*errorMessage: SLICES_EXHAUSTED,/.test(
+      /try \{\s*if \(job\.sliceAttempts > MAX_SLICE_ATTEMPTS\) \{\s*const \{ saved, billed \} = await completionState\(db, job\.id\);/.test(
         chunkFn
       ) &&
         /startIndex \+ sliceSizeFor\(job\.sliceAttempts\)/.test(chunkFn) &&

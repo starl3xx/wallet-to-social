@@ -1,5 +1,5 @@
 import { getDb } from '@/db';
-import { creditLedger, lookupJobs } from '@/db/schema';
+import { lookupJobs } from '@/db/schema';
 import { and, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { PgUpdateSetSource } from 'drizzle-orm/pg-core';
 import { batchFetchWeb3Bio } from '@/lib/web3bio';
@@ -71,6 +71,16 @@ export const MAX_SLICE_ATTEMPTS = 5;
 /** What a caller reads when a job used up its attempts. */
 export const SLICES_EXHAUSTED =
   'This lookup ran out of time on every attempt and was stopped. Submit the list again.';
+
+/**
+ * What a caller reads when a job that has been charged used up its attempts
+ * before its rows were saved: an admin rerun of a billed job under a
+ * persistent error, or a job an invocation running older code charged before
+ * saving anything. Never "submit again", which would bill the resubmission a
+ * second time while this debit stands. An error line is logged beside it.
+ */
+export const BILLED_STOPPED =
+  'Processing stopped after this lookup was charged. Contact help@walletlink.social for a rerun or a refund.';
 
 /**
  * Wallets per slice on this claim: the full chunk first, then half after each
@@ -156,29 +166,41 @@ async function renewLease(
 }
 
 /**
- * Whether a job is past the point where it may be failed: its charge has
- * landed, or every row is saved and only finalize remains.
+ * What stands behind a job that may forbid failing it with "submit again".
  *
- * A billed job must never end as "failed, submit the list again": the debit
- * stays, and a resubmission is a new job id, charged again. So neither the
- * attempt cap nor the failure path fails such a job. It is finished from its
- * saved rows instead, by the next claim. The ledger is read the way
- * `chargeForJob` writes it: one row per job id, unlock rows aside.
+ * `saved`: every row is saved and only finalize remains, so the next claim
+ * finishes it from them. `billed`: a charge for this job has landed, read the
+ * way `chargeForJob` writes it (one ledger row per job id, unlock rows
+ * aside).
+ *
+ * The job id is bound as a parameter, never correlated through a column. The
+ * first version wrote `${creditLedger.jobId} = ${lookupJobs.id}`, and Drizzle
+ * renders a single-table select's columns unqualified, so the subquery read
+ * `"job_id" = "id"` against credit_ledger's own columns and was never true.
+ * Exported as a query so scripts/check-invariants.ts renders the exact SQL.
  */
-async function billedOrSaved(
+export function completionStateQuery(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   db: any,
   jobId: string
-): Promise<boolean> {
-  const [row] = await db
+) {
+  return db
     .select({
       saved: sql<boolean>`${lookupJobs.processedCount} >= jsonb_array_length(${lookupJobs.wallets})`,
-      billed: sql<boolean>`exists (select 1 from ${creditLedger} where ${creditLedger.jobId} = ${lookupJobs.id} and ${creditLedger.paidFrom} <> 'unlock')`,
+      billed: sql<boolean>`exists (select 1 from credit_ledger cl where cl.job_id = ${jobId}::uuid and cl.paid_from <> 'unlock')`,
     })
     .from(lookupJobs)
     .where(eq(lookupJobs.id, jobId))
     .limit(1);
-  return Boolean(row?.saved || row?.billed);
+}
+
+async function completionState(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  db: any,
+  jobId: string
+): Promise<{ saved: boolean; billed: boolean }> {
+  const [row] = await completionStateQuery(db, jobId);
+  return { saved: Boolean(row?.saved), billed: Boolean(row?.billed) };
 }
 
 /**
@@ -432,26 +454,39 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
   const sliceStartedAt = Date.now();
 
   try {
-    if (
-      job.sliceAttempts > MAX_SLICE_ATTEMPTS &&
-      !(await billedOrSaved(db, job.id))
-    ) {
-      await writeOwned(db, job, {
-        status: 'failed',
-        errorMessage: SLICES_EXHAUSTED,
-        updatedAt: new Date(),
-        leasedUntil: sql`now()`,
-        sliceAttempts: 0,
-      });
-      return {
-        completed: true,
-        processedCount: job.processedCount,
-        twitterFound: job.twitterFound,
-        farcasterFound: job.farcasterFound,
-        anySocialFound: job.anySocialFound,
-        cacheHits: job.cacheHits,
-        error: SLICES_EXHAUSTED,
-      };
+    /**
+     * Past the cap. A job whose rows are all saved is finished from them
+     * (it falls through to finalize below). Anything else stops here, and
+     * the answer depends on whether it was charged: a billed job is never
+     * told to submit again, because the debit stands and a resubmission
+     * would be charged a second time.
+     */
+    if (job.sliceAttempts > MAX_SLICE_ATTEMPTS) {
+      const { saved, billed } = await completionState(db, job.id);
+      if (!saved) {
+        const message = billed ? BILLED_STOPPED : SLICES_EXHAUSTED;
+        if (billed) {
+          console.error(
+            `Job ${job.id} stopped after its charge landed, ${MAX_SLICE_ATTEMPTS} attempts without saving: needs a rerun or a refund`
+          );
+        }
+        await writeOwned(db, job, {
+          status: 'failed',
+          errorMessage: message,
+          updatedAt: new Date(),
+          leasedUntil: sql`now()`,
+          sliceAttempts: 0,
+        });
+        return {
+          completed: true,
+          processedCount: job.processedCount,
+          twitterFound: job.twitterFound,
+          farcasterFound: job.farcasterFound,
+          anySocialFound: job.anySocialFound,
+          cacheHits: job.cacheHits,
+          error: message,
+        };
+      }
     }
 
     const options = job.options as JobOptions;
@@ -1219,8 +1254,14 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
 
     // Mark job as failed, if it is still ours to mark and not already billed.
     try {
-      if (await billedOrSaved(db, job.id)) {
-        // Handed back unfailed: the next claim finishes it from saved rows.
+      const { saved, billed } = await completionState(db, job.id);
+      if (saved || billed) {
+        /**
+         * Handed back unfailed, and the attempt count kept: the next claim
+         * finishes a saved job from its rows, and retries a billed one until
+         * the cap, which then stops it with the charged-job answer rather
+         * than "submit again".
+         */
         await writeOwned(db, job, {
           updatedAt: new Date(),
           leasedUntil: sql`now()`,
@@ -1518,7 +1559,7 @@ async function finalizeJobWithResults(
    * leaves the rows saved just below: the next claim finds every row saved,
    * goes straight to this finalize without calling a provider, and completes
    * the job. Neither the attempt cap nor the failure path fails a job in that
-   * state (`billedOrSaved`), so a billed job is never told to submit again,
+   * state (`completionState`), so a billed job is never told to submit again,
    * and the debit is never doubled.
    *
    * `anySocialFound` is the meter: wallets carrying an X handle or a

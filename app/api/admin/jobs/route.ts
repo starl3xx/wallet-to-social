@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
-import { lookupJobs, users } from '@/db/schema';
+import { lookupHistory, lookupJobs, users } from '@/db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
 import { requireAdmin } from '@/lib/admin-auth';
 
@@ -160,6 +160,21 @@ export async function POST(request: NextRequest) {
         ...originalOptions,
         canUseNeynar: true, // All tiers now have Neynar access
       };
+
+      /**
+       * The previous run's saved lookup is detached from the job first, so
+       * the rerun saves a fresh one. `lookup_history.job_id` is unique and a
+       * job's save only corrects the gate on a conflict, so without this the
+       * rerun's results would never reach the customer's saved lookups.
+       *
+       * The old copy stays as it was, results and gate. Once detached, an
+       * unlock of this job (`clearLookupGate`, keyed on job_id) reaches only
+       * the rerun's copy; a gated old copy keeps its lock.
+       */
+      await db
+        .update(lookupHistory)
+        .set({ jobId: null })
+        .where(eq(lookupHistory.jobId, id));
 
       // Reset failed or completed job to pending to reprocess
       const [updated] = await db
