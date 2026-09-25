@@ -27,6 +27,27 @@ All notable changes to walletlink.social. Newest first.
   backup's and re-run the removals (`docs/OPERATIONS.md`; commands in the
   private ops runbook).
 
+### 2026-09-25 (reviewed revenue outreach)
+
+- Added a private local prospect research, qualification, draft review and
+  outreach runner with per-sequence approval and two timed follow-ups.
+- Gmail reply checks, existing-account exclusions, opt-out stops, volume
+  limits and delivery reconciliation keep the queue bounded and recoverable.
+- Added campaign revenue tracking, a five-minute worker, mocked-provider tests
+  and an operator runbook. The local mailbox and exclusion connection are
+  verified; the sender remains paused and no prospect mail has been sent.
+- Recover Gmail-rewritten message IDs using verified provider receipts and
+  exact delivery markers; use canonical IDs for follow-up threading.
+- Add individually reviewed discovery drafts without inventing buying intent
+  or bypassing suppression and exact-message approval.
+- A follow-up that fails before Gmail's send request (the earlier message does
+  not verify in Sent Mail, or authorization fails) stays queued and is retried.
+  It no longer becomes `uncertain`, which blocked every later send. Only a
+  failure during or after the send request is uncertain.
+- Shorten generated outreach into casual notes with clear questions.
+- Preserve the reviewed sender display name in email headers and bind it to
+  approval. Query the explicit users schema for reliable exclusion syncs.
+
 ### 2026-09-24 (every lookup job runs through one pipeline)
 
 - **Lists over ten addresses now run only in the worker pipeline,** the one
@@ -904,27 +925,6 @@ All notable changes to walletlink.social. Newest first.
   input schema, both rendering on apify.com today. The Actor is also now
   linked from the repo README and `llms.txt`, the two surfaces that already
   outrank the site.
-
-### 2026-09-21 (reviewed revenue outreach)
-
-- Added a private local prospect research, qualification, draft review and
-  outreach runner with per-sequence approval and two timed follow-ups.
-- Gmail reply checks, existing-account exclusions, opt-out stops, volume
-  limits and delivery reconciliation keep the queue bounded and recoverable.
-- Added campaign revenue tracking, a five-minute worker, mocked-provider tests
-  and an operator runbook. The local mailbox and exclusion connection are
-  verified; the sender remains paused and no prospect mail has been sent.
-- Recover Gmail-rewritten message IDs using verified provider receipts and
-  exact delivery markers; use canonical IDs for follow-up threading.
-- Add individually reviewed discovery drafts without inventing buying intent
-  or bypassing suppression and exact-message approval.
-- A follow-up that fails before Gmail's send request (the earlier message does
-  not verify in Sent Mail, or authorization fails) stays queued and is retried.
-  It no longer becomes `uncertain`, which blocked every later send. Only a
-  failure during or after the send request is uncertain.
-- Shorten generated outreach into casual notes with clear questions.
-- Preserve the reviewed sender display name in email headers and bind it to
-  approval. Query the explicit users schema for reliable exclusion syncs.
 
 ### 2026-09-21 (robots.txt declares what may be done with the content, not just who may read it)
 
