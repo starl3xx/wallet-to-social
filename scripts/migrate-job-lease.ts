@@ -31,7 +31,8 @@
  * - `lookup_history_job_id_key`: unique on `job_id`. A finalize can run twice
  *   for one job (killed after the save, or a holder resumed after losing its
  *   lease), and each run inserted another copy of the lookup into the
- *   customer's history. The save is now `ON CONFLICT (job_id) DO NOTHING`.
+ *   customer's history. The save is now `ON CONFLICT (job_id)`, updating
+ *   only the match gate, so a later pass's gate still reaches the one row.
  *   Built CONCURRENTLY, so the table is never locked against writes, and
  *   only after a check that no two rows already share a job id: on
  *   2026-09-24 production held 338 rows and none had a job id at all.
