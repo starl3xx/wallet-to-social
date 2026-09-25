@@ -15,14 +15,17 @@
  * 1. **GitHub private vulnerability reporting**, first. It is confidential by
  *    construction, it does not depend on the domain's mail setup, and it
  *    stands in for an Encryption field: there is no OpenPGP key to publish.
- * 2. **security@walletlink.social**, second. RFC 9116 points security
- *    addresses at the RFC 2142 conventions, which name SECURITY@, so it is
- *    the address a researcher guesses. It is an alias on the Workspace user
- *    who reads help@, not a Google Group: a new group can refuse mail from
- *    outside the domain, which would bounce exactly the senders this is for.
+ *    Enabled on the repository on 2026-09-25.
+ * 2. **help@walletlink.social**, second. It is the mailbox a person reads,
+ *    and every transactional email already uses it as its reply-to, so it is
+ *    the address whose delivery is exercised every day.
  *
- * help@ is deliberately absent. It is the same mailbox, so it adds no
- * redundancy, and listing it would mix the security queue into support.
+ * No security@. RFC 9116 suggests the RFC 2142 SECURITY@ convention, but a
+ * Contact has to reach somebody, and a security@ that does not exist bounces
+ * exactly the reports it is published for. Decided on 2026-09-25. If one is
+ * ever created, make it an alias on the Workspace user who reads help@, not
+ * a Google Group (a new group can refuse mail from outside the domain), and
+ * change the invariant that pins the local part in the same PR.
  *
  * ## Unsigned
  *
@@ -43,7 +46,8 @@
  * with stale contacts. So the date is only ever moved after the contacts are
  * proven again:
  *
- * 1. send a test report to each channel from outside the domain;
+ * 1. send a test to help@ from a mailbox outside the domain, and confirm
+ *    that private vulnerability reporting is still enabled;
  * 2. set SECURITY_CONTACT_VERIFIED to the day that passed;
  * 3. set SECURITY_TXT_EXPIRES about six months later, and always less than
  *    365 days after SECURITY_CONTACT_VERIFIED.
@@ -66,8 +70,8 @@ import { PRODUCTION_URL } from '@/lib/site-url';
 export const SECURITY_REPORT_URL =
   'https://github.com/starl3xx/wallet-to-social/security/advisories/new';
 
-/** The mailbox a researcher guesses first (RFC 2142). The second channel. */
-export const SECURITY_EMAIL = 'security@walletlink.social';
+/** The mailbox a person reads, and every reply-to. The second channel. */
+export const SECURITY_EMAIL = 'help@walletlink.social';
 
 /** GitHub renders the root SECURITY.md here. */
 export const SECURITY_POLICY_URL =
@@ -77,7 +81,7 @@ export const SECURITY_POLICY_URL =
  * The day both channels were last proven to deliver: a test report sent from
  * outside the domain arrived. Expires is measured from this, not from today.
  */
-export const SECURITY_CONTACT_VERIFIED = '2026-09-24';
+export const SECURITY_CONTACT_VERIFIED = '2026-09-25';
 
 /** RFC 3339, UTC. Under a year after SECURITY_CONTACT_VERIFIED. */
 export const SECURITY_TXT_EXPIRES = '2027-03-31T00:00:00Z';

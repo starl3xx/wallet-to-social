@@ -274,7 +274,7 @@ it reaches the well-known URI by a rewrite, for the dot-segment reason above.
 The legacy `/security.txt` is a 308, never a copy, because a copy would fail
 its own `Canonical`. The first `Contact` is the preferred one under RFC 9116,
 so its order is a statement: GitHub private vulnerability reporting first,
-`security@walletlink.social` second. The invariants hold `SECURITY.md` to the
+`help@walletlink.social` second. The invariants hold `SECURITY.md` to the
 same channels in the same order, parsed out of the handler's own output.
 
 ---

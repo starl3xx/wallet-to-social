@@ -7,24 +7,28 @@ All notable changes to walletlink.social. Newest first.
 - **`/.well-known/security.txt` (RFC 9116)** says where a vulnerability report
   goes. Two Contacts, in order of preference: GitHub private vulnerability
   reporting first, because it is confidential and does not depend on mail
-  delivery, then `security@walletlink.social`. The legacy `/security.txt`
-  answers 308 to it. Served as `text/plain; charset=utf-8` from
-  `app/api/security-txt` through a rewrite; the fields live in
+  delivery (enabled on the repository 2026-09-25), then
+  `help@walletlink.social`, the mailbox a person reads and every transactional
+  reply-to. No security@ exists, so none is published. The legacy
+  `/security.txt` answers 308 to it. Served as `text/plain; charset=utf-8`
+  from `app/api/security-txt` through a rewrite; the fields live in
   `lib/security-contact.ts`. Unsigned, because no OpenPGP key exists.
 - **A root `SECURITY.md`**, the public vulnerability policy: the channels in
-  the same order, scope, testing rules, what to expect, safe harbor, rewards
+  the same order, scope, testing rules, and what to expect (acknowledgment
+  within 5 business days, an assessment within 15, disclosure at the fix or
+  after 90 days, whichever comes first), a good-faith safe harbor, no bounty,
   and supported versions. GitHub shows it on the Security tab, and the
   security.txt `Policy` field points at it. The house-style check now reads it.
   It is a different document from the old internal runbook `docs/SECURITY.md`,
   which stays in the private ops repo and stays gitignored; docs/README.md and
   docs/DOCS-SITE.md now say so instead of reading as if the public file moved.
 - 27 new invariants parse the handler's own output: the media type, the field
-  shape, the two channels and their order, the Contact domain and the exact
-  report-form path, one Expires, Canonical on production, the redirect, the
-  gitignore name trap in both directions, and SECURITY.md naming the same
-  channels in the same order. Expires is checked against
-  `SECURITY_CONTACT_VERIFIED`, never against the clock, so the required check
-  stays deterministic; 18 guard mutations prove each is caught.
+  shape, the two channels and their order, the mailbox pinned to help@ on this
+  domain and the exact report-form path, one Expires, Canonical on production,
+  the redirect, the gitignore name trap in both directions, and the reporting
+  section of SECURITY.md naming the same channels in the same order. Expires is
+  checked against `SECURITY_CONTACT_VERIFIED`, never against the clock, so the
+  required check stays deterministic; 19 guard mutations prove each is caught.
 - **A Monday workflow, `security-contact.yml`,** checks what no file can show:
   production security.txt more than 30 days from expiry, private vulnerability
   reporting still enabled, and the policy page rendering. The renewal procedure

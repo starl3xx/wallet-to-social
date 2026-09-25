@@ -1331,7 +1331,7 @@ the rail), are in `docs/AGENT-SYSTEM.md` under L4.
 
 **Where a vulnerability report goes.** `/.well-known/security.txt` (RFC 9116)
 names two Contacts in order of preference: GitHub private vulnerability
-reporting, then `security@walletlink.social`. Its `Policy` field points at the
+reporting, then `help@walletlink.social`. Its `Policy` field points at the
 root `SECURITY.md`, which carries the scope, the testing rules and the response
 times. The fields live in `lib/security-contact.ts`, the handler is
 `app/api/security-txt`, reached by a rewrite, and the legacy `/security.txt` is

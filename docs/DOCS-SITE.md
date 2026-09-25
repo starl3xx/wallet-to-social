@@ -160,7 +160,7 @@ as a user, an alias or a group, and no file in this repo can show which ones do.
 Test an address by sending to it from a mailbox outside the domain; a message
 sent from inside Workspace does not go through MX.
 
-`security@walletlink.social` is the second Contact in `/.well-known/security.txt`.
-It is an alias on the Workspace user who reads help@, not a Google Group, because
-a new group can refuse mail from outside the domain, which is exactly where
-security reports come from.
+help@ is also the second Contact in `/.well-known/security.txt`, after GitHub
+private vulnerability reporting, and the reply-to on every transactional email.
+So it must keep taking mail from outside the domain, which is exactly where
+security reports come from. There is no security@ (decided 2026-09-25).

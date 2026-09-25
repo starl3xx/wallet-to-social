@@ -3427,8 +3427,17 @@ const MUTATIONS: Mutation[] = [
     // register. The file still validates.
     name: 'security.txt mails a domain anyone can register, from a one-letter typo',
     file: 'lib/security-contact.ts',
-    from: "export const SECURITY_EMAIL = 'security@walletlink.social';",
-    to: "export const SECURITY_EMAIL = 'security@walletlink.socia1';",
+    from: "export const SECURITY_EMAIL = 'help@walletlink.social';",
+    to: "export const SECURITY_EMAIL = 'help@walletlink.socia1';",
+  },
+  {
+    // RFC 2142 makes security@ the obvious name, and no such mailbox exists
+    // (decided 2026-09-25). Published anyway, every report sent to it
+    // bounces, and the file still validates.
+    name: 'security.txt names security@, a mailbox that does not exist',
+    file: 'lib/security-contact.ts',
+    from: "export const SECURITY_EMAIL = 'help@walletlink.social';",
+    to: "export const SECURITY_EMAIL = 'security@walletlink.social';",
   },
   {
     // A misspelled repository is a report form on somebody else's
@@ -3561,11 +3570,13 @@ const MUTATIONS: Mutation[] = [
   },
   {
     // The two documents name different mailboxes, so one of them is wrong
-    // and a researcher has to guess which.
-    name: 'SECURITY.md names help@ where security.txt names security@',
+    // and a researcher has to guess which. help@ is still named further
+    // down the policy, for content errors, which is why the check reads the
+    // reporting section and not the whole file.
+    name: 'SECURITY.md reporting list names security@ where security.txt names help@',
     file: 'SECURITY.md',
-    from: 'security@walletlink.social',
-    to: 'help@walletlink.social',
+    from: '2. **Or email <help@walletlink.social>.**',
+    to: '2. **Or email <security@walletlink.social>.**',
   },
   {
     // The policy recommends the mailbox first while security.txt prefers the
@@ -3576,9 +3587,9 @@ const MUTATIONS: Mutation[] = [
       '1. **Preferred: a private report on GitHub.** Open one at\n' +
       '   <https://github.com/starl3xx/wallet-to-social/security/advisories/new>.\n' +
       '   Only you and the maintainers can read it, and it does not depend on email.\n' +
-      '2. **Or email <security@walletlink.social>.**\n',
+      '2. **Or email <help@walletlink.social>.** Put “Security” in the subject.\n',
     to:
-      '1. **Email <security@walletlink.social>.**\n' +
+      '1. **Email <help@walletlink.social>.** Put “Security” in the subject.\n' +
       '2. **Or a private report on GitHub.** Open one at\n' +
       '   <https://github.com/starl3xx/wallet-to-social/security/advisories/new>.\n' +
       '   Only you and the maintainers can read it, and it does not depend on email.\n',

@@ -518,17 +518,22 @@ order, because RFC 9116 makes the first one preferred:
 
 1. GitHub private vulnerability reporting (PVR),
    `https://github.com/starl3xx/wallet-to-social/security/advisories/new`;
-2. `security@walletlink.social`, an alias on the Workspace user who reads help@.
+2. `help@walletlink.social`, the mailbox a person reads and the reply-to on
+   every transactional email. There is no security@: a Contact must reach
+   somebody, and one that does not exist would bounce every report
+   (decided 2026-09-25).
 
 Two of the facts behind them are settings, not files, so this is their record:
 
-- **Private vulnerability reporting: NOT enabled as of 2026-09-24.** Enabling it
-  is Jake's step, and it comes before security.txt ships, because the report
-  form opens for nobody but admins while PVR is off. The command is
+- **Private vulnerability reporting: enabled 2026-09-25**, and verified that
+  day as `enabled: true`. The report form opens for nobody but admins while it
+  is off, so it has to stay on for as long as security.txt names it.
+  `gh api repos/starl3xx/wallet-to-social/private-vulnerability-reporting --jq .enabled`
+  reads it. If it is ever switched off by mistake,
   `gh api -X PUT repos/starl3xx/wallet-to-social/private-vulnerability-reporting`
-  (expect 204), and `gh api repos/starl3xx/wallet-to-social/private-vulnerability-reporting --jq .enabled`
-  confirms it. When it is on, replace this line with the date it was enabled.
-- **The security@ alias** exists only in Google Workspace. No file shows it.
+  (expect 204) switches it back on.
+- **help@ receiving outside mail** is a Google Workspace fact. Inbound mail
+  goes only to Workspace (MX `smtp.google.com`), and no file shows it.
 
 `.github/workflows/security-contact.yml` checks both every Monday against
 production, plus the one thing the invariants deliberately do not read: the
@@ -538,10 +543,10 @@ the policy page says "No security policy detected". Local repro:
 
 **Renewal**, when that workflow goes red on Expires, or at any time before:
 
-1. From a mailbox outside walletlink.social, send a test to security@ and to
-   help@. Confirm both arrive and neither lands in spam. Reply from Workspace
-   and confirm the reply passes DMARC. Also send to a nonsense local part: if
-   that arrives too, a catch-all exists and the test proves less than it looks.
+1. From a mailbox outside walletlink.social, send a test to help@. Confirm it
+   arrives and does not land in spam. Reply from Workspace and confirm the
+   reply passes DMARC. Also send to a nonsense local part: if that arrives
+   too, a catch-all exists and the test proves less than it looks.
 2. Confirm PVR is still enabled (the `--jq .enabled` command above).
 3. In `lib/security-contact.ts`, set `SECURITY_CONTACT_VERIFIED` to the day the
    test passed, then `SECURITY_TXT_EXPIRES` to about six months later. The

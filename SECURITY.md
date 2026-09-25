@@ -9,7 +9,7 @@ Report privately. Never report a vulnerability in a public issue, pull request o
 1. **Preferred: a private report on GitHub.** Open one at
    <https://github.com/starl3xx/wallet-to-social/security/advisories/new>.
    Only you and the maintainers can read it, and it does not depend on email.
-2. **Or email <security@walletlink.social>.**
+2. **Or email <help@walletlink.social>.** Put “Security” in the subject.
 
 The same channels, in the same order, are published for machines at <https://walletlink.social/.well-known/security.txt> (RFC 9116).
 
@@ -58,21 +58,17 @@ Publishing a security contact is not permission to test. These rules are the per
 
 ## What to expect
 
-- An acknowledgment within 3 business days. <!-- DECIDE: 3 business days is a proposal. Pick a number that still holds while traveling. -->
-- An assessment within 10 business days: whether we can reproduce the issue, and how severe we think it is. <!-- DECIDE: 10 business days is a proposal. -->
+- An acknowledgment within 5 business days.
+- An assessment within 15 business days: whether we can reproduce the issue, and how severe we think it is.
 - Updates until it is fixed.
-- Coordinated disclosure 90 days after your report, or when the fix ships, whichever comes first. <!-- DECIDE: 90 days, or at the fix, is a proposal. -->
+- Coordinated disclosure when the fix ships, or 90 days after your report, whichever comes first.
 - Credit in the published advisory, if you want it.
 
 ## Safe harbor
 
-<!-- DECIDE: the safe harbor wording, with counsel if needed. This is a short good-faith proposal. -->
-
 If you act in good faith and within the testing rules above, we will treat your research as authorized, and we will not bring or support legal action against you for it. If you are unsure whether something is allowed, ask first through one of the channels above.
 
 ## Rewards
-
-<!-- DECIDE: confirm that there is no bounty. -->
 
 There is no bug bounty, and reports are not paid.
 

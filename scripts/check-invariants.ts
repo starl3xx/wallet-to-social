@@ -11752,15 +11752,20 @@ async function main() {
      * to somebody else. `walletlink.socia1` is a domain anyone can register,
      * and a misspelled repository is a report form on a repository that is
      * not this one, or a 404 that looks like the form is down.
+     *
+     * The local part is pinned too. help@ is the mailbox a person reads and
+     * every transactional reply-to; no security@ exists (decided
+     * 2026-09-25), so publishing the RFC 2142 name would bounce every report
+     * sent to it. Creating that alias is the only reason to change this.
      */
     ok(
-      'every mailto Contact is a mailbox on this domain',
+      'every mailto Contact is help@ on this domain, the mailbox a person reads',
       contacts
         .filter((c) => c.startsWith('mailto:'))
         .every((c) => {
           const [local, domain, ...rest] = c.slice('mailto:'.length).split('@');
           return (
-            local !== '' &&
+            local === 'help' &&
             rest.length === 0 &&
             domain === new URL(PRODUCTION_URL).hostname
           );
@@ -11919,6 +11924,13 @@ async function main() {
      * SECURITY.md against the handler's own output, never against a second
      * copy of the literals. HTML comments are removed first: they do not
      * render, so a channel named only inside one is a channel nobody reads.
+     *
+     * The channels are looked for in the "Reporting a vulnerability" section
+     * only, not anywhere in the file. help@ is also where the policy sends
+     * content errors and removal requests, further down, so a whole-file
+     * search would still find it after the reporting list had been changed
+     * to name some other mailbox. A missing heading leaves the section empty,
+     * which fails every check below rather than passing none of them.
      */
     ok(
       'SECURITY.md is at the repository root, where GitHub reads it',
@@ -11927,18 +11939,22 @@ async function main() {
     const policyDoc = existsSync('SECURITY.md')
       ? readFileSync('SECURITY.md', 'utf8').replace(/<!--[\s\S]*?-->/g, '')
       : '';
+    const reporting =
+      /^## Reporting a vulnerability\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(
+        policyDoc
+      )?.[1] ?? '';
     const positions = contacts.map((c) =>
-      policyDoc.indexOf(c.replace(/^mailto:/, ''))
+      reporting.indexOf(c.replace(/^mailto:/, ''))
     );
     ok(
-      'SECURITY.md names every channel security.txt publishes',
+      'the reporting section of SECURITY.md names every channel security.txt publishes',
       positions.length > 0 && positions.every((p) => p >= 0)
     );
     ok(
       'SECURITY.md names the channels in the order the Contact fields give them',
       positions.every((p, i) => i === 0 || p > positions[i - 1])
     );
-    const preferredAt = policyDoc.search(/\bpreferred\b/i);
+    const preferredAt = reporting.search(/\bpreferred\b/i);
     ok(
       'SECURITY.md calls the first channel preferred, before it names the second',
       preferredAt >= 0 && (positions.length < 2 || preferredAt < positions[1])
