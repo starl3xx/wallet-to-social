@@ -69,6 +69,26 @@ export function batchDeadlineMs(walletCount: number): number {
 }
 
 /**
+ * When a batch stops starting waves: its own ceiling from when it began, or
+ * the caller's deadline, whichever comes first.
+ *
+ * The job worker passes the end of its invocation's budget. It takes slice
+ * after slice of a job while that lasts, so a slice can begin late in the
+ * invocation, and a ceiling counted only from the batch's own start could
+ * then run past the route's end (`runSlices` in lib/job-processor.ts).
+ */
+export function waveDeadline(
+  startTime: number,
+  walletCount: number,
+  callerDeadline?: number
+): number {
+  return Math.min(
+    startTime + batchDeadlineMs(walletCount),
+    callerDeadline ?? Infinity
+  );
+}
+
+/**
  * Creates an AbortController with a timeout
  * Returns both the controller and a cleanup function
  */
@@ -206,6 +226,8 @@ export async function batchFetchWeb3Bio(
   opts?: {
     /** Populated with wallets whose fetch failed rather than 404'd. */
     failedWallets?: Set<string>;
+    /** A wall-clock time after which no new wave starts; see `waveDeadline`. */
+    deadline?: number;
   }
 ): Promise<Map<string, Web3BioResult>> {
   const results = new Map<string, Web3BioResult>();
@@ -213,7 +235,7 @@ export async function batchFetchWeb3Bio(
   let found = 0;
   const startTime = Date.now();
   let errorCount = 0;
-  const deadline = startTime + batchDeadlineMs(wallets.length);
+  const deadline = waveDeadline(startTime, wallets.length, opts?.deadline);
   let abandonedAt: number | null = null;
 
   // Process in batches with rate limiting

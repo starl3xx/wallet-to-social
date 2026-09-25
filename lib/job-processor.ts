@@ -36,7 +36,8 @@ import {
   SUPPRESSION_KINDS,
 } from '@/lib/suppression';
 
-// Process up to this many wallets per cron invocation
+// Wallets per slice. An invocation takes as many slices as fit its budget
+// (INVOCATION_BUDGET_MS below).
 const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
 
 /**
@@ -51,7 +52,10 @@ const CHUNK_SIZE = 3000; // Increased from 2000 for faster throughput
  * write already on the wire when it lands.
  *
  * The lease covers one slice, not the job: every exit hands it back, so the
- * next tick takes the job at once rather than waiting this out.
+ * next claim takes the job at once rather than waiting this out, whether that
+ * is the same invocation's next slice (`runSlices`) or the next tick. Each
+ * slice claims afresh, so the argument above holds for an invocation's last
+ * slice as much as for its first: a later claim's lease ends later still.
  */
 export const LEASE_SECONDS = 330;
 
@@ -96,9 +100,97 @@ export function sliceSizeFor(attempts: number): number {
  * How long, from the claim, the ENS pass may start new batches. The same kind
  * of bound Web3Bio has (`batchDeadlineMs`), so one slow RPC cannot hold a
  * slice past the invocation's end; wallets it never reached are recorded as
- * failed, never as negatives.
+ * failed, never as negatives. A slice that starts late in an invocation gets
+ * less: see `ensDeadlineFor`.
  */
 export const ENS_SLICE_BUDGET_MS = 120_000;
+
+/**
+ * How long one invocation keeps taking slices of a job, in milliseconds.
+ *
+ * An invocation used to work one slice and leave the rest to the cron, one
+ * slice a tick. A fast scan reads only our index, so its slice of 3,000 is
+ * done in seconds, and a 10,000-address fast scan still took four ticks:
+ * about four minutes for a scan the docs say comes back in seconds. Now an
+ * invocation takes slice after slice of the same job while this lasts
+ * (`runSlices`), and only what does not fit waits for the next tick.
+ *
+ * A minute under the shortest route that runs a slice (300 seconds), for what
+ * can still run after it: a request a live source already has in flight (an
+ * ENS read can wait out two 15-second timeouts), the progress save or
+ * finalize, and the route's own work before the loop began. The lease is
+ * longer than the route, so it is longer than this too. Both asserted in
+ * scripts/check-invariants.ts, as is that this holds two ENS budgets, so the
+ * first slice's ENS pass is never cut short by it.
+ */
+export const INVOCATION_BUDGET_MS = 240_000;
+
+/**
+ * When a slice's ENS pass stops starting batches: `ENS_SLICE_BUDGET_MS` from
+ * the slice's own claim, or the invocation's deadline, whichever comes first.
+ *
+ * Both halves matter. Measured from the invocation instead, a later slice
+ * would start with its ENS time already spent and record every wallet in it
+ * as unreached. Measured from the slice alone, a slice the loop started late
+ * would read ENS past the invocation's end, into the kill the deadline exists
+ * to prevent. The first slice of an invocation is never cut short by this:
+ * its own budget ends first.
+ */
+export function ensDeadlineFor(
+  sliceStartedAt: number,
+  invocationDeadline: number
+): number {
+  return Math.min(sliceStartedAt + ENS_SLICE_BUDGET_MS, invocationDeadline);
+}
+
+/**
+ * Take slices of one job until it is done, or until the next one might not
+ * finish inside the budget.
+ *
+ * `slice` claims the job, works one slice under that claim and hands it back
+ * (`processJobSlice`), so each slice here is claimed and fenced on its own,
+ * exactly like a slice taken by a separate tick: a fresh token, the handback
+ * resetting `slice_attempts` and the claim counting one, and a job another
+ * invocation claims in between coming back `busy`.
+ *
+ * Returns the last slice's result, and stops when:
+ * - the job is finished, completed or failed;
+ * - the slice did nothing, or lost the job part-way (`busy`): another
+ *   invocation holds it now;
+ * - the slice ended in an error, even one that handed the job back unfailed:
+ *   the next try waits for the cron rather than coming straight back;
+ * - the slice saved no progress, which no healthy slice does;
+ * - the next slice, estimated at what the last one took, would end past the
+ *   deadline.
+ *
+ * The estimate is only the gate at the start of a slice. The live sources in
+ * a slice also stop starting work at the deadline (`ensDeadlineFor`, and
+ * Web3Bio's `deadline`), so a slice slower than its estimate still ends
+ * inside the route, and what they did not reach is recorded as failed, never
+ * cached or stored as a negative.
+ *
+ * `now` is a parameter so scripts/check-invariants.ts can drive this with a
+ * fake slice and a fake clock.
+ */
+export async function runSlices(
+  slice: (invocationDeadline: number) => Promise<ProcessResult>,
+  budgetMs: number,
+  now: () => number = Date.now
+): Promise<ProcessResult> {
+  const invocationDeadline = now() + budgetMs;
+  let savedThrough = -1;
+  for (;;) {
+    const startedAt = now();
+    const result = await slice(invocationDeadline);
+    const lastSliceMs = now() - startedAt;
+    if (result.completed || result.busy || result.error !== undefined) {
+      return result;
+    }
+    if (result.processedCount <= savedThrough) return result;
+    savedThrough = result.processedCount;
+    if (now() + lastSliceMs > invocationDeadline) return result;
+  }
+}
 
 // Raised by every fenced write, the history save included; see the module.
 export { LeaseLostError };
@@ -356,14 +448,39 @@ export interface ProcessResult {
 }
 
 /**
- * Process a chunk of wallets for a job.
+ * Work one job for as long as this invocation can afford.
  *
  * The only lookup pipeline. Called by the cron worker every minute, and once
  * straight after submission by both job routes, inline for ten addresses or
- * fewer and through `after()` above that. Every caller goes through the claim
- * below, so no two of them ever work one job at once.
+ * fewer and through `after()` above that. Each call takes slices of the job
+ * while `INVOCATION_BUDGET_MS` lasts (`runSlices`), so the call that starts a
+ * job usually finishes it, and whatever does not fit is left handed back for
+ * the next tick. Every slice goes through the claim in `processJobSlice`, so
+ * no two invocations ever work one job at once.
+ *
+ * `budgetMs` exists so a local scenario can run the loop on a short clock.
+ * Every route passes only the job id (asserted).
  */
-export async function processJobChunk(jobId: string): Promise<ProcessResult> {
+export async function processJobChunk(
+  jobId: string,
+  budgetMs: number = INVOCATION_BUDGET_MS
+): Promise<ProcessResult> {
+  return runSlices(
+    (invocationDeadline) => processJobSlice(jobId, invocationDeadline),
+    budgetMs
+  );
+}
+
+/**
+ * One slice of a job: claim it, work up to `sliceSizeFor` wallets under that
+ * claim and hand it back, or finalize once every wallet is done.
+ * `invocationDeadline` is when the invocation's budget ends; the live sources
+ * stop starting work there (see `runSlices`).
+ */
+async function processJobSlice(
+  jobId: string,
+  invocationDeadline: number
+): Promise<ProcessResult> {
   const db = getDb();
   if (!db) {
     return {
@@ -829,7 +946,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
       const [ensResults, neynarResults] = await Promise.all([
         canUseENS
           ? batchLookupENS(uncachedWallets, undefined, undefined, undefined, {
-              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,
+              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),
               failedWallets: apiFailedWallets,
             }).catch((error) => {
               console.error('ENS lookup error:', error);
@@ -962,6 +1079,7 @@ export async function processJobChunk(jobId: string): Promise<ProcessResult> {
           undefined,
           {
             failedWallets: apiFailedWallets,
+            deadline: invocationDeadline,
           }
         );
 

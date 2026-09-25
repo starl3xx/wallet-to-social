@@ -28,12 +28,13 @@ const MAX_WALLETS_IN_FLIGHT = 2500;
  * Cron worker endpoint - called by Vercel Cron every minute.
  * Processes multiple jobs in parallel for faster queue clearing.
  *
- * The only lookup pipeline since STA-44: every job runs here, one slice per
- * job per tick, after a first slice the submit route kicks. Vercel can start
- * the next tick while this one still runs, which is safe because
- * `processJobChunk` claims each job with a lease; the candidate read skips
- * held jobs, and a job claimed between that read and the claim comes back
- * `busy` without being worked.
+ * The only lookup pipeline since STA-44: every job the submit route's kick
+ * did not finish is continued here. Each admitted job is worked slice after
+ * slice while `INVOCATION_BUDGET_MS` lasts, so one tick usually finishes it.
+ * Vercel can start the next tick while this one still runs, which is safe
+ * because `processJobChunk` claims each slice with a lease; the candidate
+ * read skips held jobs, and a job claimed between that read and the claim
+ * comes back `busy` without being worked.
  */
 export async function POST(request: NextRequest) {
   try {

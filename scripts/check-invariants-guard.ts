@@ -2366,14 +2366,14 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the worker gives ENS no deadline',
     file: 'lib/job-processor.ts',
-    from: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n',
+    from: '              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),\n',
     to: '',
   },
   {
     name: 'the worker gives ENS no failed-wallet set, so what it skips is stored as a negative',
     file: 'lib/job-processor.ts',
-    from: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n              failedWallets: apiFailedWallets,\n',
-    to: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n',
+    from: '              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),\n              failedWallets: apiFailedWallets,\n',
+    to: '              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),\n',
   },
   // --- the verify pass on #393 ---------------------------------------------
   {
@@ -2600,6 +2600,125 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/job-processor.ts',
     from: "typeof w === 'string' ? w.toLowerCase() : w",
     to: '(w as string).toLowerCase()',
+  },
+  // --- one invocation, many slices (STA-44) -------------------------------
+  // An invocation worked one slice and left the rest to the cron, so a
+  // 10,000-address fast scan took four ticks. It now takes slices while its
+  // budget lasts; each mutation below breaks the budget, the stop, or the
+  // claim each slice goes through.
+  {
+    name: 'slice loop: the budget runs to the route end, so a late slice is killed before it saves',
+    file: 'lib/job-processor.ts',
+    from: 'export const INVOCATION_BUDGET_MS = 240_000;',
+    to: 'export const INVOCATION_BUDGET_MS = 290_000;',
+  },
+  {
+    name: 'slice loop: the budget cannot hold an ENS budget, so the first slice loses ENS to it',
+    file: 'lib/job-processor.ts',
+    from: 'export const INVOCATION_BUDGET_MS = 240_000;',
+    to: 'export const INVOCATION_BUDGET_MS = 150_000;',
+  },
+  {
+    // The stop condition without its estimate: the loop starts a slice at
+    // 200 s of 240 and it ends at 250.
+    name: 'slice loop: a slice starts with no estimate of its length, so the last one overruns the budget',
+    file: 'lib/job-processor.ts',
+    from: '    if (now() + lastSliceMs > invocationDeadline) return result;',
+    to: '    if (now() > invocationDeadline) return result;',
+  },
+  {
+    name: 'slice loop: nothing stops it for time, so it runs slices into the platform kill',
+    file: 'lib/job-processor.ts',
+    from: '    if (now() + lastSliceMs > invocationDeadline) return result;\n',
+    to: '',
+  },
+  {
+    name: 'slice loop: the budget restarts with every slice, so an invocation never runs out of it',
+    file: 'lib/job-processor.ts',
+    from: '  const invocationDeadline = now() + budgetMs;\n  let savedThrough = -1;\n  for (;;) {\n',
+    to: '  let savedThrough = -1;\n  for (;;) {\n    const invocationDeadline = now() + budgetMs;\n',
+  },
+  {
+    name: "slice loop: each slice is handed its own deadline, so a late slice's sources run past the invocation",
+    file: 'lib/job-processor.ts',
+    from: '    const result = await slice(invocationDeadline);',
+    to: '    const result = await slice(now() + budgetMs);',
+  },
+  {
+    // The lease between slices: a slice that found the job held, or lost it
+    // part-way, comes back busy, and the next claim is refused the same way.
+    name: 'slice loop: it keeps claiming a job another invocation holds, spinning on refused claims until the budget ends',
+    file: 'lib/job-processor.ts',
+    from: '    if (result.completed || result.busy || result.error !== undefined) {',
+    to: '    if (result.completed || result.error !== undefined) {',
+  },
+  {
+    name: 'slice loop: a slice that ended in an error is retried at once',
+    file: 'lib/job-processor.ts',
+    from: '    if (result.completed || result.busy || result.error !== undefined) {',
+    to: '    if (result.completed || result.busy) {',
+  },
+  {
+    name: 'slice loop: it takes another slice of a finished job',
+    file: 'lib/job-processor.ts',
+    from: '    if (result.completed || result.busy || result.error !== undefined) {',
+    to: '    if (result.busy || result.error !== undefined) {',
+  },
+  {
+    name: 'slice loop: a slice that saved nothing is taken again, and again',
+    file: 'lib/job-processor.ts',
+    from: '    if (result.processedCount <= savedThrough) return result;\n',
+    to: '',
+  },
+  {
+    name: 'slice loop: processJobChunk works one slice again, so a fast scan waits on the cron',
+    file: 'lib/job-processor.ts',
+    from: '  return runSlices(\n    (invocationDeadline) => processJobSlice(jobId, invocationDeadline),\n    budgetMs\n  );',
+    to: '  return processJobSlice(jobId, Date.now() + budgetMs);',
+  },
+  {
+    name: 'slice loop: the cron worker widens its own budget past the margin',
+    file: 'app/api/jobs/worker/route.ts',
+    from: '          const result = await processJobChunk(job.id);',
+    to: '          const result = await processJobChunk(job.id, 600_000);',
+  },
+  {
+    name: "slice loop: a late slice's ENS pass ignores the invocation deadline and reads into the kill",
+    file: 'lib/job-processor.ts',
+    from: '  return Math.min(sliceStartedAt + ENS_SLICE_BUDGET_MS, invocationDeadline);',
+    to: '  return sliceStartedAt + ENS_SLICE_BUDGET_MS;',
+  },
+  {
+    // The other half: counted from the invocation, a slice started 100 s in
+    // gets 20 s of ENS, and every wallet after that is recorded unreached.
+    name: "slice loop: a later slice's ENS budget is counted from the invocation, so its wallets go unreached",
+    file: 'lib/job-processor.ts',
+    from: '  return Math.min(sliceStartedAt + ENS_SLICE_BUDGET_MS, invocationDeadline);',
+    to: '  return Math.min(\n    invocationDeadline - INVOCATION_BUDGET_MS + ENS_SLICE_BUDGET_MS,\n    invocationDeadline\n  );',
+  },
+  {
+    name: 'slice loop: the slice gives ENS its per-slice deadline alone',
+    file: 'lib/job-processor.ts',
+    from: '              deadline: ensDeadlineFor(sliceStartedAt, invocationDeadline),\n',
+    to: '              deadline: sliceStartedAt + ENS_SLICE_BUDGET_MS,\n',
+  },
+  {
+    name: 'slice loop: the slice gives Web3Bio no deadline, so a late slice runs its waves into the kill',
+    file: 'lib/job-processor.ts',
+    from: '            deadline: invocationDeadline,\n',
+    to: '',
+  },
+  {
+    name: "slice loop: Web3Bio ignores the caller's deadline",
+    file: 'lib/web3bio.ts',
+    from: '    callerDeadline ?? Infinity',
+    to: '    Infinity',
+  },
+  {
+    name: 'slice loop: the Web3Bio batch drops the deadline it was given',
+    file: 'lib/web3bio.ts',
+    from: '  const deadline = waveDeadline(startTime, wallets.length, opts?.deadline);',
+    to: '  const deadline = waveDeadline(startTime, wallets.length);',
   },
 
   {
