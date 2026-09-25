@@ -5665,9 +5665,11 @@ const MUTATIONS: Mutation[] = [
     to: '',
   },
   {
+    // Month and day together: either comparison alone refuses a rollover
+    // (2026-02-30 parses as 2 March), so dropping one is not a defect.
     name: 'terms: the version check accepts a date that does not exist',
     file: 'lib/terms.ts',
-    from: '    d.getUTCDate() === Number(m[3])',
+    from: '    d.getUTCMonth() + 1 === Number(m[2]) &&\n    d.getUTCDate() === Number(m[3])',
     to: '    true',
   },
   {
