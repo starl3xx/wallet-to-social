@@ -52,7 +52,9 @@ All notable changes to walletlink.social. Newest first.
   first pass's charge failed), the saved copy takes the later limit, so a
   saved lookup never shows more matches than the lookup itself. When support
   reruns a lookup, the rerun is saved as a new copy and the earlier copy
-  stays as it was.
+  stays as it was. A worker that lost its turn can no longer save a stale
+  copy over the rerun's: the save writes only while the worker still holds
+  the lookup, checked in the same statement.
 - **The onchain ENS pass on a deep scan has a time limit,** as Web3Bio
   already had: it stops starting new batches two minutes into a slice.
   Addresses it did not reach are left unchecked rather than recorded as
@@ -66,11 +68,11 @@ All notable changes to walletlink.social. Newest first.
   Inngest route stays, registering nothing, so runs started before the
   deploy end cleanly; the route, the client, the package and the
   `INNGEST_*` variables go in a follow-up. Linear STA-44. The twelve
-  invariants that held the two pipelines in step are replaced by forty-one
+  invariants that held the two pipelines in step are replaced by forty-two
   that assert one pipeline, the claim, the fenced writes, the attempt cap,
   the billed-job rule (on the SQL it actually sends) and the once-per-job
   history save, and the nine guard mutations against the Inngest copy by
-  seventy-five.
+  eighty-two.
 - A later pass never clears a history row's match gate: only a pass that decided
   a gate writes it, so a retry whose charge threw cannot reopen locked matches.
 
