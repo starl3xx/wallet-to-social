@@ -6795,12 +6795,67 @@ async function main() {
       'MAGIC_LINK_RETENTION_HOURS',
       'NEGATIVE_RECHECK_DAYS',
       'OAUTH_TOKEN_RETENTION_DAYS',
+      'API_USAGE_RETENTION_MONTHS',
+      'API_BUCKET_RETENTION_DAYS',
+      'PAYMENT_RECORD_RETENTION_YEARS',
     ]) {
       ok(
         `the privacy policy reads ${constant} rather than restating the number`,
         privacy.includes(`{${constant}}`) || privacy.includes(`\${${constant}}`)
       );
     }
+
+    // "Reads the constant" passes while one use reads it and another restates
+    // it: the API request period is stated twice, and a digit in either row
+    // left the other still satisfying the check above. So for these, the
+    // period may not appear as a number at all, in digits or in words.
+    {
+      const words = [
+        'zero',
+        'one',
+        'two',
+        'three',
+        'four',
+        'five',
+        'six',
+        'seven',
+        'eight',
+        'nine',
+        'ten',
+        'eleven',
+        'twelve',
+        'thirteen',
+      ];
+      const prose = withoutComments(privacy).toLowerCase();
+      for (const [constant, unit] of [
+        ['API_USAGE_RETENTION_MONTHS', 'months'],
+        ['API_BUCKET_RETENTION_DAYS', 'days'],
+        ['PAYMENT_RECORD_RETENTION_YEARS', 'years'],
+      ] as const) {
+        const m = cleanup.match(
+          new RegExp(`export const ${constant} = (\\d+);`)
+        );
+        const n = m ? Number(m[1]) : NaN;
+        const spelled = [String(n), words[n]].filter(Boolean);
+        ok(
+          `the privacy policy never states ${constant} (${n} ${unit}) as a number`,
+          Number.isFinite(n) &&
+            spelled.every(
+              (w) =>
+                !new RegExp(`\\b${w}[\\s-]+${unit.slice(0, -1)}`).test(prose)
+            )
+        );
+      }
+    }
+
+    // The purchase-record purge is written and switched off, so the page may
+    // promise the deletion only through the switch. A fixed "then deleted"
+    // would be true of the ledger and false of every credit pack.
+    ok(
+      'the privacy policy states payment deletion through PURCHASE_RECORD_PURGE_ENABLED',
+      /PURCHASE_RECORD_PURGE_ENABLED\s*\?/.test(privacy) &&
+        !/'Seven years, for tax and accounting, then deleted'/.test(privacy)
+    );
 
     // The three cleanups existed for months with nothing calling them, which is
     // how the policy came to need writing before any of these periods were real.

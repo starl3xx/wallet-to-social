@@ -29,8 +29,13 @@ import { Eyebrow } from '@/components/ui/eyebrow';
 import { CACHE_TTL_DAYS } from '@/lib/cache-constants';
 import {
   ANALYTICS_RETENTION_DAYS,
+  API_BUCKET_RETENTION_DAYS,
+  API_USAGE_RETENTION_MONTHS,
+  IP_BUCKET_RETENTION_HOURS,
   JOB_PAYLOAD_RETENTION_DAYS,
   OAUTH_TOKEN_RETENTION_DAYS,
+  PAYMENT_RECORD_RETENTION_YEARS,
+  PURCHASE_RECORD_PURGE_ENABLED,
 } from '@/app/api/cron/cleanup/route';
 import { QUARANTINE_RETENTION_DAYS } from '@/lib/removal-admin';
 import { NEGATIVE_RECHECK_DAYS } from '@/lib/social-graph';
@@ -41,7 +46,6 @@ import {
   MAGIC_LINK_RETENTION_HOURS,
   SESSION_DURATION_DAYS,
 } from '@/lib/auth';
-import { IP_BUCKET_RETENTION_HOURS } from '@/app/api/cron/cleanup/route';
 
 export const metadata: Metadata = {
   title: 'Privacy policy',
@@ -518,9 +522,8 @@ export default function PrivacyPage() {
           <p>
             A cleanup job runs once a day and deletes what has passed its
             period, so an item usually outlasts its period by up to a day, and a
-            large backlog of lookups can take a few days more. Items kept until
-            you act, or kept indefinitely, say so rather than implying an
-            expiry.
+            large backlog can take a few days more. Items kept until you act, or
+            kept indefinitely, say so rather than implying an expiry.
           </p>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-sm">
@@ -575,9 +578,12 @@ export default function PrivacyPage() {
                     ],
                     [
                       'API key rate-limit counters',
-                      'Counts only, with no addresses: two days after the minute, day or month they count has ended',
+                      `Counts only, with no addresses: ${API_BUCKET_RETENTION_DAYS} days after the minute, day or month they count has ended`,
                     ],
-                    ['API request records', '13 months'],
+                    [
+                      'API request records',
+                      `${API_USAGE_RETENTION_MONTHS} months`,
+                    ],
                     [
                       'Records of welcome and check-in emails sent',
                       'Until the account is deleted',
@@ -600,7 +606,7 @@ export default function PrivacyPage() {
                     ],
                     [
                       'API keys',
-                      'Usable until you revoke them, and stored only as a hash. A revoked key’s record (its name, prefix and dates) stays with the account, and its request records go after 13 months, like all the others',
+                      `Usable until you revoke them, and stored only as a hash. A revoked key’s record (its name, prefix and dates) stays with the account, and its request records go after ${API_USAGE_RETENTION_MONTHS} months, like all the others`,
                     ],
                     [
                       'Encrypted backups',
@@ -608,7 +614,9 @@ export default function PrivacyPage() {
                     ],
                     [
                       'Payment records',
-                      'Seven years, for tax and accounting, then deleted',
+                      PURCHASE_RECORD_PURGE_ENABLED
+                        ? `${PAYMENT_RECORD_RETENTION_YEARS} years, for tax and accounting, then deleted once no unexpired credits or open lookup depend on them`
+                        : `At least ${PAYMENT_RECORD_RETENTION_YEARS} years, for tax and accounting. A record of credits spent is then deleted once no unexpired credits or open lookup depend on it. Purchase records (the credit packs bought, and the Stripe ids on an account) are not yet deleted after that period`,
                     ],
                   ] as [string, React.ReactNode][]
                 ).map(([what, kept]) => (
@@ -671,10 +679,11 @@ export default function PrivacyPage() {
           </p>
           <p>
             Some things we cannot delete on request. Payment records are kept
-            for seven years, for tax and accounting. Deleting your account does
-            not remove a wallet-to-identity mapping from the index, because that
-            mapping is not about you unless the wallet is yours, in which case
-            the section above is the one that applies.
+            for at least {PAYMENT_RECORD_RETENTION_YEARS} years, for tax and
+            accounting. Deleting your account does not remove a
+            wallet-to-identity mapping from the index, because that mapping is
+            not about you unless the wallet is yours, in which case the section
+            above is the one that applies.
           </p>
         </Section>
 

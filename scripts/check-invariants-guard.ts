@@ -4041,6 +4041,18 @@ const MUTATIONS: Mutation[] = [
     from: '`Deleted ${OAUTH_TOKEN_RETENTION_DAYS} days after',
     to: '`Deleted 400 days after',
   },
+  {
+    name: 'the privacy policy restates the API request record period as a digit',
+    file: 'app/privacy/page.tsx',
+    from: '                      `${API_USAGE_RETENTION_MONTHS} months`,',
+    to: "                      '13 months',",
+  },
+  {
+    name: 'the privacy policy promises payment records are deleted while the purchase-record purge is off',
+    file: 'app/privacy/page.tsx',
+    from: '                      PURCHASE_RECORD_PURGE_ENABLED\n                        ?',
+    to: '                      true\n                        ?',
+  },
   // --- STA-39 D review: the dropped request and every range edge ---------
   {
     name: 'a refused metadata request is rejected but never dropped, so the socket goes on to the peer',

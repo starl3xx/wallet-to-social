@@ -6,10 +6,11 @@ All notable changes to walletlink.social. Newest first.
 
 - **A draft, not live until the owner approves it (STA-41).** Every open
   choice on both pages is now decided, and no `[DECIDE: …]` marker is left.
-  Some sentences describe code that ships in separate PRs, so this merges
-  after them: the retention cleanups and log masking (STA-45), the removal
-  gaps (STA-46, plus a restore-runbook step in the ops repo) and the “I agree
-  to the terms” step at checkout and the USDC buy (STA-47). The one blank
+  Some sentences describe code from separate PRs: the retention cleanups and
+  log masking (STA-45, #398) and the removal gaps (STA-46, #396, plus a
+  restore-runbook step in the ops repo), both merged, and the “I agree to
+  the terms” step at checkout and the USDC buy (STA-47, #399), which this
+  merges after. The one blank
   is the registered agent’s postal address, marked
   `[REGISTERED AGENT ADDRESS]`.
 - **`/terms`**, new: the terms of service with an acceptable-use policy,
@@ -50,9 +51,14 @@ All notable changes to walletlink.social. Newest first.
     and every list uses the 30-day record of addresses that resolved to
     nobody. Inngest is listed as having run those lists until 25 September
     2026, and no longer.
-  - Cached raw results last `CACHE_TTL_DAYS` again, API request records 13
-    months, API key rate-limit counters two days past their window, and
-    payment records seven years, then deleted. The browser string of a
+  - Cached raw results last `CACHE_TTL_DAYS` again, API request records
+    `API_USAGE_RETENTION_MONTHS` (13 months), API key rate-limit counters
+    `API_BUCKET_RETENTION_DAYS` (two days) past their window, and payment
+    records at least `PAYMENT_RECORD_RETENTION_YEARS` (seven years). After
+    that a record of credits spent is deleted; a purchase record is not yet,
+    because its purge is switched off, and the page reads the switch rather
+    than promising the deletion. Each period is read from the constant the
+    cleanup enforces, and an invariant fails if one is written as a number. The browser string of a
     sign-in is no longer kept, and our own log lines mask email and wallet
     addresses; the host keeps request logs for no longer than 30 days.
   - A removal lasts until the person asks to undo it, with the same proof as
