@@ -47,7 +47,7 @@ jobs:
     # 1200 requests at 1.1s spacing is ~22 minutes plus ingest time.
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22

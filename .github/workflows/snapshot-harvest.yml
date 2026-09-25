@@ -35,7 +35,7 @@ jobs:
     # 500 requests at a 700ms pause is ~6 minutes plus ingest time.
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version: 22

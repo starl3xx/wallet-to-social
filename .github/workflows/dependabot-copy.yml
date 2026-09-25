@@ -64,7 +64,7 @@ jobs:
       GH_TOKEN: ${{ secrets.DEPENDABOT_COPY_TOKEN }}
       REPO: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Close copies whose Dependabot PR was closed unmerged
@@ -128,7 +128,7 @@ jobs:
     steps:
       # The default branch, never the PR: a pull_request_target run checks out
       # the base by default, and nothing below reads the PR's files.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Copy or follow the Dependabot PR
