@@ -17385,6 +17385,763 @@ async function main() {
     );
   }
 
+  // ------------------------------------------ sanctions screening (STA-41)
+  // The USDC rail screens its payer against the EVM addresses on OFAC's SDN
+  // list before any money moves, a refresh never puts an empty or sharply
+  // smaller list in force, a wallet listed after it bought is frozen, both
+  // checkouts refuse the decided locations, and the screening record is kept
+  // five years and no longer. Each claim is tried as the thing it refuses,
+  // through the real functions; the route's order is read from its source,
+  // because the route cannot reach its screen here without the facilitator.
+  {
+    const S = await import('@/lib/sanctions');
+    const { PgDialect } = await import('drizzle-orm/pg-core');
+    const dialect = new PgDialect();
+    type Sent = { sql: string; params: unknown[] };
+    const fakeDb = (
+      answer: (flat: string, params: unknown[]) => unknown,
+      sent: Sent[] = []
+    ) => ({
+      sent,
+      execute: async (query: Parameters<typeof dialect.sqlToQuery>[0]) => {
+        const q = dialect.sqlToQuery(query);
+        const flat = q.sql.replace(/\s+/g, ' ').trim();
+        sent.push({ sql: flat, params: q.params });
+        return answer(flat, q.params);
+      },
+    });
+
+    /**
+     * A small SDN.XML in the real file's shape: OFAC's namespace, its
+     * misspelled `publshInformation`, entries with an `idList` of `<id>`
+     * blocks. The first three entries are real (the 2026-09-23 file), trimmed
+     * of ids that do not matter here; they carry a mixed-case address, one
+     * address filed under three tickers, and Tron and Bitcoin addresses that
+     * must not match. The last entry is invented: an address outside any id,
+     * a 64-hex transaction hash that must not match, and an escaped name.
+     */
+    const sdnId = (uid: number, type: string, value: string) =>
+      `      <id>\n        <uid>${uid}</uid>\n        <idType>${type}</idType>\n        <idNumber>${value}</idNumber>\n      </id>\n`;
+    const sdnEntry = (uid: number, names: string, ids: string, remarks = '') =>
+      `  <sdnEntry>\n    <uid>${uid}</uid>\n${names}    <sdnType>Individual</sdnType>\n${remarks}    <programList>\n      <program>CYBER2</program>\n    </programList>\n    <idList>\n${ids}    </idList>\n  </sdnEntry>\n`;
+    const DCA = 'Digital Currency Address - ';
+    const entries = [
+      sdnEntry(
+        24003,
+        '    <firstName>Behzad</firstName>\n    <lastName>MESRI</lastName>\n',
+        sdnId(126094, 'Gender', 'Male') +
+          sdnId(196516, DCA + 'XBT', '12aNKp2iDKuhEde2YfPdd4DFGenRUTKupL') +
+          sdnId(
+            196530,
+            DCA + 'ETH',
+            '0x252a8bd2319d8a555b872990601221b3a2053bce'
+          ) +
+          sdnId(
+            196531,
+            DCA + 'ETH',
+            '0x1CAb8177ACe78b1B6B1c393371F4f2dCAE40CbEB'
+          )
+      ),
+      sdnEntry(
+        42498,
+        '    <firstName>Hyon Sop</firstName>\n    <lastName>SIM</lastName>\n',
+        sdnId(32060, 'Passport', '109484100') +
+          sdnId(196597, DCA + 'TRX', 'TGXE9dGWawjfd3xqFSho1h1bRbRv9wUGrF') +
+          sdnId(
+            161088,
+            DCA + 'ARB',
+            '0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c'
+          ) +
+          sdnId(
+            161089,
+            DCA + 'BSC',
+            '0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c'
+          ) +
+          sdnId(
+            160979,
+            DCA + 'ETH',
+            '0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c'
+          )
+      ),
+      sdnEntry(
+        43377,
+        '    <firstName>Sang Man</firstName>\n    <lastName>KIM</lastName>\n',
+        sdnId(
+          162812,
+          DCA + 'USDT',
+          '0xb6f5ec1a0a9cd1526536d3f0426c429529471f40'
+        ) +
+          sdnId(
+            162813,
+            DCA + 'USDC',
+            '0xb6f5ec1a0a9cd1526536d3f0426c429529471f40'
+          ) +
+          sdnId(
+            162810,
+            DCA + 'ETH',
+            '0x97b1043abd9e6fc31681635166d430a458d14f9c'
+          ) +
+          sdnId(
+            162811,
+            DCA + 'ETH',
+            '0xb6f5ec1a0a9cd1526536d3f0426c429529471f40'
+          )
+      ),
+      sdnEntry(
+        99001,
+        '    <lastName>EXAMPLE TRADING &amp; LOGISTICS LLC</lastName>\n',
+        sdnId(99002, 'Email Address', 'ops@example.invalid'),
+        '    <remarks>Funds moved in tx 0x9f2c4a7b1e0d3c5a6b8f7e9d0c1b2a3f4e5d6c7b8a9f0e1d2c3b4a5f6e7d8c9b and through 0x00000000000000000000000000000000DeaDBeef.</remarks>\n'
+      ),
+    ];
+    const cuba =
+      '  <sdnEntry>\n    <uid>36</uid>\n    <lastName>AEROCARIBBEAN AIRLINES</lastName>\n    <sdnType>Entity</sdnType>\n    <programList>\n      <program>CUBA</program>\n    </programList>\n  </sdnEntry>\n';
+    const sdnXml = (body: string, count: number, date = '09/23/2026') =>
+      `<?xml version="1.0" standalone="yes"?>\n<sdnList xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/XML">\n  <publshInformation>\n    <Publish_Date>${date}</Publish_Date>\n    <Record_Count>${count}</Record_Count>\n  </publshInformation>\n${body}</sdnList>`;
+    const fixture = sdnXml(cuba + entries.join(''), 5);
+
+    const parsed = S.parseSdnXml(fixture);
+    const byAddress = new Map(parsed.addresses.map((a) => [a.address, a]));
+    ok(
+      'the SDN parse reads the publish date and checks the entry count',
+      parsed.publishDate === '2026-09-23' && parsed.recordCount === 5
+    );
+    ok(
+      'every EVM address in the fixture is found, and nothing else',
+      JSON.stringify([...byAddress.keys()]) ===
+        JSON.stringify([
+          '0x00000000000000000000000000000000deadbeef',
+          '0x1cab8177ace78b1b6b1c393371f4f2dcae40cbeb',
+          '0x252a8bd2319d8a555b872990601221b3a2053bce',
+          '0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c',
+          '0x97b1043abd9e6fc31681635166d430a458d14f9c',
+          '0xb6f5ec1a0a9cd1526536d3f0426c429529471f40',
+        ])
+    );
+    ok(
+      'a mixed-case address is stored lowercased, so a lowercased payer matches it',
+      byAddress.has('0x1cab8177ace78b1b6b1c393371f4f2dcae40cbeb') &&
+        !parsed.addresses.some((a) => /[A-F]/.test(a.address))
+    );
+    ok(
+      'an address filed under several tickers is one row carrying all of them',
+      byAddress
+        .get('0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c')
+        ?.tickers.join() === 'ARB,BSC,ETH' &&
+        byAddress
+          .get('0xb6f5ec1a0a9cd1526536d3f0426c429529471f40')
+          ?.tickers.join() === 'ETH,USDC,USDT' &&
+        byAddress.get('0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c')?.sdnUid ===
+          '42498'
+    );
+    ok(
+      'an EVM address outside any currency id is still listed, with no ticker',
+      byAddress.get('0x00000000000000000000000000000000deadbeef')?.tickers
+        .length === 0 &&
+        byAddress.get('0x00000000000000000000000000000000deadbeef')?.entity ===
+          'EXAMPLE TRADING & LOGISTICS LLC'
+    );
+    ok(
+      'a 64-hex transaction hash never yields an address',
+      !parsed.addresses.some((a) => a.address.startsWith('0x9f2c4a7b'))
+    );
+    ok(
+      'a renamed currency id type does not shorten the list',
+      S.parseSdnXml(
+        fixture.replaceAll(
+          'Digital Currency Address - ',
+          'Digital Currency Address: '
+        )
+      ).addresses.length === 6
+    );
+    const parseRefuses = (xml: string) => {
+      try {
+        S.parseSdnXml(xml);
+        return false;
+      } catch (e) {
+        return e instanceof S.SdnParseError;
+      }
+    };
+    ok(
+      'a truncated download is refused, not parsed as a shorter list',
+      parseRefuses(fixture.slice(0, Math.floor(fixture.length * 0.6)))
+    );
+    ok(
+      'a file whose entries disagree with its own Record_Count is refused',
+      parseRefuses(sdnXml(cuba + entries.join(''), 6)) &&
+        parseRefuses(sdnXml(entries.join(''), 5))
+    );
+    ok(
+      'a file without a real publish date is refused',
+      parseRefuses(
+        fixture.replace(/<Publish_Date>[^<]*<\/Publish_Date>/, '')
+      ) && parseRefuses(sdnXml(cuba + entries.join(''), 5, '02/30/2026'))
+    );
+
+    // --- the refresh guard
+    const cur = (count: number, publishDate: string | null = '2026-09-23') => ({
+      count,
+      publishDate,
+    });
+    const inc = (count: number, publishDate = '2026-09-23') => ({
+      count,
+      publishDate,
+    });
+    ok(
+      'an empty parse never replaces the list, not even the first one, not even when accepted',
+      S.refreshRefusal(cur(124), inc(0)) === 'empty' &&
+        S.refreshRefusal(cur(0, null), inc(0)) === 'empty' &&
+        S.refreshRefusal(cur(124), inc(0), 0) === 'empty'
+    );
+    ok(
+      'a drop of more than 20% is refused, and 20% or less is not',
+      S.SANCTIONS_MAX_DROP === 0.2 &&
+        S.refreshRefusal(cur(124), inc(98)) === 'sharp_drop' &&
+        S.refreshRefusal(cur(124), inc(99)) === 'sharp_drop' &&
+        S.refreshRefusal(cur(124), inc(100)) === null &&
+        S.refreshRefusal(cur(124), inc(130)) === null
+    );
+    ok(
+      'an operator accepts a large drop only by naming its exact count',
+      S.refreshRefusal(cur(124), inc(40), 40) === null &&
+        S.refreshRefusal(cur(124), inc(40), 41) === 'sharp_drop' &&
+        S.refreshRefusal(cur(124), inc(40), null) === 'sharp_drop'
+    );
+    ok(
+      'an older publication never replaces a newer one',
+      S.refreshRefusal(cur(124), inc(124, '2026-09-20')) === 'older_publication'
+    );
+
+    // The refresh, driven through the real function with a recording database
+    // and a canned download: what reaches the database decides the claim.
+    const runRefresh = async (opts: {
+      inForce: number;
+      xml: string | Error;
+      acceptCount?: number | null;
+    }) => {
+      const db = fakeDb((flat) => {
+        if (flat.includes('FROM sanctioned_addresses) AS n')) {
+          return {
+            rows: [
+              {
+                n: opts.inForce,
+                state: opts.inForce
+                  ? {
+                      publishDate: '2026-09-22',
+                      refreshedAt: '2026-09-25T00:15:00.000Z',
+                      addressCount: opts.inForce,
+                    }
+                  : null,
+              },
+            ],
+          };
+        }
+        if (flat.startsWith('WITH incoming AS')) {
+          return { rows: [{ added: 6, removed: 0, total: 6 }] };
+        }
+        if (flat.startsWith('WITH hits AS')) {
+          return {
+            rows: [{ matched: 0, newly_frozen: 0, keys_deactivated: 0 }],
+          };
+        }
+        return { rows: [] };
+      });
+      const outcome = await S.refreshSanctionsList({
+        db,
+        fetchXml: async () => {
+          if (opts.xml instanceof Error) throw opts.xml;
+          return opts.xml;
+        },
+        now: new Date('2026-09-25T06:15:00.000Z'),
+        acceptCount: opts.acceptCount ?? null,
+      });
+      const replaced = db.sent.some((s) =>
+        /DELETE FROM sanctioned_addresses|INSERT INTO sanctioned_addresses/.test(
+          s.sql
+        )
+      );
+      const froze = db.sent.findIndex((s) => s.sql.startsWith('WITH hits AS'));
+      const replacedAt = db.sent.findIndex((s) =>
+        s.sql.startsWith('WITH incoming AS')
+      );
+      return { outcome, replaced, froze, replacedAt, sent: db.sent };
+    };
+
+    const shrunk = await runRefresh({ inForce: 124, xml: fixture });
+    ok(
+      'a refresh that would shrink 124 addresses to 6 writes nothing to the list',
+      shrunk.outcome.refused === 'sharp_drop' &&
+        !shrunk.replaced &&
+        !shrunk.outcome.ok
+    );
+    const emptied = await runRefresh({
+      inForce: 124,
+      xml: sdnXml(cuba, 1),
+      acceptCount: 0,
+    });
+    ok(
+      'a refresh that parses no address writes nothing, even with an override',
+      emptied.outcome.refused === 'empty' && !emptied.replaced
+    );
+    const cut = await runRefresh({
+      inForce: 6,
+      xml: fixture.slice(0, fixture.length - 40),
+    });
+    ok(
+      'a cut-off download writes nothing and reports the error',
+      !cut.replaced &&
+        !cut.outcome.ok &&
+        /parse failed/.test(cut.outcome.error ?? '')
+    );
+    const down = await runRefresh({
+      inForce: 6,
+      xml: new Error('ECONNRESET'),
+    });
+    ok(
+      'a failed download writes nothing, and the list in force ages toward the alert',
+      !down.replaced &&
+        !down.outcome.ok &&
+        down.outcome.listAgeHours === 6 &&
+        !down.outcome.alert
+    );
+    const accepted = await runRefresh({
+      inForce: 124,
+      xml: fixture,
+      acceptCount: 6,
+    });
+    ok(
+      'an accepted drop is written, whole, in one statement with the state row',
+      accepted.replaced &&
+        accepted.outcome.ok &&
+        accepted.sent.filter(
+          (s) =>
+            /sanctioned_addresses/.test(s.sql) &&
+            s.sql.startsWith('WITH incoming AS')
+        ).length === 1 &&
+        /INSERT INTO ingest_state/.test(
+          accepted.sent[accepted.replacedAt]?.sql ?? ''
+        )
+    );
+    {
+      const replace = accepted.sent[accepted.replacedAt];
+      const state = replace?.params.find(
+        (p) => typeof p === 'string' && p.includes('refreshedAt')
+      ) as string | undefined;
+      ok(
+        'the state row records the publish date and this refresh as its time',
+        !!state &&
+          JSON.parse(state).publishDate === '2026-09-23' &&
+          JSON.parse(state).refreshedAt === '2026-09-25T06:15:00.000Z' &&
+          replace!.params.some(
+            (p) =>
+              Array.isArray(p) &&
+              p.includes('0x1cab8177ace78b1b6b1c393371f4f2dcae40cbeb')
+          )
+      );
+    }
+    const steady = await runRefresh({ inForce: 6, xml: fixture });
+    ok(
+      'every successful refresh re-checks past buyers after the new list is in force',
+      steady.outcome.ok &&
+        steady.replacedAt !== -1 &&
+        steady.froze > steady.replacedAt
+    );
+    ok(
+      'and a refused refresh still re-checks past buyers against the list in force',
+      shrunk.froze !== -1 && emptied.froze !== -1
+    );
+
+    // --- a wallet listed after it bought
+    {
+      const db = fakeDb(() => ({
+        rows: [{ matched: 1, newly_frozen: 1, keys_deactivated: 2 }],
+      }));
+      const frozen = await S.freezeListedBuyers(db, '2026-09-23');
+      const freeze = db.sent[0];
+      ok(
+        'the freeze is one statement: it freezes the account and deactivates its keys together',
+        db.sent.length === 1 &&
+          /UPDATE users u SET frozen_at = now\(\), frozen_reason = /.test(
+            freeze.sql
+          ) &&
+          /UPDATE api_keys k SET is_active = false FROM hits WHERE k\.user_id = hits\.user_id/.test(
+            freeze.sql
+          ) &&
+          frozen.newlyFrozen === 1 &&
+          frozen.keysDeactivated === 2
+      );
+      ok(
+        'the payer is read from every x402 settlement id, whichever account it credited',
+        /JOIN sanctioned_addresses s ON s\.address = split_part\(l\.settlement_id, ':', 3\)/.test(
+          freeze.sql
+        ) && freeze.params.includes('eip155:8453:%')
+      );
+      ok(
+        'a freeze is stamped once and never moved, but a later key is still deactivated',
+        /WHERE u\.id = hits\.user_id AND u\.frozen_at IS NULL/.test(
+          freeze.sql
+        ) &&
+          /UPDATE api_keys k SET is_active = false FROM hits WHERE k\.user_id = hits\.user_id AND k\.is_active = true/.test(
+            freeze.sql
+          )
+      );
+      const keys = withoutComments(readFileSync('lib/api-keys.ts', 'utf8'));
+      const lookup = keys.slice(
+        keys.indexOf('async function lookupActiveKey('),
+        keys.indexOf('export async function validateApiKey(')
+      );
+      ok(
+        'a frozen account’s keys do not validate, whenever they were minted',
+        /\.innerJoin\(users, eq\(apiKeys\.userId, users\.id\)\)/.test(lookup) &&
+          /frozenAt: users\.frozenAt/.test(lookup) &&
+          /if \(frozenAt\) \{\s*return null;\s*\}/.test(lookup) &&
+          lookup.indexOf('if (frozenAt)') <
+            lookup.indexOf('return { key, plan }')
+      );
+      const credits = withoutComments(readFileSync('lib/credits.ts', 'utf8'));
+      const submit = credits.slice(
+        credits.indexOf('export async function canSubmit('),
+        credits.indexOf('async function walletsSubmittedSince(')
+      );
+      ok(
+        'a frozen account starts no lookup, and the check comes before the unmetered tiers',
+        /if \(await isAccountFrozen\(userId\)\) \{\s*return \{\s*allowed: false,/.test(
+          submit
+        ) &&
+          submit.indexOf('isAccountFrozen(userId)') <
+            submit.indexOf('legacyTierIsUnmetered(tier)')
+      );
+      const unlock = credits.slice(
+        credits.indexOf('export async function unlockJobMatches('),
+        credits.indexOf('async function drawDown(')
+      );
+      ok(
+        'a frozen account spends no credits unlocking matches',
+        /if \(await isAccountFrozen\(userId\)\) \{\s*return \{ ok: false, reason: FROZEN_ACCOUNT_MESSAGE \};/.test(
+          unlock
+        ) &&
+          unlock.indexOf('isAccountFrozen(') <
+            unlock.indexOf('insert(creditLedger)')
+      );
+    }
+
+    // --- the route-time screen and its answers
+    const FRESH = {
+      publishDate: '2026-09-23',
+      refreshedAt: '2026-09-25T00:15:00.000Z',
+      addressCount: 124,
+    };
+    const screen = async (
+      state: unknown,
+      listed: boolean,
+      fail: 'read' | 'record' | null = null,
+      at = '2026-09-25T09:00:00.000Z'
+    ) => {
+      const db = fakeDb((flat) => {
+        if (flat.startsWith('INSERT INTO sanctions_screenings')) {
+          if (fail === 'record') throw new Error('insert failed');
+          return { rows: [] };
+        }
+        if (fail === 'read') throw new Error('connection reset');
+        return { rows: [{ state, listed }] };
+      });
+      const quiet = console.error;
+      console.error = () => {};
+      try {
+        const result = await S.screenPayer(
+          '0x4F47BC496083C727C5FBE3CE9CDF2B0F6496270C',
+          db,
+          new Date(at)
+        );
+        return { ...result, sent: db.sent };
+      } finally {
+        console.error = quiet;
+      }
+    };
+    const listedRun = await screen(FRESH, true);
+    const clearRun = await screen(FRESH, false);
+    ok(
+      'a listed payer is screened as listed, and the screening is recorded',
+      listedRun.verdict === 'listed' &&
+        listedRun.sent.some(
+          (s) =>
+            s.sql.startsWith('INSERT INTO sanctions_screenings') &&
+            s.params.includes('listed') &&
+            s.params.includes('2026-09-23') &&
+            s.params.includes('0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c')
+        )
+    );
+    ok(
+      'the payer is looked up lowercased',
+      listedRun.sent[0]?.params.includes(
+        '0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c'
+      ) ?? false
+    );
+    ok(
+      'a clear payer on a fresh list is clear, and recorded as clear',
+      clearRun.verdict === 'clear' &&
+        clearRun.sent.some((s) => s.params.includes('clear'))
+    );
+    ok(
+      'a list last refreshed more than 7 days ago is stale; 7 days is not',
+      S.SANCTIONS_REFUSE_AFTER_DAYS === 7 &&
+        (await screen(FRESH, false, null, '2026-10-02T00:16:00.000Z'))
+          .verdict === 'stale' &&
+        (await screen(FRESH, false, null, '2026-10-02T00:14:00.000Z'))
+          .verdict === 'clear'
+    );
+    ok(
+      'a hit on an aged list is still a hit',
+      (await screen(FRESH, true, null, '2026-11-01T00:00:00.000Z')).verdict ===
+        'listed'
+    );
+    ok(
+      'no list at all, or an unreadable one, is missing',
+      (await screen(null, false)).verdict === 'missing' &&
+        (await screen({ publishDate: 'soon' }, false)).verdict === 'missing'
+    );
+    ok(
+      'a database error fails closed, on the read and on the record',
+      (await screen(FRESH, false, 'read')).verdict === 'error' &&
+        (await screen(FRESH, false, 'record')).verdict === 'error' &&
+        (await S.screenPayer('0x00', null)).verdict === 'error'
+    );
+
+    const answer = async (verdict: string) => {
+      const res = S.sanctionsRefusal(verdict as never);
+      return res
+        ? {
+            status: res.status,
+            body: (await res.json()) as { error: string; code: string },
+            retryAfter: res.headers.get('Retry-After'),
+          }
+        : null;
+    };
+    const listedAnswer = await answer('listed');
+    ok(
+      'a listed payer gets 403 SANCTIONED_PAYER and the one agreed sentence',
+      listedAnswer?.status === 403 &&
+        listedAnswer.body.code === 'SANCTIONED_PAYER' &&
+        listedAnswer.body.error === 'This payment cannot be accepted.' &&
+        Object.keys(listedAnswer.body).length === 2
+    );
+    ok(
+      'the refusal names no list and no detail',
+      !/ofac|sdn|sanction|list/i.test(listedAnswer?.body.error ?? 'ofac')
+    );
+    let closed = true;
+    for (const v of ['stale', 'missing', 'error', 'unheard-of']) {
+      const a = await answer(v);
+      closed &&=
+        a?.status === 503 &&
+        a.body.code === 'SCREENING_UNAVAILABLE' &&
+        Number(a.retryAfter) > 0;
+    }
+    ok(
+      'a stale, missing or failed screen answers 503, and so does any verdict it has never heard of',
+      closed
+    );
+    ok(
+      'only a clear verdict lets the sale through',
+      (await answer('clear')) === null
+    );
+
+    const buy = withoutComments(
+      readFileSync('app/api/x402/buy/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const screenAt = buy.indexOf(
+      'const screened = sanctionsRefusal((await screenPayer(payer)).verdict); if (screened) return screened;'
+    );
+    ok(
+      'the buy route screens the payer the moment it is decoded',
+      screenAt !== -1 &&
+        screenAt > buy.indexOf('const payer = payerFrom(payload);') &&
+        screenAt >
+          buy.indexOf("'Payment payload carries no EIP-3009 authorization.'")
+    );
+    ok(
+      'and before it reads a lot, verifies or settles anything',
+      screenAt !== -1 &&
+        screenAt < buy.indexOf('await lotForSettlement(settlementId)') &&
+        screenAt < buy.indexOf('server.verifyPayment(') &&
+        screenAt < buy.indexOf('server.settlePayment(') &&
+        screenAt < buy.indexOf('getOrCreateWalletAccount(payer)')
+    );
+
+    // --- the geoblock
+    const G = await import('@/lib/geoblock');
+    const at = async (country?: string, region?: string) => {
+      const headers = new Headers();
+      if (country) headers.set('x-vercel-ip-country', country);
+      if (region) headers.set('x-vercel-ip-country-region', region);
+      const res = G.checkoutGeoblock(headers);
+      return res ? { status: res.status, body: await res.json() } : null;
+    };
+    let blocked = true;
+    for (const [c, r] of [
+      ['CU', undefined],
+      ['IR', 'TEH'],
+      ['KP', undefined],
+      ['SY', 'DI'],
+      ['UA', '43'],
+      ['UA', '40'],
+      ['UA', '14'],
+      ['UA', '09'],
+      ['UA', '9'],
+      ['ua', '43'],
+      ['ir', undefined],
+    ] as Array<[string, string | undefined]>) {
+      const a = await at(c, r);
+      blocked &&= a?.status === 403 && a.body.code === 'REGION_RESTRICTED';
+    }
+    ok(
+      'checkout refuses Cuba, Iran, North Korea, Syria, Crimea, Sevastopol, Donetsk and Luhansk',
+      blocked
+    );
+    ok(
+      'and lets the rest of Ukraine, a neighbour, and an unplaced request through',
+      (await at('UA', '30')) === null &&
+        (await at('UA')) === null &&
+        (await at('RU', '43')) === null &&
+        (await at('US', 'CA')) === null &&
+        (await at()) === null
+    );
+    ok(
+      'the region refusal names no list and no detail',
+      (await at('IR'))?.body.error ===
+        'Purchases are not available in your region.'
+    );
+    const geoSrc = readFileSync('lib/geoblock.ts', 'utf8');
+    ok(
+      'the refused locations live in one constant, marked for the lawyer',
+      /export const RESTRICTED_CHECKOUT_LOCATIONS/.test(geoSrc) &&
+        /STA-49/.test(geoSrc) &&
+        ['CU', 'IR', 'KP', 'SY'].every((c) =>
+          G.RESTRICTED_CHECKOUT_LOCATIONS.countries.includes(c)
+        ) &&
+        ['UA-43', 'UA-40', 'UA-14', 'UA-09'].every((r) =>
+          G.RESTRICTED_CHECKOUT_LOCATIONS.regions.includes(r)
+        )
+    );
+    const checkout = withoutComments(
+      readFileSync('app/api/checkout/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const geoFirst = (src: string, before: string[]) => {
+      const at = src.indexOf(
+        'const geoblocked = checkoutGeoblock(request.headers); if (geoblocked) return geoblocked;'
+      );
+      return at !== -1 && before.every((b) => src.indexOf(b) > at);
+    };
+    ok(
+      'the USDC buy is geoblocked before anything is priced or signed',
+      geoFirst(buy, [
+        'payToAddress()',
+        'readBodyCapped(',
+        'await getResourceServer()',
+        'screenPayer(',
+      ])
+    );
+    ok(
+      'card checkout is geoblocked before Stripe is touched',
+      geoFirst(checkout, ['isStripeConfigured()', 'createPackCheckoutSession('])
+    );
+
+    // --- five years, and no longer
+    {
+      const db = fakeDb(() => ({ rows: [{}, {}, {}] }));
+      const { SANCTIONS_SCREENING_RETENTION_YEARS } =
+        await import('@/app/api/cron/cleanup/route');
+      const removed = await S.deleteOldScreenings(
+        db,
+        SANCTIONS_SCREENING_RETENTION_YEARS,
+        5000
+      );
+      const purge = db.sent[0];
+      ok(
+        'screening records are kept five years',
+        SANCTIONS_SCREENING_RETENTION_YEARS === 5 &&
+          purge.params.includes(5) &&
+          removed === 3
+      );
+      ok(
+        'the purge takes only rows older than the period, and checks each row again before it goes',
+        /^WITH due AS \( SELECT id FROM sanctions_screenings WHERE screened_at < now\(\) - make_interval\(years => \$1::int\) LIMIT \$2 \) DELETE FROM sanctions_screenings s USING due WHERE s\.id = due\.id AND s\.screened_at < now\(\) - make_interval\(years => \$3::int\) RETURNING 1$/.test(
+          purge.sql
+        ) &&
+          purge.params[0] === 5 &&
+          purge.params[2] === 5
+      );
+      const cleanupRun = withoutComments(
+        readFileSync('app/api/cron/cleanup/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      const runPart = cleanupRun.slice(
+        cleanupRun.indexOf('async function run(')
+      );
+      const purgeAt = runPart.indexOf(
+        'sanctionsScreenings = await deleteOldScreenings( db, SANCTIONS_SCREENING_RETENTION_YEARS, SANCTIONS_SCREENING_DELETE_BATCH );'
+      );
+      ok(
+        'the daily cleanup runs the purge in its own try and reports it',
+        purgeAt !== -1 &&
+          /let sanctionsScreenings: number \| null = null; try \{ sanctionsScreenings = await deleteOldScreenings\( db, SANCTIONS_SCREENING_RETENTION_YEARS, SANCTIONS_SCREENING_DELETE_BATCH \); \} catch \(error\) \{ console\.error\('Sanctions screening cleanup error:', error\); \}/.test(
+            runPart
+          ) &&
+          /sanctionsScreenings, oauthAccessTokens, \}\);/.test(runPart)
+      );
+    }
+
+    // --- the schedule, the alert and the backup
+    const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as {
+      crons: Array<{ path: string; schedule: string }>;
+    };
+    ok(
+      'the refresh runs every six hours',
+      vercel.crons.some(
+        (c) =>
+          c.path === '/api/cron/sanctions-refresh' &&
+          /^\d{1,2} \*\/6 \* \* \*$/.test(c.schedule)
+      )
+    );
+    const cron = withoutComments(
+      readFileSync('app/api/cron/sanctions-refresh/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'the refresh reports its real outcome to the health panel, and a failed run is not a 200',
+      /eventSubtype: 'sanctions_refresh', ok: outcome\.ok,/.test(cron) &&
+        /status: outcome\.ok \? 200 : 502/.test(cron)
+    );
+    ok(
+      'an override only counts with the cron secret set',
+      /cronSecret && acceptParam !== null/.test(cron)
+    );
+    const health = withoutComments(
+      readFileSync('app/api/admin/health/dependencies/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      'the health panel alerts after 36 hours without a successful refresh',
+      S.SANCTIONS_ALERT_AFTER_HOURS === 36 &&
+        /subtype: 'sanctions_refresh', maxAgeHours: SANCTIONS_ALERT_AFTER_HOURS, reportsOutcome: true,/.test(
+          health
+        )
+    );
+    ok(
+      'and it counts a recent freeze as something wrong',
+      /recentFreezes: frozenAccounts\?\.recent \?\? null/.test(health) &&
+        /!summary\.recentFreezes/.test(
+          readFileSync('components/admin/DependencyHealth.tsx', 'utf8')
+        )
+    );
+    const backupList =
+      readFileSync('scripts/migrate-grant-readonly.ts', 'utf8').match(
+        /const BACKUP_TABLES = \[([\s\S]*?)\]/
+      )?.[1] ?? '';
+    ok(
+      'the screening record is in the nightly dump and the rebuildable list is not',
+      /'sanctions_screenings'/.test(backupList) &&
+        !/'sanctioned_addresses'/.test(backupList)
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

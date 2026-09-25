@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { checkoutGeoblock } from '@/lib/geoblock';
 import { createPackCheckoutSession, isStripeConfigured } from '@/lib/stripe';
 import { isPackId, PACK_IDS } from '@/lib/packs';
 
@@ -24,6 +25,10 @@ interface CheckoutRequest {
  * payments. Only the path that *creates* a tier checkout is closed.
  */
 export async function POST(request: NextRequest) {
+  // Before anything else, Stripe included (lib/geoblock.ts, Linear STA-41).
+  const geoblocked = checkoutGeoblock(request.headers);
+  if (geoblocked) return geoblocked;
+
   try {
     if (!isStripeConfigured()) {
       return NextResponse.json(

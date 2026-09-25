@@ -77,6 +77,8 @@ import {
   getOrCreateWalletAccount,
   countSettledPurchases,
 } from '@/lib/x402-account';
+import { sanctionsRefusal, screenPayer } from '@/lib/sanctions';
+import { checkoutGeoblock } from '@/lib/geoblock';
 import { createApiKeyIfUnderCap, validateApiKey } from '@/lib/api-keys';
 import { readBodyCapped } from '@/lib/api-auth';
 import { looksLikeAccessToken } from '@/lib/oauth/grants';
@@ -110,6 +112,10 @@ function unb64(value: string): unknown {
 }
 
 export async function POST(request: NextRequest) {
+  // Before anything is priced or signed (lib/geoblock.ts, Linear STA-41).
+  const geoblocked = checkoutGeoblock(request.headers);
+  if (geoblocked) return geoblocked;
+
   const payTo = payToAddress();
   if (!payTo) {
     // Unset by design. A payment rail with a default address is a rail that
@@ -414,6 +420,15 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+
+  /**
+   * The sanctions screen (lib/sanctions.ts, Linear STA-41), as soon as the
+   * payer is known and before anything reads, verifies or settles. A listed
+   * payer is refused with 403; a list that is missing or too old, or a screen
+   * that cannot run, refuses with 503. Either way no money moves.
+   */
+  const screened = sanctionsRefusal((await screenPayer(payer)).verdict);
+  if (screened) return screened;
 
   /**
    * Has this payment already been honoured?

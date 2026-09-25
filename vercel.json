@@ -79,6 +79,10 @@
     {
       "path": "/api/cron/refresh-hero",
       "schedule": "20 9 * * *"
+    },
+    {
+      "path": "/api/cron/sanctions-refresh",
+      "schedule": "15 */6 * * *"
     }
   ],
   "headers": [

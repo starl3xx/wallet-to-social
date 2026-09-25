@@ -319,6 +319,15 @@ export const users = pgTable(
      * would rewrite the acquisition source every time somebody logged in.
      */
     acquisition: text('acquisition'),
+    /**
+     * When the account was frozen, and why. Set by `freezeListedBuyers` in
+     * lib/sanctions.ts when a wallet that paid on the USDC rail is later on
+     * the sanctions list (Linear STA-41), and never cleared by code. A frozen
+     * account's keys do not validate and it cannot spend (lib/account-freeze.ts).
+     * Applied by scripts/migrate-sanctions-screening.ts.
+     */
+    frozenAt: timestamp('frozen_at', { withTimezone: true }),
+    frozenReason: text('frozen_reason'),
   },
   (table) => [
     index('users_email_idx').on(table.email),
@@ -1530,3 +1539,50 @@ export type NewSuppressedIdentifier = typeof suppressedIdentifiers.$inferInsert;
 export type SuppressionQuarantine = typeof suppressionQuarantine.$inferSelect;
 export type NewSuppressionQuarantine =
   typeof suppressionQuarantine.$inferInsert;
+
+/**
+ * The EVM addresses on OFAC's SDN list, lowercased: the list the USDC rail
+ * screens its payers against (Linear STA-41). Replaced whole, in one
+ * statement, by the six-hourly refresh (`replaceSanctionsList` in
+ * lib/sanctions.ts), which never puts an empty or sharply smaller list in
+ * force. The list's own metadata (publish date, last successful refresh) is
+ * the `sanctions_list` row of `ingest_state`, written in the same statement.
+ * Rebuildable from OFAC, so not in the nightly dump.
+ */
+export const sanctionedAddresses = pgTable('sanctioned_addresses', {
+  address: text('address').primaryKey(),
+  /** The SDN entry that lists it. */
+  sdnUid: text('sdn_uid').notNull(),
+  entity: text('entity').notNull(),
+  /** The tickers OFAC filed it under, comma-joined, e.g. `ETH,USDT`. */
+  tickers: text('tickers').notNull(),
+  /** When a refresh first put it in force here. Never updated. */
+  firstSeenAt: timestamp('first_seen_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * One row per screening of a USDC payer: the address, the publish date of the
+ * list it was screened against (NULL when there was none), the verdict and
+ * the time. Kept five years, then deleted by the daily cleanup
+ * (`SANCTIONS_SCREENING_RETENTION_YEARS` in app/api/cron/cleanup/route.ts).
+ * In the nightly dump: it is a compliance record.
+ */
+export const sanctionsScreenings = pgTable(
+  'sanctions_screenings',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    address: text('address').notNull(),
+    listPublishDate: date('list_publish_date'),
+    /** clear | listed | stale | missing */
+    verdict: text('verdict').notNull(),
+    screenedAt: timestamp('screened_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('sanctions_screenings_screened_at_idx').on(table.screenedAt),
+    index('sanctions_screenings_address_idx').on(table.address),
+  ]
+);

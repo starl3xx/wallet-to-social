@@ -732,8 +732,8 @@ const MUTATIONS: Mutation[] = [
     // keeps this applying to the dump list and not the read-only list.
     name: 'BACKUP_TABLES diverges from the pg_dump list',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'suppressed_identifiers',\n];\n\nconst GRANTS",
-    to: "  'suppressed_identifiers',\n  'x402_recovery_redemptions',\n];\n\nconst GRANTS",
+    from: "  'sanctions_screenings',\n];\n\nconst GRANTS",
+    to: "  'sanctions_screenings',\n  'x402_recovery_redemptions',\n];\n\nconst GRANTS",
   },
 
   // --- the MCP server's OAuth flow ----------------------------------------
@@ -989,8 +989,8 @@ const MUTATIONS: Mutation[] = [
     // dump list's last entry is now 'suppressed_identifiers'.
     name: 'a grant table joins the nightly dump, so a restore resurrects a revoked connection',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'suppressed_identifiers',\n];\n\nconst GRANTS",
-    to: "  'suppressed_identifiers',\n  'oauth_grants',\n];\n\nconst GRANTS",
+    from: "  'sanctions_screenings',\n];\n\nconst GRANTS",
+    to: "  'sanctions_screenings',\n  'oauth_grants',\n];\n\nconst GRANTS",
   },
   {
     name: 'a refresh rotates in its own statement again, so a failed mint burns the token',
@@ -2955,14 +2955,16 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the quarantine table joins the nightly dump, stretching 30 days into a 90-day artifact',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'suppressed_identifiers',\n];\n\nconst GRANTS",
-    to: "  'suppressed_identifiers',\n  'suppression_quarantine',\n];\n\nconst GRANTS",
+    from: "  'sanctions_screenings',\n];\n\nconst GRANTS",
+    to: "  'sanctions_screenings',\n  'suppression_quarantine',\n];\n\nconst GRANTS",
   },
   {
     name: 'the suppression list leaves the dump, so a restore un-removes everyone who asked',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'suppressed_identifiers',\n];\n\nconst GRANTS",
-    to: '];\n\nconst GRANTS',
+    // Re-anchored 2026-09-25: `sanctions_screenings` now follows it in the
+    // list, so the seeded defect deletes this line alone.
+    from: "  'suppressed_identifiers',\n  // Added 2026-09-25 with sanctions screening",
+    to: '  // Added 2026-09-25 with sanctions screening',
   },
   {
     // The refusal is deleted but the logging stays, which is how fail-open
@@ -4338,6 +4340,278 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/retention.ts',
     from: '    if (removed === 0 || Date.now() >= deadline) return total;',
     to: '    if (removed < 5000 || Date.now() >= deadline) return total;',
+  },
+
+  // --- sanctions screening (STA-41) ---------------------------------------
+  {
+    name: 'STA-41 the SDN parse keeps the case OFAC printed, so a lowercased payer misses a mixed-case listing',
+    file: 'lib/sanctions.ts',
+    from: '      const address = token[0].toLowerCase();',
+    to: '      const address = token[0];',
+  },
+  {
+    name: 'STA-41 the SDN parse stops checking its entry count against Record_Count',
+    file: 'lib/sanctions.ts',
+    from: '  if (entries !== Number(declared[1])) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'STA-41 the SDN parse accepts a download cut short',
+    file: 'lib/sanctions.ts',
+    from: '  if (!/<\\/sdnList>\\s*$/.test(xml)) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'STA-41 the SDN parse takes the first 40 hex of a transaction hash as an address',
+    file: 'lib/sanctions.ts',
+    from: 'const EVM_TOKEN = /(?<![0-9a-fA-F])0[xX][0-9a-fA-F]{40}(?![0-9a-fA-F])/g;',
+    to: 'const EVM_TOKEN = /0[xX][0-9a-fA-F]{40}/g;',
+  },
+  {
+    name: 'STA-41 the SDN parse reads currency ids alone, so a renamed id type shortens the list',
+    file: 'lib/sanctions.ts',
+    from: '    for (const token of body.matchAll(EVM_TOKEN)) {',
+    to: '    for (const token of [...tickers.keys()].map((k) => [k])) {',
+  },
+  {
+    name: 'STA-41 an empty parse replaces the list',
+    file: 'lib/sanctions.ts',
+    from: "  if (incoming.count <= 0) return 'empty';\n",
+    to: '',
+  },
+  {
+    name: 'STA-41 the drop guard never fires',
+    file: 'lib/sanctions.ts',
+    from: '    incoming.count < current.count * (1 - SANCTIONS_MAX_DROP) &&',
+    to: '    incoming.count < 0 &&',
+  },
+  {
+    name: 'STA-41 the drop guard is widened until it cannot bind',
+    file: 'lib/sanctions.ts',
+    from: 'export const SANCTIONS_MAX_DROP = 0.2;',
+    to: 'export const SANCTIONS_MAX_DROP = 0.9;',
+  },
+  {
+    name: 'STA-41 any override count accepts any drop',
+    file: 'lib/sanctions.ts',
+    from: '    acceptCount !== incoming.count',
+    to: '    acceptCount === null',
+  },
+  {
+    name: 'STA-41 an older publication replaces a newer one',
+    file: 'lib/sanctions.ts',
+    from: '  if (current.publishDate && incoming.publishDate < current.publishDate) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'STA-41 a refused list is written anyway',
+    file: 'lib/sanctions.ts',
+    from: '    if (!refused) applied = await replaceSanctionsList(db, list, now);',
+    to: '    applied = await replaceSanctionsList(db, list, now);',
+  },
+  {
+    name: 'STA-41 a refresh stops re-checking past buyers',
+    file: 'lib/sanctions.ts',
+    from: '    freeze = await freezeListedBuyers(\n',
+    to: '    if (false) freeze = await freezeListedBuyers(\n',
+  },
+  {
+    name: 'STA-41 a listed buyer is frozen but keeps working keys',
+    file: 'lib/sanctions.ts',
+    from: '        SET is_active = false\n        FROM hits',
+    to: '        SET is_active = k.is_active\n        FROM hits',
+  },
+  {
+    name: 'STA-41 the freeze reads the nonce instead of the payer',
+    file: 'lib/sanctions.ts',
+    from: "            ON s.address = split_part(l.settlement_id, ':', 3)",
+    to: "            ON s.address = split_part(l.settlement_id, ':', 4)",
+  },
+  {
+    name: 'STA-41 the freeze never stamps the account',
+    file: 'lib/sanctions.ts',
+    from: '        SET frozen_at = now(),',
+    to: '        SET frozen_at = frozen_at,',
+  },
+  {
+    name: 'STA-41 a second run moves the freeze time',
+    file: 'lib/sanctions.ts',
+    from: '        WHERE u.id = hits.user_id AND u.frozen_at IS NULL',
+    to: '        WHERE u.id = hits.user_id',
+  },
+  {
+    name: 'STA-41 a frozen account’s keys still validate',
+    file: 'lib/api-keys.ts',
+    from: '  if (frozenAt) {\n    return null;\n  }',
+    to: '',
+  },
+  {
+    name: 'STA-41 a frozen account can still start a lookup',
+    file: 'lib/credits.ts',
+    from: '  if (await isAccountFrozen(userId)) {\n    return {\n      allowed: false,',
+    to: '  if (false) {\n    return {\n      allowed: false,',
+  },
+  {
+    name: 'STA-41 a frozen account can still unlock matches',
+    file: 'lib/credits.ts',
+    from: '  if (await isAccountFrozen(userId)) {\n    return { ok: false, reason: FROZEN_ACCOUNT_MESSAGE };',
+    to: '  if (false) {\n    return { ok: false, reason: FROZEN_ACCOUNT_MESSAGE };',
+  },
+  {
+    name: 'STA-41 the buy route never screens the payer',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  const screened = sanctionsRefusal((await screenPayer(payer)).verdict);\n  if (screened) return screened;\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 the buy route screens and ignores the verdict',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  if (screened) return screened;\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 a listed payer is answered 200',
+    file: 'lib/sanctions.ts',
+    from: '      { status: 403 }',
+    to: '      { status: 200 }',
+  },
+  {
+    name: 'STA-41 only a listed verdict refuses, so a stale list sells',
+    file: 'lib/sanctions.ts',
+    from: "  if (verdict === 'clear') return null;",
+    to: "  if (verdict !== 'listed') return null;",
+  },
+  {
+    name: 'STA-41 a screen that cannot run lets the sale through',
+    file: 'lib/sanctions.ts',
+    from: "    console.error('[sanctions] screening could not run; refusing:', error);\n    return { verdict: 'error', publishDate: null };",
+    to: "    console.error('[sanctions] screening could not run; refusing:', error);\n    return { verdict: 'clear', publishDate: null };",
+  },
+  {
+    name: 'STA-41 an aged list is never stale',
+    file: 'lib/sanctions.ts',
+    from: "  if (!(age <= SANCTIONS_REFUSE_AFTER_DAYS * DAY_MS)) return 'stale';\n",
+    to: '',
+  },
+  {
+    name: 'STA-41 no list at all screens as clear',
+    file: 'lib/sanctions.ts',
+    from: "  if (!state) return 'missing';",
+    to: "  if (!state) return 'clear';",
+  },
+  {
+    name: 'STA-41 the stale window stretches to seventy days',
+    file: 'lib/sanctions.ts',
+    from: 'export const SANCTIONS_REFUSE_AFTER_DAYS = 7;',
+    to: 'export const SANCTIONS_REFUSE_AFTER_DAYS = 70;',
+  },
+  {
+    name: 'STA-41 the screening is not recorded',
+    file: 'lib/sanctions.ts',
+    from: '    await db.execute(sql`\n      INSERT INTO sanctions_screenings',
+    to: '    void (sql`\n      INSERT INTO sanctions_screenings',
+  },
+  {
+    name: 'STA-41 a payer is looked up in the case it arrived in',
+    file: 'lib/sanctions.ts',
+    from: '  const address = payer.trim().toLowerCase();',
+    to: '  const address = payer.trim();',
+  },
+  {
+    name: 'STA-41 Syria drops off the checkout geoblock',
+    file: 'lib/geoblock.ts',
+    from: "  countries: ['CU', 'IR', 'KP', 'SY'],",
+    to: "  countries: ['CU', 'IR', 'KP'],",
+  },
+  {
+    name: 'STA-41 the region code is compared without its country',
+    file: 'lib/geoblock.ts',
+    from: "  const code = r.includes('-') ? r : `${c}-${/^\\d$/.test(r) ? `0${r}` : r}`;",
+    to: '  const code = r;',
+  },
+  {
+    name: 'STA-41 the USDC buy is not geoblocked',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  const geoblocked = checkoutGeoblock(request.headers);\n  if (geoblocked) return geoblocked;\n\n  const payTo',
+    to: '  const payTo',
+  },
+  {
+    name: 'STA-41 card checkout is not geoblocked',
+    file: 'app/api/checkout/route.ts',
+    from: '  const geoblocked = checkoutGeoblock(request.headers);\n  if (geoblocked) return geoblocked;\n\n  try {',
+    to: '  try {',
+  },
+  {
+    name: 'STA-41 screening records are kept one year',
+    file: 'app/api/cron/cleanup/route.ts',
+    from: 'export const SANCTIONS_SCREENING_RETENTION_YEARS = 5;',
+    to: 'export const SANCTIONS_SCREENING_RETENTION_YEARS = 1;',
+  },
+  {
+    name: 'STA-41 the purge deletes the young records',
+    file: 'lib/sanctions.ts',
+    from: '        WHERE screened_at < ${cutoff}',
+    to: '        WHERE screened_at > ${cutoff}',
+  },
+  {
+    name: 'STA-41 the purge stops re-checking the row it deletes',
+    file: 'lib/sanctions.ts',
+    from: '      WHERE s.id = due.id AND s.screened_at < ${cutoff}',
+    to: '      WHERE s.id = due.id',
+  },
+  {
+    name: 'STA-41 the daily cleanup never runs the purge',
+    file: 'app/api/cron/cleanup/route.ts',
+    from: '    sanctionsScreenings = await deleteOldScreenings(',
+    to: '    sanctionsScreenings = 0 && await deleteOldScreenings(',
+  },
+  {
+    name: 'STA-41 the refresh runs once a day',
+    file: 'vercel.json',
+    from: '"schedule": "15 */6 * * *"',
+    to: '"schedule": "15 6 * * *"',
+  },
+  {
+    name: 'STA-41 a failed refresh reports ok to the health panel',
+    file: 'app/api/cron/sanctions-refresh/route.ts',
+    from: '        ok: outcome.ok,',
+    to: '        ok: true,',
+  },
+  {
+    name: 'STA-41 a failed refresh answers 200',
+    file: 'app/api/cron/sanctions-refresh/route.ts',
+    from: '{ status: outcome.ok ? 200 : 502 }',
+    to: '{ status: 200 }',
+  },
+  {
+    name: 'STA-41 an override is honored with no cron secret',
+    file: 'app/api/cron/sanctions-refresh/route.ts',
+    from: '    cronSecret && acceptParam !== null',
+    to: '    acceptParam !== null',
+  },
+  {
+    name: 'STA-41 the refresh alert waits three days',
+    file: 'lib/sanctions.ts',
+    from: 'export const SANCTIONS_ALERT_AFTER_HOURS = 36;',
+    to: 'export const SANCTIONS_ALERT_AFTER_HOURS = 72;',
+  },
+  {
+    name: 'STA-41 the health panel stops watching the refresh',
+    file: 'app/api/admin/health/dependencies/route.ts',
+    from: '    maxAgeHours: SANCTIONS_ALERT_AFTER_HOURS,',
+    to: '    maxAgeHours: 1000,',
+  },
+  {
+    name: 'STA-41 a recent freeze no longer turns the panel red',
+    file: 'components/admin/DependencyHealth.tsx',
+    from: '    summary.databaseReachable === true &&\n    !summary.recentFreezes;',
+    to: '    summary.databaseReachable === true;',
+  },
+  {
+    name: 'STA-41 the screening record leaves the nightly dump',
+    file: 'scripts/migrate-grant-readonly.ts',
+    from: "  'sanctions_screenings',\n];\n\nconst GRANTS",
+    to: '];\n\nconst GRANTS',
   },
 ];
 

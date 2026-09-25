@@ -1,7 +1,13 @@
 import { createHash, randomBytes } from 'crypto';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { apiKeys, apiPlans, type ApiKey, type ApiPlan } from '@/db/schema';
+import {
+  apiKeys,
+  apiPlans,
+  users,
+  type ApiKey,
+  type ApiPlan,
+} from '@/db/schema';
 import { API_PLANS } from '@/lib/api-plans';
 
 // Key format: wts_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (32 random chars)
@@ -175,9 +181,11 @@ async function lookupActiveKey(
     .select({
       key: apiKeys,
       plan: apiPlans,
+      frozenAt: users.frozenAt,
     })
     .from(apiKeys)
     .innerJoin(apiPlans, eq(apiKeys.plan, apiPlans.id))
+    .innerJoin(users, eq(apiKeys.userId, users.id))
     .where(eq(apiKeys.key, hashedKey))
     .limit(1);
 
@@ -185,7 +193,17 @@ async function lookupActiveKey(
     return null;
   }
 
-  const { key, plan } = result[0];
+  const { key, plan, frozenAt } = result[0];
+
+  /**
+   * A frozen account's keys do not validate (lib/account-freeze.ts). Read
+   * from the account rather than trusted to the keys the freeze deactivated,
+   * so a key minted after the freeze (a recovery, an OAuth refresh) is
+   * refused too.
+   */
+  if (frozenAt) {
+    return null;
+  }
 
   // Check if key is active
   if (!key.isActive) {

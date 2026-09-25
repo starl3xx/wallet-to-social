@@ -42,6 +42,7 @@ import {
   type X402PackId,
 } from '@/lib/packs';
 import type { UserTier } from '@/lib/access';
+import { FROZEN_ACCOUNT_MESSAGE, isAccountFrozen } from '@/lib/account-freeze';
 
 /**
  * Legacy tiers bought under the old one-time model are never metered.
@@ -277,6 +278,16 @@ export async function canSubmit(
   walletCount: number,
   tier: UserTier
 ): Promise<SubmissionVerdict> {
+  // First, ahead of the unmetered tiers: a frozen account starts nothing.
+  if (await isAccountFrozen(userId)) {
+    return {
+      allowed: false,
+      reason: FROZEN_ACCOUNT_MESSAGE,
+      maxWallets: 0,
+      balance: EMPTY_BALANCE,
+    };
+  }
+
   if (legacyTierIsUnmetered(tier)) {
     /**
      * The one condition on "unlimited forever", and it is an anti-enumeration
@@ -650,6 +661,11 @@ export async function unlockJobMatches(
 
   const db = getDb();
   if (!db) return { ok: false, reason: 'Database not configured.' };
+
+  // A frozen account's credits are held (lib/account-freeze.ts).
+  if (await isAccountFrozen(userId)) {
+    return { ok: false, reason: FROZEN_ACCOUNT_MESSAGE };
+  }
 
   const balance = await getBalance(userId);
   if (balance.onFreeAllowance || balance.available < matches) {
