@@ -5,6 +5,7 @@ import { isAccountFrozen } from '@/lib/account-freeze';
 import { sanctionsRefusal } from '@/lib/sanctions';
 import { createPackCheckoutSession, isStripeConfigured } from '@/lib/stripe';
 import { isPackId, PACK_IDS } from '@/lib/packs';
+import { TERMS_URL, TERMS_VERSION } from '@/lib/terms';
 
 export const runtime = 'nodejs';
 
@@ -12,6 +13,10 @@ interface CheckoutRequest {
   email: string;
   /** A credit pack. The only thing this endpoint sells. */
   pack?: string;
+  /** The buyer ticked "I agree to the Terms of Service". Must be `true`. */
+  acceptTerms?: unknown;
+  /** The `TERMS_VERSION` the buyer's page showed next to that box. */
+  termsVersion?: unknown;
 }
 
 /**
@@ -71,7 +76,47 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const packSession = await createPackCheckoutSession(email, pack);
+    /**
+     * The buyer's agreement to the terms, refused here rather than trusted to
+     * the checkbox. The modal will not post without the box ticked, but this
+     * route is public, and an agreement the server never checked is one it
+     * cannot claim to have recorded. Refused before Stripe is called, so a
+     * refusal costs nothing and opens no session.
+     *
+     * `=== true`, not truthy: `"false"` and `1` are not an agreement.
+     */
+    if (body.acceptTerms !== true) {
+      return NextResponse.json(
+        {
+          error: `Agree to the Terms of Service to continue: ${TERMS_URL}`,
+          code: 'TERMS_NOT_ACCEPTED',
+        },
+        { status: 400 }
+      );
+    }
+
+    /**
+     * And to THESE terms. A tab left open across a terms update shows the old
+     * version beside its checkbox; recording the new version for that buyer
+     * would say they agreed to a page they never saw, and recording the old one
+     * would record terms no longer offered. So the page reloads instead.
+     */
+    if (body.termsVersion !== TERMS_VERSION) {
+      return NextResponse.json(
+        {
+          error:
+            'The Terms of Service changed since this page loaded. Reload the page, review them, and agree again.',
+          code: 'TERMS_VERSION_STALE',
+        },
+        { status: 409 }
+      );
+    }
+
+    // Server time, at the moment the ticked box reached us.
+    const packSession = await createPackCheckoutSession(email, pack, {
+      version: TERMS_VERSION,
+      acceptedAt: new Date(),
+    });
     return NextResponse.json(packSession);
   } catch (error) {
     console.error('Checkout error:', error);

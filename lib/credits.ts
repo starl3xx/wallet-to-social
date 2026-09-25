@@ -41,6 +41,11 @@ import {
   type PackId,
   type X402PackId,
 } from '@/lib/packs';
+import {
+  acceptanceByPayment,
+  termsColumns,
+  type TermsAcceptance,
+} from '@/lib/terms';
 import type { UserTier } from '@/lib/access';
 import { FROZEN_ACCOUNT_MESSAGE, isAccountFrozen } from '@/lib/account-freeze';
 
@@ -878,7 +883,14 @@ export async function grantPack(
   userId: string,
   pack: PackId,
   stripePaymentId: string,
-  amountCents: number
+  amountCents: number,
+  /**
+   * What the buyer agreed to at checkout, read back from the Stripe metadata.
+   * Required rather than optional so no caller can grant without deciding;
+   * null records that no agreement was captured (a session opened before the
+   * checkbox), and the pack is granted either way.
+   */
+  terms: TermsAcceptance | null
 ): Promise<boolean> {
   const db = getDb();
   if (!db) return false;
@@ -894,6 +906,7 @@ export async function grantPack(
       pack,
       amountCents,
       stripePaymentId,
+      ...termsColumns(terms),
       expiresAt,
     });
     await bookSale(userId, pack, amountCents, 'stripe', stripePaymentId);
@@ -990,6 +1003,10 @@ export async function grantPackBySettlement(
       amountCents,
       settlementId,
       rail: 'x402',
+      // The payment is the acceptance: the 402 challenge named the terms and
+      // their version before anything was signed, and this runs directly
+      // after settlement, so it records the version in force when it settled.
+      ...termsColumns(acceptanceByPayment()),
       expiresAt,
     });
     await bookSale(userId, pack, amountCents, 'x402', settlementId);

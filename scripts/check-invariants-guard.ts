@@ -5590,6 +5590,152 @@ const MUTATIONS: Mutation[] = [
     from: 'through `Gmail.Users.Threads.remove`, not\nTrash.',
     to: 'through `GmailApp.moveThreadToTrash`, then\nTrash.',
   },
+  // The terms, agreed where money changes hands (STA-47). Each is a way the
+  // record the terms page promises could quietly stop being true.
+  {
+    name: 'terms: checkout opens Stripe without the box ticked',
+    file: 'app/api/checkout/route.ts',
+    from: '    if (body.acceptTerms !== true) {',
+    to: '    if (false) {',
+  },
+  {
+    name: 'terms: checkout takes any truthy value as an agreement',
+    file: 'app/api/checkout/route.ts',
+    from: '    if (body.acceptTerms !== true) {',
+    to: '    if (!body.acceptTerms) {',
+  },
+  {
+    name: 'terms: checkout records an agreement to terms the page no longer shows',
+    file: 'app/api/checkout/route.ts',
+    from: '    if (body.termsVersion !== TERMS_VERSION) {',
+    to: '    if (false) {',
+  },
+  {
+    name: 'terms: the session metadata drops the acceptance',
+    file: 'lib/stripe.ts',
+    from: '      email: normalizedEmail,\n      ...termsMetadata(terms),\n',
+    to: '      email: normalizedEmail,\n',
+  },
+  {
+    name: 'terms: the PaymentIntent mirror drops the acceptance',
+    file: 'lib/stripe.ts',
+    from: '        email: normalizedEmail,\n        ...termsMetadata(terms),\n',
+    to: '        email: normalizedEmail,\n',
+  },
+  {
+    name: 'terms: the checkout.session grant ignores the acceptance',
+    file: 'app/api/webhook/route.ts',
+    from: "      'checkout.session',\n      termsAcceptanceFrom(session.metadata)\n",
+    to: "      'checkout.session',\n      null\n",
+  },
+  {
+    name: 'terms: the payment_intent grant ignores the acceptance',
+    file: 'app/api/webhook/route.ts',
+    from: "      'payment_intent',\n      termsAcceptanceFrom(paymentIntent.metadata)\n",
+    to: "      'payment_intent',\n      null\n",
+  },
+  {
+    name: 'terms: the webhook reads the acceptance and never passes it on',
+    file: 'app/api/webhook/route.ts',
+    from: '    amountCents,\n    terms\n  );',
+    to: '    amountCents,\n    null\n  );',
+  },
+  {
+    name: 'terms: the success page grants first and records no acceptance',
+    file: 'app/api/auth/checkout-status/route.ts',
+    from: '        termsAcceptanceFrom(session.metadata)\n      );',
+    to: '        null\n      );',
+  },
+  {
+    name: 'terms: the fulfilment drops the acceptance before the grant',
+    file: 'lib/pack-fulfilment.ts',
+    from: '    amountCents || PACKS[pack].priceCents,\n    terms\n  );',
+    to: '    amountCents || PACKS[pack].priceCents,\n    null\n  );',
+  },
+  {
+    name: 'terms: a card grant inserts the lot without the acceptance',
+    file: 'lib/credits.ts',
+    from: '      stripePaymentId,\n      ...termsColumns(terms),\n',
+    to: '      stripePaymentId,\n',
+  },
+  {
+    name: 'terms: an onchain grant records no terms version',
+    file: 'lib/credits.ts',
+    from: '      ...termsColumns(acceptanceByPayment()),\n',
+    to: '',
+  },
+  {
+    name: 'terms: the version check accepts a date that does not exist',
+    file: 'lib/terms.ts',
+    from: '    d.getUTCDate() === Number(m[3])',
+    to: '    true',
+  },
+  {
+    name: 'terms: the metadata reader returns an unparseable acceptance time',
+    file: 'lib/terms.ts',
+    from: '  if (Number.isNaN(acceptedAt.getTime())) return null;\n',
+    to: '',
+  },
+  {
+    name: 'terms: the printed date is typed instead of derived from the version',
+    file: 'lib/terms.ts',
+    from: 'export const TERMS_UPDATED = updatedLabel(TERMS_VERSION);',
+    to: "export const TERMS_UPDATED = '24 September 2026';",
+  },
+  {
+    name: 'terms: the modal pre-ticks the box',
+    file: 'components/UpgradeModal.tsx',
+    from: '  const [agreed, setAgreed] = useState(false);',
+    to: '  const [agreed, setAgreed] = useState(true);',
+  },
+  {
+    name: 'terms: the modal keeps a tick from the last time it was open',
+    file: 'components/UpgradeModal.tsx',
+    from: '      setAgreed(false);\n',
+    to: '',
+  },
+  {
+    name: 'terms: the modal opens checkout with the box unticked',
+    file: 'components/UpgradeModal.tsx',
+    from: '    if (!agreed) {',
+    to: '    if (false) {',
+  },
+  {
+    name: 'terms: the modal tells the server the buyer agreed whatever they ticked',
+    file: 'components/UpgradeModal.tsx',
+    from: '          acceptTerms: agreed,',
+    to: '          acceptTerms: true,',
+  },
+  {
+    name: 'terms: the x402 challenge body loses the terms',
+    file: 'app/api/x402/buy/route.ts',
+    from: "        code: 'PAYMENT_REQUIRED',\n        terms: {\n          url: TERMS_URL,\n          version: TERMS_VERSION,\n          note: TERMS_DISCLOSURE,\n        },\n",
+    to: "        code: 'PAYMENT_REQUIRED',\n",
+  },
+  {
+    name: 'terms: the x402 challenge loses its terms-of-service Link',
+    file: 'app/api/x402/buy/route.ts',
+    from: '          Link: `<${TERMS_URL}>; rel="terms-of-service"`,\n',
+    to: '',
+  },
+  {
+    name: 'terms: PAYMENT-REQUIRED no longer discloses the terms to an auto-paying client',
+    file: 'app/api/x402/buy/route.ts',
+    from: ' ${TERMS_DISCLOSURE}`,',
+    to: '`,',
+  },
+  {
+    name: 'terms: the onchain buy starts requiring an agreement field and breaks paying agents',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  const totalCents = PACK.priceCents * quantity;',
+    to: "  if ((parsedBody as { acceptTerms?: unknown } | undefined)?.acceptTerms !== true) {\n    return NextResponse.json({ error: 'Agree to the terms.', code: 'TERMS_NOT_ACCEPTED' }, { status: 400 });\n  }\n  const totalCents = PACK.priceCents * quantity;",
+  },
+  {
+    name: 'terms: a route keeps its own copy of the terms version',
+    file: 'app/api/x402/buy/route.ts',
+    from: "import { TERMS_URL, TERMS_VERSION } from '@/lib/terms';",
+    to: "import { TERMS_URL } from '@/lib/terms';\nconst TERMS_VERSION = '2026-09-25';",
+  },
 ];
 
 function invariantsPass(): boolean {

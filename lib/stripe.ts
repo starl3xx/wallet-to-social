@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import { getSiteUrl } from '@/lib/site-url';
 import { PACKS, isPackId, type PackId } from '@/lib/packs';
 import { STRIPE_API_VERSION } from '@/lib/stripe-version';
+import { termsMetadata, type TermsAcceptance } from '@/lib/terms';
 
 // Initialize Stripe with secret key
 const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
@@ -27,10 +28,16 @@ interface CheckoutSessionResult {
  *
  * Same `mode: 'payment'`. That is the point of packs: no subscription
  * lifecycle, no portal, no dunning, no proration, and no revocation path.
+ *
+ * `terms` is the buyer's agreement, taken by `app/api/checkout/route.ts` before
+ * this is called. It rides in the metadata beside the pack, because the grant
+ * happens later and elsewhere (the webhook, or the success page's poll) and
+ * the metadata is the only thing all of them read.
  */
 export async function createPackCheckoutSession(
   email: string,
-  pack: PackId
+  pack: PackId,
+  terms: TermsAcceptance
 ): Promise<CheckoutSessionResult> {
   if (!stripe) {
     throw new Error('Stripe not configured');
@@ -67,14 +74,17 @@ export async function createPackCheckoutSession(
     metadata: {
       pack,
       email: normalizedEmail,
+      ...termsMetadata(terms),
     },
     // Mirrored onto the PaymentIntent because the webhook has two provisioning
     // paths and either may be the one that fires. A pack visible on only one of
-    // them is a payment taken with no credits granted.
+    // them is a payment taken with no credits granted, and the terms the same
+    // way: an acceptance on only one of them is a lot recorded without it.
     payment_intent_data: {
       metadata: {
         pack,
         email: normalizedEmail,
+        ...termsMetadata(terms),
       },
     },
   });

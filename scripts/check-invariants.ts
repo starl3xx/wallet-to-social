@@ -20364,6 +20364,383 @@ async function main() {
     );
   }
 
+  // -------------------- the terms: agreed where money changes hands (STA-47)
+  // Decided 2026-09-25: an explicit "I agree" at card checkout, a disclosure in
+  // the x402 challenge where the payment is the acceptance, and the version
+  // and time recorded on the lot either way. The terms page promises that
+  // record, so every link in the chain is asserted: the route refuses, the
+  // metadata carries it, every grant path reads it back, the insert writes it,
+  // and there is one version constant for all of them.
+  {
+    const terms = await import('@/lib/terms');
+    const { PRODUCTION_URL } = await import('@/lib/site-url');
+
+    ok(
+      'the terms version is a real calendar date',
+      terms.isTermsVersion(terms.TERMS_VERSION)
+    );
+    ok(
+      'and the version check refuses what is not one',
+      !terms.isTermsVersion('2026-02-30') &&
+        !terms.isTermsVersion('2026-9-25') &&
+        !terms.isTermsVersion('2026-09-25T00:00:00Z') &&
+        !terms.isTermsVersion('') &&
+        !terms.isTermsVersion(20260925) &&
+        !terms.isTermsVersion(undefined)
+    );
+    // Computed independently, through Intl, so the page's date and the
+    // recorded version cannot disagree without this failing.
+    ok(
+      'the date the terms page prints is derived from the version',
+      terms.TERMS_UPDATED ===
+        new Date(`${terms.TERMS_VERSION}T00:00:00Z`).toLocaleDateString(
+          'en-GB',
+          { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }
+        )
+    );
+    ok(
+      'the terms URL is the production origin plus the page path',
+      terms.TERMS_URL === `${PRODUCTION_URL}/terms` &&
+        terms.TERMS_PATH === '/terms'
+    );
+
+    // The metadata round trip every grant path depends on.
+    const at = new Date('2026-09-25T17:04:05.123Z');
+    const back = terms.termsAcceptanceFrom({
+      pack: 'trial',
+      ...terms.termsMetadata({ version: terms.TERMS_VERSION, acceptedAt: at }),
+    });
+    ok(
+      'an acceptance written to Stripe metadata reads back exactly',
+      back?.version === terms.TERMS_VERSION &&
+        back.acceptedAt.getTime() === at.getTime()
+    );
+    ok(
+      'an older version reads back as itself, not as the current one',
+      terms.termsAcceptanceFrom({
+        terms_version: '2026-01-15',
+        terms_accepted_at: at.toISOString(),
+      })?.version === '2026-01-15'
+    );
+    ok(
+      'metadata with no acceptance, or a broken one, reads as none at all',
+      terms.termsAcceptanceFrom({ pack: 'trial' }) === null &&
+        terms.termsAcceptanceFrom(null) === null &&
+        terms.termsAcceptanceFrom({
+          terms_version: '2026-02-30',
+          terms_accepted_at: at.toISOString(),
+        }) === null &&
+        terms.termsAcceptanceFrom({ terms_version: terms.TERMS_VERSION }) ===
+          null &&
+        terms.termsAcceptanceFrom({
+          terms_version: terms.TERMS_VERSION,
+          terms_accepted_at: 'yesterday',
+        }) === null
+    );
+    const none = terms.termsColumns(null);
+    const some = terms.termsColumns({
+      version: terms.TERMS_VERSION,
+      acceptedAt: at,
+    });
+    ok(
+      'a lot carries both terms columns or neither',
+      none.termsVersion === null &&
+        none.termsAcceptedAt === null &&
+        some.termsVersion === terms.TERMS_VERSION &&
+        some.termsAcceptedAt?.getTime() === at.getTime()
+    );
+    ok(
+      'an onchain payment accepts the version in force',
+      terms.acceptanceByPayment(at).version === terms.TERMS_VERSION &&
+        terms.acceptanceByPayment(at).acceptedAt === at
+    );
+
+    /**
+     * The checkout route, run: every refusal returns before Stripe is called.
+     *
+     * Only refusals are sent. The Trial price variable is removed for the
+     * duration, so that even under a mutation that deletes a refusal, the
+     * request stops at "not configured" inside `createPackCheckoutSession`
+     * and never reaches the network.
+     */
+    {
+      const { NextRequest } = await import('next/server');
+      const { POST: checkout } = await import('@/app/api/checkout/route');
+      const { PACKS } = await import('@/lib/packs');
+      const priceVar = PACKS.trial.priceEnvVar;
+      const savedKey = process.env.STRIPE_SECRET_KEY;
+      const savedPrice = process.env[priceVar];
+      const post = async (body: Record<string, unknown>) => {
+        const res = await checkout(
+          new NextRequest('http://localhost/api/checkout', {
+            method: 'POST',
+            body: JSON.stringify({
+              email: 'invariants@example.test',
+              pack: 'trial',
+              ...body,
+            }),
+          })
+        );
+        const json = (await res.json()) as { code?: string; error?: string };
+        return { status: res.status, ...json };
+      };
+      try {
+        process.env.STRIPE_SECRET_KEY = 'sk_test_invariants_not_a_key';
+        delete process.env[priceVar];
+        const bare = await post({});
+        ok(
+          'checkout without the terms ticked is refused with a 400',
+          bare.status === 400 && bare.code === 'TERMS_NOT_ACCEPTED'
+        );
+        ok(
+          'and the refusal names where the terms are',
+          (bare.error ?? '').includes(terms.TERMS_URL)
+        );
+        const truthy = await post({
+          acceptTerms: 'true',
+          termsVersion: terms.TERMS_VERSION,
+        });
+        ok(
+          'a truthy string is not an agreement',
+          truthy.status === 400 && truthy.code === 'TERMS_NOT_ACCEPTED'
+        );
+        const stale = await post({
+          acceptTerms: true,
+          termsVersion: '2020-01-01',
+        });
+        const missing = await post({ acceptTerms: true });
+        ok(
+          'an agreement to terms the page no longer shows is refused',
+          stale.status === 409 &&
+            stale.code === 'TERMS_VERSION_STALE' &&
+            missing.status === 409
+        );
+      } finally {
+        if (savedKey === undefined) delete process.env.STRIPE_SECRET_KEY;
+        else process.env.STRIPE_SECRET_KEY = savedKey;
+        if (savedPrice !== undefined) process.env[priceVar] = savedPrice;
+      }
+    }
+
+    const checkoutSrc = withoutComments(
+      readFileSync('app/api/checkout/route.ts', 'utf8')
+    );
+    const sessionAt = checkoutSrc.indexOf('createPackCheckoutSession(email');
+    ok(
+      'both terms refusals come before the Stripe session is created',
+      sessionAt > 0 &&
+        checkoutSrc.indexOf('body.acceptTerms !== true') > 0 &&
+        checkoutSrc.indexOf('body.acceptTerms !== true') < sessionAt &&
+        checkoutSrc.indexOf('body.termsVersion !== TERMS_VERSION') > 0 &&
+        checkoutSrc.indexOf('body.termsVersion !== TERMS_VERSION') < sessionAt
+    );
+    // The server's constant, never the version the client sent: the client's
+    // is only compared, so a request cannot choose what gets recorded.
+    ok(
+      'the recorded version is the server’s, stamped with the server’s clock',
+      /createPackCheckoutSession\(email, pack, \{\s*version: TERMS_VERSION,\s*acceptedAt: new Date\(\),?\s*\}\)/.test(
+        checkoutSrc
+      )
+    );
+
+    const stripeSrc = withoutComments(readFileSync('lib/stripe.ts', 'utf8'));
+    ok(
+      'the acceptance rides in the session metadata',
+      /\n {4}metadata: \{\s*pack,\s*email: normalizedEmail,\s*\.\.\.termsMetadata\(terms\),\s*\}/.test(
+        stripeSrc
+      )
+    );
+    ok(
+      'and is mirrored onto the PaymentIntent, as the pack is',
+      /payment_intent_data: \{\s*metadata: \{\s*pack,\s*email: normalizedEmail,\s*\.\.\.termsMetadata\(terms\),\s*\}/.test(
+        stripeSrc
+      )
+    );
+
+    // Every grant path reads the acceptance from the metadata it was given.
+    const webhookSrc = withoutComments(
+      readFileSync('app/api/webhook/route.ts', 'utf8')
+    );
+    ok(
+      'the checkout.session grant reads the acceptance from the session',
+      /'checkout\.session',\s*termsAcceptanceFrom\(session\.metadata\)/.test(
+        webhookSrc
+      )
+    );
+    ok(
+      'the payment_intent grant reads it from the PaymentIntent',
+      /'payment_intent',\s*termsAcceptanceFrom\(paymentIntent\.metadata\)/.test(
+        webhookSrc
+      )
+    );
+    ok(
+      'and the webhook hands it to the fulfilment',
+      /fulfilPackPurchase\(\s*email,\s*pack,\s*stripePaymentId,\s*amountCents,\s*terms\s*\)/.test(
+        webhookSrc
+      )
+    );
+    const pollSrc = withoutComments(
+      readFileSync('app/api/auth/checkout-status/route.ts', 'utf8')
+    );
+    ok(
+      'the success page’s grant records the same acceptance the webhook would',
+      /fulfilPackPurchase\([\s\S]{0,200}?termsAcceptanceFrom\(session\.metadata\)\s*\)/.test(
+        pollSrc
+      )
+    );
+    const fulfilSrc = withoutComments(
+      readFileSync('lib/pack-fulfilment.ts', 'utf8')
+    );
+    ok(
+      'the fulfilment passes the acceptance to the grant',
+      /grantPack\([\s\S]{0,160}?,\s*terms\s*\)/.test(fulfilSrc)
+    );
+
+    // And the insert writes it. Sliced to each function, so one grant's
+    // spread cannot vouch for the other's.
+    const creditsSrc = withoutComments(readFileSync('lib/credits.ts', 'utf8'));
+    const fnBody = (name: string) => {
+      const from = creditsSrc.indexOf(`export async function ${name}(`);
+      const next = creditsSrc.indexOf('\nexport ', from + 1);
+      return from === -1
+        ? ''
+        : creditsSrc.slice(from, next === -1 ? undefined : next);
+    };
+    const grantPackSrc = fnBody('grantPack');
+    ok(
+      'a card grant writes the acceptance into the lot it inserts',
+      /terms: TermsAcceptance \| null\s*\)/.test(grantPackSrc) &&
+        /db\.insert\(creditLots\)\.values\(\{[^}]*\.\.\.termsColumns\(terms\),[^}]*\}\)/.test(
+          grantPackSrc
+        )
+    );
+    ok(
+      'an onchain grant writes the version in force when it settled',
+      /db\.insert\(creditLots\)\.values\(\{[^}]*\.\.\.termsColumns\(acceptanceByPayment\(\)\),[^}]*\}\)/.test(
+        fnBody('grantPackBySettlement')
+      )
+    );
+
+    // The modal: unticked, required, and linked.
+    const modalTermsSrc = withoutComments(
+      readFileSync('components/UpgradeModal.tsx', 'utf8')
+    );
+    const fetchAt = modalTermsSrc.indexOf("fetch('/api/checkout'");
+    const guardAt = modalTermsSrc.indexOf('if (!agreed) {');
+    ok(
+      'the checkbox starts unticked, and unticks again on every open',
+      /const \[agreed, setAgreed\] = useState\(false\);/.test(modalTermsSrc) &&
+        /if \(open\) \{[^}]*setAgreed\(false\);/.test(modalTermsSrc)
+    );
+    ok(
+      'the modal will not open checkout unless the box is ticked',
+      guardAt > 0 &&
+        fetchAt > guardAt &&
+        /if \(!agreed\) \{[^}]*return;\s*\}/.test(modalTermsSrc)
+    );
+    ok(
+      'the modal sends what the buyer ticked and the version beside it',
+      /acceptTerms: agreed,/.test(modalTermsSrc) &&
+        /termsVersion: TERMS_VERSION,/.test(modalTermsSrc)
+    );
+    // The label that holds the checkbox, so the link and the requirement are
+    // asserted on the box itself rather than anywhere in the file.
+    const termsLabel =
+      /<label[^>]*>\s*<input(?:(?!<\/label>)[\s\S])*?type="checkbox"[\s\S]*?<\/label>/.exec(
+        modalTermsSrc
+      )?.[0] ?? '';
+    ok(
+      'the box is required and links to the terms',
+      /\brequired\b/.test(termsLabel) &&
+        /checked=\{agreed\}/.test(termsLabel) &&
+        /I agree to the/.test(termsLabel) &&
+        /href=\{TERMS_PATH\}/.test(termsLabel)
+    );
+
+    // The x402 challenge discloses the terms, and asks for nothing new.
+    const x402TermsSrc = withoutComments(
+      readFileSync('app/api/x402/buy/route.ts', 'utf8')
+    );
+    ok(
+      'the x402 challenge body carries the terms URL and version',
+      /code: 'PAYMENT_REQUIRED',\s*terms: \{\s*url: TERMS_URL,\s*version: TERMS_VERSION,/.test(
+        x402TermsSrc
+      )
+    );
+    ok(
+      'and a terms-of-service Link header',
+      /Link: `<\$\{TERMS_URL\}>; rel="terms-of-service"`/.test(x402TermsSrc)
+    );
+    ok(
+      'and the description inside PAYMENT-REQUIRED, which is all an auto-paying client reads',
+      /const TERMS_DISCLOSURE = `[^`]*\$\{TERMS_URL\}[^`]*\$\{TERMS_VERSION\}[^`]*`;/.test(
+        x402TermsSrc
+      ) && /description: `[^`]*\$\{TERMS_DISCLOSURE\}`/.test(x402TermsSrc)
+    );
+    ok(
+      'the onchain buy requires no new field from the agents already paying it',
+      !/acceptTerms|termsVersion/.test(x402TermsSrc)
+    );
+
+    /**
+     * One version constant, and nothing else typing it.
+     *
+     * Every file in app, lib, components and db, comments stripped: none but
+     * lib/terms.ts may define the constant or spell out its value, as the ISO
+     * date or as the printed date. A literal copy is a second source that
+     * stays behind the day the terms change.
+     */
+    const termsSources = ['app', 'lib', 'components', 'db'].flatMap((dir) =>
+      readdirSync(dir, { recursive: true })
+        .map(String)
+        .filter((f) => /\.tsx?$/.test(f))
+        .map((f) => `${dir}/${f}`)
+    );
+    const copies = termsSources.filter((f) => {
+      if (f === 'lib/terms.ts') return false;
+      const code = withoutComments(readFileSync(f, 'utf8'));
+      return (
+        /\bTERMS_(VERSION|UPDATED)\s*=/.test(code) ||
+        code.includes(`'${terms.TERMS_VERSION}'`) ||
+        code.includes(`"${terms.TERMS_VERSION}"`) ||
+        code.includes(`'${terms.TERMS_UPDATED}'`) ||
+        code.includes(`"${terms.TERMS_UPDATED}"`)
+      );
+    });
+    ok(
+      'lib/terms.ts is the only source of the terms version',
+      termsSources.length > 100 && copies.length === 0
+    );
+
+    /**
+     * The terms page, once it exists (draft PR #388), prints the date from
+     * the constant. Written as a detector so it can be proven against the
+     * page as drafted, which typed its own `UPDATED`, before the page lands.
+     */
+    const typesOwnDate = (src: string) =>
+      /\bconst UPDATED\s*=\s*['"`]/.test(src) ||
+      /['"`]\d{1,2} (January|February|March|April|May|June|July|August|September|October|November|December) \d{4}['"`]/.test(
+        src
+      ) ||
+      /['"`]\d{4}-\d{2}-\d{2}['"`]/.test(src);
+    ok(
+      'the page detector refuses the draft’s typed date and accepts the import',
+      typesOwnDate("const UPDATED = '25 September 2026';") &&
+        !typesOwnDate(
+          "import { TERMS_UPDATED } from '@/lib/terms';\nconst UPDATED = TERMS_UPDATED;"
+        )
+    );
+    if (existsSync('app/terms/page.tsx')) {
+      const pageSrc = withoutComments(
+        readFileSync('app/terms/page.tsx', 'utf8')
+      );
+      ok(
+        'the terms page prints the date from lib/terms.ts, not its own',
+        /from '@\/lib\/terms'/.test(pageSrc) && !typesOwnDate(pageSrc)
+      );
+    }
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);
