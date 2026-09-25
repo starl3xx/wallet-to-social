@@ -77,7 +77,11 @@ import {
   getOrCreateWalletAccount,
   countSettledPurchases,
 } from '@/lib/x402-account';
-import { sanctionsRefusal, screenPayer } from '@/lib/sanctions';
+import {
+  recordClearScreening,
+  sanctionsRefusal,
+  screenPayer,
+} from '@/lib/sanctions';
 import { checkoutGeoblock } from '@/lib/geoblock';
 import { createApiKeyIfUnderCap, validateApiKey } from '@/lib/api-keys';
 import { readBodyCapped } from '@/lib/api-auth';
@@ -423,11 +427,14 @@ export async function POST(request: NextRequest) {
 
   /**
    * The sanctions screen (lib/sanctions.ts, Linear STA-41), as soon as the
-   * payer is known and before anything reads, verifies or settles. A listed
-   * payer is refused with 403; a list that is missing or too old, or a screen
-   * that cannot run, refuses with 503. Either way no money moves.
+   * payer is known and before anything reads, verifies or settles, so a
+   * listed payer never reaches the facilitator. A listed payer is refused
+   * with 403; a list that is missing or too old, or a screen that cannot run,
+   * refuses with 503. Either way no money moves. A clear screen is recorded
+   * after verify, below.
    */
-  const screened = sanctionsRefusal((await screenPayer(payer)).verdict);
+  const screen = await screenPayer(payer);
+  const screened = sanctionsRefusal(screen.verdict);
   if (screened) return screened;
 
   /**
@@ -553,6 +560,13 @@ export async function POST(request: NextRequest) {
       { status: 402 }
     );
   }
+
+  // The clear screen's record, now that verify has proven the payer. No
+  // record, no settlement: a failed write refuses with 503 (Linear STA-41).
+  const unrecorded = sanctionsRefusal(
+    await recordClearScreening(payer, screen.publishDate)
+  );
+  if (unrecorded) return unrecorded;
 
   const settlement = await server.settlePayment(
     payload as Parameters<typeof server.settlePayment>[0],

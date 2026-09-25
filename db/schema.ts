@@ -1563,11 +1563,18 @@ export const sanctionedAddresses = pgTable('sanctioned_addresses', {
 });
 
 /**
- * One row per screening of a USDC payer: the address, the publish date of the
- * list it was screened against (NULL when there was none), the verdict and
- * the time. Kept five years, then deleted by the daily cleanup
+ * The record of the USDC rail's screenings: the payer address, the publish
+ * date of the list it was screened against (NULL when there was none), the
+ * verdict and the time. Kept five years, then deleted by the daily cleanup
  * (`SANCTIONS_SCREENING_RETENTION_YEARS` in app/api/cron/cleanup/route.ts).
  * In the nightly dump: it is a compliance record.
+ *
+ * Two kinds of row (lib/sanctions.ts). A `clear` row is written once verify
+ * has passed, one per payment, `verify_reached` true. A refusal (listed,
+ * stale, missing) is written before verify, `verify_reached` false, one row
+ * per payer, verdict and UTC hour (`screened_hour`, unique among refusals),
+ * with `attempts` counting the tries. A CHECK ties `verify_reached` to the
+ * verdict.
  */
 export const sanctionsScreenings = pgTable(
   'sanctions_screenings',
@@ -1577,12 +1584,24 @@ export const sanctionsScreenings = pgTable(
     listPublishDate: date('list_publish_date'),
     /** clear | listed | stale | missing */
     verdict: text('verdict').notNull(),
+    /** True only on a `clear` row: the payer passed verify. */
+    verifyReached: boolean('verify_reached').notNull(),
+    /** Tries folded into this row; above 1 only on a refusal. */
+    attempts: integer('attempts').notNull().default(1),
+    /** The UTC hour of the first try: the refusal dedupe bucket. */
+    screenedHour: timestamp('screened_hour', { withTimezone: true }).notNull(),
     screenedAt: timestamp('screened_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastScreenedAt: timestamp('last_screened_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (table) => [
     index('sanctions_screenings_screened_at_idx').on(table.screenedAt),
     index('sanctions_screenings_address_idx').on(table.address),
+    uniqueIndex('sanctions_screenings_refusal_hour_idx')
+      .on(table.address, table.verdict, table.screenedHour)
+      .where(sql`NOT ${table.verifyReached}`),
   ]
 );

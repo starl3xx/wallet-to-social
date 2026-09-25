@@ -27,8 +27,9 @@
  * - `refreshRefusal`: the guard. A refresh never replaces the list with an
  *   empty parse, an older publication, or one more than `SANCTIONS_MAX_DROP`
  *   smaller, unless an operator names the exact new count.
- * - `screenPayer` and `sanctionsRefusal`: the route-time read, its record, and
- *   the response.
+ * - `screenPayer`, `recordClearScreening` and `sanctionsRefusal`: the
+ *   route-time read before verify (a refusal is recorded there, deduplicated
+ *   per payer and hour), the `clear` record after verify, and the response.
  * - `freezeListedBuyers`: a wallet listed after it bought. Its accounts are
  *   frozen and their keys deactivated. Never refunded.
  * - The five-year purge of the screening record is `deleteOldScreenings` in
@@ -420,6 +421,23 @@ export async function replaceSanctionsList(
 
 // ---------------------------------------------------------------- freeze
 
+/** An account a freeze run froze, as the alert reports it. */
+export interface FrozenAccount {
+  userId: string;
+  /** The listed payer wallet, lowercased. */
+  payer: string;
+  /** The `<uid>` of the SDN entry that lists it. */
+  sdnUid: string | null;
+}
+
+export interface FreezeResult {
+  matched: number;
+  newlyFrozen: number;
+  keysDeactivated: number;
+  /** The accounts this run froze; empty when it froze none. */
+  frozen: FrozenAccount[];
+}
+
 /** The prefix of every x402 settlement id; the payer is the third field. */
 const SETTLEMENT_PREFIX = `${BASE_MAINNET}:`;
 
@@ -441,15 +459,20 @@ const SETTLEMENT_PREFIX = `${BASE_MAINNET}:`;
  *
  * Idempotent. An account frozen by an earlier run is not counted again, but
  * any key it has gained since is deactivated again.
+ *
+ * Returns the accounts THIS run froze, each with the matched address and the
+ * SDN entry that lists it: exactly what the freeze alert
+ * (lib/sanctions-alerts.ts) tells the operator, and nothing more.
  */
 export async function freezeListedBuyers(
   db: SanctionsDb,
   publishDate: string | null
-): Promise<{ matched: number; newlyFrozen: number; keysDeactivated: number }> {
+): Promise<FreezeResult> {
   const [row] = rowsOf<{
     matched: number;
     newly_frozen: number;
     keys_deactivated: number;
+    frozen: unknown;
   }>(
     await db.execute(sql`
       WITH hits AS (
@@ -473,7 +496,7 @@ export async function freezeListedBuyers(
               || ' (list published ' || coalesce(${publishDate}::text, 'unknown') || ')'
         FROM hits
         WHERE u.id = hits.user_id AND u.frozen_at IS NULL
-        RETURNING u.id
+        RETURNING u.id, hits.payer
       ), keys AS (
         UPDATE api_keys k
         SET is_active = false
@@ -484,13 +507,21 @@ export async function freezeListedBuyers(
       SELECT
         (SELECT count(*)::int FROM hits) AS matched,
         (SELECT count(*)::int FROM frozen) AS newly_frozen,
-        (SELECT count(*)::int FROM keys) AS keys_deactivated
+        (SELECT count(*)::int FROM keys) AS keys_deactivated,
+        (SELECT coalesce(json_agg(json_build_object(
+            'userId', f.id, 'payer', f.payer, 'sdnUid', a.sdn_uid
+          ) ORDER BY f.id), '[]'::json)
+          FROM frozen f
+          LEFT JOIN sanctioned_addresses a ON a.address = f.payer) AS frozen
     `)
   );
+  const frozen =
+    typeof row?.frozen === 'string' ? JSON.parse(row.frozen) : row?.frozen;
   return {
     matched: Number(row?.matched ?? 0),
     newlyFrozen: Number(row?.newly_frozen ?? 0),
     keysDeactivated: Number(row?.keys_deactivated ?? 0),
+    frozen: Array.isArray(frozen) ? (frozen as FrozenAccount[]) : [],
   };
 }
 
@@ -511,11 +542,7 @@ export interface RefreshOutcome {
   added: number;
   removed: number;
   /** Null when the freeze check could not run. */
-  freeze: {
-    matched: number;
-    newlyFrozen: number;
-    keysDeactivated: number;
-  } | null;
+  freeze: FreezeResult | null;
   /** Hours since the last successful refresh, after this run. */
   listAgeHours: number | null;
   /** No refresh has succeeded for `SANCTIONS_ALERT_AFTER_HOURS`. */
@@ -617,14 +644,28 @@ export function screeningVerdict(
   return 'clear';
 }
 
+/** The start of the UTC hour `at` falls in: the refusal rows' dedupe bucket. */
+export function screeningHour(at: Date): string {
+  const hour = new Date(at.getTime());
+  hour.setUTCMinutes(0, 0, 0);
+  return hour.toISOString();
+}
+
 /**
- * Screen a payer and record the screening.
+ * Screen a payer, before anything verifies it.
  *
- * One read for the list state and the address, then one insert into
- * `sanctions_screenings` (address, the list's publish date, the verdict, the
- * time). The record is part of the screen: when it cannot be written the
- * verdict is `error`, and the route refuses. Any other failure, and a missing
- * database, is `error` too. Never throws.
+ * One read for the list state and the address. A refusal is recorded here,
+ * because it never reaches verify: one row per payer, verdict and UTC hour,
+ * whose `attempts` counts the tries, so repeated refused posts raise a counter
+ * rather than add rows. `verify_reached` is false on every such row: the
+ * payer was only claimed by the request, never proven by a signature check.
+ *
+ * A `clear` verdict writes nothing here. Its row is written by
+ * `recordClearScreening` once verify has passed, and the route refuses to
+ * settle without it.
+ *
+ * When the refusal cannot be recorded, or anything else fails, and when there
+ * is no database, the verdict is `error` and the route refuses. Never throws.
  */
 export async function screenPayer(
   payer: string,
@@ -643,14 +684,51 @@ export async function screenPayer(
     const state = parseListState(row?.state);
     const verdict = screeningVerdict(state, row?.listed === true, now);
     const publishDate = state?.publishDate ?? null;
+    if (verdict === 'clear') return { verdict, publishDate };
     await db.execute(sql`
-      INSERT INTO sanctions_screenings (address, list_publish_date, verdict)
-      VALUES (${address}, ${publishDate}::date, ${verdict})
+      INSERT INTO sanctions_screenings
+        (address, list_publish_date, verdict, verify_reached, screened_hour)
+      VALUES
+        (${address}, ${publishDate}::date, ${verdict}, false, ${screeningHour(now)}::timestamptz)
+      ON CONFLICT (address, verdict, screened_hour) WHERE NOT verify_reached
+      DO UPDATE SET attempts = sanctions_screenings.attempts + 1,
+                    last_screened_at = now()
     `);
     return { verdict, publishDate };
   } catch (error) {
     console.error('[sanctions] screening could not run; refusing:', error);
     return { verdict: 'error', publishDate: null };
+  }
+}
+
+/**
+ * Record a `clear` screening, after verify has passed and before settle.
+ *
+ * Verify is where the facilitator checks the signature, so this row names a
+ * payer who proved control of the wallet: `verify_reached` is true, and a
+ * request that never got that far never writes one. Returns `clear` when the
+ * row is written and `error` when it is not, so the route passes the result
+ * to `sanctionsRefusal` and refuses to settle a payment it has no record of
+ * screening. Never throws.
+ */
+export async function recordClearScreening(
+  payer: string,
+  publishDate: string | null,
+  db: SanctionsDb | null = getDb(),
+  now: Date = new Date()
+): Promise<'clear' | 'error'> {
+  if (!db) return 'error';
+  try {
+    await db.execute(sql`
+      INSERT INTO sanctions_screenings
+        (address, list_publish_date, verdict, verify_reached, screened_hour)
+      VALUES
+        (${payer.trim().toLowerCase()}, ${publishDate}::date, 'clear', true, ${screeningHour(now)}::timestamptz)
+    `);
+    return 'clear';
+  } catch (error) {
+    console.error('[sanctions] clear screening not recorded; refusing:', error);
+    return 'error';
   }
 }
 

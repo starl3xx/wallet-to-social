@@ -9,6 +9,46 @@ const resend = resendApiKey ? new Resend(resendApiKey) : null;
 const FROM_EMAIL = 'walletlink.social <noreply@walletlink.social>';
 
 /**
+ * Where operator alerts go: the shared inbox, which reaches the owner. Not a
+ * customer address, so nothing sent there is lifecycle mail.
+ */
+export const OPS_ALERT_TO = 'help@walletlink.social';
+
+/**
+ * Send one operator alert: plain text to `OPS_ALERT_TO`, from the same sender
+ * and the same Resend client as every other message here.
+ *
+ * No unsubscribe link and no opt-out check, because it goes to our own inbox;
+ * those rules protect customers and there is none on the other end. Callers
+ * decide when to send and how often (lib/sanctions-alerts.ts dedupes in the
+ * database). Never throws: an alert that fails is reported in the result, and
+ * the caller logs it and carries on.
+ */
+export async function sendOpsAlert(
+  subject: string,
+  text: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!resend) {
+    return { success: false, error: 'Email service not configured' };
+  }
+  try {
+    const { error } = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: OPS_ALERT_TO,
+      subject,
+      text,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * The words around the sign-in button, which differ by why the link was sent.
  *
  * A link someone asked for says "you asked for this, ignore it otherwise". A

@@ -17878,6 +17878,45 @@ async function main() {
             s.params.includes('0x4f47bc496083c727c5fbe3ce9cdf2b0f6496270c')
         )
     );
+    // A refusal is recorded before verify, so anybody can make one. It is one
+    // row per payer, verdict and UTC hour, with a counter: repeated refused
+    // posts raise the counter and do not add rows. And the row says verify
+    // was never reached: the payer was claimed by the request, not proven.
+    {
+      const refusal = listedRun.sent.find((s) =>
+        s.sql.startsWith('INSERT INTO sanctions_screenings')
+      );
+      ok(
+        'a refusal row is one per payer, verdict and hour, and a repeat only counts',
+        /ON CONFLICT \(address, verdict, screened_hour\) WHERE NOT verify_reached DO UPDATE SET attempts = sanctions_screenings\.attempts \+ 1, last_screened_at = now\(\)$/.test(
+          refusal?.sql ?? ''
+        ) &&
+          (refusal?.params.includes('2026-09-25T09:00:00.000Z') ?? false)
+      );
+      ok(
+        'a refusal row records that verify was never reached',
+        /VALUES \(\$\d+, \$\d+::date, \$\d+, false, \$\d+::timestamptz\)/.test(
+          refusal?.sql ?? ''
+        )
+      );
+      ok(
+        'the dedupe bucket is the UTC hour the try falls in',
+        S.screeningHour(new Date('2026-09-25T09:59:59.999Z')) ===
+          '2026-09-25T09:00:00.000Z' &&
+          S.screeningHour(new Date('2026-09-25T10:00:00.000Z')) ===
+            '2026-09-25T10:00:00.000Z'
+      );
+      const mig = readFileSync(
+        'scripts/migrate-sanctions-screening.ts',
+        'utf8'
+      ).replace(/\s+/g, ' ');
+      ok(
+        'the table enforces the dedupe and ties verify_reached to the verdict',
+        /CREATE UNIQUE INDEX IF NOT EXISTS sanctions_screenings_refusal_hour_idx ON sanctions_screenings \(address, verdict, screened_hour\) WHERE NOT verify_reached/.test(
+          mig
+        ) && /CHECK \(verify_reached = \(verdict = 'clear'\)\)/.test(mig)
+      );
+    }
     ok(
       'the payer is looked up lowercased',
       listedRun.sent[0]?.params.includes(
@@ -17885,10 +17924,50 @@ async function main() {
       ) ?? false
     );
     ok(
-      'a clear payer on a fresh list is clear, and recorded as clear',
+      'a clear payer is clear, and nothing is written before verify',
       clearRun.verdict === 'clear' &&
-        clearRun.sent.some((s) => s.params.includes('clear'))
+        clearRun.publishDate === '2026-09-23' &&
+        clearRun.sent.length === 1 &&
+        !clearRun.sent.some((s) => /INSERT|UPDATE/.test(s.sql))
     );
+    {
+      const recorded = async (fail: boolean, db: 'fake' | 'none' = 'fake') => {
+        const fake = fakeDb(() => {
+          if (fail) throw new Error('insert failed');
+          return { rows: [] };
+        });
+        const quiet = console.error;
+        console.error = () => {};
+        try {
+          const verdict = await S.recordClearScreening(
+            '0xD8DA6BF26964AF9D7EED9E03E53415D37AA96045',
+            '2026-09-23',
+            db === 'none' ? null : fake,
+            new Date('2026-09-25T09:30:00.000Z')
+          );
+          return { verdict, sent: fake.sent };
+        } finally {
+          console.error = quiet;
+        }
+      };
+      const good = await recorded(false);
+      ok(
+        'the clear record, written after verify, says verify was reached',
+        good.verdict === 'clear' &&
+          good.sent.length === 1 &&
+          /^INSERT INTO sanctions_screenings \(address, list_publish_date, verdict, verify_reached, screened_hour\) VALUES \(\$1, \$2::date, 'clear', true, \$3::timestamptz\)$/.test(
+            good.sent[0].sql
+          ) &&
+          good.sent[0].params[0] ===
+            '0xd8da6bf26964af9d7eed9e03e53415d37aa96045'
+      );
+      ok(
+        'a clear record that cannot be written is an error, so the sale is refused',
+        (await recorded(true)).verdict === 'error' &&
+          (await recorded(false, 'none')).verdict === 'error' &&
+          S.sanctionsRefusal('error')?.status === 503
+      );
+    }
     ok(
       'a list last refreshed more than 7 days ago is stale; 7 days is not',
       S.SANCTIONS_REFUSE_AFTER_DAYS === 7 &&
@@ -17908,9 +17987,9 @@ async function main() {
         (await screen({ publishDate: 'soon' }, false)).verdict === 'missing'
     );
     ok(
-      'a database error fails closed, on the read and on the record',
+      'a database error fails closed, on the read and on a refusal’s record',
       (await screen(FRESH, false, 'read')).verdict === 'error' &&
-        (await screen(FRESH, false, 'record')).verdict === 'error' &&
+        (await screen(FRESH, true, 'record')).verdict === 'error' &&
         (await S.screenPayer('0x00', null)).verdict === 'error'
     );
 
@@ -17957,7 +18036,7 @@ async function main() {
       readFileSync('app/api/x402/buy/route.ts', 'utf8')
     ).replace(/\s+/g, ' ');
     const screenAt = buy.indexOf(
-      'const screened = sanctionsRefusal((await screenPayer(payer)).verdict); if (screened) return screened;'
+      'const screen = await screenPayer(payer); const screened = sanctionsRefusal(screen.verdict); if (screened) return screened;'
     );
     ok(
       'the buy route screens the payer the moment it is decoded',
@@ -17974,6 +18053,43 @@ async function main() {
         screenAt < buy.indexOf('server.settlePayment(') &&
         screenAt < buy.indexOf('getOrCreateWalletAccount(payer)')
     );
+    {
+      const recordAt = buy.indexOf(
+        'const unrecorded = sanctionsRefusal( await recordClearScreening(payer, screen.publishDate) ); if (unrecorded) return unrecorded;'
+      );
+      const invalidAt = buy.indexOf('if (!verification.isValid) {');
+      ok(
+        'the clear record is written after verify passes and before settle, and a failed write refuses',
+        recordAt !== -1 &&
+          invalidAt !== -1 &&
+          recordAt > invalidAt &&
+          recordAt > buy.indexOf('server.verifyPayment(') &&
+          recordAt < buy.indexOf('server.settlePayment(')
+      );
+    }
+
+    // --- recovery refuses a frozen account
+    {
+      const recover = withoutComments(
+        readFileSync('app/api/x402/recover/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      const frozenAt = recover.indexOf(
+        "if (await isAccountFrozen(userId)) { return sanctionsRefusal('listed')!; }"
+      );
+      ok(
+        'recovery refuses a frozen account with the buy route’s 403, before it mints anything',
+        frozenAt !== -1 &&
+          frozenAt < recover.indexOf('revokeAllAndReissueKey(') &&
+          frozenAt < recover.indexOf('createApiKeyIfUnderCap(')
+      );
+      ok(
+        'and only after the signature has proven the wallet, so it tells a stranger nothing',
+        frozenAt > recover.indexOf('await verifyRecovery(') &&
+          frozenAt > recover.indexOf('await consumeChallenge(') &&
+          frozenAt >
+            recover.indexOf('const userId = await walletAccount(wallet);')
+      );
+    }
 
     // --- the geoblock
     const G = await import('@/lib/geoblock');
@@ -18095,9 +18211,357 @@ async function main() {
         ) &&
           runPart.indexOf('const retentionDeadline') <
             runPart.indexOf('sanctionsScreenings = await') &&
-          /creditLedgerRows, sanctionsScreenings, purchaseRecords,/.test(
+          /creditLedgerRows, sanctionsScreenings, sanctionsListAlert, purchaseRecords,/.test(
             runPart
           )
+      );
+    }
+
+    // --- email alerts (a freeze, a stale list, a refused refresh)
+    // Each condition emails the ops inbox at most once a day, the claim for it
+    // lives in the database, and nothing about an email can block or undo the
+    // freeze or the refusal it reports. Driven through the real functions
+    // with a recording database and a recording sender.
+    {
+      const A = await import('@/lib/sanctions-alerts');
+      const { OPS_ALERT_TO } = await import('@/lib/email');
+      type Mail = { subject: string; text: string };
+      const alertRig = (opts: {
+        claim?: 'win' | 'lose' | 'throw';
+        send?: 'ok' | 'fail' | 'throw';
+        state?: unknown;
+        readThrows?: boolean;
+      }) => {
+        const mails: Mail[] = [];
+        const logged: string[] = [];
+        const db = fakeDb((flat) => {
+          if (flat.startsWith('INSERT INTO ingest_state')) {
+            if (opts.claim === 'throw') throw new Error('claim failed');
+            return { rows: opts.claim === 'lose' ? [] : [{}] };
+          }
+          if (flat.startsWith('SELECT value FROM ingest_state')) {
+            if (opts.readThrows) throw new Error('read failed');
+            return {
+              rows: opts.state === undefined ? [] : [{ value: opts.state }],
+            };
+          }
+          return { rows: [] };
+        });
+        const send = async (subject: string, text: string) => {
+          if (opts.send === 'throw') throw new Error('provider down');
+          mails.push({ subject, text });
+          return opts.send === 'fail'
+            ? { success: false, error: 'rejected' }
+            : { success: true };
+        };
+        const run = async <T>(f: () => Promise<T>): Promise<T> => {
+          const quiet = console.error;
+          console.error = (...a: unknown[]) =>
+            logged.push(a.map(String).join(' '));
+          try {
+            return await f();
+          } finally {
+            console.error = quiet;
+          }
+        };
+        return { db, mails, logged, send, run };
+      };
+      const frozenTwo = [
+        {
+          userId: '11111111-1111-4111-8111-111111111111',
+          payer: '0x8d79c73daae8630c88de372ba8f57592fa987607',
+          sdnUid: '58284',
+        },
+        {
+          userId: '22222222-2222-4222-8222-222222222222',
+          payer: '0x098b716b8aaf21512996dc57eb0615e2383e2f96',
+          sdnUid: '27307',
+        },
+      ];
+
+      const fz = alertRig({});
+      const fzResult = await fz.run(() =>
+        A.alertFreezes(fz.db, frozenTwo, '2026-09-23', fz.send)
+      );
+      const fzMail = fz.mails[0];
+      ok(
+        'a freeze emails at once, one email naming each frozen account',
+        fzResult === 'sent' &&
+          fz.mails.length === 1 &&
+          frozenTwo.every(
+            (f) =>
+              fzMail.text.includes(`Account id: ${f.userId}`) &&
+              fzMail.text.includes(`Matched address: ${f.payer}`) &&
+              fzMail.text.includes(`SDN entry uid: ${f.sdnUid}`)
+          )
+      );
+      ok(
+        'each frozen account is its own condition, so a second freeze is never swallowed by the first',
+        JSON.stringify(
+          fz.db.sent
+            .filter((s) => s.sql.startsWith('INSERT INTO ingest_state'))
+            .map((s) => s.params[0])
+        ) ===
+          JSON.stringify(
+            frozenTwo.map((f) => `alert:sanctions:freeze:${f.userId}`)
+          )
+      );
+      ok(
+        'the freeze email carries what the operator needs and nothing else',
+        !/@/.test(fzMail.text) &&
+          !/amount|cents|\$\d|email/i.test(fzMail.text) &&
+          (fzMail.text.match(/0x[0-9a-f]{40}/g) ?? []).length === 2
+      );
+      ok(
+        'alerts go to the ops inbox, through the lifecycle mail’s Resend client',
+        OPS_ALERT_TO === 'help@walletlink.social' &&
+          /to: OPS_ALERT_TO,/.test(
+            withoutComments(readFileSync('lib/email.ts', 'utf8'))
+          ) &&
+          /await resend\.emails\.send\(\{\s*from: FROM_EMAIL,\s*to: OPS_ALERT_TO,/.test(
+            readFileSync('lib/email.ts', 'utf8')
+          )
+      );
+
+      // The once-a-day rule, and where it is remembered.
+      const claimSql = fz.db.sent.find((s) =>
+        s.sql.startsWith('INSERT INTO ingest_state')
+      );
+      ok(
+        'a condition is claimed in the database, and only when it was never sent or last sent a day ago',
+        A.ALERT_REPEAT_HOURS === 24 &&
+          /^INSERT INTO ingest_state \(name, value, updated_at\) VALUES \(\$1, jsonb_build_object\('sentAt', now\(\)\), now\(\)\) ON CONFLICT \(name\) DO UPDATE SET value = EXCLUDED\.value, updated_at = EXCLUDED\.updated_at WHERE \(ingest_state\.value->>'sentAt'\)::timestamptz <= now\(\) - make_interval\(hours => \$2::int\) RETURNING 1$/.test(
+            claimSql?.sql ?? ''
+          ) &&
+          claimSql?.params[1] === 24
+      );
+      const dup = alertRig({ claim: 'lose' });
+      ok(
+        'a condition already sent today sends nothing',
+        (await dup.run(() =>
+          A.alertFreezes(dup.db, frozenTwo, '2026-09-23', dup.send)
+        )) === 'deduped' && dup.mails.length === 0
+      );
+      const noClaim = alertRig({ claim: 'throw' });
+      ok(
+        'a claim that cannot be taken sends nothing and throws nothing',
+        (await noClaim.run(() =>
+          A.alertFreezes(noClaim.db, frozenTwo, '2026-09-23', noClaim.send)
+        )) === 'deduped' && noClaim.mails.length === 0
+      );
+      {
+        const alertsSrc = withoutComments(
+          readFileSync('lib/sanctions-alerts.ts', 'utf8')
+        );
+        ok(
+          'no alert state is kept in memory',
+          !/^(let|var) /m.test(alertsSrc) &&
+            !/^(export )?const \w+ = new (Map|Set|WeakMap)\(/m.test(alertsSrc)
+        );
+      }
+
+      // A failed email: logged, claim given back, nothing thrown.
+      for (const mode of ['fail', 'throw'] as const) {
+        const bad = alertRig({ send: mode });
+        let threw = false;
+        let result: unknown;
+        try {
+          result = await bad.run(() =>
+            A.alertFreezes(bad.db, frozenTwo, '2026-09-23', bad.send)
+          );
+        } catch {
+          threw = true;
+        }
+        ok(
+          `an email that ${mode === 'fail' ? 'is rejected' : 'throws'} is logged, its claims released, and nothing thrown`,
+          !threw &&
+            result === 'failed' &&
+            bad.logged.some((l) =>
+              /\[sanctions\] alert email failed/.test(l)
+            ) &&
+            bad.db.sent.filter((s) =>
+              s.sql.startsWith('DELETE FROM ingest_state WHERE name =')
+            ).length === 2
+        );
+      }
+
+      // The stale list, read from the database.
+      const stale = async (state: unknown, now: string, extra = {}) => {
+        const rig = alertRig({ state, ...extra });
+        const result = await rig.run(() =>
+          A.alertIfListStale(rig.db, new Date(now), rig.send)
+        );
+        return { result, rig };
+      };
+      const listAt = (refreshedAt: string) => ({
+        publishDate: '2026-09-23',
+        refreshedAt,
+        addressCount: 124,
+      });
+      const past = await stale(
+        listAt('2026-09-24T00:00:00.000Z'),
+        '2026-09-25T12:01:00.000Z'
+      );
+      const within = await stale(
+        listAt('2026-09-24T00:00:00.000Z'),
+        '2026-09-25T11:59:00.000Z'
+      );
+      ok(
+        'a list past 36 hours without a successful refresh emails; one inside 36 hours does not',
+        past.result === 'sent' &&
+          /not refreshed for 36 hours/.test(past.rig.mails[0]?.subject ?? '') &&
+          within.result === 'fresh' &&
+          within.rig.mails.length === 0 &&
+          !within.rig.db.sent.some((s) => s.sql.startsWith('INSERT'))
+      );
+      const none = await stale(undefined, '2026-09-25T12:00:00.000Z');
+      ok(
+        'no list at all emails too, keyed as the same stale condition',
+        none.result === 'sent' &&
+          /missing/.test(none.rig.mails[0]?.subject ?? '') &&
+          none.rig.db.sent.some((s) =>
+            s.params.includes('alert:sanctions:stale')
+          )
+      );
+      const unread = await stale(undefined, '2026-09-25T12:00:00.000Z', {
+        readThrows: true,
+      });
+      ok(
+        'a stale check that cannot read the list throws nothing',
+        unread.result === 'failed' && unread.rig.mails.length === 0
+      );
+
+      // The refused refresh, and the whole set a run raises.
+      const outcomeOf = (
+        over: Partial<import('@/lib/sanctions').RefreshOutcome>
+      ) =>
+        ({
+          ok: false,
+          refused: null,
+          error: null,
+          publishDate: '2026-09-23',
+          parsed: 89,
+          previous: 124,
+          added: 0,
+          removed: 0,
+          freeze: {
+            matched: 0,
+            newlyFrozen: 0,
+            keysDeactivated: 0,
+            frozen: [],
+          },
+          listAgeHours: 6,
+          alert: false,
+          ...over,
+        }) as import('@/lib/sanctions').RefreshOutcome;
+      const refusedRig = alertRig({});
+      ok(
+        'a refused refresh emails, with counts and no account',
+        (await refusedRig.run(() =>
+          A.alertRefusedRefresh(
+            refusedRig.db,
+            outcomeOf({ refused: 'sharp_drop' }),
+            refusedRig.send
+          )
+        )) === 'sent' &&
+          /refused: sharp_drop/.test(refusedRig.mails[0]?.subject ?? '') &&
+          /acceptCount=89/.test(refusedRig.mails[0]?.text ?? '') &&
+          refusedRig.db.sent.some((s) =>
+            s.params.includes('alert:sanctions:refused')
+          )
+      );
+      const okRig = alertRig({});
+      ok(
+        'a run that was not refused sends no refused email',
+        (await okRig.run(() =>
+          A.alertRefusedRefresh(okRig.db, outcomeOf({ ok: true }), okRig.send)
+        )) === null && okRig.mails.length === 0
+      );
+      {
+        const all = alertRig({ state: listAt('2026-09-25T00:15:00.000Z') });
+        const result = await all.run(() =>
+          A.sendRefreshAlerts(
+            all.db,
+            outcomeOf({
+              refused: 'sharp_drop',
+              freeze: {
+                matched: 2,
+                newlyFrozen: 2,
+                keysDeactivated: 2,
+                frozen: frozenTwo,
+              },
+            }),
+            new Date('2026-09-25T06:15:00.000Z'),
+            all.send
+          )
+        );
+        ok(
+          'one refresh run raises the freeze email and the refused email, and checks the list age',
+          result.freeze === 'sent' &&
+            result.refused === 'sent' &&
+            result.stale === 'fresh' &&
+            all.mails.length === 2
+        );
+        const broken = {
+          sent: [] as unknown[],
+          execute: async () => {
+            throw new Error('database down');
+          },
+        };
+        let threw = false;
+        try {
+          await all.run(() =>
+            A.sendRefreshAlerts(
+              broken,
+              outcomeOf({
+                refused: 'empty',
+                freeze: {
+                  matched: 1,
+                  newlyFrozen: 1,
+                  keysDeactivated: 1,
+                  frozen: [frozenTwo[0]],
+                },
+              }),
+              new Date(),
+              all.send
+            )
+          );
+        } catch {
+          threw = true;
+        }
+        ok('alerts throw nothing even when the database is down', !threw);
+      }
+
+      const cronSrc = withoutComments(
+        readFileSync('app/api/cron/sanctions-refresh/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      const refreshAt = cronSrc.indexOf(
+        'const outcome = await refreshSanctionsList({ db, acceptCount });'
+      );
+      const alertAt = cronSrc.indexOf(
+        'const alerts = await sendRefreshAlerts(db, outcome);'
+      );
+      ok(
+        'the refresh route emails only after the run’s writes, and still answers',
+        refreshAt !== -1 &&
+          alertAt > refreshAt &&
+          alertAt <
+            cronSrc.indexOf('return NextResponse.json( { ...outcome, alerts },')
+      );
+      ok(
+        'a refresh that fails outright still runs the stale check',
+        /console\.error\('\[sanctions\] refresh failed:', error\); await sendRefreshAlerts\(db, null\);/.test(
+          cronSrc
+        )
+      );
+      const cleanupSrc = withoutComments(
+        readFileSync('app/api/cron/cleanup/route.ts', 'utf8')
+      );
+      ok(
+        'the daily cleanup watches the list too, so a refresh that stopped running still alerts',
+        /const sanctionsListAlert = await alertIfListStale\(db\);/.test(
+          cleanupSrc.slice(cleanupSrc.indexOf('async function run('))
+        )
       );
     }
 

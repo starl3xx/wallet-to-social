@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDb } from '@/db';
 import { trackEvent } from '@/lib/analytics';
+import { sendRefreshAlerts } from '@/lib/sanctions-alerts';
 import {
   refreshSanctionsList,
   SANCTIONS_ALERT_AFTER_HOURS,
@@ -20,13 +21,15 @@ export const maxDuration = 300;
  *
  * ## Alerts
  *
- * The admin health panel (`/api/admin/health/dependencies`, the "Sanctions
- * list refresh" row) is the alert surface, as it is for every scheduled job:
- * the heartbeat below carries `ok`, so a failed or refused run shows
- * `failing`, and no success for `SANCTIONS_ALERT_AFTER_HOURS` shows `late`.
- * A freeze shows on the same panel as long as it is recent. Each condition is
- * also logged at error with a `[sanctions]` tag, and a run that did not put a
- * list in force answers 502, so it is red in the cron log too.
+ * Email first: a freeze, a refused run, and no success for
+ * `SANCTIONS_ALERT_AFTER_HOURS` each send one to the ops inbox, at most once
+ * a day per condition (`sendRefreshAlerts`, lib/sanctions-alerts.ts). They
+ * run after the run's own writes and never throw, so an email can neither
+ * block nor undo a freeze or a refusal. The same conditions show on the
+ * admin health panel (the "Sanctions list refresh" row: `failing` after a
+ * failed or refused run, `late` after the alert window; a banner for a recent
+ * freeze), are logged at error with a `[sanctions]` tag, and a run that did
+ * not put a list in force answers 502.
  *
  * ## Accepting a large delisting
  *
@@ -81,6 +84,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // After the run's writes, and never throwing: see "Alerts" above.
+    const alerts = await sendRefreshAlerts(db, outcome);
+
     // Counts only: the heartbeat lives in analytics_events, which is kept
     // 400 days, so no address and no account id goes into it.
     await trackEvent('lookup_completed', {
@@ -97,13 +103,19 @@ export async function GET(request: NextRequest) {
         frozen: outcome.freeze?.newlyFrozen ?? null,
         keysDeactivated: outcome.freeze?.keysDeactivated ?? null,
         listAgeHours: outcome.listAgeHours,
+        alerts,
         durationMs: Date.now() - startedAt,
       },
     });
 
-    return NextResponse.json(outcome, { status: outcome.ok ? 200 : 502 });
+    return NextResponse.json(
+      { ...outcome, alerts },
+      { status: outcome.ok ? 200 : 502 }
+    );
   } catch (error) {
     console.error('[sanctions] refresh failed:', error);
+    // The run failed before it could report; the stale check still runs.
+    await sendRefreshAlerts(db, null);
     await trackEvent('lookup_completed', {
       metadata: {
         eventSubtype: 'sanctions_refresh',

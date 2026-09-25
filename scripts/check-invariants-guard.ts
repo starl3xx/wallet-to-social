@@ -4460,8 +4460,10 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 the buy route never screens the payer',
     file: 'app/api/x402/buy/route.ts',
-    from: '  const screened = sanctionsRefusal((await screenPayer(payer)).verdict);\n  if (screened) return screened;\n',
-    to: '',
+    // Re-anchored 2026-09-25: the screen's result is now kept, for the clear
+    // record written after verify.
+    from: '  const screen = await screenPayer(payer);\n  const screened = sanctionsRefusal(screen.verdict);\n  if (screened) return screened;\n',
+    to: "  const screen = { verdict: 'clear' as const, publishDate: null };\n",
   },
   {
     name: 'STA-41 the buy route screens and ignores the verdict',
@@ -4506,10 +4508,12 @@ const MUTATIONS: Mutation[] = [
     to: 'export const SANCTIONS_REFUSE_AFTER_DAYS = 70;',
   },
   {
-    name: 'STA-41 the screening is not recorded',
+    name: 'STA-41 a refusal is not recorded',
     file: 'lib/sanctions.ts',
-    from: '    await db.execute(sql`\n      INSERT INTO sanctions_screenings',
-    to: '    void (sql`\n      INSERT INTO sanctions_screenings',
+    // Re-anchored 2026-09-25: the clear record has its own INSERT now, so the
+    // anchor names the refusal's.
+    from: "    if (verdict === 'clear') return { verdict, publishDate };\n    await db.execute(sql`",
+    to: "    if (verdict === 'clear') return { verdict, publishDate };\n    void (sql`",
   },
   {
     name: 'STA-41 a payer is looked up in the case it arrived in',
@@ -4612,6 +4616,169 @@ const MUTATIONS: Mutation[] = [
     file: 'scripts/migrate-grant-readonly.ts',
     from: "  'sanctions_screenings',\n];\n\nconst GRANTS",
     to: '];\n\nconst GRANTS',
+  },
+  // --- STA-41 follow-up: email alerts, the refusal dedupe, recovery -------
+  {
+    name: 'STA-41 a freeze sends no email',
+    file: 'lib/sanctions-alerts.ts',
+    from: '    ? await alertFreezes(db, outcome.freeze.frozen, outcome.publishDate, send)',
+    to: '    ? null',
+  },
+  {
+    name: 'STA-41 the alert claim has no repeat window, so every run emails',
+    file: 'lib/sanctions-alerts.ts',
+    from: '            <= now() - make_interval(hours => ${ALERT_REPEAT_HOURS}::int)',
+    to: "            <= now() + interval '1 day'",
+  },
+  {
+    name: 'STA-41 the alert repeat window shrinks to an hour',
+    file: 'lib/sanctions-alerts.ts',
+    from: 'export const ALERT_REPEAT_HOURS = 24;',
+    to: 'export const ALERT_REPEAT_HOURS = 1;',
+  },
+  {
+    name: 'STA-41 an alert is sent without winning its claim',
+    file: 'lib/sanctions-alerts.ts',
+    from: '      if (await claimAlert(db, condition)) claimed.push(condition);',
+    to: '      await claimAlert(db, condition);\n      claimed.push(condition);',
+  },
+  {
+    name: 'STA-41 a claim that cannot be taken still sends',
+    file: 'lib/sanctions-alerts.ts',
+    from: '        `[sanctions] alert claim failed (${condition}); not sent:`,\n        error\n      );',
+    to: '        `[sanctions] alert claim failed (${condition}); not sent:`,\n        error\n      );\n      claimed.push(condition);',
+  },
+  {
+    name: 'STA-41 a failed email throws into the refresh',
+    file: 'lib/sanctions-alerts.ts',
+    from: '  } catch (error) {\n    result = { success: false, error: messageOf(error) };',
+    to: '  } catch (error) {\n    throw error;',
+  },
+  {
+    name: 'STA-41 a failed email keeps its claim, so the next run cannot retry',
+    file: 'lib/sanctions-alerts.ts',
+    from: '      await releaseAlert(db, condition);',
+    to: '      void condition;',
+  },
+  {
+    name: 'STA-41 the stale-list email waits for 72 hours',
+    file: 'lib/sanctions-alerts.ts',
+    from: '  if (ageHours !== null && ageHours <= SANCTIONS_ALERT_AFTER_HOURS) {',
+    to: '  if (ageHours !== null && ageHours <= 72) {',
+  },
+  {
+    name: 'STA-41 a missing list sends no email',
+    file: 'lib/sanctions-alerts.ts',
+    from: '  if (ageHours !== null && ageHours <= SANCTIONS_ALERT_AFTER_HOURS) {',
+    to: '  if (ageHours === null || ageHours <= SANCTIONS_ALERT_AFTER_HOURS) {',
+  },
+  {
+    name: 'STA-41 a refused refresh sends no email',
+    file: 'lib/sanctions-alerts.ts',
+    from: '  if (!outcome.refused) return null;',
+    to: '  if (outcome) return null;',
+  },
+  {
+    name: 'STA-41 the freeze email drops the SDN entry uid',
+    file: 'lib/sanctions-alerts.ts',
+    from: "            `SDN entry uid: ${a.sdnUid ?? 'unknown'}`,\n",
+    to: '',
+  },
+  {
+    name: 'STA-41 all freezes share one condition, so a second is swallowed by the first',
+    file: 'lib/sanctions-alerts.ts',
+    from: '  const byCondition = new Map(frozen.map((f) => [`freeze:${f.userId}`, f]));',
+    to: '  const byCondition = new Map(frozen.map((f) => [`freeze`, f]));',
+  },
+  {
+    name: 'STA-41 alerts go to another inbox',
+    file: 'lib/email.ts',
+    from: "export const OPS_ALERT_TO = 'help@walletlink.social';",
+    to: "export const OPS_ALERT_TO = 'alerts@example.com';",
+  },
+  {
+    name: 'STA-41 the refresh route sends no alerts',
+    file: 'app/api/cron/sanctions-refresh/route.ts',
+    from: '    const alerts = await sendRefreshAlerts(db, outcome);',
+    to: '    const alerts = null;',
+  },
+  {
+    name: 'STA-41 a refresh that fails outright skips the stale check',
+    file: 'app/api/cron/sanctions-refresh/route.ts',
+    from: '    await sendRefreshAlerts(db, null);\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 the daily watchdog on the list is gone',
+    file: 'app/api/cron/cleanup/route.ts',
+    from: '  const sanctionsListAlert = await alertIfListStale(db);',
+    to: "  const sanctionsListAlert = 'fresh';",
+  },
+  {
+    name: 'STA-41 a clear screen is recorded before verify',
+    file: 'lib/sanctions.ts',
+    from: "    if (verdict === 'clear') return { verdict, publishDate };\n",
+    to: '',
+  },
+  {
+    name: 'STA-41 refused posts add rows instead of counting',
+    file: 'lib/sanctions.ts',
+    from: '      ON CONFLICT (address, verdict, screened_hour) WHERE NOT verify_reached\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 the refusal attempt counter never moves',
+    file: 'lib/sanctions.ts',
+    from: '      DO UPDATE SET attempts = sanctions_screenings.attempts + 1,',
+    to: '      DO UPDATE SET attempts = sanctions_screenings.attempts,',
+  },
+  {
+    name: 'STA-41 the refusal bucket is the millisecond, not the hour',
+    file: 'lib/sanctions.ts',
+    from: '  hour.setUTCMinutes(0, 0, 0);\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 a refusal row claims verify was reached',
+    file: 'lib/sanctions.ts',
+    from: '        (${address}, ${publishDate}::date, ${verdict}, false, ${screeningHour(now)}::timestamptz)',
+    to: '        (${address}, ${publishDate}::date, ${verdict}, true, ${screeningHour(now)}::timestamptz)',
+  },
+  {
+    name: 'STA-41 the clear record says verify was never reached',
+    file: 'lib/sanctions.ts',
+    from: "'clear', true, ${screeningHour(now)}::timestamptz)",
+    to: "'clear', false, ${screeningHour(now)}::timestamptz)",
+  },
+  {
+    name: 'STA-41 a clear record that cannot be written lets the sale settle',
+    file: 'lib/sanctions.ts',
+    from: "    console.error('[sanctions] clear screening not recorded; refusing:', error);\n    return 'error';",
+    to: "    console.error('[sanctions] clear screening not recorded; refusing:', error);\n    return 'clear';",
+  },
+  {
+    name: 'STA-41 the buy route never records the clear screen',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  const unrecorded = sanctionsRefusal(\n    await recordClearScreening(payer, screen.publishDate)\n  );\n  if (unrecorded) return unrecorded;\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 the buy route settles when the clear record fails',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  if (unrecorded) return unrecorded;\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 the refusal dedupe loses its unique index',
+    file: 'scripts/migrate-sanctions-screening.ts',
+    from: '      CREATE UNIQUE INDEX IF NOT EXISTS sanctions_screenings_refusal_hour_idx',
+    to: '      CREATE INDEX IF NOT EXISTS sanctions_screenings_refusal_hour_idx',
+  },
+  {
+    name: 'STA-41 a frozen account recovers a key',
+    file: 'app/api/x402/recover/route.ts',
+    from: "  if (await isAccountFrozen(userId)) {\n    return sanctionsRefusal('listed')!;\n  }\n",
+    to: '',
   },
 ];
 

@@ -7,8 +7,9 @@
  *   (`/api/cron/sanctions-refresh`, lib/sanctions.ts). Its metadata (OFAC's
  *   publish date, the last successful refresh) is the `sanctions_list` row of
  *   `ingest_state`, which already exists.
- * - `sanctions_screenings`: one row per screening of a payer, kept five years
- *   (the daily cleanup deletes older rows).
+ * - `sanctions_screenings`: the screening record, kept five years (the daily
+ *   cleanup deletes older rows): a `clear` row per verified payment, and a
+ *   refusal row per payer, verdict and hour with an attempt counter.
  * - `users.frozen_at`, `users.frozen_reason`: set when a wallet that already
  *   bought is later listed. Both nullable with no default, which Postgres adds
  *   as a catalog change without rewriting the table.
@@ -65,7 +66,11 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
     'address',
     'list_publish_date',
     'verdict',
+    'verify_reached',
+    'attempts',
+    'screened_hour',
     'screened_at',
+    'last_screened_at',
   ],
 };
 
@@ -102,6 +107,9 @@ async function main() {
         first_seen_at timestamptz NOT NULL DEFAULT now()
       )
     `,
+    // A refusal happens before verify and is one row per payer, verdict and
+    // UTC hour with a counter; a `clear` row is written after verify, one per
+    // payment. The CHECK makes `verify_reached` say which, on every row.
     sql`
       CREATE TABLE IF NOT EXISTS sanctions_screenings (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -109,7 +117,12 @@ async function main() {
         list_publish_date date,
         verdict text NOT NULL
           CHECK (verdict IN ('clear', 'listed', 'stale', 'missing')),
-        screened_at timestamptz NOT NULL DEFAULT now()
+        verify_reached boolean NOT NULL,
+        attempts integer NOT NULL DEFAULT 1 CHECK (attempts >= 1),
+        screened_hour timestamptz NOT NULL,
+        screened_at timestamptz NOT NULL DEFAULT now(),
+        last_screened_at timestamptz NOT NULL DEFAULT now(),
+        CHECK (verify_reached = (verdict = 'clear'))
       )
     `,
     // The purge's range scan, and the lookup a runbook does by wallet.
@@ -120,6 +133,12 @@ async function main() {
     sql`
       CREATE INDEX IF NOT EXISTS sanctions_screenings_address_idx
         ON sanctions_screenings (address)
+    `,
+    // The refusal dedupe: the conflict target of the refusal upsert.
+    sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS sanctions_screenings_refusal_hour_idx
+        ON sanctions_screenings (address, verdict, screened_hour)
+        WHERE NOT verify_reached
     `,
     sql`
       ALTER TABLE users
@@ -148,13 +167,17 @@ async function main() {
   const idx = (await sql`
     SELECT indexname FROM pg_indexes
     WHERE tablename = 'sanctions_screenings'
-      AND indexname IN ('sanctions_screenings_screened_at_idx', 'sanctions_screenings_address_idx')
+      AND indexname IN (
+        'sanctions_screenings_screened_at_idx',
+        'sanctions_screenings_address_idx',
+        'sanctions_screenings_refusal_hour_idx'
+      )
   `) as unknown as Array<{ indexname: string }>;
-  if (idx.length !== 2) {
-    console.error(`sanctions_screenings has ${idx.length}/2 indexes.`);
+  if (idx.length !== 3) {
+    console.error(`sanctions_screenings has ${idx.length}/3 indexes.`);
     bad = true;
   } else {
-    console.log('ok: sanctions_screenings indexes (2)');
+    console.log('ok: sanctions_screenings indexes (3)');
   }
 
   // Nullable with no default is the safety argument above: a default here
