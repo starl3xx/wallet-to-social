@@ -51,10 +51,10 @@ All notable changes to walletlink.social. Newest first.
 - Operator: run `scripts/migrate-sanctions-screening.ts` (two tables, two
   `users` columns, and the first copy of the list) and then
   `scripts/migrate-grant-readonly.ts`, both before merge. Linear STA-41.
-  Eighty-six new invariants drive the parser on a fixture in the real
+  Eighty-seven new invariants drive the parser on a fixture in the real
   SDN.XML shape, the refresh guard, the screen, its records and its answers,
   the freeze, the alerts, the geoblock and the purge through the real
-  functions, and pin the order in the buy and recovery routes; seventy-two
+  functions, and pin the order in the buy and recovery routes; seventy-three
   new guard mutations, each caught. A local Postgres scenario ran the real
   buy route up to and past verify, the refresh cron on the real SDN.XML, the
   freeze, the alert claims, recovery and the purge: 80 checks.
