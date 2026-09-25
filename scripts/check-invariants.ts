@@ -12013,7 +12013,7 @@ async function main() {
     ok(
       "a job's lookup is saved to history once, and a later pass corrects only its gate",
       historySql.endsWith(
-        ' on conflict ("job_id") do update set "matches_delivered" = excluded.matches_delivered where lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered returning "id", (xmax = 0)'
+        ' on conflict ("job_id") do update set "matches_delivered" = excluded.matches_delivered where excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered returning "id", (xmax = 0)'
       ) &&
         /saveLookup\(\s*results,\s*options\.historyName,\s*options\.userId \|\| job\.userId \|\| undefined,\s*options\.inputSource,\s*\{ jobId: job\.id, matchesDelivered \}\s*\)/.test(
           finalizeFn

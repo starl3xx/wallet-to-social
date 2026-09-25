@@ -92,8 +92,11 @@ export async function saveLookup(
  * charges and gates it, and a plain DO NOTHING would leave every match open
  * in the saved copy, the bypass `matches_delivered` exists to close. So the
  * conflict brings the stored gate in line with this pass's, and only when it
- * differs, so a re-run that agrees touches nothing. Results are never
- * rewritten here: a customer may have grown the saved copy since.
+ * differs, so a re-run that agrees touches nothing. A pass that decided no
+ * gate (its charge threw) never clears one: a null here means "not known",
+ * and writing it over a real gate would open every locked match in the saved
+ * copy. Results are never rewritten here: a customer may have grown the saved
+ * copy since.
  *
  * `inserted` is `xmax = 0`: true for a row this statement created, false for
  * one it updated. Exported so scripts/check-invariants.ts renders the SQL.
@@ -109,7 +112,7 @@ export function historyInsertForJob(
     .onConflictDoUpdate({
       target: lookupHistory.jobId,
       set: { matchesDelivered: sql`excluded.matches_delivered` },
-      setWhere: sql`lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered`,
+      setWhere: sql`excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered`,
     })
     .returning({ id: lookupHistory.id, inserted: sql<boolean>`(xmax = 0)` });
 }

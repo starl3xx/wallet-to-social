@@ -71,6 +71,8 @@ All notable changes to walletlink.social. Newest first.
   the billed-job rule (on the SQL it actually sends) and the once-per-job
   history save, and the nine guard mutations against the Inngest copy by
   seventy-five.
+- A later pass never clears a history row's match gate: only a pass that decided
+  a gate writes it, so a retry whose charge threw cannot reopen locked matches.
 
 ### 2026-09-24 (Dependabot PRs are copied so Bugbot reviews them)
 

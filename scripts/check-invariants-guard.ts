@@ -2496,7 +2496,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: "a job's history save goes back to DO NOTHING, and the gate decided later never reaches history",
     file: 'lib/history.ts',
-    from: '    .onConflictDoUpdate({\n      target: lookupHistory.jobId,\n      set: { matchesDelivered: sql`excluded.matches_delivered` },\n      setWhere: sql`lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered`,\n    })',
+    from: '    .onConflictDoUpdate({\n      target: lookupHistory.jobId,\n      set: { matchesDelivered: sql`excluded.matches_delivered` },\n      setWhere: sql`excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered`,\n    })',
     to: '    .onConflictDoNothing({ target: lookupHistory.jobId })',
   },
   {
@@ -3616,6 +3616,12 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/oauth/clients.ts',
     from: "  ['fc00::', 7],",
     to: "  ['fc00::', 6],",
+  },
+  {
+    name: 'a pass whose charge threw writes its null gate over a real one, reopening every locked match in history',
+    file: 'lib/history.ts',
+    from: 'excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered',
+    to: 'lookup_history.matches_delivered',
   },
 ];
 
