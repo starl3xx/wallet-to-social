@@ -4780,6 +4780,12 @@ const MUTATIONS: Mutation[] = [
     from: "  if (await isAccountFrozen(userId)) {\n    return sanctionsRefusal('listed')!;\n  }\n",
     to: '',
   },
+  {
+    name: 'STA-41 the refresh response carries the frozen accounts',
+    file: 'app/api/cron/sanctions-refresh/route.ts',
+    from: '      { ...outcome, freeze, alerts },',
+    to: '      { ...outcome, alerts },',
+  },
 ];
 
 function invariantsPass(): boolean {

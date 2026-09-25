@@ -16,7 +16,8 @@ All notable changes to walletlink.social. Newest first.
 - **The list is OFAC's own, refreshed every six hours.** A new cron,
   `/api/cron/sanctions-refresh`, reads SDN.XML and keeps every EVM address in
   it, whatever token it is filed under: 124 in the 2026-09-23 publication. The
-  free onchain oracle was measured first and was stale; it missed 42 of those 124. A refresh never replaces the list with an empty parse, an older
+  free onchain oracle was measured first and was stale; it missed 42 of
+  those 124. A refresh never replaces the list with an empty parse, an older
   publication or a list more than 20% smaller; an operator can accept a real
   delisting of that size only by naming its exact count.
 - **A wallet listed after it bought is frozen, never refunded.** After every
@@ -25,7 +26,8 @@ All notable changes to walletlink.social. Newest first.
   nothing new is recorded for it. An account a listed wallet paid for,
   including a top-up to an email account, is marked frozen with the reason
   and the time, and its keys are switched off. Its keys stay refused even if
-  one is minted later, and it cannot start a lookup or spend credits.
+  one is minted later, key recovery answers it with the same `403`, and it
+  cannot start a lookup or spend credits.
 - **Both checkouts refuse comprehensively sanctioned regions.** The USDC buy
   and card checkout answer `403 REGION_RESTRICTED` ("Purchases are not
   available in your region.") for a request from Cuba, Iran, North Korea,
@@ -34,19 +36,28 @@ All notable changes to walletlink.social. Newest first.
   one constant the lawyer may adjust (Linear STA-49).
 - **Every screening is recorded and kept five years.** The address, the list
   date, the verdict and the time, in a new table the daily cleanup purges
-  after five years and the nightly backup includes.
-- **Alerts** are on the admin health panel: the refresh row goes late after
-  36 hours without a success, and a freeze in the last 30 days turns the
-  panel red. The runbook is in `docs/OPERATIONS.md`.
+  after five years and the nightly backup includes. A clear screening is
+  recorded once verify has passed and before settlement, and a sale whose
+  record cannot be written is refused. A refusal is recorded before verify,
+  once per payer, verdict and hour with a count of attempts, and marked as
+  never having reached verify.
+- **Alerts are emailed.** A freeze (with the account id, the matched address
+  and the list entry), a refused refresh, and 36 hours without a successful
+  refresh each email help@, at most once a day per condition, remembered in
+  the database. A failed email is logged and retried on the next run; it
+  never holds up or undoes a freeze or a refusal. The daily cleanup checks the
+  list age too, in case the refresh stops running. The admin health panel
+  shows the same conditions. The runbook is in `docs/OPERATIONS.md`.
 - Operator: run `scripts/migrate-sanctions-screening.ts` (two tables, two
   `users` columns, and the first copy of the list) and then
   `scripts/migrate-grant-readonly.ts`, both before merge. Linear STA-41.
-  Fifty-seven new invariants drive the parser on a fixture in the real
-  SDN.XML shape, the refresh guard, the screen and its answers, the freeze,
-  the geoblock and the purge through the real functions, and pin the route
-  order; forty-five new guard mutations, each caught. A local Postgres
-  scenario ran the real buy route up to verify, the refresh cron on the real
-  SDN.XML, the freeze and the purge: 64 checks.
+  Eighty-six new invariants drive the parser on a fixture in the real
+  SDN.XML shape, the refresh guard, the screen, its records and its answers,
+  the freeze, the alerts, the geoblock and the purge through the real
+  functions, and pin the order in the buy and recovery routes; seventy-two
+  new guard mutations, each caught. A local Postgres scenario ran the real
+  buy route up to and past verify, the refresh cron on the real SDN.XML, the
+  freeze, the alert claims, recovery and the purge: 80 checks.
 
 ### 2026-09-25 (the retention periods the privacy page states are enforced)
 

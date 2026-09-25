@@ -220,7 +220,8 @@ verified or settled**, so nothing is charged:
 | `503`  | `SCREENING_UNAVAILABLE` | The screen could not run, so the sale was paused rather than made unchecked. Retry after the seconds in the `Retry-After` header. |
 
 An account whose paying wallet is found on a sanctions list after it bought
-is suspended: its keys stop working, and its credits are held.
+is suspended: its keys stop working, its credits are held, and
+[key recovery](#lost-your-key) answers `403` `SANCTIONED_PAYER`.
 
 ## If something goes wrong
 

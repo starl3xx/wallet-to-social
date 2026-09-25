@@ -108,8 +108,15 @@ export async function GET(request: NextRequest) {
       },
     });
 
+    // Counts, not the frozen accounts: those went to the ops inbox, and a
+    // response body is not where an account id and its wallet belong.
+    const freeze = outcome.freeze && {
+      matched: outcome.freeze.matched,
+      newlyFrozen: outcome.freeze.newlyFrozen,
+      keysDeactivated: outcome.freeze.keysDeactivated,
+    };
     return NextResponse.json(
-      { ...outcome, alerts },
+      { ...outcome, freeze, alerts },
       { status: outcome.ok ? 200 : 502 }
     );
   } catch (error) {

@@ -18546,7 +18546,15 @@ async function main() {
         refreshAt !== -1 &&
           alertAt > refreshAt &&
           alertAt <
-            cronSrc.indexOf('return NextResponse.json( { ...outcome, alerts },')
+            cronSrc.indexOf(
+              'return NextResponse.json( { ...outcome, freeze, alerts },'
+            )
+      );
+      ok(
+        'the refresh response carries freeze counts, never the frozen accounts',
+        /const freeze = outcome\.freeze && \{ matched: outcome\.freeze\.matched, newlyFrozen: outcome\.freeze\.newlyFrozen, keysDeactivated: outcome\.freeze\.keysDeactivated, \};/.test(
+          cronSrc
+        )
       );
       ok(
         'a refresh that fails outright still runs the stale check',
