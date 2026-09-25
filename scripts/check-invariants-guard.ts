@@ -4291,6 +4291,48 @@ const MUTATIONS: Mutation[] = [
     from: "  const commit = process.argv.includes('--commit');",
     to: '  const commit = true;',
   },
+  {
+    name: 'the month bucket is compared with the day cutoff, so the month’s quota resets every day',
+    file: 'lib/rate-limiter.ts',
+    from: '    OR (${r}.bucket_type = \'month\' AND ${r}.bucket_key COLLATE "C" < ${keys.month})',
+    to: '    OR (${r}.bucket_type = \'month\' AND ${r}.bucket_key COLLATE "C" < ${keys.day})',
+  },
+  {
+    name: 'the live-lot guard joins lots on the job id, so it never matches and the debits a live lot paid for go',
+    file: 'lib/retention.ts',
+    from: '      WHERE l.user_id = ${r}.user_id',
+    to: '      WHERE l.user_id = ${r}.job_id',
+  },
+  {
+    name: 'the job guard joins jobs on the user id, so a running job’s charge and a gated unlock go',
+    file: 'lib/retention.ts',
+    from: '      WHERE j.id = ${r}.job_id',
+    to: '      WHERE j.id = ${r}.user_id',
+  },
+  {
+    name: 'the live-lot guard counts a lot as live ten years past its expiry',
+    file: 'lib/retention.ts',
+    from: '        AND l.expires_at > ${UTC_NOW}\n',
+    to: "        AND l.expires_at > ${UTC_NOW} + interval '10 years'\n",
+  },
+  {
+    name: 'the ledger purge shortens the period to one year inside the predicate',
+    file: 'lib/retention.ts',
+    from: '  return sql`${r}.created_at < ${UTC_NOW} - make_interval(years => ${years})\n    AND NOT EXISTS (',
+    to: '  return sql`${r}.created_at < ${UTC_NOW} - make_interval(years => ${years} - 6)\n    AND NOT EXISTS (',
+  },
+  {
+    name: 'the cleanup ages api_usage by a literal month, not the retention constant',
+    file: 'app/api/cron/cleanup/route.ts',
+    from: '        deleteOldApiUsage(\n          db,\n          API_USAGE_RETENTION_MONTHS,',
+    to: '        deleteOldApiUsage(\n          db,\n          1,',
+  },
+  {
+    name: 'the cleanup purges the ledger after a literal year, not the retention constant',
+    file: 'app/api/cron/cleanup/route.ts',
+    from: '        deleteOldLedgerRows(\n          db,\n          PAYMENT_RECORD_RETENTION_YEARS,',
+    to: '        deleteOldLedgerRows(\n          db,\n          1,',
+  },
 ];
 
 function invariantsPass(): boolean {

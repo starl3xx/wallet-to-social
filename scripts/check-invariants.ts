@@ -7123,10 +7123,23 @@ async function main() {
     );
     ok(
       'the bucket delete compares each type’s key with that type’s cutoff, byte-wise',
-      ["'minute'", "'day'", "'month'"].every((t) =>
-        new RegExp(
-          `bucket_type = ${t} AND [bt]\\.bucket_key COLLATE "C" < \\$\\d+`
-        ).test(bucketSql.sql)
+      // Which param each placeholder is bound to, not just that one exists:
+      // a month bucket compared with the day cutoff reads as spent every day.
+      (['b', 't'] as const).every((a) =>
+        (
+          [
+            ['minute', 'M'],
+            ['day', 'D'],
+            ['month', 'MO'],
+          ] as const
+        ).every(([t, key]) => {
+          const m = bucketSql.sql.match(
+            new RegExp(
+              `bucket_type = '${t}' AND ${a}\\.bucket_key COLLATE "C" < \\$(\\d+)`
+            )
+          );
+          return !!m && bucketSql.params[Number(m[1]) - 1] === key;
+        })
       ) &&
         !bucketSql.sql.includes('<=') &&
         (bucketSql.sql.match(/COLLATE "C" < /g) ?? []).length === 6
@@ -7147,6 +7160,29 @@ async function main() {
       'the cleanup passes API_BUCKET_RETENTION_DAYS to cleanupOldBuckets',
       /cleanupOldBuckets\(\s*API_BUCKET_RETENTION_DAYS,/.test(run) &&
         route.API_BUCKET_RETENTION_DAYS > 0
+    );
+    // The statements are tested with the constants above; these check that
+    // the route passes the same constants, and that no second call with a
+    // literal sits beside the right one.
+    ok(
+      'the cleanup passes API_USAGE_RETENTION_MONTHS to its one deleteOldApiUsage call',
+      /deleteOldApiUsage\(\s*db,\s*API_USAGE_RETENTION_MONTHS,/.test(run) &&
+        run.split('deleteOldApiUsage(').length === 2
+    );
+    ok(
+      'the cleanup passes PAYMENT_RECORD_RETENTION_YEARS to every payment-record call',
+      [
+        'deleteOldLedgerRows',
+        'deleteOldLots',
+        'clearOldStripeIds',
+        'countLotsDue',
+        'countStripeIdsDue',
+      ].every(
+        (f) =>
+          new RegExp(
+            `${f}\\(\\s*db,\\s*PAYMENT_RECORD_RETENTION_YEARS[,)]`
+          ).test(run) && run.split(`${f}(`).length === 2
+      )
     );
     // The account quota reads the CURRENT minute, day and month. As the
     // attacker, walk a year in 7-hour steps (every hour of the day comes up)
@@ -7207,18 +7243,26 @@ async function main() {
     const [ledgerSql] = await capture((db) =>
       retention.deleteOldLedgerRows(db, route.PAYMENT_RECORD_RETENTION_YEARS, 9)
     );
-    const ledgerGuards = [
-      `created_at < ${UTC} - make_interval(years =>`,
-      `l.created_at <= cl.created_at AND l.expires_at > ${UTC}`,
-      `l.created_at <= c.created_at AND l.expires_at > ${UTC}`,
-      "j.status NOT IN ('completed', 'failed') OR (cl.paid_from = 'unlock' AND j.matches_delivered IS NOT NULL)",
-      "j.status NOT IN ('completed', 'failed') OR (c.paid_from = 'unlock' AND j.matches_delivered IS NOT NULL)",
-    ];
+    // The whole predicate, for both aliases, as one golden string: a
+    // prefix match let a subquery joined on the wrong column, a widened
+    // expiry or a shortened period through. Every param is pinned too.
+    const ledgerDue = (a: string, n: number) =>
+      `${a}.created_at < ${UTC} - make_interval(years => $${n}) AND NOT EXISTS ( SELECT 1 FROM credit_lots l WHERE l.user_id = ${a}.user_id AND l.created_at <= ${a}.created_at AND l.expires_at > ${UTC} ) AND NOT EXISTS ( SELECT 1 FROM lookup_jobs j WHERE j.id = ${a}.job_id AND (j.status NOT IN ('completed', 'failed') OR (${a}.paid_from = 'unlock' AND j.matches_delivered IS NOT NULL)) )`;
     ok(
       'the ledger purge keeps a row a live lot could have paid for, a running job’s charge and a gated job’s unlock, in the batch and on the row',
-      ledgerGuards.every((g) => ledgerSql.sql.includes(g)) &&
+      ledgerSql.sql.includes(
+        `SELECT cl.id FROM credit_ledger cl WHERE ${ledgerDue('cl', 1)} LIMIT $2 )`
+      ) &&
+        ledgerSql.sql.includes(
+          `WHERE c.id = due.id AND ${ledgerDue('c', 3)} RETURNING 1`
+        ) &&
         (ledgerSql.sql.match(/NOT EXISTS/g) ?? []).length === 4 &&
-        ledgerSql.params[0] === route.PAYMENT_RECORD_RETENTION_YEARS
+        JSON.stringify(ledgerSql.params) ===
+          JSON.stringify([
+            route.PAYMENT_RECORD_RETENTION_YEARS,
+            9,
+            route.PAYMENT_RECORD_RETENTION_YEARS,
+          ])
     );
     const [lotSql] = await capture((db) => retention.deleteOldLots(db, 7, 9));
     const [lotCount] = await capture((db) => retention.countLotsDue(db, 7));
