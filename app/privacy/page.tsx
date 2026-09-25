@@ -21,11 +21,6 @@
  *
  * The one section a reviewer should read twice is "Addresses you look up". It
  * is the only place where this product does something a reader would not guess.
- *
- * **Draft markers.** Every `<Decide>` renders as `[DECIDE: …]` so the owner
- * sees it on a preview. Each one is a choice nobody has made yet, usually
- * between rewording a promise and changing the code so the promise holds. The
- * page does not ship with any of them left in (Linear STA-41).
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -55,7 +50,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/privacy' },
 };
 
-const UPDATED = '24 September 2026';
+const UPDATED = '25 September 2026';
 
 function Section({
   id,
@@ -89,11 +84,6 @@ function Mail() {
   );
 }
 
-/** A choice the owner has not made yet. See the header. */
-function Decide({ children }: { children: React.ReactNode }) {
-  return <span className="text-caution">[DECIDE: {children}]</span>;
-}
-
 export default function PrivacyPage() {
   return (
     <PageShell>
@@ -106,12 +96,6 @@ export default function PrivacyPage() {
           Last updated {UPDATED}. walletlink.social is operated by{' '}
           {LEGAL_ENTITY}. Write to <Mail /> about anything on this page; a
           person reads it.
-        </p>
-        <p className="mt-2 text-sm">
-          <Decide>
-            set the date above to the day this version ships. It must change
-            with every edit to this page.
-          </Decide>
         </p>
 
         <Section id="short" title="The short version">
@@ -129,13 +113,7 @@ export default function PrivacyPage() {
             lookups, with nothing that identifies them. We do keep the
             wallet-to-identity mappings a lookup discovers, and the section on
             addresses you look up explains exactly what that means, because it
-            is the one thing here a reader would not guess.{' '}
-            <Decide>
-              whether US state privacy laws treat selling the index as a sale of
-              personal information about the people in it, and whether
-              walletlink must register as a data broker. If so, this section
-              needs an opt-out link.
-            </Decide>
+            is the one thing here a reader would not guess.
           </p>
           <p>
             Our{' '}
@@ -218,19 +196,13 @@ export default function PrivacyPage() {
             <span className="text-foreground">Technical data.</span> Your IP
             address, held only as a counter: against an hourly bucket, so an
             endpoint cannot be scraped, and against a daily one, so the free
-            allowance for visitors who are not signed in can be counted. Also
-            the browser string of the device that signed in, kept with the
-            session and deleted with it.{' '}
-            <Decide>show it on an account page, or stop storing it.</Decide> Our
-            host keeps request logs. They record the web address of each
-            request, which for a single-address or reverse lookup through the
-            API contains the address or the handle, and the messages our own
-            code writes to them sometimes carry an email address or a wallet
-            address.{' '}
-            <Decide>
-              the log retention on our hosting plan, and whether to stop writing
-              email addresses to logs.
-            </Decide>
+            allowance for visitors who are not signed in can be counted. We do
+            not store the browser string of the device you sign in on. Our host
+            keeps request logs for no longer than 30 days. They record the web
+            address of each request and the browser that sent it, and for a
+            single-address or reverse lookup through the API that web address
+            contains the address or the handle. The messages our own code writes
+            to those logs mask email addresses and wallet addresses.
           </p>
         </Section>
 
@@ -241,37 +213,24 @@ export default function PrivacyPage() {
           </p>
           <p>
             When you run a list, on this site or as a job through the API, every
-            address our index has no fresh answer for is sent to the third-party
+            address we hold no fresh answer for is sent to the third-party
             identity data providers described under “Who else sees it”. A deep
             scan on an account with credits also reads onchain ENS records,
             which sends the address to a blockchain data provider. This happens
             whether or not you are signed in, and the other columns of your file
-            are never sent to them. A fast scan of ten addresses or fewer
-            answers from our index alone and sends nothing, and so does a
-            single-address or batch lookup through the API. One exception for
-            now: a list of more than ten addresses sends every address we hold
-            no cached answer for from the past {CACHE_TTL_DAYS} days, whatever
-            depth you chose and whatever the index already holds.{' '}
-            <Decide>
-              make lists of more than ten addresses read the index first and
-              honor a fast scan, as shorter lists do. Then this exception goes,
-              and the fast-scan description in the lookup form becomes true for
-              every list.
-            </Decide>
+            are never sent to them. A fast scan answers from our index and our
+            cache of recent results alone and sends nothing, whatever the size
+            of the list, and so does a single-address or batch lookup through
+            the API.
           </p>
           <p>
             What comes back is written to a permanent index, and that index then
             answers other people’s lookups of the same address. Each record also
             keeps a counter that goes up whenever a lookup, or one of our own
             refresh jobs, writes to it. It never records who ran the lookup.
-            When a list of ten addresses or fewer finds that an address resolves
-            to nobody, we record that too, and a later list of that size does
-            not re-ask about it for {NEGATIVE_RECHECK_DAYS} days.{' '}
-            <Decide>
-              make lists of more than ten addresses read and write these records
-              too, as shorter lists do, and then drop “of ten addresses or
-              fewer” and “of that size”.
-            </Decide>
+            When a list finds that an address resolves to nobody, we record that
+            too, and a later list does not re-ask about it for{' '}
+            {NEGATIVE_RECHECK_DAYS} days.
           </p>
           <p>
             <span className="text-foreground">What is shared this way</span> is
@@ -292,13 +251,11 @@ export default function PrivacyPage() {
             you. Your lists are yours, and no customer can see another
             customer’s. The one exception is a strip on our home page of recent
             large lookups: how many addresses a list had, how many matched, and
-            when it finished, with no name, account or address attached.{' '}
-            <Decide>
-              whether customer lists should appear there at all, or only our own
-              collection imports. Today any completed list of 25 or more
-              addresses with a match rate above 8% from the last seven days can
-              appear unless we hide it by hand.
-            </Decide>
+            when it finished, with no name, account or address attached. Any
+            completed list of 25 or more addresses from the last seven days with
+            a match rate above 8% can appear there, our own imports of
+            collections included. If you would rather yours did not, write to{' '}
+            <Mail /> and we will hide it by hand.
           </p>
           <p>
             Raw results are also cached for {CACHE_TTL_DAYS} days, so a repeated
@@ -318,14 +275,9 @@ export default function PrivacyPage() {
             nobody checks that the handle’s owner agreed, so your handle can
             appear beside a wallet you have never used. Some links come from a
             third-party index that pairs a wallet with an account when nothing
-            shows the owner made the link. We never count those as attested by
-            the owner, and a search for the wallets behind an account never
-            returns them.{' '}
-            <Decide>
-              whether to keep holding and selling correlated mappings about
-              people who never published a link. The section on why we are
-              allowed to use it has to cover them either way.
-            </Decide>
+            shows the owner made the link. We label those as aggregated wherever
+            we return them, never as attested by the owner, and a search for the
+            wallets behind an account never returns them.
           </p>
           <p>
             We collect nothing from a private source. The index itself holds no
@@ -343,8 +295,7 @@ export default function PrivacyPage() {
             keep those only in that customer’s lookups, as described above. A
             handful of well-known people appear on our home page as examples, by
             name and with their profile photos, X and Farcaster accounts and the
-            wallets we have indexed for them.{' '}
-            <Decide>whether those people agreed to that.</Decide>
+            wallets we have indexed for them.
           </p>
           <p>
             Write to <Mail /> with the address or handle and we will remove it.
@@ -354,11 +305,8 @@ export default function PrivacyPage() {
             only on the ones you name, and we do not search the index for others
             that might be yours. The suppression list stores each identifier on
             its own row, with nothing that ties the ones in your request
-            together, and once the removal is done we delete your email.{' '}
-            <Decide>
-              confirm that the delete-the-thread step in the removal runbook is
-              followed before promising it here.
-            </Decide>
+            together, and once the removal is done we delete the email thread,
+            your message and our replies.
           </p>
           <p>
             <span className="text-foreground">What happens next.</span> A person
@@ -366,18 +314,16 @@ export default function PrivacyPage() {
             no automation between you and it. Each identifier you name is
             deleted from the index and added to a suppression list that every
             write path checks, so an automated sweep that finds the same public
-            record later cannot put it back. It stays on that list unless we
-            find the removal was made in error and lift it.{' '}
-            <Decide>
-              when an operator may lift a suppression after the{' '}
-              {QUARANTINE_RETENTION_DAYS}-day undo window, and whether to allow
-              it at all.
-            </Decide>{' '}
-            Where a customer’s saved lookup that we still hold carries the link,
-            the link is removed from it: everything we resolved for the
-            identifier is stripped, so the entry reads as if nothing was found.
-            An address that was part of the customer’s own uploaded list stays
-            in that list, carrying nothing. A saved lookup whose subject is the
+            record later cannot put it back. A removal lasts until you ask us to
+            undo it, with the same proof that the address or account is yours
+            that we ask for before sending a copy of what we hold (see “Your
+            rights”). In the first {QUARANTINE_RETENTION_DAYS} days we can also
+            undo a removal made in error, as described below. Where a customer’s
+            saved lookup that we still hold carries the link, the link is
+            removed from it: everything we resolved for the identifier is
+            stripped, so the entry reads as if nothing was found. An address
+            that was part of the customer’s own uploaded list stays in that
+            list, carrying nothing. A saved lookup whose subject is the
             identifier itself (a search for the wallets behind your handle) is
             deleted whole. We complete this within 30 days, the same period as
             every other request on this page.
@@ -392,21 +338,11 @@ export default function PrivacyPage() {
             lookups and our list of AI agent wallets, and each is kept for 90
             days, so a removed link can survive in a backup until then. If we
             ever restore one, we keep today’s suppression list rather than the
-            backup’s, so nothing removed since that night comes back.{' '}
-            <Decide>
-              add that step to the restore runbook before promising it.
-            </Decide>{' '}
-            An API batch answer kept for a retry is not amended, and can be
-            replayed for up to {IDEMPOTENCY_TTL_HOURS} hours after the request.{' '}
-            <Decide>
-              amend or delete those copies in a removal, and filter replays.
-            </Decide>{' '}
-            If the address was ever claimed on our claim page, the claim record
-            keeps the address and the X account.{' '}
-            <Decide>
-              clear the claim record in an emailed removal, as a withdrawal on
-              the claim page does.
-            </Decide>{' '}
+            backup’s, so nothing removed since that night comes back. An API
+            batch answer kept for a retry is amended or deleted in a removal,
+            and a replayed answer is filtered, so a retry never brings the link
+            back. If the address was ever claimed on our claim page, the removal
+            clears the claim record too, as a withdrawal on the claim page does.
             And the identifier you named stays on the suppression list, and on
             internal do-not-recheck lists that hold the identifier on its own,
             never the link.
@@ -454,16 +390,17 @@ export default function PrivacyPage() {
             Every list a customer runs keeps its addresses for{' '}
             {JOB_PAYLOAD_RETENTION_DAYS} days in its job record, and a saved
             lookup keeps them until its owner deletes it, so for those copies we
-            do know which account held the link. A list run while signed out is
-            tied only to a browser, so there is nobody to tell.{' '}
-            <Decide>
-              whether to tell those account holders that a removal changed their
-              results. GDPR article 19 asks a controller to tell each recipient
-              of erased data unless that is impossible or takes disproportionate
-              effort.
-            </Decide>{' '}
-            A single-address or batch lookup through the API leaves no address
-            in our database: our record of API calls keeps the endpoint and the
+            do know which account held the link. We do not tell those account
+            holders that a removal changed their results, for three reasons.
+            Telling them would reveal that the person behind the link asked to
+            be removed. Tracing everyone who ever received a link takes effort
+            out of proportion to what it would achieve, and a list run while
+            signed out is tied only to a browser, so there is nobody to tell.
+            And the removal reaches them anyway: every job result and saved
+            lookup we hold is checked against the suppression list each time it
+            is opened, so the link is gone the next time its owner looks. A
+            single-address or batch lookup through the API leaves no address in
+            our database: our record of API calls keeps the endpoint and the
             number of addresses.
           </p>
         </Section>
@@ -471,13 +408,8 @@ export default function PrivacyPage() {
         <Section id="processors" title="Who else sees it">
           <p>
             We use other companies to run the service. Each receives only what
-            its job needs.{' '}
-            <Decide>
-              “none of them may use it for anything else” needs a data
-              processing agreement, or terms that say so, with every company
-              below, the identity data providers included. Confirm before
-              restoring it.
-            </Decide>
+            its job needs, and each company’s own terms and privacy policy
+            govern what it does with it.
           </p>
           <ul className="ml-4 list-disc space-y-2">
             <li>
@@ -488,16 +420,14 @@ export default function PrivacyPage() {
               <span className="text-foreground">Neon</span> hosts the database.
             </li>
             <li>
-              <span className="text-foreground">Inngest</span> runs lists of
-              more than ten addresses in the background, and keeps a history of
-              each run that includes what the job holds: the addresses, the
+              <span className="text-foreground">Inngest</span> ran lists of more
+              than ten addresses in the background until 25 September 2026, and
+              no longer processes anything for us. It kept a history of each of
+              those runs that includes what the job held: the addresses, the
               other columns of your file, the results, and the account or
-              browser that ran it.{' '}
-              <Decide>
-                how long Inngest keeps run history on our plan, and whether our{' '}
-                {JOB_PAYLOAD_RETENTION_DAYS}-day limit and a removal can reach
-                it.
-              </Decide>
+              browser that ran it. Neither our {JOB_PAYLOAD_RETENTION_DAYS}-day
+              limit nor a removal reaches that history, which Inngest keeps
+              under its own terms.
             </li>
             <li>
               <span className="text-foreground">GitHub</span> runs our scheduled
@@ -541,10 +471,7 @@ export default function PrivacyPage() {
             <li>
               <span className="text-foreground">PayAI</span>, a payment
               facilitator, settles onchain payments. It sees the paying address
-              and the amount, both already public on the chain.{' '}
-              <Decide>
-                confirm the facilitator set in production before naming it.
-              </Decide>
+              and the amount, both already public on the chain.
             </li>
             <li>
               <span className="text-foreground">
@@ -561,16 +488,6 @@ export default function PrivacyPage() {
             </li>
           </ul>
           <p>
-            <Decide>
-              where {LEGAL_ENTITY} is registered and where each company above
-              stores data (most likely the United States). Then name the
-              safeguard for people in the UK and the EU (each company’s Data
-              Privacy Framework certification, or standard contractual clauses),
-              and decide whether we need a representative in the EU and the UK
-              under GDPR article 27.
-            </Decide>
-          </p>
-          <p>
             We will also hand over data where the law requires it, and we would
             tell you unless we were forbidden to. If the business is ever sold,
             what we hold moves with it and this policy travels with it too.
@@ -582,25 +499,18 @@ export default function PrivacyPage() {
             For your account, your payments and the lookups you run, we use your
             data because you asked for the service and it cannot run without it.
             We keep payment records because tax law requires them. We keep IP
-            counters and product analytics, and send the welcome emails, because
-            we have a legitimate interest in keeping the service standing and in
-            telling a new account what it can do.{' '}
-            <Decide>
-              legitimate interests or consent for the welcome sequence and the
-              check-in email, under the email marketing rules where each reader
-              lives.
-            </Decide>
+            counters and product analytics because we have a legitimate interest
+            in keeping the service standing. We send the welcome and check-in
+            emails to account holders on the same basis, a legitimate interest
+            in telling a new account what it can do, and every one of them
+            carries a one-click unsubscribe.
           </p>
           <p>
             For people in the index, who never signed up, we rely on legitimate
-            interests:{' '}
-            <Decide>
-              the interest in one sentence, for example letting projects reach
-              people who publicly linked a wallet to a social account, with a
-              balancing test on file that also covers correlated mappings.
-            </Decide>{' '}
-            You can object at any time. Write to <Mail /> and we will remove
-            what you name, as described above.
+            interests. We help projects reach people who publicly linked a
+            wallet to a social account themselves, and we show how each link was
+            established. You can object at any time. Write to <Mail /> and we
+            will remove what you name, as described above.
           </p>
         </Section>
 
@@ -652,21 +562,9 @@ export default function PrivacyPage() {
                     ],
                     [
                       'Removal suppression list',
-                      'One identifier per row, with no account attached, until a removal made in error is reversed. A withdrawal made on the claim page is also recorded on the claimant’s account',
+                      'One identifier per row, with no account attached, until you ask us to undo the removal or we undo one made in error. A withdrawal made on the claim page is also recorded on the claimant’s account',
                     ],
-                    [
-                      'Cached raw results',
-                      <>
-                        Used for {CACHE_TTL_DAYS} days. There is no expiry after
-                        that: a copy stays until a later lookup of the same
-                        address replaces it.{' '}
-                        <Decide>
-                          delete expired copies in the daily cleanup, which
-                          already has a function for it that nothing calls, and
-                          then this row can say {CACHE_TTL_DAYS} days again.
-                        </Decide>
-                      </>,
-                    ],
+                    ['Cached raw results', `${CACHE_TTL_DAYS} days`],
                     [
                       'Product and page-view events',
                       `${ANALYTICS_RETENTION_DAYS} days`,
@@ -676,12 +574,10 @@ export default function PrivacyPage() {
                       `${IP_BUCKET_RETENTION_HOURS} hours`,
                     ],
                     [
-                      'API request records',
-                      <>
-                        Until the account is deleted.{' '}
-                        <Decide>a period, and a cleanup to enforce it.</Decide>
-                      </>,
+                      'API key rate-limit counters',
+                      'Counts only, with no addresses: two days after the minute, day or month they count has ended',
                     ],
+                    ['API request records', '13 months'],
                     [
                       'Records of welcome and check-in emails sent',
                       'Until the account is deleted',
@@ -704,7 +600,7 @@ export default function PrivacyPage() {
                     ],
                     [
                       'API keys',
-                      'Usable until you revoke them, and stored only as a hash. A revoked key’s record (its name, prefix and dates) and its request history stay with the account',
+                      'Usable until you revoke them, and stored only as a hash. A revoked key’s record (its name, prefix and dates) stays with the account, and its request records go after 13 months, like all the others',
                     ],
                     [
                       'Encrypted backups',
@@ -712,14 +608,7 @@ export default function PrivacyPage() {
                     ],
                     [
                       'Payment records',
-                      <>
-                        At least seven years, for tax and accounting.{' '}
-                        <Decide>
-                          add a seven-year purge to the daily cleanup, or keep
-                          “at least”. Also confirm seven years against the tax
-                          rules that apply to the company.
-                        </Decide>
-                      </>,
+                      'Seven years, for tax and accounting, then deleted',
                     ],
                   ] as [string, React.ReactNode][]
                 ).map(([what, kept]) => (
@@ -769,14 +658,11 @@ export default function PrivacyPage() {
             If you are in the index rather than a customer, we will ask you to
             show that the address or account is yours before we send a copy of
             what we hold for it, because the same answer sent to a stranger
-            would hand them the link you may want hidden. Removal never needs
-            that proof.{' '}
-            <Decide>
-              the proof we accept (a wallet signature, a post from the account),
-              how an account deletion is verified and carried out, and whether
-              the uniform reply in the removal runbook, which never confirms
-              that a record exists, is for removals only.
-            </Decide>
+            would hand them the link you may want hidden. We accept either of
+            two proofs: a message signed with the wallet, or a public post from
+            the social account that names your request. With that proof, you get
+            a full answer. Removal never needs that proof, and our reply to a
+            removal request never confirms whether we held anything.
           </p>
           <p>
             Write to <Mail />. We answer within 30 days, and we do not charge
@@ -784,9 +670,9 @@ export default function PrivacyPage() {
             something, you can complain to your data protection authority.
           </p>
           <p>
-            Some things we cannot delete. Payment records are kept for at least
-            seven years, for tax and accounting. Deleting your account does not
-            remove a wallet-to-identity mapping from the index, because that
+            Some things we cannot delete on request. Payment records are kept
+            for seven years, for tax and accounting. Deleting your account does
+            not remove a wallet-to-identity mapping from the index, because that
             mapping is not about you unless the wallet is yours, in which case
             the section above is the one that applies.
           </p>
@@ -813,9 +699,9 @@ export default function PrivacyPage() {
 
         <Section id="children" title="Children">
           <p>
-            This is a product for businesses and developers, and it is not for
-            anyone under 16. We do not knowingly hold data about a child. If you
-            believe we do, write to <Mail /> and it will be removed.
+            This is a product for business and professional use, and it is not
+            for anyone under 18. We do not knowingly hold data about a child. If
+            you believe we do, write to <Mail /> and it will be removed.
           </p>
         </Section>
 
@@ -831,7 +717,8 @@ export default function PrivacyPage() {
         <Section id="contact" title="Contact">
           <p>
             <Mail />, for a question, a request, or a complaint. It reaches a
-            person rather than a queue.
+            person rather than a queue. walletlink.social is operated by{' '}
+            {LEGAL_ENTITY}, a limited liability company organized in Wyoming.
           </p>
         </Section>
       </div>

@@ -782,21 +782,26 @@ the cleanup cron enforces: removal quarantine copies (30 days) and
 background job payloads (30 days). The decided policy is under principle 8
 in `docs/AGENT-SYSTEM.md`; the operator runbook is in `docs/OPERATIONS.md`.
 
-**The 2026-09-24 audit (STA-41, a draft PR until the owner approves).** Every
-sentence was checked against the code, and where the code did not do what the
-page said, the page now says what the code does, with a `[DECIDE: …]` marker
-(the `Decide` component, rendered in the caution color) wherever the owner can
-instead change the code. Two rows had no enforcing code, so they no longer
-state an expiry: cached raw results (`cleanExpiredCache` in `lib/cache.ts` has
-no caller, so a copy lasts until the next lookup of the address replaces it)
-and payment records ("at least seven years"; nothing deletes them). Suppression
-is no longer called permanent, because an operator can lift it after the
-quarantine purge (`unsuppressIdentifier` with `acknowledgePurged`). New rows:
-API retry copies (`IDEMPOTENCY_TTL_HOURS`), API request records, lifecycle
-email records, the suppression list, the index's other facts and the encrypted
-backups. New processors: Inngest, GitHub, X, Warpcast, and PayAI named. A new
-section states the lawful basis. The removal text is written as true once the
-Inngest pipeline applies the suppression list (#385), so this merges after it.
+**The STA-41 audit (2026-09-24, decided 2026-09-25).** Every sentence was
+checked against the code, and the owner decided each point where the code and
+the page disagreed. Where the decision is a code change, the page is written
+for the state after it ships, and the page merges after those PRs: STA-45
+(`cleanExpiredCache` called daily, so cached raw results say `CACHE_TTL_DAYS`
+again; API request records kept 13 months; API key rate-limit counters deleted
+two days after their minute, day or month ends; payment records purged after
+seven years; `auth_sessions.user_agent` no longer stored; emails and wallets
+masked in log lines), STA-46 (a removal amends or deletes API retry copies and
+filters replays, and an emailed removal clears the claim record, plus a
+"keep today's suppression list" step in the ops restore runbook) and STA-47
+(an "I agree to the terms" step at checkout and the USDC buy, recorded with
+the time and the terms version). A removal lasts until the person asks to undo
+it, with the proof an access request needs (a wallet signature or a post from
+the account); `unsuppressIdentifier` with `acknowledgePurged` is the tool, and
+the policy is who may ask. Since #393 every list runs in the worker, so the
+page has no exceptions for lists over ten addresses, and Inngest is listed as
+having run them until 25 September 2026. The page states no position on data
+broker registration, EU and UK transfers or a GDPR article 27 representative:
+those wait on counsel.
 
 ### Terms of service
 
@@ -805,13 +810,19 @@ inside them, at `/terms`, linked from the footer beside Privacy, from the
 sitemap and from the privacy page. It follows the privacy page's rules: every
 figure is imported (`lib/packs.ts`, `lib/api-plans.ts`, `lib/match-gate.ts`,
 `lib/ip-rate-limiter.ts`, `lib/access.ts`), the canonical sentences are quoted
-from `lib/canonical-sentences.ts`, and it promises only what the code does. The
-credit lifetime is stated as `CREDIT_LIFETIME_DAYS`, not months, because lots
-expire at 365 days. Enforcement lists revoking keys and disconnecting
-applications, which exist; there is no account block, so anything more is a
-`[DECIDE: …]`. The acceptable-use rules agree with the "who it is not for" line
-in `app/llms.txt/route.ts`. It is not yet in `namesEntity` or the footer and
-sitemap assertions in `scripts/check-invariants.ts`, which check `/privacy`
+from `lib/canonical-sentences.ts`, and it promises only what the code does or
+what a person does by hand (refunds, notices, appeals). The credit lifetime is
+stated as `CREDIT_LIFETIME_DAYS`, not months, because lots expire at 365 days,
+and the legacy unlimited plan's fair-use cap is `LEGACY_UNLIMITED_DAILY_WALLETS`.
+Enforcement lists revoking keys and disconnecting applications, which exist;
+an account block and deletion for a breach are STA-47 and are not promised
+until they ship. The x402 tenth-purchase bonus is documented, not promised in
+the terms. Wyoming law and courts govern, and the entity is a Wyoming LLC; the
+registered agent's postal address is a marked placeholder until the owner
+supplies it. The outreach rules (own token, collection or community only)
+agree with the "who it is not for" line in `app/llms.txt/route.ts` and with
+`.agents/product-marketing.md`. It is not yet in `namesEntity` or the footer
+and sitemap assertions in `scripts/check-invariants.ts`, which check `/privacy`
 only.
 
 ### OAuth 2.1 for the MCP server

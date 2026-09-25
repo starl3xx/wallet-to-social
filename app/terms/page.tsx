@@ -21,14 +21,11 @@
  *
  * **Promise only what the code can do.** There is no account suspension: the
  * enforcement section lists revoking keys and disconnecting applications,
- * which exist, and leaves the rest as a decision. The reverse lookups refuse a
+ * which exist. An account block and deletion for a breach are Linear STA-47,
+ * and the page names them only once they ship. The reverse lookups refuse a
  * key bought with USDC alone (`lib/x402-account.ts`), so the terms say so.
  * Who the product is not for is already published in `app/llms.txt/route.ts`;
  * the acceptable-use rules below are written to agree with it.
- *
- * **Draft markers.** Every `<Decide>` renders as `[DECIDE: …]` so the owner
- * sees it on a preview. The page does not ship with any of them left in
- * (Linear STA-41).
  */
 import type { Metadata } from 'next';
 import Link from 'next/link';
@@ -45,7 +42,7 @@ import {
   GOODWILL_OVERAGE_RATE,
   X402_PACKS,
   X402_MAX_QUANTITY,
-  X402_LOYALTY_EVERY_N,
+  LEGACY_UNLIMITED_DAILY_WALLETS,
 } from '@/lib/packs';
 import { API_PLANS, CREDIT_API_PLAN, PACK_API_PLAN } from '@/lib/api-plans';
 import {
@@ -66,7 +63,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/terms' },
 };
 
-const UPDATED = '24 September 2026';
+const UPDATED = '25 September 2026';
 
 const n = (x: number) => x.toLocaleString('en-US');
 
@@ -114,11 +111,6 @@ function Mail() {
   );
 }
 
-/** A choice the owner has not made yet. See the header. */
-function Decide({ children }: { children: React.ReactNode }) {
-  return <span className="text-caution">[DECIDE: {children}]</span>;
-}
-
 const LINK = 'text-accent-brand underline underline-offset-4';
 
 export default function TermsPage() {
@@ -134,12 +126,6 @@ export default function TermsPage() {
           {LEGAL_ENTITY}. Write to <Mail /> about anything on this page; a
           person reads it.
         </p>
-        <p className="mt-2 text-sm">
-          <Decide>
-            the effective date. Set the date above to the day this version
-            ships.
-          </Decide>
-        </p>
 
         <Section id="short" title="The short version">
           <p>
@@ -154,43 +140,34 @@ export default function TermsPage() {
           <p>
             Four sentences cover most of it. You buy credits once, and a credit
             is spent only on a match: a wallet resolved to an X or Farcaster
-            account. There are no refunds, so try the free allowance first. You
-            may use what you find to reach people about a token, collection or
-            protocol they hold. You may not use it to stalk, expose, track or
-            profile anyone, and if you do, we may revoke your API keys and
-            disconnect your applications.
+            account. Refunds are limited to the cases listed below, so try the
+            free allowance first. You may use what you find to reach the holders
+            of your own token or collection, and your own community. You may not
+            use it to stalk, expose, track or profile anyone, and if you do, we
+            may revoke your API keys and disconnect your applications.
           </p>
         </Section>
 
         <Section id="agreement" title="Who this agreement is with">
           <p>
-            walletlink.social is operated by {LEGAL_ENTITY} (“we”, “us”). These
-            terms are an agreement between us and whoever uses the service
-            (“you”). If you use it on behalf of a business, “you” also means
-            that business, and you confirm that you can bind it to these terms.
+            walletlink.social is operated by {LEGAL_ENTITY} (“we”, “us”), a
+            limited liability company organized in Wyoming. These terms are an
+            agreement between us and whoever uses the service (“you”). The
+            service is for business and professional use only. You use it on
+            behalf of a business, even when that business is you alone, so “you”
+            also means that business, and you confirm that you can bind it to
+            these terms. If a consumer protection law that cannot be waived
+            applies to you anyway, nothing in these terms takes away a right it
+            gives you.
           </p>
           <p>
             You accept these terms when you create an account, buy credits,
             create an API key, connect an application, pay for credits onchain,
-            or use the service in any other way.{' '}
-            <Decide>
-              how acceptance is recorded. Today nothing in the product asks
-              anyone to agree to terms: checkout needs only an email, and
-              sign-in, key creation, the OAuth consent screen and the onchain
-              rail show no terms. Decide whether a footer link is enough, or
-              whether checkout and sign-up need an explicit “I agree”.
-            </Decide>
+            or use the service in any other way. When you buy credits, at
+            checkout or onchain, you also confirm that you agree to them, and we
+            record the time and the version of these terms with the purchase.
           </p>
-          <p>
-            This is a product for businesses and developers. You must be at
-            least <Decide>18, or 16 to match the privacy policy</Decide> to use
-            it.{' '}
-            <Decide>
-              whether the service is offered to consumers at all, or to
-              businesses only. The answer changes the refund and liability
-              sections.
-            </Decide>
-          </p>
+          <p>You must be at least 18 years old to use the service.</p>
           <p>
             The privacy policy explains what we hold about you and about the
             people in the index, and for how long. Read it with these terms.
@@ -239,11 +216,10 @@ export default function TermsPage() {
             people in it.
           </p>
           <p>
-            We may change, add or remove features.{' '}
-            <Decide>
-              whether to promise notice before we remove a paid feature such as
-              the API or reverse lookup.
-            </Decide>
+            We may change, add or remove features. Before we remove a paid
+            feature, such as the API or reverse lookup, we will tell account
+            holders by email at least 30 days ahead, and credits that have not
+            expired stay usable on the rest of the service.
           </p>
         </Section>
 
@@ -287,9 +263,9 @@ export default function TermsPage() {
             described under paying onchain.
           </p>
           <p>
-            Each account is for one person or one business. Do not share an
-            account between businesses, and do not open more accounts to get
-            more of the free allowance.
+            Each account is for one business. Do not share an account between
+            businesses, and do not open more accounts to get more of the free
+            allowance.
           </p>
         </Section>
 
@@ -312,13 +288,10 @@ export default function TermsPage() {
               pricing page
             </Link>{' '}
             always shows the current packs. A price change never changes a pack
-            you have already bought.{' '}
-            <Decide>
-              whether prices include sales tax or VAT. Checkout does not
-              calculate tax today.
-            </Decide>{' '}
-            Stripe takes card payments on its own pages, and card numbers never
-            reach us.
+            you have already bought. Prices exclude taxes, and you pay any tax
+            that applies to your purchase. Any promotion, such as bonus credits,
+            is described where we offer it. Stripe takes card payments on its
+            own pages, and card numbers never reach us.
           </p>
           <p>
             <span className="text-foreground">What a credit buys.</span> One
@@ -350,11 +323,10 @@ export default function TermsPage() {
               Plans bought before credit packs.
             </span>{' '}
             If you bought a plan before credit packs existed, it keeps what it
-            was sold with, and nothing on this page reduces it.{' '}
-            <Decide>
-              whether the daily cap on the old unlimited plan needs a mention
-              here.
-            </Decide>
+            was sold with, and nothing on this page reduces it. The old
+            unlimited plan has one fair-use limit: at most{' '}
+            {n(LEGACY_UNLIMITED_DAILY_WALLETS)} addresses submitted in any 24
+            hours, a level that only bulk copying of the index reaches.
           </p>
           <p>Before you spend, know that:</p>
           <ul className="ml-4 list-disc space-y-2">
@@ -384,11 +356,7 @@ export default function TermsPage() {
           </ul>
           <p>
             Credits have no cash value. You cannot sell them, transfer them to
-            another account, or exchange them for money.{' '}
-            <Decide>
-              confirm this rule. Nothing in the product moves credits between
-              accounts today.
-            </Decide>
+            another account, or exchange them for money.
           </p>
         </Section>
 
@@ -428,15 +396,6 @@ export default function TermsPage() {
               We cannot charge you twice for the same signed payment: if you
               replay it, the response shows the credits it already bought.
             </li>
-            <li>
-              Every {X402_LOYALTY_EVERY_N}th settled purchase from the same
-              wallet adds one {AGENT.name} pack of matches at no charge.{' '}
-              <Decide>
-                whether to promise this bonus in the terms, or keep it in the
-                documentation only so that it can change without a change to the
-                terms.
-              </Decide>
-            </li>
             <li>An OAuth connection cannot buy credits.</li>
           </ul>
           <p>
@@ -461,29 +420,23 @@ export default function TermsPage() {
 
         <Section id="refunds" title="Refunds">
           <p>
-            There are no refunds. Check first instead: the free allowance shows
-            your list’s real match rate before you spend anything, and a wallet
-            that resolves to nothing costs nothing either way. We do not refund
-            unused or expired credits.
+            We do not refund credits, used, unused or expired, except where the
+            law requires it or this page says so. Check first instead: the free
+            allowance shows your list’s real match rate before you spend
+            anything, and a wallet that resolves to nothing costs nothing either
+            way.
           </p>
           <p>
             A payment that went wrong is different, and we will put it right. If
             you paid and received no credits, write to <Mail /> with your
-            receipt or the settlement reference, and we will issue them.{' '}
-            <Decide>
-              what to do about a duplicate charge, for example a person who paid
-              twice for one purchase: a refund in money, or credits. It has
-              happened once, and that payment was refunded.
-            </Decide>
+            receipt or the settlement reference, and we will issue them. If you
+            were charged twice for one purchase, we refund the duplicate payment
+            to the card or wallet it came from once we have confirmed it.
           </p>
           <p>
-            <Decide>
-              whether the no-refund rule needs a carve-out for statutory rights
-              where the buyers are, for example the EU and UK right to withdraw
-              from a digital purchase within 14 days unless the buyer agreed to
-              immediate delivery, and what a chargeback does to the account and
-              its credits.
-            </Decide>
+            If you dispute a card payment with your bank or card issuer, we
+            remove the credits that payment bought, and we may revoke your API
+            keys while the dispute is open.
           </p>
         </Section>
 
@@ -530,13 +483,14 @@ export default function TermsPage() {
 
         <Section id="acceptable-use" title="What you may not do">
           <p>
-            walletlink.social exists to help projects reach the people who hold
-            their token, collection or protocol, to check whether an account
-            holds your token (for example before a partnership, an allowlist or
-            an airdrop), and to study wallets in aggregate. It is not for spam,
-            or for targeting people who have no relationship to your token. It
-            links wallets to people, so some uses of it would harm the people in
-            the index. You may not use the service, or anything it returns, to:
+            walletlink.social exists to help projects reach their own community,
+            the people who hold their own token or collection, to check whether
+            an account holds your token (for example before a partnership, an
+            allowlist or an airdrop), and to study wallets in aggregate. It is
+            not for spam, or for targeting people who have no relationship to
+            your token. It links wallets to people, so some uses of it would
+            harm the people in the index. You may not use the service, or
+            anything it returns, to:
           </p>
           <ul className="ml-4 list-disc space-y-2">
             <li>stalk, harass, threaten or intimidate anyone;</li>
@@ -567,9 +521,9 @@ export default function TermsPage() {
               find, contact or profile anyone below the minimum age above;
             </li>
             <li>
-              send spam: bulk messages to people who have no relationship to
-              your token, collection or protocol, messages to anyone who has
-              asked you to stop, or anything the next section forbids;
+              send spam: bulk messages to people outside your own token,
+              collection or community, messages to anyone who has asked you to
+              stop, or anything the next section forbids;
             </li>
             <li>
               discriminate against anyone unlawfully, or use our results to
@@ -607,14 +561,6 @@ export default function TermsPage() {
             </li>
           </ul>
           <p>
-            <Decide>
-              whether the API documentation keeps describing reverse lookup as
-              “given a person, what do they hold?”, since the rule on monitoring
-              an individual above forbids following what a person holds over
-              time.
-            </Decide>
-          </p>
-          <p>
             <span className="text-foreground">Sanctions.</span> You confirm that
             you are not a person or organization that the sanctions laws we are
             subject to forbid us to deal with, and that you will not pay us from
@@ -623,37 +569,31 @@ export default function TermsPage() {
           </p>
           <p>
             If the law gives you duties for personal data you get from us, those
-            duties are yours.{' '}
-            <Decide>
-              whether customers are independent controllers of the data they
-              receive, and whether business customers in the EU and UK need a
-              data processing addendum.
-            </Decide>
+            duties are yours. You receive our results as an independent
+            controller: you decide what to do with them, and you need your own
+            lawful basis for doing it. We do not process personal data on your
+            behalf, so there is no data processing agreement.
           </p>
           <p>
-            <Decide>
-              whether any of these uses is allowed for a defined purpose, for
-              example security research, fraud investigation, or a lawful
-              request from law enforcement.
-            </Decide>
+            Two purposes may go beyond these rules, and only after you write to{' '}
+            <Mail /> first and tell us what you plan: security research and
+            fraud investigation. There is no exception for law enforcement
+            through an account. We answer the authorities only when a request
+            comes through legal process.
           </p>
         </Section>
 
         <Section id="outreach" title="Messaging the people you find">
           <p>
-            The product is for reaching holders, and this is also where it is
-            easiest to do harm. When you contact anyone you found through us:
+            The product is for reaching your own holders, and this is also where
+            it is easiest to do harm. When you contact anyone you found through
+            us:
           </p>
           <ul className="ml-4 list-disc space-y-2">
             <li>
-              write to people who hold your own token, collection or protocol,
-              about it;{' '}
-              <Decide>
-                whether outreach to holders of another project’s token is
-                allowed. The product-marketing notes list it as a use case, and
-                llms.txt says the product is not for targeting people with no
-                relationship to your token.
-              </Decide>
+              write only to people who hold your own token or collection or
+              belong to your own community, about your own project, and never to
+              the holders of another project’s token;
             </li>
             <li>say who you are and who you speak for;</li>
             <li>
@@ -663,12 +603,7 @@ export default function TermsPage() {
             <li>
               never ask anyone to send funds or approve a token transfer in a
               first message, and when you ask them to connect a wallet or sign
-              something, link only to your project’s own domain;{' '}
-              <Decide>
-                keep this rule. A genuine airdrop or claim announcement asks for
-                a wallet connection, which is why it allows a link to your own
-                domain.
-              </Decide>
+              something, link only to your project’s own domain;
             </li>
             <li>
               follow the rules of the platform you send on, including its limits
@@ -680,13 +615,6 @@ export default function TermsPage() {
             from your own Farcaster or X account, with your own credentials.
             They are your messages: you are responsible for what they say and
             who receives them, and the platform may act against your account.
-          </p>
-          <p>
-            <Decide>
-              whether the rules above are enough for the app’s direct messages,
-              which go to a whole list in one run, or whether to add a daily cap
-              or an opt-out line in every message.
-            </Decide>
           </p>
         </Section>
 
@@ -705,21 +633,10 @@ export default function TermsPage() {
           </ul>
           <p>
             We will not wait to warn you when a person may be harmed. In other
-            cases, where we can, we will tell you what we did and why, and you
-            can reply to <Mail /> to contest it.{' '}
-            <Decide>
-              whether remaining credits are forfeited on a breach or refunded,
-              and whether there is any appeal beyond email.
-            </Decide>
-          </p>
-          <p>
-            <Decide>
-              build an account block before publishing, or keep this section and
-              the short version to what the product can do today: revoke keys
-              and disconnect applications. Closing an account, refusing a new
-              one, and deleting saved lookups for a breach all need code first,
-              and the last also needs a line in the privacy policy.
-            </Decide>
+            cases, where we can, we will tell you what we did and why. If the
+            breach is serious, your remaining credits are forfeited. You can
+            appeal any of this by writing to <Mail />, and a person will answer
+            within 14 days.
           </p>
           <p>
             <span className="text-foreground">How to report misuse.</span> If
@@ -778,11 +695,11 @@ export default function TermsPage() {
               removed. We do not ask you to prove ownership first. A person runs
               the removal by hand. We delete each identifier from the index and
               add it to a suppression list that every write path checks, so a
-              later sweep cannot put it back. It stays there unless we find the
-              removal was made in error and lift it, and we keep a copy for{' '}
-              {QUARANTINE_RETENTION_DAYS} days only so a mistaken removal can be
-              undone, as the privacy policy explains. We complete a removal
-              within 30 days.
+              later sweep cannot put it back. It stays there until you ask us to
+              undo the removal, and we keep a copy for{' '}
+              {QUARANTINE_RETENTION_DAYS} days only so a removal made in error
+              can be undone, as the privacy policy explains. We complete a
+              removal within 30 days.
             </li>
             <li>
               If you can sign for the address,{' '}
@@ -821,32 +738,26 @@ export default function TermsPage() {
             privacy policy describes.
           </p>
           <p>
-            We license the results we return to you for your own use: outreach,
-            research and running your project. You may share them inside your
-            organization and with people who work for you. You may not resell or
-            redistribute them in bulk.{' '}
-            <Decide>
-              the scope of the license. The Index pack is sold to agencies, so
-              decide whether an agency may use results for its clients. Also
-              decide how long the license lasts after credits expire or the
-              account closes, and whether you must delete a result when the
-              person in it asks us to remove them.
-            </Decide>
+            We license the results we return to you for your own use: outreach
+            to your own community, research and running your project. You may
+            share them inside your organization and with people who work for
+            you. An agency may use results for a client, for outreach to that
+            client’s own community, under these same rules. You may not resell
+            or redistribute them in bulk. The license does not end when your
+            credits expire. If we tell you that a person in your results has
+            asked us to remove them, you must delete that person’s results from
+            your copies.
           </p>
         </Section>
 
         <Section id="warranty" title="No warranty">
           <p>
             This page and our documentation say exactly how our data can be
-            wrong. Beyond that, we provide the service and everything it returns
-            as is and as available. To the extent the law allows, we make no
-            promise that the service will be uninterrupted, secure or free of
-            errors, that any match is correct, complete or current, or that the
-            service fits any particular purpose.{' '}
-            <Decide>
-              whether to set this paragraph in capitals, as many US terms do so
-              that a disclaimer is conspicuous.
-            </Decide>
+            wrong. BEYOND THAT, WE PROVIDE THE SERVICE AND EVERYTHING IT RETURNS
+            AS IS AND AS AVAILABLE. TO THE EXTENT THE LAW ALLOWS, WE MAKE NO
+            PROMISE THAT THE SERVICE WILL BE UNINTERRUPTED, SECURE OR FREE OF
+            ERRORS, THAT ANY MATCH IS CORRECT, COMPLETE OR CURRENT, OR THAT THE
+            SERVICE FITS ANY PARTICULAR PURPOSE.
           </p>
         </Section>
 
@@ -864,22 +775,17 @@ export default function TermsPage() {
             </li>
             <li>
               our total liability for all claims about the service is limited to
-              what you paid us in the 12 months before the claim arose.{' '}
-              <Decide>
-                how many months, and whether a fixed amount applies instead
-                where it is greater.
-              </Decide>
+              what you paid us in the 12 months before the claim arose, or $100
+              if that is greater.
             </li>
           </ul>
           <p>
             Nothing here limits a liability that the law does not let us limit.
           </p>
           <p>
-            <Decide>
-              whether to include an indemnity, for example that you cover our
-              reasonable costs from a claim against us caused by your breach of
-              these terms or your use of our results, and its scope.
-            </Decide>
+            If someone brings a claim against us because you broke these terms,
+            or because of how you used our results, you will cover what that
+            claim costs us, including reasonable legal fees.
           </p>
         </Section>
 
@@ -893,21 +799,17 @@ export default function TermsPage() {
           </p>
           <p>
             We can act on a breach of these terms as described under what we do
-            about misuse.{' '}
-            <Decide>
-              whether we may also close an account for any reason with notice,
-              and if so what happens to its unexpired credits.
-            </Decide>{' '}
-            <Decide>
-              what happens to unexpired credits if we stop offering the service
-              altogether, for example a notice period long enough to use them,
-              or a refund of what is unused.
-            </Decide>
+            about misuse. We may also close your account for any other reason,
+            with 30 days’ notice by email, and then we refund what you paid for
+            the credits you have not used and that have not expired. If we stop
+            offering the service altogether, we will give at least 60 days’
+            notice, and then refund the unused part of any paid credits that
+            have not expired, in proportion to what is left.
           </p>
           <p>
             These parts continue after this agreement ends: what you may not do
-            with results you already hold, the disclaimers, and the limits on
-            liability.
+            with results you already hold, the disclaimers, the limits on
+            liability and the indemnity.
           </p>
         </Section>
 
@@ -915,12 +817,9 @@ export default function TermsPage() {
           <p>
             When these terms change, the date at the top changes with it, and we
             record the change in the public changelog. For a change that
-            materially affects you, we will email account holders before it
-            takes effect.{' '}
-            <Decide>
-              how many days before, and whether this notice also goes to
-              accounts that opted out of product email.
-            </Decide>{' '}
+            materially affects you, we will email every account holder at least
+            30 days before it takes effect, including accounts that have turned
+            off product email, because this is a legal notice and not marketing.
             Accounts created by paying onchain have no inbox, so for them the
             date at the top and the changelog are the notice. If you continue to
             use the service after a change takes effect, you accept the new
@@ -928,25 +827,25 @@ export default function TermsPage() {
           </p>
           <p>
             A change to these terms never takes away credits you have already
-            bought or shortens their life.{' '}
-            <Decide>confirm this promise.</Decide>
+            bought or shortens their life.
           </p>
         </Section>
 
         <Section id="law" title="Governing law and disputes">
           <p>
-            <Decide>
-              which law governs these terms, for example that of the state where{' '}
-              {LEGAL_ENTITY} is organized; which courts or which arbitration
-              body hear disputes; whether to include a class-action waiver; and
-              which consumer carve-outs apply. The repository records no state
-              of organization and no address.
-            </Decide>
+            The laws of the State of Wyoming govern these terms, without regard
+            to its rules on conflicts of law. Any dispute about these terms or
+            the service is heard only in the state or federal courts located in
+            Wyoming, and you and we both agree to their jurisdiction. Disputes
+            go to court, not to arbitration.
+          </p>
+          <p>
+            You and we each bring claims only on our own behalf, never as a
+            plaintiff or a class member in a class or representative action.
           </p>
           <p>
             Before you start any formal dispute, write to <Mail /> and give us
-            30 days to try to resolve it.{' '}
-            <Decide>the length of this step. 30 days is a suggestion.</Decide>
+            30 days to try to resolve it.
           </p>
         </Section>
 
@@ -965,10 +864,9 @@ export default function TermsPage() {
           <p>
             <Mail />, for a question about these terms, a report of misuse, a
             removal request or a billing problem. It reaches a person rather
-            than a queue. walletlink.social is operated by {LEGAL_ENTITY}.{' '}
-            <Decide>
-              whether to publish a postal address. The repository has none.
-            </Decide>
+            than a queue. walletlink.social is operated by {LEGAL_ENTITY}, a
+            limited liability company organized in Wyoming. Post reaches us care
+            of our registered agent: [REGISTERED AGENT ADDRESS].
           </p>
         </Section>
       </div>
