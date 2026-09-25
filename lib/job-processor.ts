@@ -7,6 +7,7 @@ import { batchFetchNeynar, type NeynarResult } from '@/lib/neynar';
 import { batchLookupENS } from '@/lib/ens';
 import { getCachedWallets, cacheWalletResults } from '@/lib/cache';
 import { saveLookup, type InputSource } from '@/lib/history';
+import { LeaseLostError } from '@/lib/job-lease';
 import { stampReachability, stampAlsoOnX } from '@/lib/handle-reachability';
 import {
   upsertSocialGraphWithRetry,
@@ -99,17 +100,8 @@ export function sliceSizeFor(attempts: number): number {
  */
 export const ENS_SLICE_BUDGET_MS = 120_000;
 
-/**
- * A write after the claim matched no row: another invocation holds the job
- * now, or it finished. The holder that sees this stops and writes nothing
- * more, including no 'failed' over a job someone else completed.
- */
-export class LeaseLostError extends Error {
-  constructor(jobId: string) {
-    super(`Lost the lease on job ${jobId}; another invocation holds it`);
-    this.name = 'LeaseLostError';
-  }
-}
+// Raised by every fenced write, the history save included; see the module.
+export { LeaseLostError };
 
 /**
  * The WHERE of every write after the claim: this job, still under the token
@@ -1674,13 +1666,15 @@ async function finalizeJobWithResults(
     await renewLease(db, job);
     try {
       // Always keyed on the job, gated or not: the unique job_id makes a
-      // second finalize's save a no-op, which returns null.
+      // second finalize's save a no-op, which returns null. Fenced on this
+      // claim's token in the same statement: renewLease above is a check,
+      // and an admin rerun can reset and detach between it and the insert.
       const lookupId = await saveLookup(
         results,
         options.historyName,
         options.userId || job.userId || undefined,
         options.inputSource,
-        { jobId: job.id, matchesDelivered }
+        { jobId: job.id, matchesDelivered, leaseToken: job.leaseToken! }
       );
 
       /**
@@ -1711,6 +1705,9 @@ async function finalizeJobWithResults(
         });
       }
     } catch (error) {
+      // A lost lease stops the holder; any other failure of the save is
+      // logged and the job still completes, as before.
+      if (error instanceof LeaseLostError) throw error;
       console.error('History save error:', error);
     }
   }

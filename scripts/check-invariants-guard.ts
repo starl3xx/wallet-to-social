@@ -2481,29 +2481,30 @@ const MUTATIONS: Mutation[] = [
     to: 'cl.job_id = ${jobId}::uuid)',
   },
   {
-    // Finding 1: ungated saves carried no job id, so nothing stopped a second.
+    // Finding 1 of the verify pass: ungated saves carried no job id, so
+    // nothing stopped a second.
     name: 'an ungated job saves history without its job id, so a second finalize saves it again',
     file: 'lib/job-processor.ts',
-    from: '        { jobId: job.id, matchesDelivered }\n',
-    to: '        matchesDelivered !== null ? { jobId: job.id, matchesDelivered } : undefined\n',
+    from: '        { jobId: job.id, matchesDelivered, leaseToken: job.leaseToken! }\n',
+    to: '        matchesDelivered !== null\n          ? { jobId: job.id, matchesDelivered, leaseToken: job.leaseToken! }\n          : undefined\n',
   },
   {
     name: "a second pass keeps the first pass's gate, so a saved copy of a gated job opens every match",
     file: 'lib/history.ts',
-    from: '      set: { matchesDelivered: sql`excluded.matches_delivered` },',
-    to: '      set: { matchesDelivered: sql`lookup_history.matches_delivered` },',
+    from: 'DO UPDATE SET matches_delivered = excluded.matches_delivered WHERE',
+    to: 'DO UPDATE SET matches_delivered = lookup_history.matches_delivered WHERE',
   },
   {
     name: "a job's history save goes back to DO NOTHING, and the gate decided later never reaches history",
     file: 'lib/history.ts',
-    from: '    .onConflictDoUpdate({\n      target: lookupHistory.jobId,\n      set: { matchesDelivered: sql`excluded.matches_delivered` },\n      setWhere: sql`excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered`,\n    })',
-    to: '    .onConflictDoNothing({ target: lookupHistory.jobId })',
+    from: 'ON CONFLICT (job_id) DO UPDATE SET matches_delivered = excluded.matches_delivered WHERE excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered',
+    to: 'ON CONFLICT (job_id) DO NOTHING',
   },
   {
     name: 'a gate correction counts as a save, so history_saved fires twice for one lookup',
     file: 'lib/history.ts',
-    from: '  return row?.inserted ? row.id : null;',
-    to: '  return row?.id ?? null;',
+    from: '  if (row) return row.inserted ? row.id : null;',
+    to: '  if (row) return row.id;',
   },
   {
     // Final check on #393: the rerun's results never reached saved history.
@@ -3622,6 +3623,42 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/history.ts',
     from: 'excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered',
     to: 'lookup_history.matches_delivered',
+  },
+  {
+    name: 'the history save drops its fence, so a holder that lost the job still saves a linked copy (Bugbot, #393)',
+    file: 'lib/history.ts',
+    from: "\nWHERE EXISTS (SELECT 1 FROM lookup_jobs WHERE id = ${values.jobId}::uuid AND lease_token = ${leaseToken}::uuid AND status = 'processing' FOR SHARE)",
+    to: '',
+  },
+  {
+    name: 'the history fence does not lock the job row, so a save racing the admin reset lands after the detach',
+    file: 'lib/history.ts',
+    from: "status = 'processing' FOR SHARE)",
+    to: "status = 'processing')",
+  },
+  {
+    name: 'the history fence ignores the token, so any running attempt of the job can save',
+    file: 'lib/history.ts',
+    from: 'AND lease_token = ${leaseToken}::uuid ',
+    to: '',
+  },
+  {
+    name: 'a fenced save that wrote nothing is taken as agreement, so a holder that lost the job carries on',
+    file: 'lib/history.ts',
+    from: '  if (!held) throw new LeaseLostError(gate.jobId);\n',
+    to: '',
+  },
+  {
+    name: 'the worker logs a lost lease from the history save and carries on',
+    file: 'lib/job-processor.ts',
+    from: '      if (error instanceof LeaseLostError) throw error;\n',
+    to: '',
+  },
+  {
+    name: 'the admin detaches history before the reset, leaving a gap for a stale save to land linked',
+    file: 'app/api/admin/jobs/route.ts',
+    from: "      // Reset failed or completed job to pending to reprocess\n      const [updated] = await db\n        .update(lookupJobs)\n        .set({\n          status: 'pending',\n          errorMessage: null,\n          processedCount: 0,\n          currentStage: null,\n          partialResults: null,\n          twitterFound: 0,\n          farcasterFound: 0,\n          anySocialFound: 0,\n          cacheHits: 0,\n          startedAt: null,\n          completedAt: null,\n          updatedAt: new Date(),\n          options: updatedOptions,\n          // A clean start for the worker's claim (lib/job-processor.ts): no\n          // kills carried over from the run being retried, which would fail\n          // it at the first claim, and no lease or token. A NULL lease on a\n          // pending row is claimable at once, and a holder still running the\n          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n          leasedUntil: null,\n          leaseToken: null,\n        })\n        .where(eq(lookupJobs.id, id))\n        .returning();\n\n      if (!updated) {\n        return NextResponse.json({ error: 'Job not found' }, { status: 404 });\n      }\n\n      /**\n       * The previous run's saved lookup is detached from the job, so the\n       * rerun saves a fresh one. `lookup_history.job_id` is unique and a\n       * job's save only corrects the gate on a conflict, so without this the\n       * rerun's results would never reach the customer's saved lookups.\n       *\n       * AFTER the reset, not before. A holder still running the old attempt\n       * saves history in one statement fenced on its token, and that fence\n       * locks the job row FOR SHARE until the insert commits, so the reset\n       * above waited for any such save, and every later one finds the token\n       * gone and inserts nothing. Detaching now therefore catches every row\n       * the old attempt could write. Detaching first left a gap: a save\n       * landing between the detach and the reset still passed the fence and\n       * stayed linked (Bugbot on #393).\n       *\n       * The old copy stays as it was, results and gate. Once detached, an\n       * unlock of this job (`clearLookupGate`, keyed on job_id) reaches only\n       * the rerun's copy; a gated old copy keeps its lock.\n       */\n      await db\n        .update(lookupHistory)\n        .set({ jobId: null })\n        .where(eq(lookupHistory.jobId, id));\n",
+    to: "      await db\n        .update(lookupHistory)\n        .set({ jobId: null })\n        .where(eq(lookupHistory.jobId, id));\n\n      // Reset failed or completed job to pending to reprocess\n      const [updated] = await db\n        .update(lookupJobs)\n        .set({\n          status: 'pending',\n          errorMessage: null,\n          processedCount: 0,\n          currentStage: null,\n          partialResults: null,\n          twitterFound: 0,\n          farcasterFound: 0,\n          anySocialFound: 0,\n          cacheHits: 0,\n          startedAt: null,\n          completedAt: null,\n          updatedAt: new Date(),\n          options: updatedOptions,\n          // A clean start for the worker's claim (lib/job-processor.ts): no\n          // kills carried over from the run being retried, which would fail\n          // it at the first claim, and no lease or token. A NULL lease on a\n          // pending row is claimable at once, and a holder still running the\n          // old attempt is fenced out, since the row is no longer its token's.\n          sliceAttempts: 0,\n          leasedUntil: null,\n          leaseToken: null,\n        })\n        .where(eq(lookupJobs.id, id))\n        .returning();\n\n      if (!updated) {\n        return NextResponse.json({ error: 'Job not found' }, { status: 404 });\n      }\n\n",
   },
 ];
 

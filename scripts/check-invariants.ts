@@ -11994,44 +11994,66 @@ async function main() {
     /**
      * And history is saved once per job however many times finalize runs:
      * every job's save carries its id, a second pass only brings the stored
-     * gate in line with its own, and `history_saved` counts only a row that
-     * was created. Rendered, for the same reason as the ledger question.
+     * gate in line with its own (and never clears one), and `history_saved`
+     * counts only a row that was created. The save is also fenced on the
+     * claim in the same statement: `renewLease` before it is a check, and an
+     * admin rerun could reset the job and detach its old copy between that
+     * check and a plain insert, leaving the stale holder's row linked and the
+     * rerun able to correct only its gate (Bugbot on #393). Rendered exactly.
      */
     const historySrc = withoutComments(readFileSync('lib/history.ts', 'utf8'));
     const { historyInsertForJob } = await import('@/lib/history');
-    const historySql = historyInsertForJob(renderDb, {
-      name: null,
-      userId: null,
-      walletCount: 0,
-      twitterFound: 0,
-      farcasterFound: 0,
-      results: [],
-      inputSource: null,
-      jobId: 'J',
-      matchesDelivered: 4,
-    }).toSQL().sql;
+    const historyQuery = dialect.sqlToQuery(
+      historyInsertForJob(
+        {
+          name: null,
+          userId: null,
+          walletCount: 0,
+          twitterFound: 0,
+          farcasterFound: 0,
+          results: [],
+          inputSource: null,
+          jobId: 'J',
+          matchesDelivered: 4,
+        },
+        'T'
+      )
+    );
     ok(
-      "a job's lookup is saved to history once, and a later pass corrects only its gate",
-      historySql.endsWith(
-        ' on conflict ("job_id") do update set "matches_delivered" = excluded.matches_delivered where excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered returning "id", (xmax = 0)'
-      ) &&
-        /saveLookup\(\s*results,\s*options\.historyName,\s*options\.userId \|\| job\.userId \|\| undefined,\s*options\.inputSource,\s*\{ jobId: job\.id, matchesDelivered \}\s*\)/.test(
+      "a job's lookup is saved to history once, only while the saver holds the job, and a later pass corrects only its gate",
+      historyQuery.sql.replace(/\s+/g, ' ') ===
+        "INSERT INTO lookup_history (name, user_id, wallet_count, twitter_found, farcaster_found, results, input_source, job_id, matches_delivered) SELECT $1::text, $2::text, $3::int, $4::int, $5::int, $6::jsonb, $7::text, $8::uuid, $9::int WHERE EXISTS (SELECT 1 FROM lookup_jobs WHERE id = $10::uuid AND lease_token = $11::uuid AND status = 'processing' FOR SHARE) ON CONFLICT (job_id) DO UPDATE SET matches_delivered = excluded.matches_delivered WHERE excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered RETURNING id, (xmax = 0) AS inserted" &&
+        JSON.stringify(historyQuery.params) ===
+          JSON.stringify([null, null, 0, 0, 0, '[]', null, 'J', 4, 'J', 'T']) &&
+        /saveLookup\(\s*results,\s*options\.historyName,\s*options\.userId \|\| job\.userId \|\| undefined,\s*options\.inputSource,\s*\{ jobId: job\.id, matchesDelivered, leaseToken: job\.leaseToken! \}\s*\)/.test(
           finalizeFn
         ) &&
-        /const \[row\] = await historyInsertForJob\(db, values\);\s*return row\?\.inserted \? row\.id : null;/.test(
-          historySrc
-        ) &&
+        /if \(row\) return row\.inserted \? row\.id : null;/.test(historySrc) &&
         /if \(lookupId\) \{\s*trackEvent\('history_saved'/.test(finalizeFn) &&
         leaseMigration.includes(
           'CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS lookup_history_job_id_key ON lookup_history (job_id)'
         ) &&
         leaseMigration.includes('i.indisvalid AS valid')
     );
+    ok(
+      'a fenced history save that wrote nothing stops a holder that lost the job, and the worker lets it',
+      // No row back means the fence refused or the gate already agreed. The
+      // lease is read again to tell them apart, and a lost one is raised,
+      // not logged: the history catch rethrows it so the holder stops.
+      /eq\(lookupJobs\.id, gate\.jobId\),\s*eq\(lookupJobs\.leaseToken, gate\.leaseToken\),\s*eq\(lookupJobs\.status, 'processing'\)[\s\S]{0,80}?\.limit\(1\);\s*if \(!held\) throw new LeaseLostError\(gate\.jobId\);\s*return null;/.test(
+        historySrc
+      ) &&
+        /\} catch \(error\) \{\s*if \(error instanceof LeaseLostError\) throw error;\s*console\.error\('History save error:', error\);/.test(
+          finalizeFn
+        )
+    );
 
     /**
      * An admin rerun saves a fresh history row: the previous run's copy is
-     * detached from the job before the job is reset, or the unique job id
-     * would keep the old results as the only saved copy.
+     * detached from the job, or the unique job id would keep the old results
+     * as the only saved copy. After the reset, not before: the fenced save
+     * locks the job row until it commits, so the reset waits out any save
+     * the old attempt has in flight, and the detach then sees its row.
      */
     const adminJobsRaw = withoutComments(
       readFileSync('app/api/admin/jobs/route.ts', 'utf8')
@@ -12039,12 +12061,12 @@ async function main() {
     const detachAt = adminJobsRaw.search(
       /\.update\(lookupHistory\)\s*\.set\(\{ jobId: null \}\)\s*\.where\(eq\(lookupHistory\.jobId, id\)\);/
     );
+    const cancelAt = adminJobsRaw.indexOf("action === 'cancel'");
     ok(
-      'an admin rerun detaches the previous saved lookup before it resets the job',
+      'an admin rerun detaches the previous saved lookup after it resets the job',
       detachAt !== -1 &&
-        detachAt >
-          adminJobsRaw.indexOf("action === 'retry' || action === 'rerun'") &&
-        detachAt < adminJobsRaw.indexOf("status: 'pending',")
+        detachAt > adminJobsRaw.indexOf("status: 'pending',") &&
+        (cancelAt === -1 || detachAt < cancelAt)
     );
 
     /**

@@ -1,5 +1,6 @@
-import { getDb, lookupHistory, socialGraph } from '@/db';
-import { desc, eq, sql, inArray } from 'drizzle-orm';
+import { getDb, lookupHistory, lookupJobs, socialGraph } from '@/db';
+import { and, desc, eq, sql, inArray, type SQL } from 'drizzle-orm';
+import { LeaseLostError } from './job-lease';
 import type { WalletSocialResult } from './types';
 
 export interface SavedLookup {
@@ -52,8 +53,16 @@ export async function saveLookup(
    * the customer's history. `lookup_history.job_id` is unique, so the second
    * run inserts nothing and this returns null; see `historyInsertForJob` for
    * the one thing it does write.
+   *
+   * `leaseToken` is the worker's claim on the job. The save writes only while
+   * that claim still holds, checked in the same statement, and throws
+   * `LeaseLostError` when it no longer does.
    */
-  gate?: { jobId: string; matchesDelivered: number | null }
+  gate?: {
+    jobId: string;
+    matchesDelivered: number | null;
+    leaseToken: string;
+  }
 ): Promise<string | null> {
   const db = getDb();
   if (!db) return null;
@@ -79,13 +88,42 @@ export async function saveLookup(
       .returning();
     return inserted?.id ?? null;
   }
-  const [row] = await historyInsertForJob(db, values);
+  const result = (await db.execute(
+    historyInsertForJob({ ...values, jobId: gate.jobId }, gate.leaseToken)
+  )) as unknown as { rows?: unknown[] } | unknown[];
+  // The http driver answers { rows }; a pooled driver answers the array.
+  const [row] = (
+    Array.isArray(result) ? result : (result.rows ?? [])
+  ) as Array<{
+    id: string;
+    inserted: boolean;
+  }>;
   // An id only for a row this call created, so `history_saved` counts saves.
-  return row?.inserted ? row.id : null;
+  if (row) return row.inserted ? row.id : null;
+
+  /**
+   * No row: either the fence refused (the job is no longer this claim's), or
+   * the row exists and its gate already agrees, so the conflict's WHERE was
+   * false. Only the first is a problem, and it stops the holder.
+   */
+  const [held] = await db
+    .select({ id: lookupJobs.id })
+    .from(lookupJobs)
+    .where(
+      and(
+        eq(lookupJobs.id, gate.jobId),
+        eq(lookupJobs.leaseToken, gate.leaseToken),
+        eq(lookupJobs.status, 'processing')
+      )
+    )
+    .limit(1);
+  if (!held) throw new LeaseLostError(gate.jobId);
+  return null;
 }
 
 /**
- * A job's history save: insert once, and on a later pass correct the gate.
+ * A job's history save: insert once, and on a later pass correct the gate,
+ * and only while the saving invocation still holds the job.
  *
  * The first pass's row is kept, but not its gate. A charge that threw on the
  * first finalize saved the row ungated; the pass that completes the job then
@@ -98,23 +136,41 @@ export async function saveLookup(
  * copy. Results are never rewritten here: a customer may have grown the saved
  * copy since.
  *
- * `inserted` is `xmax = 0`: true for a row this statement created, false for
- * one it updated. Exported so scripts/check-invariants.ts renders the SQL.
+ * The fence is in the statement, not before it. The worker renews its lease
+ * just before saving, but that is a check, and an admin rerun can reset the
+ * job and detach its old saved copy between the check and this insert; the
+ * stale holder would then insert a row linked to the job, and the rerun's own
+ * save would meet it and correct only the gate, never the results (Bugbot on
+ * #393). So the row is selected only WHERE EXISTS the job, under this token,
+ * still running. `FOR SHARE` makes that check hold until the insert commits:
+ * the rerun's reset waits for it, and the detach that follows the reset then
+ * sees this row. Without the lock the subquery reads the row as it was when
+ * the statement began, and an insert racing the reset could land linked.
+ *
+ * Raw SQL with every parameter cast, because the HTTP driver sends no type
+ * hints (the 42P18 lesson in lib/neynar-budget.ts). `inserted` is `xmax = 0`:
+ * true for a row this statement created, false for one it updated. Exported
+ * so scripts/check-invariants.ts renders the SQL.
  */
 export function historyInsertForJob(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  db: any,
-  values: typeof lookupHistory.$inferInsert
-) {
-  return db
-    .insert(lookupHistory)
-    .values(values)
-    .onConflictDoUpdate({
-      target: lookupHistory.jobId,
-      set: { matchesDelivered: sql`excluded.matches_delivered` },
-      setWhere: sql`excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered`,
-    })
-    .returning({ id: lookupHistory.id, inserted: sql<boolean>`(xmax = 0)` });
+  values: {
+    name: string | null;
+    userId: string | null;
+    walletCount: number;
+    twitterFound: number;
+    farcasterFound: number;
+    results: unknown;
+    inputSource: string | null;
+    jobId: string;
+    matchesDelivered: number | null;
+  },
+  leaseToken: string
+): SQL {
+  return sql`INSERT INTO lookup_history (name, user_id, wallet_count, twitter_found, farcaster_found, results, input_source, job_id, matches_delivered)
+SELECT ${values.name}::text, ${values.userId}::text, ${values.walletCount}::int, ${values.twitterFound}::int, ${values.farcasterFound}::int, ${JSON.stringify(values.results)}::jsonb, ${values.inputSource}::text, ${values.jobId}::uuid, ${values.matchesDelivered}::int
+WHERE EXISTS (SELECT 1 FROM lookup_jobs WHERE id = ${values.jobId}::uuid AND lease_token = ${leaseToken}::uuid AND status = 'processing' FOR SHARE)
+ON CONFLICT (job_id) DO UPDATE SET matches_delivered = excluded.matches_delivered WHERE excluded.matches_delivered IS NOT NULL AND lookup_history.matches_delivered IS DISTINCT FROM excluded.matches_delivered
+RETURNING id, (xmax = 0) AS inserted`;
 }
 
 export async function getLookupHistory(

@@ -161,21 +161,6 @@ export async function POST(request: NextRequest) {
         canUseNeynar: true, // All tiers now have Neynar access
       };
 
-      /**
-       * The previous run's saved lookup is detached from the job first, so
-       * the rerun saves a fresh one. `lookup_history.job_id` is unique and a
-       * job's save only corrects the gate on a conflict, so without this the
-       * rerun's results would never reach the customer's saved lookups.
-       *
-       * The old copy stays as it was, results and gate. Once detached, an
-       * unlock of this job (`clearLookupGate`, keyed on job_id) reaches only
-       * the rerun's copy; a gated old copy keeps its lock.
-       */
-      await db
-        .update(lookupHistory)
-        .set({ jobId: null })
-        .where(eq(lookupHistory.jobId, id));
-
       // Reset failed or completed job to pending to reprocess
       const [updated] = await db
         .update(lookupJobs)
@@ -208,6 +193,30 @@ export async function POST(request: NextRequest) {
       if (!updated) {
         return NextResponse.json({ error: 'Job not found' }, { status: 404 });
       }
+
+      /**
+       * The previous run's saved lookup is detached from the job, so the
+       * rerun saves a fresh one. `lookup_history.job_id` is unique and a
+       * job's save only corrects the gate on a conflict, so without this the
+       * rerun's results would never reach the customer's saved lookups.
+       *
+       * AFTER the reset, not before. A holder still running the old attempt
+       * saves history in one statement fenced on its token, and that fence
+       * locks the job row FOR SHARE until the insert commits, so the reset
+       * above waited for any such save, and every later one finds the token
+       * gone and inserts nothing. Detaching now therefore catches every row
+       * the old attempt could write. Detaching first left a gap: a save
+       * landing between the detach and the reset still passed the fence and
+       * stayed linked (Bugbot on #393).
+       *
+       * The old copy stays as it was, results and gate. Once detached, an
+       * unlock of this job (`clearLookupGate`, keyed on job_id) reaches only
+       * the rerun's copy; a gated old copy keeps its lock.
+       */
+      await db
+        .update(lookupHistory)
+        .set({ jobId: null })
+        .where(eq(lookupHistory.jobId, id));
 
       return NextResponse.json({ success: true, job: updated });
     }
