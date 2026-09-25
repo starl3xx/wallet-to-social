@@ -68,11 +68,11 @@ All notable changes to walletlink.social. Newest first.
   Inngest route stays, registering nothing, so runs started before the
   deploy end cleanly; the route, the client, the package and the
   `INNGEST_*` variables go in a follow-up. Linear STA-44. The twelve
-  invariants that held the two pipelines in step are replaced by forty-two
+  invariants that held the two pipelines in step are replaced by forty-three
   that assert one pipeline, the claim, the fenced writes, the attempt cap,
   the billed-job rule (on the SQL it actually sends) and the once-per-job
   history save, and the nine guard mutations against the Inngest copy by
-  eighty-two.
+  eighty-three.
 - A later pass never clears a history row's match gate: only a pass that decided
   a gate writes it, so a retry whose charge threw cannot reopen locked matches.
 
