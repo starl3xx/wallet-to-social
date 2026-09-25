@@ -177,8 +177,8 @@ export const PAYMENT_RECORD_RETENTION_YEARS = 7;
  * 2. the x402 loyalty count, which counts every settled lot a wallet bought
  * 3. "has bought", which the lifecycle mail reads as "holds a paid lot"
  *
- * Nothing is due before 2033-08-15 (the oldest payment on record is from
- * 2026-08-15), and the route reports the count that would go on every run,
+ * Nothing is due before August 2033 (no payment on record is older than
+ * August 2026), and the route reports the count that would go on every run,
  * so the switch can be made with the number in hand. `credit_ledger` is not
  * gated: its rule is safe as written, and it runs.
  */
