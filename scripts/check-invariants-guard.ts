@@ -2709,6 +2709,18 @@ const MUTATIONS: Mutation[] = [
     to: '',
   },
   {
+    name: 'slice loop: the scan depth page states a slice size the code does not use',
+    file: 'docs-site/concepts/scan-depth.mdx',
+    from: 'Every lookup works its list 3,000 addresses at a time',
+    to: 'Every lookup works its list 2,000 addresses at a time',
+  },
+  {
+    name: 'slice loop: the scan depth page promises a list of any size in seconds again',
+    file: 'docs-site/concepts/scan-depth.mdx',
+    from: '    of 10,000 addresses comes back in seconds.',
+    to: '    of any size comes back in seconds.',
+  },
+  {
     name: "slice loop: Web3Bio ignores the caller's deadline",
     file: 'lib/web3bio.ts',
     from: '    callerDeadline ?? Infinity',

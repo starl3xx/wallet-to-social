@@ -8,7 +8,7 @@ Every lookup in the app asks one question before it starts: how hard should this
 <CardGroup cols={2}>
   <Card title="Fast" icon="bolt">
     Answers from the walletlink index only. No live request goes out, so a list
-    of any size comes back in seconds.
+    of 10,000 addresses comes back in seconds.
   </Card>
   <Card title="Deep scan" icon="binoculars">
     The index plus every live source, including onchain ENS records. Slower, and
@@ -42,12 +42,18 @@ Pick **deep** when the output is going to drive a campaign. The handles that onl
 
 The app estimates before you start, and the estimate follows the choice.
 
-| Depth | Roughly                                        |
-| ----- | ---------------------------------------------- |
-| Fast  | Near-flat with list size: two indexed queries. |
-| Deep  | About 18 seconds per 1,000 addresses.          |
+| Depth | Roughly                                                 |
+| ----- | ------------------------------------------------------- |
+| Fast  | Seconds: two indexed queries for every 3,000 addresses. |
+| Deep  | About 18 seconds per 1,000 addresses.                   |
 
 The deep figure is deliberately conservative: ten seconds of live sources and eight of onchain reads. Real lists usually run faster, because the more of your list is already indexed, the less there is left to resolve.
+
+### How a long list is worked
+
+Every lookup works its list 3,000 addresses at a time, and one pass keeps taking the next 3,000 for up to four minutes. It stops early rather than start a batch it expects to run past that, judging by how long the last batch took, and whatever is left is picked up by the next pass, a minute later at most.
+
+A fast scan’s batches read only the index, so each takes seconds and a fast scan of 10,000 addresses finishes in its first pass. A deep scan waits on live sources in every batch, so a long one can take several passes, and its time follows the deep figure above.
 
 ## Fast scans never write
 

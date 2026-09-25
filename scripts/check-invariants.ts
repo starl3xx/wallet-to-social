@@ -12427,6 +12427,35 @@ async function main() {
         callArgs.every((a) => a === 'jobId' || a === 'job.id')
     );
 
+    /**
+     * The page that said a fast scan "of any size comes back in seconds" is
+     * what this loop was built to make true, and it now says how, in the
+     * code's own numbers: the slice size and one pass's budget.
+     */
+    const scanDepthPage = readFileSync(
+      'docs-site/concepts/scan-depth.mdx',
+      'utf8'
+    );
+    const minutesInWords = [
+      'zero',
+      'one',
+      'two',
+      'three',
+      'four',
+      'five',
+      'six',
+    ][INVOCATION_BUDGET_MS / 60_000];
+    const sliceInWords = sliceSizeFor(1).toLocaleString('en-US');
+    ok(
+      `the scan depth page states the slice size and the pass budget the code uses (${sliceInWords} addresses, ${minutesInWords} minutes)`,
+      minutesInWords !== undefined &&
+        scanDepthPage.includes(`list ${sliceInWords} addresses at a time`) &&
+        scanDepthPage.includes(
+          `keeps taking the next ${sliceInWords} for up to ${minutesInWords} minutes`
+        ) &&
+        !/of any size/.test(scanDepthPage)
+    );
+
     const pickerFn = processorSrc.slice(
       processorSrc.indexOf('export async function getNextPendingJobs(')
     );

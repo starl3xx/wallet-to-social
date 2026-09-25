@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-25 (a large lookup keeps going until it is done)
+
+- **A fast scan of a large list now comes back in seconds.** A lookup is
+  worked 3,000 addresses at a time, and each batch after the first waited
+  for the worker's next round, a minute later. A fast scan of 10,000
+  addresses, which reads only the index, took about four minutes, while the
+  docs said a fast scan of any size comes back in seconds. The worker now
+  keeps taking batches of the same lookup for up to four minutes, so that
+  scan finishes in the pass that started it.
+- **A deep scan of a large list finishes sooner too,** because several
+  batches now run in one pass instead of one a minute. Each batch still asks
+  the live sources, so a long deep scan can take more than one pass; what is
+  left continues at the next round, a minute later at most.
+- **A pass never starts a batch it expects to overrun.** It stops when the
+  next batch, judged by how long the last one took, would end past its four
+  minutes, and hands the lookup back as before. The onchain ENS pass and
+  Web3Bio also stop starting requests when the four minutes are up, so a
+  batch slower than the last one still ends in time. Addresses they did not
+  reach are left unchecked, never recorded as having nothing, so the next
+  lookup asks again.
+- **Every batch is still claimed and handed back on its own,** so everything
+  in the 2026-09-24 one-pipeline entry below holds for each batch: one worker at a time,
+  the attempt limit, the save before the charge, one history entry per
+  lookup, and removal requests honored from the next batch on.
+- Operator: `INVOCATION_BUDGET_MS` (240 s) in `lib/job-processor.ts`, a
+  minute inside the 300-second routes and under the 330-second lease. No
+  migration. Linear STA-44. Fourteen new invariants drive the loop on a fake
+  clock and pin the budget against the routes and the lease, each slice's
+  ENS and Web3Bio deadlines, the one way every route calls the loop, and the
+  scan depth page's figures against the code; twenty new guard mutations. A
+  local Postgres scenario ran the real pipeline with stubbed sources: a fast
+  10,000-address job finished in one call, in four slices under four claims,
+  charged once with one history row, where `main` took four calls.
+
 ### 2026-09-25 (a removal reaches retry copies and the claim record)
 
 - **A removal now reaches the API's retry copies.** A batch sent with an
