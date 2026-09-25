@@ -15,7 +15,8 @@ import {
 import { sql } from 'drizzle-orm';
 
 // Cache individual wallet social lookups (7-day TTL: CACHE_TTL_HOURS in
-// lib/cache-constants.ts, enforced at read time in lib/cache.ts)
+// lib/cache-constants.ts, enforced at read time in lib/cache.ts, and expired
+// rows deleted by the daily cleanup through cleanExpiredCache)
 export const walletCache = pgTable(
   'wallet_cache',
   {
@@ -392,6 +393,12 @@ export const lifecycleEmails = pgTable(
  * a lot that has expired is still the record of a purchase that happened, and
  * deleting it would make revenue recognition unauditable. If expiry lived only
  * in the copy, deferred revenue would never clear.
+ *
+ * The payment-record period is seven years (`PAYMENT_RECORD_RETENTION_YEARS`
+ * in app/api/cron/cleanup/route.ts). The delete for lots past it is written
+ * and switched off (`PURCHASE_RECORD_PURGE_ENABLED`), because a lot is also
+ * the replay key for its payment, the loyalty count and the "has bought"
+ * marker; lib/retention.ts has the detail.
  */
 export const creditLots = pgTable(
   'credit_lots',
@@ -478,6 +485,10 @@ export const creditLots = pgTable(
  * Also the free tier's meter. A free account has no lots, and its allowance is
  * a rolling 30-day window over these rows, which is what makes splitting a file
  * pointless: twenty runs of 500 debit exactly what one run of 10,000 debits.
+ *
+ * Kept seven years, then deleted by the daily cleanup, unless an unexpired lot
+ * it could have drawn on is still live or its job can still be charged or
+ * unlocked (`deleteOldLedgerRows` in lib/retention.ts).
  */
 export const creditLedger = pgTable(
   'credit_ledger',
@@ -642,6 +653,13 @@ export const authSessions = pgTable(
     tokenHash: text('token_hash').notNull().unique(), // SHA-256 of session token
     expiresAt: timestamp('expires_at').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
+    /**
+     * No longer written (STA-45): nothing read it, so it was a record of each
+     * sign-in's browser and system kept for no purpose. Emptied by
+     * scripts/migrate-clear-session-user-agents.ts, run after the deploy that
+     * stopped the writes. Kept in the schema rather than dropped, so no
+     * migration has to touch a live auth table for it.
+     */
     userAgent: text('user_agent'),
   },
   (table) => [

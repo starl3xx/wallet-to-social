@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { cleanTwitterHandle } from './twitter-cleaner';
+import { maskWallet } from './redact';
 
 const RPC_ENDPOINTS = [
   'https://eth.llamarpc.com',
@@ -176,7 +177,7 @@ export async function lookupWalletENS(wallet: string): Promise<ENSResult> {
 
     return result;
   } catch (error) {
-    console.error(`ENS lookup failed for ${wallet}:`, error);
+    console.error(`ENS lookup failed for ${maskWallet(wallet)}:`, error);
     return result;
   }
 }

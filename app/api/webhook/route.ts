@@ -7,6 +7,7 @@ import {
 import { provisionPaidCheckout, type PaidTier } from '@/lib/access';
 import { fulfilPackPurchase } from '@/lib/pack-fulfilment';
 import { PACKS, isPackId, type PackId } from '@/lib/packs';
+import { maskEmail } from '@/lib/redact';
 import type Stripe from 'stripe';
 
 export const runtime = 'nodejs';
@@ -106,8 +107,8 @@ async function grantPackFromWebhook(
   );
   console.log(
     granted
-      ? `Granted ${PACKS[pack].matches} matches (${pack}) to ${email} via ${via}`
-      : `Pack ${pack} for ${email} already granted for payment ${stripePaymentId}`
+      ? `Granted ${PACKS[pack].matches} matches (${pack}) to ${maskEmail(email)} via ${via}`
+      : `Pack ${pack} for ${maskEmail(email)} already granted for payment ${stripePaymentId}`
   );
 }
 
@@ -162,8 +163,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
     console.log(
       result.provisioned
-        ? `Upgraded user ${email} to ${tier}`
-        : `No upgrade for ${email}: ${result.reason}`
+        ? `Upgraded user ${maskEmail(email)} to ${tier}`
+        : `No upgrade for ${maskEmail(email)}: ${result.reason}`
     );
   } catch (error) {
     console.error('Failed to upgrade user:', error);
@@ -211,8 +212,8 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
 
     console.log(
       result.provisioned
-        ? `Upgraded user ${email} to ${tier} (via payment_intent)`
-        : `No upgrade for ${email}: ${result.reason}`
+        ? `Upgraded user ${maskEmail(email)} to ${tier} (via payment_intent)`
+        : `No upgrade for ${maskEmail(email)}: ${result.reason}`
     );
   } catch (error) {
     console.error('Failed to upgrade user:', error);

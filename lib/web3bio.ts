@@ -1,5 +1,6 @@
 import { cleanTwitterHandle } from './twitter-cleaner';
 import { trackApiCall } from './analytics';
+import { redact } from './redact';
 
 export interface Web3BioProfile {
   address: string;
@@ -164,10 +165,10 @@ export async function fetchWeb3BioProfile(
     return Array.isArray(data) ? data : [data];
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      console.error(`Web3.bio request timed out for ${walletOrEns}`);
+      console.error(`Web3.bio request timed out for ${redact(walletOrEns)}`);
     } else {
       console.error(
-        `Error fetching Web3.bio profile for ${walletOrEns}:`,
+        `Error fetching Web3.bio profile for ${redact(walletOrEns)}:`,
         error
       );
     }

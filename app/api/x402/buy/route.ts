@@ -45,11 +45,15 @@
  * Granting before settling would hand out credits for a payment that might
  * fail. Settling before granting means a database failure in between takes
  * money without recording what it bought, so that case is logged at error with
- * the settlement id and answers 500 rather than returning a key it did not
- * create. The grant is idempotent on that same id, so the pack can be issued by
- * hand from the log line without any risk of issuing it twice.
+ * the settlement reference and answers 500 rather than returning a key it did
+ * not create. The grant is idempotent on the settlement id, so the pack can be
+ * issued by hand without any risk of issuing it twice. The log line masks the
+ * payer (lib/redact.ts); the nonce and the transaction hash stay whole, the
+ * transaction names the payer onchain, and the 500 hands the buyer the full
+ * reference to quote, so the id can always be rebuilt.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { maskWallet, redact } from '@/lib/redact';
 import {
   getResourceServer,
   payToAddress,
@@ -598,7 +602,7 @@ export async function POST(request: NextRequest) {
         }
       } catch (error) {
         console.error(
-          `x402 loyalty bonus failed for settlement ${settlementId}; grant by hand if the milestone stands:`,
+          `x402 loyalty bonus failed for settlement ${redact(settlementId)}; grant by hand if the milestone stands:`,
           error
         );
       }
@@ -688,10 +692,12 @@ export async function POST(request: NextRequest) {
     /**
      * Settled and not recorded. The one manual path in this endpoint, and it
      * carries everything needed to close it: the grant is idempotent on this
-     * settlement id, so issuing the pack by hand cannot issue it twice.
+     * settlement id, so issuing the pack by hand cannot issue it twice. The
+     * payer is masked in the log; the transaction hash beside it names the
+     * payer onchain, which is how the full id is rebuilt.
      */
     console.error(
-      `[x402] SETTLED BUT NOT GRANTED settlement=${settlementId} payer=${payer} tx=${settlement.transaction}`,
+      `[x402] SETTLED BUT NOT GRANTED settlement=${redact(settlementId)} payer=${maskWallet(payer)} tx=${settlement.transaction}`,
       error
     );
     return NextResponse.json(

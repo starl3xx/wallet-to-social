@@ -2,6 +2,41 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-25 (the retention periods the privacy page states are enforced)
+
+- **Expired cache copies are deleted.** A cached lookup result was already
+  unused after 7 days, but nothing deleted it: a copy stayed until a later
+  lookup of the same address replaced it. The daily cleanup now deletes it
+  once it is past 7 days. About 498,000 of the 616,000 cached rows were past
+  it on 2026-09-25, so the first few runs delete them in batches.
+- **API request records are kept 13 months.** One row per API request (the
+  key, the route, the status, the time taken and the credits) was kept for as
+  long as the key existed. The daily cleanup now deletes rows older than 13
+  months, which is still longer than any usage report reads.
+- **API rate-limit counters are deleted 2 days after the minute, day or month
+  they count has ended.** A counter for the current month is kept until the
+  month is over, so no account's monthly limit is reset early. The unused
+  cleanup function this replaces aged counters from when they were created,
+  which would have deleted a month's counter a few days into the month.
+- **Payment records are kept seven years.** After that, the daily cleanup
+  deletes a credit debit record, unless it could still matter: an unexpired
+  credit pack bought before it, or a lookup that can still be charged or
+  unlocked. Purchase records themselves (credit packs, and the Stripe ids on
+  an account) are counted but not yet deleted, because other features still
+  read them; the delete is written and switched off. Nothing is seven years
+  old before 2033.
+- **Sign-in no longer records your browser.** Each session used to store the
+  browser's user-agent string, and nothing read it. New sessions do not, and
+  a one-off script clears the stored values after this deploys.
+- **Email addresses and wallet addresses are masked in server logs.** A log
+  line keeps the first letters and the domain of an email, and the first 6
+  and last 4 characters of a wallet. Every line the server prints is masked,
+  including error details that carried the values a failed database query was
+  sent.
+- Records of welcome and check-in emails sent are kept while the account
+  exists, and go with it.
+- Fixes STA-45, with 43 new invariants and 36 new guard mutations.
+
 ### 2026-09-25 (a large lookup keeps going until it is done)
 
 - **A fast scan of a large list now comes back in seconds.** A lookup is
