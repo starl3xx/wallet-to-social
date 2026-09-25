@@ -6974,11 +6974,520 @@ async function main() {
     ok(
       'the token cleanup reports what it deleted',
       /oauthAccessTokens = deleted\.rows\.length;/.test(runBody) &&
-        /\n\s*oauthAccessTokens,\n\s*\}\);/.test(runBody)
+        /\n\s*oauthAccessTokens,\n/.test(
+          runBody.slice(runBody.lastIndexOf('NextResponse.json({'))
+        )
+    );
+  }
+
+  // ------------------------------------------ STA-45: retention the page states
+  // Each period below is one the privacy page states, so each has to be one
+  // the daily cleanup enforces, with the exact rows it may take and no more.
+  // The statements are rendered through the real Drizzle dialect from the
+  // real functions (a capturing stand-in for the database), so these read
+  // the SQL the cron sends, not a copy of it.
+  {
+    const { PgDialect } = await import('drizzle-orm/pg-core');
+    const dialect = new PgDialect();
+    type Rendered = { sql: string; params: unknown[] };
+    const capture = async (
+      run: (db: {
+        execute: (q: unknown) => Promise<unknown>;
+      }) => Promise<unknown>
+    ): Promise<Rendered[]> => {
+      const seen: Rendered[] = [];
+      await run({
+        execute: async (q: unknown) => {
+          const r = dialect.sqlToQuery(q as never);
+          seen.push({ sql: r.sql.replace(/\s+/g, ' '), params: r.params });
+          return { rows: [{ n: 0 }] };
+        },
+      });
+      return seen;
+    };
+    const retention = await import('@/lib/retention');
+    const cache = await import('@/lib/cache');
+    const limiter = await import('@/lib/rate-limiter');
+    const route = await import('@/app/api/cron/cleanup/route');
+    const UTC = "(now() AT TIME ZONE 'UTC')";
+
+    const cleanup = readFileSync('app/api/cron/cleanup/route.ts', 'utf8');
+    const code = withoutComments(cleanup);
+    const run = code.slice(code.indexOf('async function run('));
+    const authAt = run.indexOf('cleanupExpiredAuth(');
+
+    /**
+     * Each retention branch sits in its own try and runs before the
+     * housekeeping tail, as the quarantine purge does, and reports its count.
+     */
+    for (const [call, field] of [
+      ['deleteOldApiUsage(', 'apiUsageRows'],
+      ['cleanupOldBuckets(', 'apiBuckets'],
+      ['deleteOldLedgerRows(', 'creditLedgerRows'],
+      ['countLotsDue(', 'purchaseRecords'],
+      ['cleanExpiredCache(', 'walletCacheRows'],
+    ] as const) {
+      const at = run.indexOf(call);
+      const tryAt = run.lastIndexOf('try {', at);
+      ok(
+        `the cleanup calls ${call.slice(0, -1)} in its own try, before the housekeeping tail`,
+        at !== -1 &&
+          at < authAt &&
+          tryAt !== -1 &&
+          !run.slice(tryAt, at).includes('catch (') &&
+          run.indexOf('catch (error)', at) < authAt
+      );
+      ok(
+        `the cleanup reports ${field}`,
+        new RegExp(`\\n\\s*${field},\\n`).test(
+          run.slice(run.lastIndexOf('NextResponse.json({'))
+        )
+      );
+    }
+
+    // ---- wallet_cache: the age the read path refuses, re-checked per row.
+    const [cacheSql] = await capture((db) =>
+      cache.deleteExpiredCacheBatch(db as never, 7)
+    );
+    const { CACHE_TTL_HOURS } = await import('@/lib/cache-constants');
+    ok(
+      'the cache delete takes rows past CACHE_TTL_HOURS and re-checks the row it deletes',
+      cacheSql.sql.includes(
+        `WHERE cached_at < ${UTC} - make_interval(hours => $1) LIMIT $2`
+      ) &&
+        cacheSql.sql.includes(
+          `DELETE FROM wallet_cache w USING expired WHERE w.wallet = expired.wallet AND w.cached_at < ${UTC} - make_interval(hours => $3)`
+        ) &&
+        cacheSql.params[0] === CACHE_TTL_HOURS &&
+        cacheSql.params[2] === CACHE_TTL_HOURS &&
+        cacheSql.params[1] === 7
     );
     ok(
-      'the cleanup never calls cleanupOldBuckets, which would delete the current month’s quota buckets',
-      !runBody.includes('cleanupOldBuckets(')
+      'cleanExpiredCache reports what it deleted rather than a constant zero',
+      !withoutComments(readFileSync('lib/cache.ts', 'utf8')).includes(
+        'return 0;\n  } catch'
+      ) &&
+        (await cache.cleanExpiredCache(0, {
+          execute: async () => ({ rows: [1, 1, 1] }),
+        })) === 3
+    );
+
+    // ---- api_usage: 13 months, and never shorter than what the admin reads.
+    const [usageSql] = await capture((db) =>
+      retention.deleteOldApiUsage(db, route.API_USAGE_RETENTION_MONTHS, 9)
+    );
+    ok(
+      'the api_usage delete ages rows by created_at in months, re-checked per row',
+      usageSql.sql.includes(
+        `SELECT id FROM api_usage WHERE created_at < ${UTC} - make_interval(months => $1) LIMIT $2`
+      ) &&
+        usageSql.sql.includes(
+          `DELETE FROM api_usage u USING due WHERE u.id = due.id AND u.created_at < ${UTC} - make_interval(months => $3)`
+        ) &&
+        usageSql.params[0] === route.API_USAGE_RETENTION_MONTHS
+    );
+    // Postgres month arithmetic clamps to the month's last day, so the span
+    // of N months varies; the SHORTEST one, over four years of start days,
+    // must still exceed the admin journey's window.
+    const journeyMax = Number(
+      readFileSync('app/api/admin/analytics/journey/route.ts', 'utf8').match(
+        /const MAX_DAYS = (\d+);/
+      )?.[1]
+    );
+    let shortestSpan = Infinity;
+    for (let t = Date.UTC(2024, 0, 1); t < Date.UTC(2028, 0, 1); t += 864e5) {
+      const d = new Date(t);
+      const m = d.getUTCMonth() - route.API_USAGE_RETENTION_MONTHS;
+      const lastDay = new Date(
+        Date.UTC(d.getUTCFullYear(), m + 1, 0)
+      ).getUTCDate();
+      const cutoff = Date.UTC(
+        d.getUTCFullYear(),
+        m,
+        Math.min(d.getUTCDate(), lastDay)
+      );
+      shortestSpan = Math.min(shortestSpan, (t - cutoff) / 864e5);
+    }
+    ok(
+      'every api_usage retention span is longer than the admin journey window',
+      journeyMax > 0 && shortestSpan > journeyMax
+    );
+
+    // ---- rate_limit_buckets: aged by the period a bucket counts.
+    const [bucketSql] = await capture((db) =>
+      limiter.deleteSpentBucketsBatch(
+        db as never,
+        { minute: 'M', day: 'D', month: 'MO' },
+        9
+      )
+    );
+    ok(
+      'the bucket delete compares each type’s key with that type’s cutoff, byte-wise',
+      ["'minute'", "'day'", "'month'"].every((t) =>
+        new RegExp(
+          `bucket_type = ${t} AND [bt]\\.bucket_key COLLATE "C" < \\$\\d+`
+        ).test(bucketSql.sql)
+      ) &&
+        !bucketSql.sql.includes('<=') &&
+        (bucketSql.sql.match(/COLLATE "C" < /g) ?? []).length === 6
+    );
+    ok(
+      'the bucket delete never ages a bucket by when its row was created',
+      !bucketSql.sql.includes('created_at') &&
+        !bucketSql.sql.includes('updated_at') &&
+        !withoutComments(readFileSync('lib/rate-limiter.ts', 'utf8'))
+          .slice(
+            withoutComments(
+              readFileSync('lib/rate-limiter.ts', 'utf8')
+            ).indexOf('export function bucketRetentionKeys')
+          )
+          .includes('createdAt')
+    );
+    ok(
+      'the cleanup passes API_BUCKET_RETENTION_DAYS to cleanupOldBuckets',
+      /cleanupOldBuckets\(\s*API_BUCKET_RETENTION_DAYS,/.test(run) &&
+        route.API_BUCKET_RETENTION_DAYS > 0
+    );
+    // The account quota reads the CURRENT minute, day and month. As the
+    // attacker, walk a year in 7-hour steps (every hour of the day comes up)
+    // and look for a moment where the bucket being counted is older than the
+    // cutoff, which would let the cleanup reset a quota mid-period.
+    const iso = (t: number) => new Date(t).toISOString();
+    const current = (t: number) => ({
+      minute: iso(t).slice(0, 16),
+      day: iso(t).slice(0, 10),
+      month: iso(t).slice(0, 7),
+    });
+    let currentReachable = false;
+    for (
+      let t = Date.UTC(2026, 0, 1);
+      t < Date.UTC(2027, 0, 1);
+      t += 7 * 3600e3
+    ) {
+      const keys = limiter.bucketRetentionKeys(
+        new Date(t),
+        route.API_BUCKET_RETENTION_DAYS
+      );
+      const cur = current(t);
+      if (
+        cur.minute < keys.minute ||
+        cur.day < keys.day ||
+        cur.month < keys.month
+      )
+        currentReachable = true;
+    }
+    ok('no current bucket is ever older than its cutoff', !currentReachable);
+    const at = (s: string) =>
+      limiter.bucketRetentionKeys(new Date(s), route.API_BUCKET_RETENTION_DAYS);
+    ok(
+      'a month bucket from the 1st survives on the 25th',
+      !('2026-09' < at('2026-09-25T12:00:00Z').month)
+    );
+    ok(
+      'a month that ended less than 2 days ago survives, and one that ended 3 days ago goes',
+      !('2026-08' < at('2026-09-02T23:59:00Z').month) &&
+        '2026-08' < at('2026-09-04T00:00:00Z').month
+    );
+    ok(
+      'a day that ended less than 2 days ago survives, and one past 2 days goes',
+      !('2026-09-24' < at('2026-09-26T23:59:00Z').day) &&
+        '2026-09-24' < at('2026-09-27T00:01:00Z').day
+    );
+    ok(
+      'a minute that ended less than 2 days ago survives, and one past 2 days goes',
+      !('2026-09-25T10:00' < at('2026-09-27T10:00:00Z').minute) &&
+        '2026-09-25T10:00' < at('2026-09-27T10:02:00Z').minute
+    );
+
+    // ---- Payment records: 7 years; the ledger runs, lots and ids are gated.
+    ok(
+      'payment records are kept at least seven years',
+      route.PAYMENT_RECORD_RETENTION_YEARS >= 7
+    );
+    const [ledgerSql] = await capture((db) =>
+      retention.deleteOldLedgerRows(db, route.PAYMENT_RECORD_RETENTION_YEARS, 9)
+    );
+    const ledgerGuards = [
+      `created_at < ${UTC} - make_interval(years =>`,
+      `l.created_at <= cl.created_at AND l.expires_at > ${UTC}`,
+      `l.created_at <= c.created_at AND l.expires_at > ${UTC}`,
+      "j.status NOT IN ('completed', 'failed') OR (cl.paid_from = 'unlock' AND j.matches_delivered IS NOT NULL)",
+      "j.status NOT IN ('completed', 'failed') OR (c.paid_from = 'unlock' AND j.matches_delivered IS NOT NULL)",
+    ];
+    ok(
+      'the ledger purge keeps a row a live lot could have paid for, a running job’s charge and a gated job’s unlock, in the batch and on the row',
+      ledgerGuards.every((g) => ledgerSql.sql.includes(g)) &&
+        (ledgerSql.sql.match(/NOT EXISTS/g) ?? []).length === 4 &&
+        ledgerSql.params[0] === route.PAYMENT_RECORD_RETENTION_YEARS
+    );
+    const [lotSql] = await capture((db) => retention.deleteOldLots(db, 7, 9));
+    const [lotCount] = await capture((db) => retention.countLotsDue(db, 7));
+    ok(
+      'a lot is due only when it is past the period AND expired, in the count, the batch and on the row',
+      (
+        lotSql.sql.match(
+          new RegExp(`expires_at <= \\(now\\(\\) AT TIME ZONE 'UTC'\\)`, 'g')
+        ) ?? []
+      ).length === 2 &&
+        lotCount.sql.includes(`l.expires_at <= ${UTC}`) &&
+        lotCount.sql.startsWith('SELECT count(*)')
+    );
+    const [idsSql] = await capture((db) =>
+      retention.clearOldStripeIds(db, 7, 9)
+    );
+    ok(
+      'the Stripe-id clear nulls only the two ids, never the account, its tier or paid_at',
+      idsSql.sql.includes(
+        'SET stripe_customer_id = NULL, stripe_payment_id = NULL'
+      ) && !/DELETE|tier =|paid_at =/.test(idsSql.sql)
+    );
+    /**
+     * The lot and Stripe-id purge is OFF until the replay key, the loyalty
+     * count and "has bought" stop reading the lot (see the flag's comment).
+     * Switching it on is a decision, so it is an edit here as well.
+     */
+    ok(
+      'PURCHASE_RECORD_PURGE_ENABLED stays false',
+      route.PURCHASE_RECORD_PURGE_ENABLED === false
+    );
+    const gateAt = run.indexOf('if (PURCHASE_RECORD_PURGE_ENABLED) {');
+    const elseAt = run.indexOf('} else {', gateAt);
+    ok(
+      'the lot delete and the Stripe-id clear are reachable only through the flag',
+      gateAt !== -1 &&
+        [
+          run.indexOf('deleteOldLots('),
+          run.indexOf('clearOldStripeIds('),
+        ].every((i) => i > gateAt && i < elseAt) &&
+        run.split('deleteOldLots(').length === 2 &&
+        run.split('clearOldStripeIds(').length === 2
+    );
+
+    // ---- lifecycle_emails: kept while the account exists, on purpose.
+    ok(
+      'the cleanup never deletes lifecycle email records',
+      !/lifecycle_emails|lifecycleEmails/.test(run)
+    );
+  }
+
+  // ------------------------------------------- STA-45: the session user agent
+  // Nothing read it back, so it was a record of each sign-in's browser kept
+  // for no purpose. It is no longer written, and the stored values are
+  // cleared by a data-only migration run after the deploy.
+  {
+    const { createSession } = await import('@/lib/auth');
+    ok(
+      'createSession takes no user agent',
+      createSession.length === 1 &&
+        !withoutComments(readFileSync('lib/auth.ts', 'utf8')).includes(
+          'userAgent'
+        )
+    );
+    ok(
+      'the sign-in route does not read the user agent',
+      !withoutComments(readFileSync('app/api/auth/verify/route.ts', 'utf8'))
+        .toLowerCase()
+        .includes('user-agent')
+    );
+    const migration = withoutComments(
+      readFileSync('scripts/migrate-clear-session-user-agents.ts', 'utf8')
+    );
+    ok(
+      'the user-agent migration is a dry run unless told to commit, and only sets the column to NULL',
+      migration.includes("const commit = process.argv.includes('--commit');") &&
+        migration.indexOf('if (!commit)') < migration.indexOf('UPDATE') &&
+        migration.includes('SET user_agent = NULL') &&
+        !/DELETE|DROP|ALTER/.test(migration)
+    );
+  }
+
+  // --------------------------------------------- STA-45: identifiers in logs
+  // The host keeps function logs. An email or wallet printed there is a copy
+  // outside every control the schema enforces, so the call sites mask what
+  // they print and the console net masks what they cannot (an error object
+  // printed whole: a failed Drizzle query carries its parameters).
+  {
+    const { maskEmail, maskWallet, redact, redactConsole } =
+      await import('@/lib/redact');
+    const { format } = await import('node:util');
+    const wallet = '0x' + 'ab12'.repeat(10);
+    const txHash = '0x' + 'cd34'.repeat(16);
+    ok(
+      'maskEmail keeps the first letters and the domain',
+      maskEmail('alice.smith@example.com') === 'al***@example.com' &&
+        maskEmail('jb@example.com') === 'j***@example.com'
+    );
+    ok(
+      'maskWallet keeps the first 6 and last 4',
+      maskWallet(wallet) === '0xab12...ab12'
+    );
+    const line = `paid by ${wallet} for alice.smith@example.com, tx ${txHash}, settlement base:${wallet}:${txHash}`;
+    const masked = redact(line);
+    ok(
+      'redact masks every email and wallet in a line and leaves a 64-digit hash whole',
+      !masked.includes(wallet) &&
+        !masked.includes('alice.smith@') &&
+        masked.includes(txHash) &&
+        masked.includes('0xab12...ab12') &&
+        masked.includes('al***@example.com')
+    );
+    ok('masking twice changes nothing', redact(masked) === masked);
+
+    // The net, attacked with the line no call site controls: a Drizzle error
+    // whose params are an email and a wallet.
+    const printed: string[] = [];
+    const sink = {
+      log: (...a: unknown[]) => printed.push(a.map(String).join(' ')),
+      info: (...a: unknown[]) => printed.push(a.map(String).join(' ')),
+      warn: (...a: unknown[]) => printed.push(a.map(String).join(' ')),
+      error: (...a: unknown[]) => printed.push(a.map(String).join(' ')),
+      debug: (...a: unknown[]) => printed.push(a.map(String).join(' ')),
+    };
+    redactConsole(sink, format);
+    sink.error(
+      'Cache write error:',
+      new DrizzleQueryError(
+        'insert into "users" ("email", "wallet") values ($1, $2)',
+        ['alice.smith@example.com', wallet],
+        new Error('duplicate key')
+      )
+    );
+    sink.log(`granted to ${wallet}`);
+    ok(
+      'the console net masks an error object’s params and a plain line',
+      printed.length === 2 &&
+        printed.every(
+          (p) => !p.includes(wallet) && !p.includes('alice.smith@example.com')
+        ) &&
+        printed[0].includes('al***@example.com') &&
+        printed[0].includes('Cache write error:')
+    );
+    const withheld: string[] = [];
+    const sink2 = {
+      log: (...a: unknown[]) => withheld.push(a.map(String).join(' ')),
+      info: () => {},
+      warn: () => {},
+      error: () => {},
+      debug: () => {},
+    };
+    redactConsole(sink2, () => {
+      throw new Error('unformattable');
+    });
+    sink2.log(`raw ${wallet}`);
+    ok(
+      'a line that cannot be formatted is withheld, never printed raw',
+      withheld.length === 1 && !withheld[0].includes(wallet)
+    );
+
+    const instrumentation = withoutComments(
+      readFileSync('instrumentation.ts', 'utf8')
+    );
+    ok(
+      'instrumentation.ts installs the net on the Node runtime',
+      /if \(process\.env\.NEXT_RUNTIME === 'nodejs'\) \{\s*const \{ format \} = await import\('node:util'\);\s*const \{ redactConsole \} = await import\('@\/lib\/redact'\);\s*redactConsole\(console, format\);\s*\}/.test(
+        instrumentation
+      ) &&
+        existsSync('instrumentation.ts') &&
+        !existsSync('src/instrumentation.ts')
+    );
+
+    /**
+     * No `console.*` call interpolates a raw email or wallet. Heuristic:
+     * every `${...}` and every bare argument is split into identifiers, and
+     * one named like an email or a wallet must sit inside maskEmail,
+     * maskWallet or redact. Read with the TypeScript parser, so a comment or
+     * a string that merely mentions `${email}` is not a call.
+     */
+    const ts = (await import('typescript')).default;
+    const RAW =
+      /^(email|emails|wallet|wallets|payer|address|addresses|walletOrEns|settlementId|recipient)$/i;
+    // A collection's contract address, not a person's wallet. The console
+    // net still masks it in the printed line; the label beside it names it.
+    const ALLOWED = new Set(['lib/seed-collections.ts::candidate.address']);
+    const offenders = (file: string, source: string): string[] => {
+      const out: string[] = [];
+      const sf = ts.createSourceFile(
+        file,
+        source,
+        ts.ScriptTarget.Latest,
+        true,
+        file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS
+      );
+      const masked = (e: import('typescript').Node): boolean =>
+        ts.isCallExpression(e) &&
+        ts.isIdentifier(e.expression) &&
+        ['maskEmail', 'maskWallet', 'redact'].includes(e.expression.text);
+      const inspect = (e: import('typescript').Expression) => {
+        if (masked(e)) return;
+        const text = e.getText(sf);
+        if (ALLOWED.has(`${file}::${text}`)) return;
+        let raw = false;
+        const walk = (n: import('typescript').Node) => {
+          if (masked(n)) return;
+          // A count of wallets is a number, not a wallet.
+          if (
+            ts.isPropertyAccessExpression(n) &&
+            ['length', 'size'].includes(n.name.text)
+          )
+            return;
+          if (ts.isIdentifier(n) && RAW.test(n.text)) raw = true;
+          ts.forEachChild(n, walk);
+        };
+        walk(e);
+        if (raw) out.push(`${file}: ${text}`);
+      };
+      const visit = (n: import('typescript').Node) => {
+        if (
+          ts.isCallExpression(n) &&
+          ts.isPropertyAccessExpression(n.expression) &&
+          ts.isIdentifier(n.expression.expression) &&
+          n.expression.expression.text === 'console'
+        ) {
+          for (const a of n.arguments) {
+            if (ts.isTemplateExpression(a)) {
+              for (const s of a.templateSpans) inspect(s.expression);
+            } else if (!ts.isStringLiteralLike(a)) {
+              inspect(a);
+            }
+          }
+        }
+        ts.forEachChild(n, visit);
+      };
+      visit(sf);
+      return out;
+    };
+    // Prove it can fail before trusting a clean result.
+    ok(
+      'the log scan flags a raw email and a raw wallet, and passes masked ones',
+      offenders(
+        'x.ts',
+        'console.log(`to ${email}`); console.error(`w=${user.wallet}`, err); console.log(`${wallets.length} of`, wallets);'
+      ).length === 3 &&
+        offenders(
+          'x.ts',
+          'console.log(`to ${maskEmail(email)} ${maskWallet(w.wallet)} ${redact(id)} ${emailKey}`);'
+        ).length === 0
+    );
+    const files: string[] = [];
+    const walkDir = (dir: string) => {
+      for (const f of readdirSync(dir, { withFileTypes: true })) {
+        const p = `${dir}/${f.name}`;
+        if (f.isDirectory()) walkDir(p);
+        else if (/\.tsx?$/.test(f.name)) files.push(p);
+      }
+    };
+    for (const dir of ['app', 'lib', 'inngest']) walkDir(dir);
+    let consoleCalls = 0;
+    const found: string[] = [];
+    for (const f of files) {
+      const src = readFileSync(f, 'utf8');
+      consoleCalls += (withoutComments(src).match(/\bconsole\.\w+\(/g) ?? [])
+        .length;
+      found.push(...offenders(f, src));
+    }
+    ok(
+      `no console call interpolates a raw email or wallet${found.length ? `: ${found.join('; ')}` : ''}`,
+      found.length === 0 && consoleCalls > 250
     );
   }
 

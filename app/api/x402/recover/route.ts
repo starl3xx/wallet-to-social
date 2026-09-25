@@ -21,6 +21,7 @@
  * itself. Short version: every field of a settled payment is on a public chain.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { maskWallet } from '@/lib/redact';
 import { isAddress } from 'viem';
 import {
   issueChallenge,
@@ -246,7 +247,7 @@ export async function POST(request: NextRequest) {
     // Prefixes only, never keys: the revoked ones no longer matter and the
     // fresh one must exist in exactly one place, the response.
     console.log(
-      `[x402] keys revoked and reissued wallet=${wallet.toLowerCase()} revoked=[${reissued.revokedPrefixes.join(', ')}] prefix=${reissued.keyPrefix}`
+      `[x402] keys revoked and reissued wallet=${maskWallet(wallet.toLowerCase())} revoked=[${reissued.revokedPrefixes.join(', ')}] prefix=${reissued.keyPrefix}`
     );
 
     const balance = await getBalance(userId);
@@ -293,7 +294,7 @@ export async function POST(request: NextRequest) {
   // never the key: this is the one place both exist and only one of them is
   // safe to write down.
   console.log(
-    `[x402] key reissued wallet=${wallet.toLowerCase()} prefix=${created.key.keyPrefix}`
+    `[x402] key reissued wallet=${maskWallet(wallet.toLowerCase())} prefix=${created.key.keyPrefix}`
   );
 
   const balance = await getBalance(userId);

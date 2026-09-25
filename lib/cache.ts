@@ -1,5 +1,11 @@
 import { getDb, walletCache, type NewWalletCache } from '@/db';
-import { inArray, lt, sql } from 'drizzle-orm';
+import { inArray, sql } from 'drizzle-orm';
+import {
+  drainBatches,
+  RETENTION_DELETE_BATCH,
+  UTC_NOW,
+  type RetentionDb,
+} from './retention';
 import type { WalletSocialResult } from './types';
 
 import { CACHE_TTL_HOURS } from './cache-constants';
@@ -133,20 +139,58 @@ export async function cacheWalletResults(
   }
 }
 
-export async function cleanExpiredCache(): Promise<number> {
-  const db = getDb();
+/**
+ * One batch of cache rows past `CACHE_TTL_HOURS`, the same age the read path
+ * above already refuses to serve. Exported for the local-Postgres test of the
+ * exact statement; the cron calls `cleanExpiredCache`.
+ *
+ * Aged on `cached_at`, which every upsert rewrites, and re-checked on the
+ * target row: an address looked up again between the batch read and the
+ * delete has a fresh `cached_at` and stays.
+ */
+export async function deleteExpiredCacheBatch(
+  db: RetentionDb,
+  limit: number
+): Promise<number> {
+  const cutoff = sql`${UTC_NOW} - make_interval(hours => ${CACHE_TTL_HOURS})`;
+  const result = (await db.execute(sql`
+    WITH expired AS (
+      SELECT wallet FROM wallet_cache
+      WHERE cached_at < ${cutoff}
+      LIMIT ${limit}
+    )
+    DELETE FROM wallet_cache w USING expired
+    WHERE w.wallet = expired.wallet AND w.cached_at < ${cutoff}
+    RETURNING 1
+  `)) as { rows?: unknown[] };
+  return (result.rows ?? []).length;
+}
+
+/**
+ * Delete cache rows the read path no longer serves, called by the daily
+ * cleanup (app/api/cron/cleanup/route.ts).
+ *
+ * It existed with no caller, so an expired row stayed until a later lookup of
+ * the same address overwrote it, and the privacy page's cache period was the
+ * period a row was USED, not kept. The first run after it was wired up faced
+ * about 498,000 expired rows of 616,000 (2026-09-25), so it deletes in
+ * batches until the backlog is gone or `deadline` passes, and the daily
+ * schedule finishes whatever one run could not.
+ *
+ * Throws on a database error, so the route can report the branch as failed
+ * rather than as zero. Returns how many rows it deleted, which the previous
+ * version computed and then answered 0 regardless.
+ */
+export async function cleanExpiredCache(
+  deadline: number,
+  db: RetentionDb | null = getDb()
+): Promise<number> {
   if (!db) return 0;
-
-  const cutoff = new Date(Date.now() - CACHE_TTL_HOURS * 60 * 60 * 1000);
-
-  try {
-    await db.delete(walletCache).where(lt(walletCache.cachedAt, cutoff));
-
-    return 0;
-  } catch (error) {
-    console.error('Cache cleanup error:', error);
-    return 0;
-  }
+  return drainBatches(
+    () => deleteExpiredCacheBatch(db, RETENTION_DELETE_BATCH),
+    RETENTION_DELETE_BATCH,
+    deadline
+  );
 }
 
 export async function getCacheStats(): Promise<{

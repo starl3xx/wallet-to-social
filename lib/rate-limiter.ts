@@ -1,4 +1,4 @@
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, type SQL } from 'drizzle-orm';
 import { getDb } from '@/db';
 import {
   apiKeys,
@@ -6,6 +6,11 @@ import {
   type ApiKey,
   type ApiPlan,
 } from '@/db/schema';
+import {
+  drainBatches,
+  RETENTION_DELETE_BATCH,
+  type RetentionDb,
+} from '@/lib/retention';
 
 export type BucketType = 'minute' | 'day' | 'month';
 
@@ -349,21 +354,85 @@ function formatHeaders(result: RateLimitResult): RateLimitHeaders {
 }
 
 /**
- * Cleans up old rate limit buckets (call periodically via cron)
+ * The oldest key of each bucket type still kept, as of `now`: the key of the
+ * minute, day and month `olderThanDays` before it. Every key is zero-padded
+ * UTC (`getBucketKey`), so within one type a byte-order comparison is a time
+ * comparison.
+ *
+ * Keyed on the period a bucket counts, never on when its row was created. A
+ * bucket counts one minute, day or month, and `accountUsageForPeriod` sums
+ * the CURRENT day's and month's buckets, so a row may go only once its
+ * period is over. A month bucket is created by the month's first request and
+ * read until the month ends; the version of this function that aged rows by
+ * `created_at` (7 days, and never called) would have deleted the month's
+ * count a week in and restarted it at zero.
+ *
+ * With 2 days, a bucket goes once the minute, day or month it counts ended
+ * at least 2 days ago; `scripts/check-invariants.ts` asserts that no
+ * current bucket is ever older than its type's cutoff.
+ */
+export function bucketRetentionKeys(
+  now: Date,
+  olderThanDays: number
+): Record<BucketType, string> {
+  const cutoff = new Date(now.getTime() - olderThanDays * 24 * 60 * 60 * 1000);
+  return {
+    minute: getBucketKey('minute', cutoff),
+    day: getBucketKey('day', cutoff),
+    month: getBucketKey('month', cutoff),
+  };
+}
+
+/** The buckets whose period ended before the cutoff keys. */
+function bucketSpent(alias: string, keys: Record<BucketType, string>): SQL {
+  const r = sql.raw(alias);
+  return sql`(
+    (${r}.bucket_type = 'minute' AND ${r}.bucket_key COLLATE "C" < ${keys.minute})
+    OR (${r}.bucket_type = 'day' AND ${r}.bucket_key COLLATE "C" < ${keys.day})
+    OR (${r}.bucket_type = 'month' AND ${r}.bucket_key COLLATE "C" < ${keys.month})
+  )`;
+}
+
+/**
+ * One batch of spent buckets. Exported for the local-Postgres test of the
+ * exact statement; the cron calls `cleanupOldBuckets`. A bucket type this
+ * file does not know is never matched, so it is kept.
+ */
+export async function deleteSpentBucketsBatch(
+  db: RetentionDb,
+  keys: Record<BucketType, string>,
+  limit: number
+): Promise<number> {
+  const result = (await db.execute(sql`
+    WITH spent AS (
+      SELECT b.id FROM rate_limit_buckets b
+      WHERE ${bucketSpent('b', keys)}
+      LIMIT ${limit}
+    )
+    DELETE FROM rate_limit_buckets t USING spent
+    WHERE t.id = spent.id AND ${bucketSpent('t', keys)}
+    RETURNING 1
+  `)) as { rows?: unknown[] };
+  return (result.rows ?? []).length;
+}
+
+/**
+ * Delete the API rate-limit buckets whose period ended more than
+ * `olderThanDays` ago, called by the daily cleanup
+ * (app/api/cron/cleanup/route.ts, `API_BUCKET_RETENTION_DAYS`). Throws on a
+ * database error so the route reports the branch as failed, not as zero.
  */
 export async function cleanupOldBuckets(
-  olderThanDays: number = 7
+  olderThanDays: number,
+  deadline: number,
+  db: RetentionDb | null = getDb(),
+  now: Date = new Date()
 ): Promise<number> {
-  const db = getDb();
   if (!db) return 0;
-
-  const cutoff = new Date();
-  cutoff.setDate(cutoff.getDate() - olderThanDays);
-
-  const result = await db
-    .delete(rateLimitBuckets)
-    .where(sql`${rateLimitBuckets.createdAt} < ${cutoff}`)
-    .returning();
-
-  return result.length;
+  const keys = bucketRetentionKeys(now, olderThanDays);
+  return drainBatches(
+    () => deleteSpentBucketsBatch(db, keys, RETENTION_DELETE_BATCH),
+    RETENTION_DELETE_BATCH,
+    deadline
+  );
 }

@@ -3,6 +3,7 @@ import { grantPack } from '@/lib/credits';
 import { generateMagicLinkToken } from '@/lib/auth';
 import { sendPurchaseSignInLink, isEmailConfigured } from '@/lib/email';
 import { PACKS, type PackId } from '@/lib/packs';
+import { maskEmail } from '@/lib/redact';
 
 /**
  * Everything that happens when someone pays for a pack.
@@ -64,7 +65,9 @@ export async function fulfilPackPurchase(
  */
 async function sendSignInLink(email: string, pack: PackId): Promise<void> {
   if (!isEmailConfigured()) {
-    console.warn(`No email service, so no sign-in link sent to ${email}`);
+    console.warn(
+      `No email service, so no sign-in link sent to ${maskEmail(email)}`
+    );
     return;
   }
 
@@ -74,7 +77,9 @@ async function sendSignInLink(email: string, pack: PackId): Promise<void> {
       // Rate limiting lives in generateMagicLinkToken. A buyer who just
       // requested a link and then bought something hits it, and already has a
       // usable link in their inbox.
-      console.warn(`No sign-in link for ${email}: ${tokenResult.error}`);
+      console.warn(
+        `No sign-in link for ${maskEmail(email)}: ${tokenResult.error}`
+      );
       return;
     }
     // Not the generic sign-in mail. That one says "ignore this if you did not
@@ -85,7 +90,9 @@ async function sendSignInLink(email: string, pack: PackId): Promise<void> {
       matches: PACKS[pack].matches,
     });
     if (!sent.success) {
-      console.error(`Sign-in link failed for ${email}: ${sent.error}`);
+      console.error(
+        `Sign-in link failed for ${maskEmail(email)}: ${sent.error}`
+      );
     }
   } catch (error) {
     console.error('Sign-in link after purchase failed:', error);

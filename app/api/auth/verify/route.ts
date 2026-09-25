@@ -70,9 +70,8 @@ export async function GET(request: NextRequest) {
     // `users.origin`, which says which rail minted the row.
     const user = await getOrCreateUser(email, acquisition);
 
-    // Create a session
-    const userAgent = request.headers.get('user-agent') || undefined;
-    const sessionResult = await createSession(user.id, userAgent);
+    // Create a session. The user agent is not recorded (see createSession).
+    const sessionResult = await createSession(user.id);
 
     if ('error' in sessionResult) {
       return redirectWithError('Failed to create session');

@@ -150,10 +150,15 @@ export async function verifyMagicLinkToken(
 /**
  * Create a session for a user
  * Returns the raw session token (to be stored in cookie)
+ *
+ * The browser's user agent is not stored. It used to be written to
+ * `auth_sessions.user_agent`, and nothing ever read it back: a record of
+ * which browser and system somebody signs in from, kept for no purpose.
+ * The column stays in the schema, emptied by
+ * scripts/migrate-clear-session-user-agents.ts.
  */
 export async function createSession(
-  userId: string,
-  userAgent?: string
+  userId: string
 ): Promise<{ token: string } | { error: string }> {
   const db = getDb();
   if (!db) {
@@ -169,7 +174,6 @@ export async function createSession(
       userId,
       tokenHash,
       expiresAt,
-      userAgent,
     });
 
     return { token };

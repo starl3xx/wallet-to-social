@@ -24,6 +24,12 @@
  * | Removal quarantine copies  | Until purge_after, then deleted   |
  * | OAuth access tokens        | 400 days after they stop working, |
  * |                            | with their usage rows             |
+ * | Wallet cache rows          | 7 days (lib/cache-constants.ts)   |
+ * | API request records        | 13 months                         |
+ * | API rate-limit buckets     | 2 days after their period ends    |
+ * | Credit ledger rows         | 7 years, then deleted             |
+ * | Credit lots, Stripe ids    | 7 years; purge written, OFF       |
+ * | Lifecycle email records    | While the account exists          |
  *
  * The two removal-system rows run FIRST, and each catches its own errors.
  * Every other branch here is housekeeping; these two are retention promises
@@ -31,6 +37,17 @@
  * unrelated delete threw is a promise broken silently, on a schedule. The
  * quarantine purge in particular must never wait behind a branch that can
  * fail: past `purge_after` the copy has no reason to exist at all.
+ *
+ * The retention branches added for STA-45 (cache, API usage, API buckets,
+ * payment records) are isolated the same way, each in its own try, because
+ * each is a period the privacy page states. They run before the housekeeping
+ * tail and share one time budget, so a large backlog (the cache had about
+ * 498,000 expired rows when it was first wired up) drains over a few daily
+ * runs instead of pushing the rest of this job past `maxDuration`.
+ *
+ * `lifecycle_emails` has no branch on purpose: a row records that a welcome
+ * or check-in email went out, which is what stops it going out twice, so it
+ * is kept while the account exists and goes with it (ON DELETE CASCADE).
  *
  * `lookup_history` deliberately has NO row in this table. A saved lookup is
  * kept until its owner deletes it (DELETE /api/history/[id]) or a removal
@@ -58,6 +75,18 @@ import { cleanupAbandonedListJobs } from '@/lib/x-list-worker';
 import { cleanupAbandonedClaims } from '@/lib/claim-callback';
 import { cleanupIdempotencyKeys } from '@/lib/idempotency';
 import { ACCESS_TOKEN_PREFIX } from '@/lib/oauth/grants';
+import { cleanExpiredCache } from '@/lib/cache';
+import { cleanupOldBuckets } from '@/lib/rate-limiter';
+import {
+  clearOldStripeIds,
+  countLotsDue,
+  countStripeIdsDue,
+  deleteOldApiUsage,
+  deleteOldLedgerRows,
+  deleteOldLots,
+  drainBatches,
+  RETENTION_DELETE_BATCH,
+} from '@/lib/retention';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -111,6 +140,57 @@ export const OAUTH_TOKEN_RETENTION_DAYS = 400;
  * below it.
  */
 export const OAUTH_TOKEN_DELETE_BATCH = 2000;
+
+/**
+ * How long a row of `api_usage` (one per API request: key, route template,
+ * status, latency, credits) is kept. Thirteen months covers the longest
+ * window anything reads, the admin journey's `MAX_DAYS` (365), with a month
+ * to spare; `scripts/check-invariants.ts` asserts it against every
+ * thirteen-month span, the shortest included.
+ */
+export const API_USAGE_RETENTION_MONTHS = 13;
+
+/**
+ * How long an API rate-limit bucket (`rate_limit_buckets`) is kept after the
+ * minute, day or month it counts has ENDED. Aged by its period, never by its
+ * row's creation, because the account-wide quota reads the current month's
+ * bucket until the month is over; see `bucketRetentionKeys` in
+ * lib/rate-limiter.ts. The IP buckets have their own period above.
+ */
+export const API_BUCKET_RETENTION_DAYS = 2;
+
+/**
+ * How long payment records are kept: `credit_ledger`, `credit_lots` and the
+ * Stripe ids on `users`, for tax and accounting. The rules for what may go
+ * after that are in lib/retention.ts.
+ */
+export const PAYMENT_RECORD_RETENTION_YEARS = 7;
+
+/**
+ * Whether the purge may delete `credit_lots` rows and clear the Stripe ids on
+ * `users` once they pass the period. OFF, deliberately, and it stays off
+ * until three things outlive the lot, because today each is read from it:
+ *
+ * 1. the replay key: a grant for a payment that already bought a lot must
+ *    stay a no-op after the lot is gone (the same holds for the legacy tier
+ *    grant and `users.stripe_payment_id`)
+ * 2. the x402 loyalty count, which counts every settled lot a wallet bought
+ * 3. "has bought", which the lifecycle mail reads as "holds a paid lot"
+ *
+ * Nothing is due before 2033-08-15 (the oldest payment on record is from
+ * 2026-08-15), and the route reports the count that would go on every run,
+ * so the switch can be made with the number in hand. `credit_ledger` is not
+ * gated: its rule is safe as written, and it runs.
+ */
+export const PURCHASE_RECORD_PURGE_ENABLED = false;
+
+/**
+ * The time the retention branches below share, from when the first of them
+ * starts. Each runs at least one batch; after that, a branch stops when the
+ * budget is spent and the next daily run carries on. It leaves the rest of
+ * `maxDuration` for the housekeeping tail.
+ */
+export const RETENTION_BUDGET_MS = 30_000;
 
 async function run(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');
@@ -238,6 +318,107 @@ async function run(request: NextRequest): Promise<NextResponse> {
     console.error('OAuth access token cleanup error:', error);
   }
 
+  /**
+   * The STA-45 retention branches. Each in its own try, for the reason the
+   * quarantine purge is; the cache goes last because it is the only one
+   * with a real backlog, so it takes whatever the budget has left.
+   */
+  const retentionDeadline = Date.now() + RETENTION_BUDGET_MS;
+
+  let apiUsageRows: number | null = null;
+  try {
+    apiUsageRows = await drainBatches(
+      () =>
+        deleteOldApiUsage(
+          db,
+          API_USAGE_RETENTION_MONTHS,
+          RETENTION_DELETE_BATCH
+        ),
+      RETENTION_DELETE_BATCH,
+      retentionDeadline
+    );
+  } catch (error) {
+    console.error('API usage cleanup error:', error);
+  }
+
+  let apiBuckets: number | null = null;
+  try {
+    apiBuckets = await cleanupOldBuckets(
+      API_BUCKET_RETENTION_DAYS,
+      retentionDeadline,
+      db
+    );
+  } catch (error) {
+    console.error('API rate-limit bucket cleanup error:', error);
+  }
+
+  let creditLedgerRows: number | null = null;
+  try {
+    creditLedgerRows = await drainBatches(
+      () =>
+        deleteOldLedgerRows(
+          db,
+          PAYMENT_RECORD_RETENTION_YEARS,
+          RETENTION_DELETE_BATCH
+        ),
+      RETENTION_DELETE_BATCH,
+      retentionDeadline
+    );
+  } catch (error) {
+    console.error('Credit ledger cleanup error:', error);
+  }
+
+  /**
+   * Lots and Stripe ids: counted every run, deleted only when the flag is
+   * on. `purged: false` with a non-zero count is the signal that the
+   * decision in the flag's comment is due.
+   */
+  let purchaseRecords: {
+    purged: boolean;
+    creditLots: number;
+    stripeIds: number;
+  } | null = null;
+  try {
+    if (PURCHASE_RECORD_PURGE_ENABLED) {
+      const creditLots = await drainBatches(
+        () =>
+          deleteOldLots(
+            db,
+            PAYMENT_RECORD_RETENTION_YEARS,
+            RETENTION_DELETE_BATCH
+          ),
+        RETENTION_DELETE_BATCH,
+        retentionDeadline
+      );
+      const stripeIds = await drainBatches(
+        () =>
+          clearOldStripeIds(
+            db,
+            PAYMENT_RECORD_RETENTION_YEARS,
+            RETENTION_DELETE_BATCH
+          ),
+        RETENTION_DELETE_BATCH,
+        retentionDeadline
+      );
+      purchaseRecords = { purged: true, creditLots, stripeIds };
+    } else {
+      purchaseRecords = {
+        purged: false,
+        creditLots: await countLotsDue(db, PAYMENT_RECORD_RETENTION_YEARS),
+        stripeIds: await countStripeIdsDue(db, PAYMENT_RECORD_RETENTION_YEARS),
+      };
+    }
+  } catch (error) {
+    console.error('Purchase record purge error:', error);
+  }
+
+  let walletCacheRows: number | null = null;
+  try {
+    walletCacheRows = await cleanExpiredCache(retentionDeadline, db);
+  } catch (error) {
+    console.error('Wallet cache cleanup error:', error);
+  }
+
   const auth = await cleanupExpiredAuth();
   const ipBuckets = await cleanupOldIpBuckets(IP_BUCKET_RETENTION_HOURS);
   const authorizationRequests = await cleanupAuthorizationRequests();
@@ -272,6 +453,11 @@ async function run(request: NextRequest): Promise<NextResponse> {
     quarantinePurged,
     jobPayloadsStripped,
     oauthAccessTokens,
+    apiUsageRows,
+    apiBuckets,
+    creditLedgerRows,
+    purchaseRecords,
+    walletCacheRows,
   });
 }
 
