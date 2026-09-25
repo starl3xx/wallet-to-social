@@ -32,11 +32,28 @@
  * Only a 200 consumes a key. A request that failed validation, rate limiting
  * or the balance gate stores nothing, so the same key can be retried into a
  * success.
+ *
+ * ## A removal reaches the stored copies
+ *
+ * A stored response is a copy of what the index said when the request ran,
+ * and it is replayable for `IDEMPOTENCY_TTL_HOURS`. A removal inside that
+ * window would otherwise be undone by a replay. So a removal rewrites the
+ * stored copies that name the removed identifier (`amendRetryCopies` in
+ * `lib/removal-admin.ts`), and every replay is filtered against the live
+ * suppression list before it is served (`app/api/v1/batch/route.ts`), which
+ * covers a removal that lands between the store and the replay. Both go
+ * through `scrubStoredBatchResponse` below.
+ *
+ * The copies are rewritten and never deleted. A deleted key turns the
+ * caller's next retry into a miss, a miss resolves and bills again, and
+ * `chargeForApiCall` has no idempotency key by design: the retry this header
+ * exists to protect would pay twice for one list.
  */
 import { createHash } from 'crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { idempotencyKeys } from '@/db/schema';
+import { isKindSuppressed, type SuppressionSets } from '@/lib/suppression';
 
 /** How long a stored response stays replayable, and how old a row may get. */
 export const IDEMPOTENCY_TTL_HOURS = 24;
@@ -123,6 +140,135 @@ async function lookupReplay(
   if (row.bodyHash !== bodyHash) return { kind: 'mismatch' };
   if (row.response === null) return { kind: 'not_replayable' };
   return { kind: 'replay', status: row.status, response: row.response };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A stored `/v1/batch` response with every suppressed identity taken out, in
+ * the shape a fresh request would serve today.
+ *
+ * One function for both callers, so the replay filter and the removal-time
+ * rewrite cannot disagree about what a removal means for a retry copy. The
+ * rules are the live route's, applied to the served shape:
+ *
+ *  - a suppressed wallet's entry becomes `null`, and its `previously_checked`
+ *    timestamp goes too, because the live route serves a suppressed wallet as
+ *    never indexed and that timestamp is itself a "we held a row" signal;
+ *  - a suppressed handle takes its own platform object (`twitter` or
+ *    `farcaster`), and a suppressed second X handle takes `twitter.also`;
+ *  - ENS, Lens and GitHub go the same way;
+ *  - an entry left with no identity at all becomes `null`, which is the live
+ *    route's rule for a row with no socials.
+ *
+ * `meta.found`, `not_found` and `matched` are recounted from what is served.
+ * `matched` on the original was what that call billed, and the ledger stays
+ * the billing record, the same split `amendSavedCopies` makes for
+ * `lookup_jobs.any_social_found`: a count above the handles served would
+ * itself say that something was removed.
+ *
+ * Pure. Returns the same reference when nothing matched. A value that is not
+ * the stored shape is returned unchanged, since the batch route writes the
+ * only rows this table holds.
+ */
+export function scrubStoredBatchResponse(
+  payload: unknown,
+  sets: SuppressionSets
+): unknown {
+  if (!isRecord(payload) || !Array.isArray(payload.data)) return payload;
+
+  let touched = false;
+  const data = payload.data.map((entry: unknown) => {
+    if (!isRecord(entry)) return entry;
+    if (isKindSuppressed(sets, 'wallet', entry.wallet)) {
+      touched = true;
+      return null;
+    }
+
+    const next: Record<string, unknown> = { ...entry };
+    let changed = false;
+    if (isRecord(entry.twitter)) {
+      if (isKindSuppressed(sets, 'twitter', entry.twitter.handle)) {
+        delete next.twitter;
+        changed = true;
+      } else if (
+        isRecord(entry.twitter.also) &&
+        isKindSuppressed(sets, 'twitter', entry.twitter.also.handle)
+      ) {
+        const twitter = { ...entry.twitter };
+        delete twitter.also;
+        next.twitter = twitter;
+        changed = true;
+      }
+    }
+    if (
+      isRecord(entry.farcaster) &&
+      isKindSuppressed(sets, 'farcaster', entry.farcaster.username)
+    ) {
+      delete next.farcaster;
+      changed = true;
+    }
+    if (isKindSuppressed(sets, 'ens', entry.ens_name)) {
+      delete next.ens_name;
+      changed = true;
+    }
+    if (isKindSuppressed(sets, 'lens', entry.lens)) {
+      delete next.lens;
+      changed = true;
+    }
+    if (isKindSuppressed(sets, 'github', entry.github)) {
+      delete next.github;
+      changed = true;
+    }
+    if (!changed) return entry;
+
+    touched = true;
+    const hasSocials = !!(
+      next.twitter ||
+      next.farcaster ||
+      next.ens_name ||
+      next.lens ||
+      next.github
+    );
+    return hasSocials ? next : null;
+  });
+
+  let meta = payload.meta;
+  if (isRecord(meta) && isRecord(meta.previously_checked)) {
+    const checked = Object.entries(meta.previously_checked);
+    const kept = checked.filter(
+      ([wallet]) => !isKindSuppressed(sets, 'wallet', wallet)
+    );
+    if (kept.length !== checked.length) {
+      touched = true;
+      const trimmed: Record<string, unknown> = { ...meta };
+      delete trimmed.previously_checked;
+      // Absent when empty, the live route's rule: absent is not false.
+      if (kept.length > 0) {
+        trimmed.previously_checked = Object.fromEntries(kept);
+      }
+      meta = trimmed;
+    }
+  }
+
+  if (!touched) return payload;
+
+  if (isRecord(meta)) {
+    const found = data.filter((entry) => entry !== null).length;
+    const requested =
+      typeof meta.requested === 'number' ? meta.requested : data.length;
+    meta = {
+      ...meta,
+      found,
+      not_found: requested - found,
+      matched: data.filter(
+        (entry) => isRecord(entry) && (entry.twitter || entry.farcaster)
+      ).length,
+    };
+  }
+  return { ...payload, data, meta };
 }
 
 /**

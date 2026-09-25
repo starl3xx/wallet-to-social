@@ -412,6 +412,27 @@ export async function completeClaimCallback(input: {
   }
 
   /**
+   * The same refusal for the handle, now that we know it.
+   *
+   * A removal of an X handle withdraws every claim row that names it
+   * (`withdrawClaimRecords` in `lib/removal-admin.ts`), but a pending claim
+   * names no handle until this point, so the removal cannot reach it. Without
+   * this check that claim completes after the removal and the row pairs the
+   * wallet with the removed handle again, `completed`, while the triggers keep
+   * the index clean: the gap the wallet check above closes, one identifier
+   * over. Asked after the identity read because that is the first moment the
+   * handle exists; the row is left for `cleanupAbandonedClaims`, like every
+   * other refusal after the exchange.
+   */
+  try {
+    const hits = await isSuppressed('twitter', [handle]);
+    if (hits.size > 0) return back('not_found', claim.id);
+  } catch (error) {
+    console.error('claim handle suppression read failed; refusing:', error);
+    return back('unavailable', claim.id);
+  }
+
+  /**
    * The verifier and the nonce are cleared in the same statement that records
    * the account, so the pair cannot be replayed even within the same second,
    * and the status moves out of `awaiting_x`.

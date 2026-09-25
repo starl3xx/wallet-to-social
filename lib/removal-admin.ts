@@ -1,5 +1,7 @@
 import type { getDb } from '@/db';
 import { sql, type SQL } from 'drizzle-orm';
+import { scrubStoredBatchResponse } from '@/lib/idempotency';
+import type { SuppressionSets } from '@/lib/suppression';
 
 /**
  * The operator side of the right-to-removal system: stage 1.
@@ -18,7 +20,11 @@ import { sql, type SQL } from 'drizzle-orm';
  *    them, one atomic statement per table, so a copy can never be lost to a
  *    failure between "copied" and "deleted".
  * 3. Amend the customer-held jsonb copies (`lookup_history.results`,
- *    `lookup_jobs.partial_results`), non-fail-soft.
+ *    `lookup_jobs.partial_results`) and the API retry copies
+ *    (`idempotency_keys.response`), non-fail-soft.
+ * 4. Withdraw the claim record (`identity_attestations`), LAST, so that a
+ *    failure anywhere above leaves the claim completed and a signed
+ *    withdrawal can still be retried to finish (see `eraseIdentifier`).
  *
  * Deleting before the suppression row commits would leave a window in which
  * an in-flight sweep batch re-inserts the row after the delete and before
@@ -53,7 +59,9 @@ import { sql, type SQL } from 'drizzle-orm';
  * ## The quarantine table
  *
  * `suppression_quarantine` holds a full pre-removal copy of every row this
- * module deleted or blanked, keyed back to `(kind, identifier)`, so a
+ * module deleted or blanked (bar a pending claim, which holds nothing that
+ * could be restored; see `withdrawClaimRecords`), keyed back to
+ * `(kind, identifier)`, so a
  * removal that turns out to be hostile (the email lane demands no proof) can
  * be reversed until `purge_after`, which the cleanup cron enforces. The DDL
  * is owned by `scripts/migrate-suppression.ts` (id, kind, identifier,
@@ -65,8 +73,11 @@ import { sql, type SQL } from 'drizzle-orm';
  * There is no action column: whether a quarantined row was deleted or
  * blanked is fully determined by `(kind, source_table)`. A wallet-kind
  * removal deletes whole rows everywhere; every other kind blanks columns on
- * `social_graph` and `wallet_cache` and deletes rows elsewhere. The restore
- * paths below rely on exactly that disjointness.
+ * `social_graph` and `wallet_cache` and deletes rows elsewhere. The one
+ * exception is the claim record, `identity_attestations`, which is always
+ * blanked (marked withdrawn), for a wallet and for an X handle alike, and is
+ * never in `DELETED_TABLES`. The restore paths below rely on exactly that
+ * disjointness.
  *
  * ## What this module deliberately does not touch
  *
@@ -406,6 +417,176 @@ async function amendSavedCopies(
   return res.rows.length;
 }
 
+/** How many times one retry copy is re-read after a lost write race before
+ *  the removal stops and says so. Each loss means somebody else changed that
+ *  one row between our read and our write, so a third in a row is not a
+ *  race, it is a fault worth naming. */
+const RETRY_COPY_ATTEMPTS = 3;
+
+interface RetryCopy {
+  key_id: string;
+  idem_key: string;
+  response: unknown;
+  digest: string;
+}
+
+/**
+ * The API retry copies: `idempotency_keys.response`, the stored body that a
+ * `POST /v1/batch` retry under the same key replays for
+ * `IDEMPOTENCY_TTL_HOURS` (`lib/idempotency.ts`).
+ *
+ * Rewritten, never deleted. A deleted key makes the caller's next retry a
+ * miss, and a miss resolves and bills again, because `chargeForApiCall` has
+ * no idempotency key: the retry the header exists to protect would pay
+ * twice. The rewrite goes through `scrubStoredBatchResponse`, the function
+ * the replay path filters with, so the two cannot disagree about what a
+ * removal means for a stored body.
+ *
+ * The candidate read is a text search for the identifier, in its JSON-escaped
+ * form, over the whole stored body. That finds a superset of the rows the
+ * scrub changes (a handle inside a longer one matches here and is left alone
+ * by the scrub), never a subset, which is the direction that matters. The
+ * table holds one day of batch responses, so the scan stays small.
+ *
+ * Each write is conditional on the body it read (`md5(response::text)`), so
+ * it can never put back an older body: a key past its TTL can be taken over
+ * by a fresh request between the read and the write, and a second removal can
+ * be rewriting the same row. A lost race re-reads the row and scrubs what is
+ * there now. A row that will not settle aborts the removal with the reason
+ * named, and the replay filter holds meanwhile.
+ */
+async function amendRetryCopies(
+  db: Db,
+  kind: SuppressionKind,
+  identifier: string
+): Promise<number> {
+  const sets: SuppressionSets = new Map([[kind, new Set([identifier])]]);
+  const needle = JSON.stringify(identifier).slice(1, -1);
+  // A driver that hands jsonb back as text must not turn the scrub into a
+  // silent no-op: a string is not the stored shape, so it would pass through
+  // unchanged and the row would count as clean.
+  const body = (value: unknown) =>
+    typeof value === 'string' ? (JSON.parse(value) as unknown) : value;
+
+  const candidates = (await db.execute(sql`
+    SELECT key_id, idem_key, response, md5(response::text) AS digest
+    FROM idempotency_keys
+    WHERE response IS NOT NULL
+      AND strpos(lower(response::text), ${needle}) > 0
+  `)) as unknown as { rows: RetryCopy[] };
+
+  let amended = 0;
+  for (const candidate of candidates.rows) {
+    let row: RetryCopy | undefined = candidate;
+    for (let attempt = 1; row; attempt++) {
+      const stored = body(row.response);
+      const scrubbed = scrubStoredBatchResponse(stored, sets);
+      if (scrubbed === stored) break;
+
+      const written = (await db.execute(sql`
+        UPDATE idempotency_keys
+        SET response = ${JSON.stringify(scrubbed)}::jsonb
+        WHERE key_id = ${row.key_id}
+          AND idem_key = ${row.idem_key}
+          AND md5(response::text) = ${row.digest}
+        RETURNING key_id
+      `)) as unknown as { rows: unknown[] };
+      if (written.rows.length > 0) {
+        amended++;
+        break;
+      }
+      if (attempt >= RETRY_COPY_ATTEMPTS) {
+        throw new Error(
+          `a stored batch response changed under the amend ${attempt} times; re-run the removal`
+        );
+      }
+      const again = (await db.execute(sql`
+        SELECT key_id, idem_key, response, md5(response::text) AS digest
+        FROM idempotency_keys
+        WHERE key_id = ${row.key_id}
+          AND idem_key = ${row.idem_key}
+          AND response IS NOT NULL
+      `)) as unknown as { rows: RetryCopy[] };
+      row = again.rows[0];
+    }
+  }
+  return amended;
+}
+
+/**
+ * The claim record: `identity_attestations`, the row a person writes on
+ * `/claim` by signing with a wallet and authorizing an X account. It pairs
+ * the two, so a removal of either reaches it, the way a withdrawal on the
+ * claim page always has: the row stays, marked `withdrawn`, with the X
+ * account, the handle, the signature and any pending authorization cleared.
+ * `x_user_id_hmac` survives, which keeps the one-grant-per-account rule
+ * holding after the plaintext is gone.
+ *
+ * Every row naming the identifier, whichever account holds it. A wallet can
+ * carry several rows (`start` inserts unconditionally), and a suppressed
+ * wallet leaves the index whole, so no claim row may go on naming it with a
+ * handle. `awaiting_x` rows go too, so a claim opened before the removal
+ * cannot complete after it; the callback refuses a suppressed wallet or
+ * handle from the other side.
+ *
+ * A completed row is copied to quarantine in the same statement, so an
+ * emailed removal (no proof demanded) is reversible by un-suppress like every
+ * other row this module touches. A pending row is not copied: it holds a
+ * signature and a thirty-minute authorization, which `cleanupAbandonedClaims`
+ * exists to not keep, and nothing in it can be restored.
+ *
+ * The table carries no suppression trigger, by decision
+ * (`SUPPRESSION_EXCLUDED_TABLES` in `scripts/migrate-suppression.ts`), so this
+ * step is the only thing that reaches it.
+ */
+async function withdrawClaimRecords(
+  db: Db,
+  kind: 'wallet' | 'twitter',
+  identifier: string
+): Promise<{ withdrawn: number; quarantined: number }> {
+  const match =
+    kind === 'wallet'
+      ? sql`t.wallet = ${identifier}`
+      : sql`lower(t.x_handle) = ${identifier}`;
+  const res = (await db.execute(sql`
+    WITH snap AS (
+      SELECT t.id, t.status, to_jsonb(t.*) AS payload
+      FROM identity_attestations t
+      WHERE ${match}
+        AND t.status IN ('completed', 'awaiting_x')
+    ),
+    copied AS (
+      INSERT INTO suppression_quarantine
+        (kind, identifier, source_table, row_data)
+      SELECT ${kind}, ${identifier}, 'identity_attestations', snap.payload
+      FROM snap
+      WHERE snap.status = 'completed'
+      RETURNING id
+    ),
+    cleared AS (
+      UPDATE identity_attestations g
+      SET status        = 'withdrawn',
+          x_user_id     = NULL,
+          x_handle      = NULL,
+          signature     = NULL,
+          code_verifier = NULL,
+          state_nonce   = NULL,
+          updated_at    = now()
+      FROM snap
+      WHERE g.id = snap.id
+      RETURNING g.id
+    )
+    SELECT (SELECT count(*)::int FROM cleared) AS withdrawn,
+           (SELECT count(*)::int FROM copied) AS quarantined
+  `)) as unknown as {
+    rows: Array<{ withdrawn: number; quarantined: number }>;
+  };
+  return {
+    withdrawn: res.rows[0]?.withdrawn ?? 0,
+    quarantined: res.rows[0]?.quarantined ?? 0,
+  };
+}
+
 /**
  * Which result-element keys carry the mapping for each kind. The element
  * shape is `WalletSocialResult` (lib/types.ts); everything not listed here
@@ -512,7 +693,8 @@ const BLANK_SET: Record<string, Record<string, string>> = {
 
 /**
  * Runs the erasure for one already-suppressed identifier: quarantine copy,
- * delete or blank, then the saved-copy amendments. Every step is idempotent
+ * delete or blank, then the saved-copy and retry-copy amendments, then the
+ * claim record. Every step is idempotent
  * (a re-run finds the rows already gone or already blanked and does
  * nothing), so a failed run is repaired by running it again. Throws on the
  * first failing step; the caller reports what completed and what remains.
@@ -693,6 +875,32 @@ export async function eraseIdentifier(
     kind === 'twitter'
   );
   steps.push({ table: 'lookup_jobs', action: 'amended', rows: jobRows });
+
+  // The API retry copies, the third place a served mapping is stored. Same
+  // posture as the two above: non-fail-soft, and the replay filter in the
+  // batch route covers a copy stored after this ran.
+  const retryRows = await amendRetryCopies(db, kind, identifier);
+  steps.push({
+    table: 'idempotency_keys',
+    action: 'amended',
+    rows: retryRows,
+  });
+
+  // The claim record, LAST and on purpose. A signed withdrawal on /claim
+  // runs this same function and is refused unless the person still holds a
+  // completed claim, so if any step above failed after the claim had been
+  // withdrawn, the retry that should finish the erase would be turned away
+  // with the pairing still served. Here, a claim is withdrawn only once
+  // everything else has gone.
+  if (kind === 'wallet' || kind === 'twitter') {
+    const claims = await withdrawClaimRecords(db, kind, identifier);
+    quarantined += claims.quarantined;
+    steps.push({
+      table: 'identity_attestations',
+      action: 'blanked',
+      rows: claims.withdrawn,
+    });
+  }
 
   return { steps, quarantined };
 }
@@ -955,6 +1163,52 @@ export async function unsuppressIdentifier(
       if (res.rows.length > 0) {
         restored.push({ table, action: 'blanked', rows: res.rows.length });
       }
+    }
+  }
+
+  // The claim record (withdrawClaimRecords): a blank, keyed on the row's own
+  // id because one wallet can carry several. Put back only while the row is
+  // still exactly as the removal left it, and only when neither its wallet
+  // nor its handle is still covered by a sibling suppression. This table has
+  // no trigger to refuse the write, so that check is made here; a copy it
+  // refuses is kept and reported below like any other.
+  if (kind === 'wallet' || kind === 'twitter') {
+    const res = (await db.execute(sql`
+      WITH src AS (
+        SELECT id, row_data FROM suppression_quarantine
+        WHERE kind = ${kind} AND identifier = ${identifier}
+          AND source_table = 'identity_attestations'
+      ),
+      upd AS (
+        UPDATE identity_attestations g
+        SET status     = 'completed',
+            x_user_id  = s.row_data ->> 'x_user_id',
+            x_handle   = s.row_data ->> 'x_handle',
+            signature  = s.row_data ->> 'signature',
+            updated_at = now()
+        FROM src s
+        WHERE g.id = (s.row_data ->> 'id')::uuid
+          AND g.status = 'withdrawn'
+          AND g.x_handle IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM suppressed_identifiers x
+            WHERE (x.kind = 'wallet' AND x.identifier = g.wallet)
+               OR (x.kind = 'twitter'
+                   AND x.identifier = lower(s.row_data ->> 'x_handle'))
+          )
+        RETURNING g.id
+      )
+      DELETE FROM suppression_quarantine q USING src
+      WHERE q.id = src.id
+        AND (src.row_data ->> 'id')::uuid IN (SELECT id FROM upd)
+      RETURNING q.id
+    `)) as unknown as { rows: unknown[] };
+    if (res.rows.length > 0) {
+      restored.push({
+        table: 'identity_attestations',
+        action: 'blanked',
+        rows: res.rows.length,
+      });
     }
   }
 
