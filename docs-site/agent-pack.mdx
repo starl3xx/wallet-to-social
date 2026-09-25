@@ -206,6 +206,22 @@ a payment settles, every field of it is public: the authorization is in USDC's
 transaction's calldata. Anyone reading Base could present those. Only a
 challenge issued now, signed now, shows that you still hold the wallet.
 
+## When a purchase is refused before payment
+
+The paying wallet is screened against sanctions lists as soon as the paid
+request arrives, and purchases are not available from a country or region
+under comprehensive US sanctions. These refusals happen **before anything is
+verified or settled**, so nothing is charged:
+
+| Status | Code                    | Meaning                                                                                                                           |
+| ------ | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `403`  | `REGION_RESTRICTED`     | Purchases are not available where the request comes from. Card checkout gives the same answer.                                    |
+| `403`  | `SANCTIONED_PAYER`      | This payment cannot be accepted. The response says nothing more.                                                                  |
+| `503`  | `SCREENING_UNAVAILABLE` | The screen could not run, so the sale was paused rather than made unchecked. Retry after the seconds in the `Retry-After` header. |
+
+An account whose paying wallet is found on a sanctions list after it bought
+is suspended: its keys stop working, and its credits are held.
+
 ## If something goes wrong
 
 A `500` with a `settlement` reference means the payment settled and the pack
