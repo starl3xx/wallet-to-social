@@ -62,21 +62,26 @@ function rowCount(result: unknown): number {
 }
 
 /**
- * Run `batch` until it removes fewer rows than `limit` (the backlog is gone)
- * or `deadline` (a `Date.now()` value) has passed. At least one batch always
- * runs. A backlog larger than the deadline allows drains over the following
- * days, because the cleanup runs daily.
+ * Run `batch` until one removes nothing or `deadline` (a `Date.now()` value)
+ * has passed. At least one batch always runs. A backlog larger than the
+ * deadline allows drains over the following days, because the cleanup runs
+ * daily.
+ *
+ * A short batch does not end the drain. Each delete re-checks its predicate
+ * on the row, so a concurrent write (a lookup refreshing `cached_at`, say)
+ * can make a batch remove fewer rows than it selected while far more are
+ * still due. Stopping there would stall the first runs' backlog at one batch
+ * a day. The cost of this rule is one final batch that finds nothing.
  */
 export async function drainBatches(
   batch: () => Promise<number>,
-  limit: number,
   deadline: number
 ): Promise<number> {
   let total = 0;
   for (;;) {
     const removed = await batch();
     total += removed;
-    if (removed < limit || Date.now() >= deadline) return total;
+    if (removed === 0 || Date.now() >= deadline) return total;
   }
 }
 

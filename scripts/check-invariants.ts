@@ -7156,6 +7156,28 @@ async function main() {
           )
           .includes('createdAt')
     );
+    // A short batch must not end a drain: a concurrent write can make one
+    // batch remove fewer rows than it selected while more are still due
+    // (Bugbot on #398). Only an empty batch, or the deadline, stops it.
+    {
+      const { drainBatches } = await import('@/lib/retention');
+      const script = [5000, 4999, 5000, 0, 5000];
+      let calls = 0;
+      const total = await drainBatches(
+        async () => script[calls++] ?? 0,
+        Date.now() + 60_000
+      );
+      ok(
+        'a drain keeps going after a short batch and stops only on an empty one',
+        total === 14999 && calls === 4
+      );
+      let late = 0;
+      await drainBatches(async () => {
+        late++;
+        return 5000;
+      }, Date.now() - 1);
+      ok('a drain past its deadline runs exactly one batch', late === 1);
+    }
     ok(
       'the cleanup passes API_BUCKET_RETENTION_DAYS to cleanupOldBuckets',
       /cleanupOldBuckets\(\s*API_BUCKET_RETENTION_DAYS,/.test(run) &&

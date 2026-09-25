@@ -432,7 +432,6 @@ export async function cleanupOldBuckets(
   const keys = bucketRetentionKeys(now, olderThanDays);
   return drainBatches(
     () => deleteSpentBucketsBatch(db, keys, RETENTION_DELETE_BATCH),
-    RETENTION_DELETE_BATCH,
     deadline
   );
 }

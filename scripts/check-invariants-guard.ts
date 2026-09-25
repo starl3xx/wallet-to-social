@@ -4333,6 +4333,12 @@ const MUTATIONS: Mutation[] = [
     from: '        deleteOldLedgerRows(\n          db,\n          PAYMENT_RECORD_RETENTION_YEARS,',
     to: '        deleteOldLedgerRows(\n          db,\n          1,',
   },
+  {
+    name: 'a short retention batch ends the drain, so a concurrent refresh stalls the backlog at one batch a day',
+    file: 'lib/retention.ts',
+    from: '    if (removed === 0 || Date.now() >= deadline) return total;',
+    to: '    if (removed < 5000 || Date.now() >= deadline) return total;',
+  },
 ];
 
 function invariantsPass(): boolean {

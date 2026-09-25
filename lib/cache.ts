@@ -188,7 +188,6 @@ export async function cleanExpiredCache(
   if (!db) return 0;
   return drainBatches(
     () => deleteExpiredCacheBatch(db, RETENTION_DELETE_BATCH),
-    RETENTION_DELETE_BATCH,
     deadline
   );
 }

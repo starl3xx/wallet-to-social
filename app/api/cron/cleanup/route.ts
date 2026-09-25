@@ -334,7 +334,6 @@ async function run(request: NextRequest): Promise<NextResponse> {
           API_USAGE_RETENTION_MONTHS,
           RETENTION_DELETE_BATCH
         ),
-      RETENTION_DELETE_BATCH,
       retentionDeadline
     );
   } catch (error) {
@@ -361,7 +360,6 @@ async function run(request: NextRequest): Promise<NextResponse> {
           PAYMENT_RECORD_RETENTION_YEARS,
           RETENTION_DELETE_BATCH
         ),
-      RETENTION_DELETE_BATCH,
       retentionDeadline
     );
   } catch (error) {
@@ -387,7 +385,6 @@ async function run(request: NextRequest): Promise<NextResponse> {
             PAYMENT_RECORD_RETENTION_YEARS,
             RETENTION_DELETE_BATCH
           ),
-        RETENTION_DELETE_BATCH,
         retentionDeadline
       );
       const stripeIds = await drainBatches(
@@ -397,7 +394,6 @@ async function run(request: NextRequest): Promise<NextResponse> {
             PAYMENT_RECORD_RETENTION_YEARS,
             RETENTION_DELETE_BATCH
           ),
-        RETENTION_DELETE_BATCH,
         retentionDeadline
       );
       purchaseRecords = { purged: true, creditLots, stripeIds };
