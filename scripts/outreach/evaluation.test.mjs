@@ -77,10 +77,11 @@ test('labels never reach evaluator and completed calls are not repeated on resum
     checkpoint;
   const opts = {
     now,
-    qualify: async (r) => {
+    qualify: async (r, o) => {
       calls++;
       assert.equal(r.expected, undefined);
       assert.equal(r.split, undefined);
+      assert.equal(o?.now, now);
       return result;
     },
     save: async (r) => {

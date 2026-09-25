@@ -176,7 +176,9 @@ export async function runEvaluation(
     const start = performance.now();
     try {
       run.results[c.id] = {
-        result: await qualify(c.record),
+        // The run's clock, not the wall clock, so the 30-day freshness rule
+        // judges every case the way validateDataset and prepare just did.
+        result: await qualify(c.record, { now }),
         elapsedMs: performance.now() - start,
       };
     } catch (error) {
