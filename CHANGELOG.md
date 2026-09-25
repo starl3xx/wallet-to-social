@@ -2,6 +2,43 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-24 (Dependabot PRs are copied so Bugbot reviews them)
+
+- **A new workflow, `dependabot-copy`, opens each Dependabot PR again as
+  starl3xx,** from branch `deps/copy/<dependabot branch>`, and moves that
+  branch on every Dependabot push. Bugbot reviews only PRs its linked account
+  opened, and a Dependabot PR gets no repository secrets, so both had to be
+  handled by hand until now (as with #364). The Dependabot PR stays open so
+  Dependabot keeps rebasing it, and it closes on its own once the copy merges;
+  a Dependabot PR closed unmerged takes its copy with it.
+- Dependabot's labels are copied on every run, not only when the copy is
+  opened: Dependabot labels its PR in a second request after opening it, so the
+  labels reach the copy on the `labeled` run that follows.
+- The copy branch is moved only over commits Dependabot authored. A commit
+  somebody adds to the copy, such as a changelog entry, is never discarded by a
+  later run: the workflow leaves the branch where it is and, on a Dependabot
+  push, comments on the copy asking for a rebase by hand.
+- The daily sweep closes a copy only when its Dependabot PR was closed
+  unmerged. An original that was merged by hand, or cannot be found, leaves the
+  copy open with a warning, since closing it also deletes the copy branch.
+- The daily run also copies or updates every open Dependabot PR, so copies do
+  not depend on the event runs receiving the token. An event run without the
+  token warns rather than fails. The copy logic moved to
+  `.github/scripts/dependabot-copy.sh`, read from the default branch.
+- When a copy has commits of its own and Dependabot moves on, the copy is asked
+  to rebase once per Dependabot commit, by whichever run sees it first, the
+  daily sweep included.
+- A failed close in the daily sweep no longer skips the copy step, which runs
+  whenever the job was not cancelled, and the rebase check reads the comments
+  before searching them, so a broken pipe cannot post the request twice. It runs on
+  `pull_request_target`, because `pull_request` runs nothing on a PR GitHub
+  cannot merge, and a daily sweep closes any copy whose Dependabot PR is no
+  longer open. A copy already merged is never opened again.
+- It uses a fine-grained token, `DEPENDABOT_COPY_TOKEN`, stored in both the
+  Dependabot and the Actions secret stores, and it never checks out or runs
+  the PR's code. `docs/OPERATIONS.md` records the rule: review and merge the
+  copy.
+
 ### 2026-09-24 (client metadata fetch pinned; spent access tokens cleaned up)
 
 - **The client metadata fetch connects only to an address it checked.** A

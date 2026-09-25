@@ -132,6 +132,15 @@ stated 30-day retention.
    `pr:status` reads the summary; by hand it is
    `gh api repos/{owner}/{repo}/commits/<sha>/check-runs`.
 
+   **Dependabot PRs: review and merge the copy, not the original.** Bugbot
+   answers a PR it did not see starl3xx open with "GitHub account mismatch",
+   and a PR Dependabot opens gets no repository secrets. The
+   `dependabot-copy` workflow opens each one again from branch
+   `deps/copy/<dependabot branch>` with starl3xx's token, and moves that branch
+   on every Dependabot push, so the copy is never rebased by hand. Run this
+   protocol on the copy; Dependabot closes its own PR once the update is on
+   `main`. The token expires a year after 2026-09-24 (Linear STA-42).
+
 5. **Checks MISSING is a merge conflict until proven otherwise.** GitHub runs
    `pull_request` workflows against the computed merge commit, so a
    `CONFLICTING` PR triggers nothing at all: no queued run, no failed run, and
