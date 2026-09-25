@@ -35,7 +35,7 @@ All notable changes to walletlink.social. Newest first.
   sent.
 - Records of welcome and check-in emails sent are kept while the account
   exists, and go with it.
-- Fixes STA-45, with 40 new invariants and 28 new guard mutations.
+- Fixes STA-45, with 41 new invariants and 29 new guard mutations.
 
 ### 2026-09-25 (a large lookup keeps going until it is done)
 

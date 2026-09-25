@@ -7332,6 +7332,17 @@ async function main() {
         masked.includes('al***@example.com')
     );
     ok('masking twice changes nothing', redact(masked) === masked);
+    // The net runs on every log line, so it must stay linear on the input
+    // a regex handles worst: a long run of address characters with no `@`.
+    // Unbounded, 200,000 characters take tens of seconds; bounded, a few ms.
+    const longRun = 'A'.repeat(200_000);
+    const startedAt = Date.now();
+    redact(longRun);
+    redact('a@' + 'a.'.repeat(100_000));
+    ok(
+      'redact stays linear on a 200 KB run with no address in it',
+      Date.now() - startedAt < 1000
+    );
 
     // The net, attacked with the line no call site controls: a Drizzle error
     // whose params are an email and a wallet.

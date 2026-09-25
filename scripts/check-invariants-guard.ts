@@ -4262,6 +4262,12 @@ const MUTATIONS: Mutation[] = [
     to: 'const WALLET_IN_TEXT = /\\b0x[0-9a-fA-F]{64}\\b/g;',
   },
   {
+    name: 'the email pattern’s local part is unbounded again, so a long log line takes quadratic time',
+    file: 'lib/redact.ts',
+    from: '/[A-Za-z0-9._%+-]{1,64}@',
+    to: '/[A-Za-z0-9._%+-]+@',
+  },
+  {
     name: 'maskEmail returns the address unchanged',
     file: 'lib/redact.ts',
     from: '  return `${local.slice(0, keep)}***${email.slice(at)}`;',

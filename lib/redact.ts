@@ -31,9 +31,17 @@
  * An email address inside free text. Deliberately loose: a false positive
  * masks something that was not an email, which costs a little debugging
  * context; a false negative prints somebody's address.
+ *
+ * Every repeat is bounded, and that is load-bearing. With `+` in place of
+ * `{1,64}`, each start position in a long run of letters (a base64 blob, a
+ * long token) scans to the end of the run looking for an `@`, which is
+ * quadratic: a 40 KB run took a second and a 400 KB one would take minutes,
+ * on every log line that printed it. Bounded, the same 40 KB takes about
+ * 10 ms. The bounds are the RFC limits (64 for the local part, 63 per
+ * domain label) plus room for subdomains, so no real address is missed.
  */
 const EMAIL_IN_TEXT =
-  /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g;
+  /[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24}/g;
 
 /**
  * An EVM address inside free text: exactly 40 hex digits after `0x`. The
