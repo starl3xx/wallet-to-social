@@ -2825,6 +2825,12 @@ const MUTATIONS: Mutation[] = [
     to: 'Every lookup works its list 2,000 addresses at a time',
   },
   {
+    name: 'slice loop: the API description states a pass budget the code does not use',
+    file: 'docs-site/openapi.yaml',
+    from: 'worker takes a job 3,000 addresses at a time for up to four minutes,',
+    to: 'worker takes a job 3,000 addresses at a time for up to five minutes,',
+  },
+  {
     name: 'slice loop: the scan depth page promises a list of any size in seconds again',
     file: 'docs-site/concepts/scan-depth.mdx',
     from: '    of 10,000 addresses comes back in seconds.',

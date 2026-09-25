@@ -12591,6 +12591,17 @@ async function main() {
         ) &&
         !/of any size/.test(scanDepthPage)
     );
+    const openapiJobs = readFileSync('docs-site/openapi.yaml', 'utf8').replace(
+      /\s+/g,
+      ' '
+    );
+    ok(
+      `the API description states the same slice size and pass budget (${sliceInWords} addresses, ${minutesInWords} minutes)`,
+      minutesInWords !== undefined &&
+        openapiJobs.includes(
+          `A worker takes a job ${sliceInWords} addresses at a time for up to ${minutesInWords} minutes`
+        )
+    );
 
     const pickerFn = processorSrc.slice(
       processorSrc.indexOf('export async function getNextPendingJobs(')

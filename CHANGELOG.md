@@ -37,17 +37,18 @@ All notable changes to walletlink.social. Newest first.
   per lookup, and removal requests honored from the next batch on.
 - Operator: `INVOCATION_BUDGET_MS` (240 s) in `lib/job-processor.ts`, a
   minute inside the 300-second routes and under the 330-second lease. No
-  migration. Linear STA-44. Twenty-two new invariants drive the loop on a
+  migration. Linear STA-44. Twenty-three new invariants drive the loop on a
   fake clock and on its real default clock, and pin the budget against the
   routes and the lease, each slice's ENS and Web3Bio deadlines, the prefix
   save (`reachedPrefix`, `unsavedTail`, `cutByCaller`), the size-scaled
   estimate, the one way every route calls the loop, the error a handed-back
-  job reports, and the scan depth page's figures against the code;
-  thirty-seven new guard mutations. A local Postgres scenario ran the real
-  pipeline with stubbed sources: a fast 10,000-address job finished in one
-  call, in four slices under four claims, charged once with one history row,
-  where `main` took four calls; a deep job whose late slice was cut by the
-  deadline saved only what was asked and completed with every address asked.
+  job reports, and the figures on the scan depth page and in the API
+  description against the code; thirty-eight new guard mutations. A local
+  Postgres scenario ran the real pipeline with stubbed sources: a fast
+  10,000-address job finished in one call, in four slices under four claims,
+  charged once with one history row, where `main` took four calls; a deep job
+  whose late slice was cut by the deadline saved only what was asked and
+  completed with every address asked.
 
 ### 2026-09-25 (a removal reaches retry copies and the claim record)
 
