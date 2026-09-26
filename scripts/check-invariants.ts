@@ -19328,6 +19328,10 @@ async function main() {
           /const commit = process\.argv\.includes\('--commit'\);/.test(
             liftScript
           ) &&
+            /if \(!commit\) \{ console\.log\([\s\S]*?\); return; \}/.test(
+              liftScript
+            ) &&
+            liftScript.indexOf('if (!commit) {') !== -1 &&
             liftScript.indexOf('if (!commit) {') <
               liftScript.indexOf('await liftFreeze(') &&
             /CREATE TABLE IF NOT EXISTS sanctions_freeze_releases \( user_id uuid NOT NULL REFERENCES users\(id\), payer text NOT NULL CHECK \(payer ~ '\^0x\[0-9a-f\]\{40\}\$'\),[\s\S]*?PRIMARY KEY \(user_id, payer\) \)/.test(
