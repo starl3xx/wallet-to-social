@@ -65,6 +65,18 @@ const nextConfig: NextConfig = {
         destination: '/vs/cookie3',
         permanent: true,
       },
+      /**
+       * The legacy security.txt location, which RFC 9116 section 3 allows to
+       * redirect to the well-known one. A redirect rather than a second copy:
+       * a copy fetched from this path would name the well-known URI as its
+       * Canonical, and section 2.5.2 tells a consumer not to trust a file
+       * whose Canonical does not match the URI it came from.
+       */
+      {
+        source: '/security.txt',
+        destination: '/.well-known/security.txt',
+        permanent: true,
+      },
     ];
   },
   async rewrites() {
@@ -181,6 +193,17 @@ const nextConfig: NextConfig = {
         {
           source: '/.well-known/api-catalog',
           destination: '/api/api-catalog',
+        },
+        /**
+         * The security contact, RFC 9116, at the well-known URI section 3
+         * names. A rewrite for the same reason as the rules above: the App
+         * Router will not route a dot-prefixed segment, so the handler lives
+         * at `app/api/security-txt`. The legacy `/security.txt` is a 308 in
+         * `redirects()`, not a rule here.
+         */
+        {
+          source: '/.well-known/security.txt',
+          destination: '/api/security-txt',
         },
       ],
     };

@@ -26,8 +26,17 @@ map of _what to do when one fails_.
 Scheduled, not PR gates: `db-backup.yml` (daily), `snapshot-harvest.yml`,
 `opensea-enrich.yml` and `zora-profile-harvest.yml` (Sundays, at 06:00, 06:30
 and 07:30 UTC respectively, deliberately staggered because all three write
-`social_graph` through the same ingest), `holder-fallback.yml` (Mondays) and
+`social_graph` through the same ingest), `holder-fallback.yml` (Mondays),
+`security-contact.yml` (Mondays at 09:00 UTC, and by hand) and
 `farcaster-sweep.yml` (the 2nd of each month).
+`security-contact.yml` checks production, not the PR: the live
+`/.well-known/security.txt` (200, `text/plain; charset=utf-8`, Expires more
+than 30 days away), private vulnerability reporting still enabled, and the
+repository's policy page rendering SECURITY.md. It exists so the `invariants`
+row above can stay deterministic: the invariants check Expires against
+`SECURITY_CONTACT_VERIFIED` and never against the clock. A red is not an
+outage; renew as `docs/OPERATIONS.md` describes ("The security contact").
+Local repro: `GITHUB_TOKEN=$(gh auth token) node scripts/check-security-contact.mjs`.
 `published-figures.yml` runs both ways: Mondays as the drift catcher, plus a
 path-filtered PR trigger when published copy, `lib/public-figures.ts` or the
 checker changes; `holder-fallback.yml` likewise lands on PRs touching its own

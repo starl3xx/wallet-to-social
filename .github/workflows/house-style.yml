@@ -28,6 +28,7 @@ on:
       - 'content/social/**'
       - 'README.md'
       - 'PROJECT_OVERVIEW.md'
+      - 'SECURITY.md'
       - 'scripts/check-house-style.mjs'
       - '.github/workflows/house-style.yml'
 

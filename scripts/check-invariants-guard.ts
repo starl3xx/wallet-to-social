@@ -3415,6 +3415,211 @@ const MUTATIONS: Mutation[] = [
     to: "          href: '/skill.md',",
   },
   {
+    // RFC 9116 section 3 requires the utf-8 charset. Without it the file
+    // still reads fine in a browser, and a strict consumer may refuse it.
+    name: 'security.txt loses the charset RFC 9116 requires on its media type',
+    file: 'app/api/security-txt/route.ts',
+    from: "      'Content-Type': 'text/plain; charset=utf-8',",
+    to: "      'Content-Type': 'text/plain',",
+  },
+  {
+    // One character, and vulnerability reports go to a domain anyone can
+    // register. The file still validates.
+    name: 'security.txt mails a domain anyone can register, from a one-letter typo',
+    file: 'lib/security-contact.ts',
+    from: "export const SECURITY_EMAIL = 'help@walletlink.social';",
+    to: "export const SECURITY_EMAIL = 'help@walletlink.socia1';",
+  },
+  {
+    // RFC 2142 makes security@ the obvious name, and no such mailbox exists
+    // (decided 2026-09-25). Published anyway, every report sent to it
+    // bounces, and the file still validates.
+    name: 'security.txt names security@, a mailbox that does not exist',
+    file: 'lib/security-contact.ts',
+    from: "export const SECURITY_EMAIL = 'help@walletlink.social';",
+    to: "export const SECURITY_EMAIL = 'security@walletlink.social';",
+  },
+  {
+    // A misspelled repository is a report form on somebody else's
+    // repository, or a 404 that reads as the form being down.
+    name: 'security.txt sends reports to a misspelled repository',
+    file: 'lib/security-contact.ts',
+    from: "  'https://github.com/starl3xx/wallet-to-social/security/advisories/new';",
+    to: "  'https://github.com/starl3xx/wallet-to-socail/security/advisories/new';",
+  },
+  {
+    // One channel left, and it is the one that depends on mail delivery.
+    name: 'security.txt drops the private GitHub report, leaving one channel',
+    file: 'lib/security-contact.ts',
+    from: '    `Contact: ${SECURITY_REPORT_URL}`,\n',
+    to: '',
+  },
+  {
+    // RFC 9116 section 2.5.3 makes the first Contact the preferred one, so
+    // a reorder tells every consumer to prefer the mailbox over the channel
+    // that is confidential and independent of mail delivery.
+    name: 'security.txt prefers the mailbox over the confidential channel',
+    file: 'lib/security-contact.ts',
+    from:
+      '    `Contact: ${SECURITY_REPORT_URL}`,\n' +
+      '    `Contact: mailto:${SECURITY_EMAIL}`,\n',
+    to:
+      '    `Contact: mailto:${SECURITY_EMAIL}`,\n' +
+      '    `Contact: ${SECURITY_REPORT_URL}`,\n',
+  },
+  {
+    // A delivery test is recorded and the date beside it is not moved: the
+    // file claims to have expired before anybody checked its contacts.
+    // Anchored on the line that uses the value, never on the date literal,
+    // so a renewal cannot strand the anchor.
+    name: 'security.txt expires before its contacts were last proven',
+    file: 'lib/security-contact.ts',
+    from: '    `Expires: ${SECURITY_TXT_EXPIRES}`,',
+    to: '    `Expires: 2026-09-01T00:00:00Z`,',
+  },
+  {
+    // A renewal that skips the delivery test and pushes the date out
+    // instead. Section 2.5.5 recommends less than a year.
+    name: 'security.txt Expires is pushed years out without a new delivery test',
+    file: 'lib/security-contact.ts',
+    from: '    `Expires: ${SECURITY_TXT_EXPIRES}`,',
+    to: '    `Expires: 2099-01-01T00:00:00Z`,',
+  },
+  {
+    // Section 2.5.5: Expires MUST appear exactly once. Two values leave a
+    // consumer to pick one.
+    name: 'security.txt states Expires twice',
+    file: 'lib/security-contact.ts',
+    from: '    `Expires: ${SECURITY_TXT_EXPIRES}`,',
+    to:
+      '    `Expires: ${SECURITY_TXT_EXPIRES}`,\n' +
+      '    `Expires: ${SECURITY_TXT_EXPIRES}`,',
+  },
+  {
+    // A relative Canonical resolves against whichever host served the file,
+    // so a preview deployment would name itself the canonical contact.
+    name: 'security.txt Canonical becomes relative, so a preview claims to be canonical',
+    file: 'lib/security-contact.ts',
+    from: '    `Canonical: ${SECURITY_TXT_URL}`,',
+    to: "    'Canonical: /.well-known/security.txt',",
+  },
+  {
+    // Section 2.2: every line ends in a newline, the last one included.
+    // Nothing looks different in a browser.
+    name: 'security.txt loses the newline on its last line',
+    file: 'lib/security-contact.ts',
+    from: "  return `${lines.join('\\n')}\\n`;",
+    to: "  return lines.join('\\n');",
+  },
+  {
+    // A Policy that 404s sends a researcher looking for the rules to
+    // nothing, from the one file that exists to point at them.
+    name: 'security.txt Policy points at a page GitHub does not serve',
+    file: 'lib/security-contact.ts',
+    from: "  'https://github.com/starl3xx/wallet-to-social/security/policy';",
+    to: "  'https://github.com/starl3xx/wallet-to-social/security/policies';",
+  },
+  {
+    // Nothing errors: /api/security-txt keeps answering and the well-known
+    // URI every consumer requests starts 404ing.
+    name: 'security.txt stops being reachable at the well-known URI',
+    file: 'next.config.ts',
+    from:
+      '        {\n' +
+      "          source: '/.well-known/security.txt',\n" +
+      "          destination: '/api/security-txt',\n" +
+      '        },\n',
+    to: '',
+  },
+  {
+    // The legacy path is the one scanners still try first. Without the
+    // redirect it 404s, and the file looks absent to them.
+    name: 'security.txt at the legacy path stops redirecting',
+    file: 'next.config.ts',
+    from:
+      '      {\n' +
+      "        source: '/security.txt',\n" +
+      "        destination: '/.well-known/security.txt',\n" +
+      '        permanent: true,\n' +
+      '      },\n',
+    to: '',
+  },
+  {
+    // The name trap. The runbook's pattern, widened to the bare file name,
+    // also ignores the public policy at the root, and a fresh clone of the
+    // repository then has no SECURITY.md to add.
+    name: 'SECURITY.md is hidden by widening the runbook ignore pattern',
+    file: '.gitignore',
+    from: 'docs/SECURITY.md\n',
+    to: 'SECURITY.md\n',
+  },
+  {
+    // Deleted as a tidy-up once "SECURITY.md is public now", and the private
+    // runbook still on disk in the main checkout becomes committable.
+    name: 'the private runbook path stops being ignored, so a checkout can commit it',
+    file: '.gitignore',
+    from: 'docs/SECURITY.md\n',
+    to: '',
+  },
+  {
+    // The policy a person reads loses the channel the machine file prefers.
+    name: 'SECURITY.md loses the private report link security.txt publishes',
+    file: 'SECURITY.md',
+    from: '   <https://github.com/starl3xx/wallet-to-social/security/advisories/new>.\n',
+    to: '',
+  },
+  {
+    // The two documents name different mailboxes, so one of them is wrong
+    // and a researcher has to guess which. help@ is still named further
+    // down the policy, for content errors, which is why the check reads the
+    // reporting section and not the whole file.
+    name: 'SECURITY.md reporting list names security@ where security.txt names help@',
+    file: 'SECURITY.md',
+    from: '2. **Or email <help@walletlink.social>.**',
+    to: '2. **Or email <security@walletlink.social>.**',
+  },
+  {
+    // The policy recommends the mailbox first while security.txt prefers the
+    // private report: two documents, two different answers.
+    name: 'SECURITY.md recommends the mailbox first, against the Contact order',
+    file: 'SECURITY.md',
+    from:
+      '1. **Preferred: a private report on GitHub.** Open one at\n' +
+      '   <https://github.com/starl3xx/wallet-to-social/security/advisories/new>.\n' +
+      '   Only you and the maintainers can read it, and it does not depend on email.\n' +
+      '2. **Or email <help@walletlink.social>.** Put “Security” in the subject.\n',
+    to:
+      '1. **Email <help@walletlink.social>.** Put “Security” in the subject.\n' +
+      '2. **Or a private report on GitHub.** Open one at\n' +
+      '   <https://github.com/starl3xx/wallet-to-social/security/advisories/new>.\n' +
+      '   Only you and the maintainers can read it, and it does not depend on email.\n',
+  },
+  {
+    // The claim a reviewer found false, restored: help@ is not the reply-to
+    // on sign-in or purchase mail, which go out from noreply@ with none.
+    name: 'security contact prose calls help@ every reply-to again',
+    file: 'lib/security-contact.ts',
+    from: '/** The support mailbox a person reads. The second channel. */',
+    to: '/** The mailbox a person reads, and every reply-to. The second channel. */',
+  },
+  {
+    // The docs still say lifecycle email replies to help@ after the one
+    // sender that sets it stops, so the stated reason for the channel is
+    // false about the code.
+    name: 'security contact prose keeps the lifecycle reply-to after sendLifecycleEmail drops it',
+    file: 'lib/email.ts',
+    from: "      replyTo: 'help@walletlink.social',\n",
+    to: '',
+  },
+  {
+    // The first draft's date, left behind by a rebase that re-dated the
+    // CHANGELOG entry and AGENT-SYSTEM but not this note.
+    name: 'security contact ship date disagrees in the house-style note',
+    file: 'scripts/check-house-style.mjs',
+    from: ' * SECURITY.md joined on 2026-09-26.',
+    to: ' * SECURITY.md joined on 2026-09-24.',
+  },
+  {
     // Paragraph (c) of the policy makes deletion the dangerous edit: an
     // omitted signal is a refusal to answer, not a quiet no, so this reads
     // as tidying and is a withdrawal.

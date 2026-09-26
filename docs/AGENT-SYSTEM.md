@@ -264,6 +264,19 @@ therefore imports the handler and parses what it returns rather than reading
 its source, because that class of defect is invisible to a regex over a
 literal that says exactly what it means to say.
 
+**security.txt (2026-09-26) is the same kind of well-known projection, for a
+different reader.** `/.well-known/security.txt` (RFC 9116) tells a researcher,
+or a scanner acting for one, where a vulnerability report goes. It **points
+at** the root `SECURITY.md` through its `Policy` field and restates none of the
+policy: scope, testing rules and response times live there alone. Its fields
+come from `lib/security-contact.ts`, the handler is `app/api/security-txt`, and
+it reaches the well-known URI by a rewrite, for the dot-segment reason above.
+The legacy `/security.txt` is a 308, never a copy, because a copy would fail
+its own `Canonical`. The first `Contact` is the preferred one under RFC 9116,
+so its order is a statement: GitHub private vulnerability reporting first,
+`help@walletlink.social` second. The invariants hold `SECURITY.md` to the
+same channels in the same order, parsed out of the handler's own output.
+
 ---
 
 ## The physics

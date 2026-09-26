@@ -26,9 +26,11 @@ When connecting Mintlify's GitHub app, set the content directory to
 other note in this folder.
 
 The database role-split runbook and the backup/restore procedure used to sit
-here as `SECURITY.md`. They now live in the private **starl3xx/walletlink-ops**
-repo and are gitignored here, so a checkout of this repository will not contain
-them. See `README.md` in this folder for the rule that decides where a new
+here as `docs/SECURITY.md`. That security runbook now lives in the private
+**starl3xx/walletlink-ops** repo and its path is gitignored here, so a checkout
+of this repository will not contain it. The root `SECURITY.md` is a different,
+public document: the vulnerability policy, which GitHub shows on the Security
+tab. See `README.md` in this folder for the rule that decides where a new
 document belongs.
 
 ## What is written
@@ -148,7 +150,20 @@ console.log(await sql\`SELECT (fc_fid/250000)*250000 AS bucket, COUNT(DISTINCT f
 ```
 
 Support address for the docs and the site: **help@walletlink.social**
-(`gm@walletlink.social` is the friendlier general/inbound one). Both forward to
-`starl3xx.mail+walletlink@gmail.com` via Cloudflare Email Routing, which was
-enabled on 2026-08-14 — the rules existed before that but the DNS did not, so
-mail to those addresses was being rejected.
+(`gm@walletlink.social` is the friendlier general/inbound one).
+
+Inbound mail for walletlink.social is delivered by Google Workspace: the only MX
+record is `smtp.google.com` (`dig MX walletlink.social`, checked 2026-09-26).
+Cloudflare Email Routing, which forwarded help@ and gm@ from 2026-08-14, is no
+longer in the inbound path. So an address works only if it exists in Workspace
+as a user, an alias or a group, and no file in this repo can show which ones do.
+Test an address by sending to it from a mailbox outside the domain; a message
+sent from inside Workspace does not go through MX.
+
+help@ is also the second Contact in `/.well-known/security.txt`, after GitHub
+private vulnerability reporting, and the reply-to on lifecycle email (sign-in
+and purchase mail come from noreply@ with no reply-to).
+So it must keep taking mail from outside the domain, which is exactly where
+security reports come from. It does: help@ exists in Workspace and takes
+outside mail (confirmed 2026-09-26). There is no security@ (decided
+2026-09-25).
