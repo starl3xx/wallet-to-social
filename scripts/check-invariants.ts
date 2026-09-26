@@ -18995,7 +18995,7 @@ async function main() {
         const page = readFileSync('docs-site/agent-pack.mdx', 'utf8');
         ok(
           'the agent pack page names OFAC’s SDN list and puts every refusal before settlement',
-          /OFAC’s SDN list/.test(page) &&
+          /The paying wallet is screened against OFAC’s SDN list/.test(page) &&
             /before the payment is settled/.test(page) &&
             !/before anything is\s+verified or settled/.test(page)
         );
