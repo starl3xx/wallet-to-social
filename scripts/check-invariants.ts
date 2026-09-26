@@ -6795,12 +6795,117 @@ async function main() {
       'MAGIC_LINK_RETENTION_HOURS',
       'NEGATIVE_RECHECK_DAYS',
       'OAUTH_TOKEN_RETENTION_DAYS',
+      'API_USAGE_RETENTION_MONTHS',
+      'API_BUCKET_RETENTION_DAYS',
+      'PAYMENT_RECORD_RETENTION_YEARS',
+      'SANCTIONS_SCREENING_RETENTION_YEARS',
+      'BACKUP_RETENTION_DAYS',
     ]) {
       ok(
         `the privacy policy reads ${constant} rather than restating the number`,
         privacy.includes(`{${constant}}`) || privacy.includes(`\${${constant}}`)
       );
     }
+
+    // "Reads the constant" passes while one use reads it and another restates
+    // it: the API request period is stated twice, and a digit in either row
+    // left the other still satisfying the check above. So for these, the
+    // period may not appear as a number at all, in digits or in words.
+    {
+      const words = [
+        'zero',
+        'one',
+        'two',
+        'three',
+        'four',
+        'five',
+        'six',
+        'seven',
+        'eight',
+        'nine',
+        'ten',
+        'eleven',
+        'twelve',
+        'thirteen',
+      ];
+      const prose = withoutComments(privacy).toLowerCase();
+      for (const [constant, unit] of [
+        ['API_USAGE_RETENTION_MONTHS', 'months'],
+        ['API_BUCKET_RETENTION_DAYS', 'days'],
+        ['PAYMENT_RECORD_RETENTION_YEARS', 'years'],
+        ['SANCTIONS_SCREENING_RETENTION_YEARS', 'years'],
+      ] as const) {
+        const m = cleanup.match(
+          new RegExp(`export const ${constant} = (\\d+);`)
+        );
+        const n = m ? Number(m[1]) : NaN;
+        const spelled = [String(n), words[n]].filter(Boolean);
+        ok(
+          `the privacy policy never states ${constant} (${n} ${unit}) as a number`,
+          Number.isFinite(n) &&
+            spelled.every(
+              (w) =>
+                !new RegExp(`\\b${w}[\\s-]+${unit.slice(0, -1)}`).test(prose)
+            )
+        );
+      }
+    }
+
+    // The backup period is GitHub's `retention-days` in db-backup.yml, which
+    // the page cannot import, so it reads BACKUP_RETENTION_DAYS and that is
+    // checked against the workflow. The page states it six times: the backups
+    // twice, their table row, and the removal emails help@ keeps as long (the
+    // request thread, the withdrawal email and their table row, decided
+    // 2026-09-26, STA-50). A digit in any one would leave the others still
+    // reading the constant, so no use may be a number.
+    {
+      const { BACKUP_RETENTION_DAYS: days } =
+        await import('@/lib/backup-retention');
+      const yml = readFileSync('.github/workflows/db-backup.yml', 'utf8');
+      ok(
+        'the backup period the privacy policy reads is the retention-days the backup workflow sets',
+        (yml.match(/retention-days:/g) ?? []).length === 1 &&
+          Number(yml.match(/^\s*retention-days: (\d+)\s*$/m)?.[1]) === days
+      );
+      const prose = withoutComments(privacy).toLowerCase();
+      ok(
+        `the privacy policy never states BACKUP_RETENTION_DAYS (${days} days) as a number`,
+        Number.isInteger(days) &&
+          !new RegExp(`\\b(${days}|ninety)[\\s-]+day`).test(prose)
+      );
+      const flat = privacy.replace(/\s+/g, ' ');
+      ok(
+        'the privacy policy keeps an emailed removal request and a withdrawal email BACKUP_RETENTION_DAYS after the removal, then deletes them, and says so in its table',
+        flat.includes(
+          'We keep the email thread, your message and our replies, for {BACKUP_RETENTION_DAYS} days after the removal is done, so that we can apply the removal again if we ever restore our database from a backup, and then delete it.'
+        ) &&
+          flat.includes(
+            "we delete that email after {BACKUP_RETENTION_DAYS}{' '} days, when no backup older than it is left."
+          ) &&
+          flat.includes(
+            "'Removal emails in our support inbox', `A removal request with our replies, and the email a withdrawal on the claim page sends us: ${BACKUP_RETENTION_DAYS} days after the removal is done,"
+          ) &&
+          !/once the removal is done we delete the email thread/.test(flat)
+      );
+    }
+
+    // Mail to walletlink.social is hosted by Google Workspace (MX
+    // smtp.google.com since September 2026); Cloudflare no longer forwards
+    // it. The processor list must say who holds the support mailbox.
+    ok(
+      'the privacy policy names Google Workspace as the support mailbox host and no longer says Cloudflare forwards mail',
+      /Google Workspace<\/span>\s+hosts\s+our support mailbox/.test(privacy) &&
+        !/forwards mail sent to us/.test(privacy)
+    );
+
+    // The purchase-record purge is written and switched off, so the page may
+    // promise the deletion only through the switch. A fixed "then deleted"
+    // would be true of the ledger and false of every credit pack.
+    ok(
+      'the privacy policy states payment deletion through PURCHASE_RECORD_PURGE_ENABLED',
+      /PURCHASE_RECORD_PURGE_ENABLED\s*\?/.test(privacy) &&
+        !/'Seven years, for tax and accounting, then deleted'/.test(privacy)
+    );
 
     // The three cleanups existed for months with nothing calling them, which is
     // how the policy came to need writing before any of these periods were real.

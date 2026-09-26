@@ -731,7 +731,8 @@ wallet is finishing the suppression, not evading it.
 ### Privacy policy and retention
 
 `app/privacy/page.tsx` is the published policy, at `/privacy`, linked from the
-footer and the sitemap. Two rules govern it and both are enforced:
+footer and the sitemap. It links to the terms of service (`/terms`, below). Two
+rules govern it and both are enforced:
 
 **Every period it states is one the code enforces.** `app/api/cron/cleanup/route.ts`
 runs daily and owns all of them. Writing the policy is what surfaced that
@@ -747,6 +748,13 @@ first-party identifier under the Chrome cap.
 `NEGATIVE_RECHECK_DAYS` and `OAUTH_TOKEN_RETENTION_DAYS`. `scripts/check-invariants.ts` asserts each is read as a
 constant rather than written as a digit, that each cleanup is actually called,
 and that the job is scheduled in `vercel.json`.
+
+**The backup period is one constant too.** `BACKUP_RETENTION_DAYS`
+(`lib/backup-retention.ts`, 90) is the `retention-days` GitHub enforces in
+`db-backup.yml`, asserted equal, and every use on the page reads it: the
+backups, and the removal emails in help@, which are kept that long after the
+removal and then deleted (decided 2026-09-26, STA-50). What deletes those
+emails is the help@ Apps Script from #401, so this page merges after it.
 
 **STA-45 (2026-09-25) closed the periods the page stated with nothing behind
 them.** `cleanExpiredCache` existed with no caller, so an expired cache copy
@@ -780,6 +788,49 @@ of reach, as the page has always said. The retention table gained two rows
 the cleanup cron enforces: removal quarantine copies (30 days) and
 background job payloads (30 days). The decided policy is under principle 8
 in `docs/AGENT-SYSTEM.md`; the operator runbook is in `docs/OPERATIONS.md`.
+
+**The STA-41 audit (2026-09-24, decided 2026-09-25).** Every sentence was
+checked against the code, and the owner decided each point where the code and
+the page disagreed. Where the decision is a code change, the page is written
+for the state after it ships, and the page merges after those PRs: STA-45
+(`cleanExpiredCache` called daily, so cached raw results say `CACHE_TTL_DAYS`
+again; API request records kept 13 months; API key rate-limit counters deleted
+two days after their minute, day or month ends; payment records purged after
+seven years; `auth_sessions.user_agent` no longer stored; emails and wallets
+masked in log lines), STA-46 (a removal amends or deletes API retry copies and
+filters replays, and an emailed removal clears the claim record, plus a
+"keep today's suppression list" step in the ops restore runbook) and STA-47
+(an "I agree to the terms" step at checkout and the USDC buy, recorded with
+the time and the terms version). A removal lasts until the person asks to undo
+it, with the proof an access request needs (a wallet signature or a post from
+the account); `unsuppressIdentifier` with `acknowledgePurged` is the tool, and
+the policy is who may ask. Since #393 every list runs in the worker, so the
+page has no exceptions for lists over ten addresses, and Inngest is listed as
+having run them until 25 September 2026. The page states no position on data
+broker registration, EU and UK transfers or a GDPR article 27 representative:
+those wait on counsel.
+
+### Terms of service
+
+`app/terms/page.tsx` is the terms of service with the acceptable-use policy
+inside them, at `/terms`, linked from the footer beside Privacy, from the
+sitemap and from the privacy page. It follows the privacy page's rules: every
+figure is imported (`lib/packs.ts`, `lib/api-plans.ts`, `lib/match-gate.ts`,
+`lib/ip-rate-limiter.ts`, `lib/access.ts`), the canonical sentences are quoted
+from `lib/canonical-sentences.ts`, and it promises only what the code does or
+what a person does by hand (refunds, notices, appeals). The credit lifetime is
+stated as `CREDIT_LIFETIME_DAYS`, not months, because lots expire at 365 days,
+and the legacy unlimited plan's fair-use cap is `LEGACY_UNLIMITED_DAILY_WALLETS`.
+Enforcement lists revoking keys and disconnecting applications, which exist;
+an account block and deletion for a breach are STA-47 and are not promised
+until they ship. The x402 tenth-purchase bonus is documented, not promised in
+the terms. Wyoming law and courts govern, and the entity is a Wyoming LLC. Email is
+the only contact the page gives: the owner chose to leave out a postal
+address (2026-09-26). The outreach rules (own token, collection or community only)
+agree with the "who it is not for" line in `app/llms.txt/route.ts` and with
+`.agents/product-marketing.md`. It is not yet in `namesEntity` or the footer
+and sitemap assertions in `scripts/check-invariants.ts`, which check `/privacy`
+only.
 
 ### OAuth 2.1 for the MCP server
 

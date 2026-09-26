@@ -1,14 +1,14 @@
 # Product Marketing Context
 
-**Document version:** v3
-**Last updated:** 2026-08-22
+**Document version:** v4
+**Last updated:** 2026-09-25
 
 Every figure here is verified: coverage numbers come from `lib/public-figures.ts` (checked by `scripts/check-published-figures.ts`), prices from `lib/packs.ts`. Do not quote a number that is not in those files.
 
 ## Product Overview
 
 **One-liner:** Turn wallet addresses into the people behind them, and reach them where they already are.
-**What it does:** walletlink.social resolves Ethereum wallet addresses to the X and Farcaster accounts of their owners, against a 4.8 million wallet identity index. Upload a holder list (CSV, contract address, or paste) and get back reachable people, ranked by holdings times follower reach, exportable as CSV or an X list. It also runs backwards: an X handle or Farcaster username returns the wallets attached to that person.
+**What it does:** walletlink.social resolves Ethereum wallet addresses to the X and Farcaster accounts of their owners, against a 4.8 million wallet identity index. Upload a holder list (CSV, contract address, or paste) and get back reachable people, ranked by holdings times follower reach, exportable as CSV or an X list. It also runs backwards, as a one-time check: an X handle or Farcaster username returns the wallets that account has linked to itself.
 **Product category:** wallet-to-social resolution; the shelf buyers search is "token holder outreach" and "wallet to Twitter".
 **Product type:** self-serve SaaS web app plus a REST API (API access comes with every pack, same credits).
 **Business model:** one-time credit packs, metered in matches (a wallet resolved to an X or Farcaster account; misses cost nothing). No subscriptions. Free is 100 matches per rolling 30 days. Credits last 12 months. Packs: Trial $29 / 250 matches, Campaign $99 / 1,500, Scale $299 / 6,000, Index $899 / 25,000.
@@ -19,12 +19,13 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 **Target companies:** crypto-native teams from solo founder to about 20 people: NFT projects, token and protocol teams, DAOs, web3 marketing agencies.
 **Decision-makers:** growth or community lead (daily user and champion); founder (decision maker and payer, often the same person at this size).
 **Primary use case:** turn a holder or contract list into people you can actually message for a campaign.
+**Outreach rule (terms of service, decided 2026-09-25):** outreach is to your own token, collection or community only. Never pitch reaching another project’s holders; the terms forbid it, and llms.txt already says the product is not for targeting people with no relationship to your token.
 **Jobs to be done:**
 
 - Announce something to our holders where they already are, without an address list being a dead end.
 - Find who the whales behind these wallets are and reach the ones with an audience.
 - Check whether a person (handle) already holds our token before a partnership or airdrop.
-  **Use cases:** token launch outreach, holder win-back, allowlist and airdrop targeting, whale identification, competitor-holder poaching, reverse lookup before a partnership.
+  **Use cases:** token launch outreach, holder win-back, allowlist and airdrop targeting, whale identification among your own holders, a one-time reverse check before a partnership.
 
 ## Personas
 
@@ -58,7 +59,7 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 - Attested-first X handles: over 99.8% published by the account owner (Farcaster verification or onchain ENS record), labeled always, never inferred from bios or timing.
 - Reachability on every match: of 448,069 X handles resolved, 69.6% are live, 20.6% suspended, 9.7% names nobody holds. Each match says which.
 - Honest two-number coverage: any-identity vs X-or-Farcaster, stated per chain (Base 46.2%, Ethereum 16.6%; typical tools publish low single digits).
-- Reverse lookup: handle to wallets, the question most wallet tooling cannot answer.
+- Reverse lookup: a one-time check of which wallets an account has linked to itself, the question most wallet tooling cannot answer.
   **How we do it differently:** coverage would be higher if we guessed. We do not guess.
   **Why that's better:** contacting the wrong person is worse than contacting fewer people.
   **Why customers choose us:** the match count they get is the match count that is real, and it costs a pack, not a subscription.
@@ -111,7 +112,7 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 | --------------------------------- | ------------------------------------------------------------------------ |
 | Honesty                           | Two-number coverage, per-chain figures, reachability breakdown published |
 | Completeness where it is possible | Farcaster coverage complete and verified against production              |
-| Evidence                          | Every match labelled with its evidence class and reachability            |
+| Evidence                          | Every match labeled with its evidence class and reachability             |
 
 ## Goals
 
@@ -123,6 +124,7 @@ Every figure here is verified: coverage numbers come from `lib/public-figures.ts
 
 _Newest first. One line per revision: what changed and why._
 
-- v3 (2026-08-22) — Purged the uncited ~2.5% industry-average / 9x claim from coverage, objections and metrics; comparisons now use measured figures or stay qualitative.
-- v2 (2026-08-22) — Recorded Jake's refund decision: no guarantees, no refunds; the free allowance plus free misses is the risk reversal.
-- v1 (2026-08-22) — Initial context, auto-drafted from README, lib/public-figures.ts, lib/packs.ts, and the /vs pages. Gaps flagged: verbatim customer language, testimonials.
+- v4 (2026-09-25): Outreach is to your own token, collection or community only, as the terms of service now say; dropped competitor-holder poaching as a use case, and described reverse lookup as a one-time check of which wallets an account linked to itself.
+- v3 (2026-08-22): Purged the uncited ~2.5% industry-average / 9x claim from coverage, objections and metrics; comparisons now use measured figures or stay qualitative.
+- v2 (2026-08-22): Recorded Jake's refund decision: no guarantees, no refunds; the free allowance plus free misses is the risk reversal.
+- v1 (2026-08-22): Initial context, auto-drafted from README, lib/public-figures.ts, lib/packs.ts, and the /vs pages. Gaps flagged: verbatim customer language, testimonials.
