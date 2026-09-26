@@ -33,6 +33,7 @@ import { Button } from '@/components/ui/button';
 import { InlineError } from '@/components/ui/inline-error';
 import { Eyebrow } from '@/components/ui/eyebrow';
 import { Input } from '@/components/ui/input';
+import { SignInNotice } from '@/components/SignInNotice';
 import { originTag } from '@/lib/first-touch';
 
 export function ConsentScreen({
@@ -250,6 +251,7 @@ export function ConsentScreen({
                 Send link
               </Button>
             </div>
+            <SignInNotice className="mt-3" />
           </form>
         )}
 

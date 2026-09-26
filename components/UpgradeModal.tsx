@@ -35,7 +35,7 @@ import {
   centsPerMatch,
 } from '@/lib/packs';
 import { CHAIN_COUNT_WORD } from '@/lib/public-figures';
-import { TERMS_PATH, TERMS_VERSION } from '@/lib/terms';
+import { PRIVACY_PATH, TERMS_PATH, TERMS_VERSION } from '@/lib/terms';
 import { Analytics } from '@/lib/client-analytics';
 import { useAuth } from '@/components/AuthProvider';
 import { cn } from '@/lib/utils';
@@ -313,36 +313,55 @@ export function UpgradeModal({
             {/* The agreement sits between the address and the button, so it is
                 read, and reached by Tab, before the step that takes money. */}
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  ref={termsRef}
-                  id="buy-credits-terms"
-                  type="checkbox"
-                  name="acceptTerms"
-                  required
-                  checked={agreed}
-                  disabled={loading !== null}
-                  aria-invalid={termsInvalid || undefined}
-                  aria-describedby={error ? 'buy-credits-error' : undefined}
-                  onChange={(event) => {
-                    setAgreed(event.target.checked);
-                    setTermsInvalid(false);
-                    if (error) setError(null);
-                  }}
-                  className="h-4 w-4 flex-none"
-                />
-                <span>
-                  I agree to the{' '}
+              <div className="space-y-1">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    ref={termsRef}
+                    id="buy-credits-terms"
+                    type="checkbox"
+                    name="acceptTerms"
+                    required
+                    checked={agreed}
+                    disabled={loading !== null}
+                    aria-invalid={termsInvalid || undefined}
+                    aria-describedby={error ? 'buy-credits-error' : undefined}
+                    onChange={(event) => {
+                      setAgreed(event.target.checked);
+                      setTermsInvalid(false);
+                      if (error) setError(null);
+                    }}
+                    className="h-4 w-4 flex-none"
+                  />
+                  <span>
+                    I agree to the{' '}
+                    <a
+                      href={TERMS_PATH}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent-brand underline underline-offset-4"
+                    >
+                      Terms of Service
+                    </a>
+                  </span>
+                </label>
+                {/* The privacy policy is a notice, not something anybody
+                    agrees to, so it is a line of its own and not part of the
+                    label: ticking the box agrees to the terms and nothing
+                    else. Indented to the label's text, past the box and its
+                    gap. */}
+                <p className="pl-6 text-xs text-muted-foreground">
+                  Our{' '}
                   <a
-                    href={TERMS_PATH}
+                    href={PRIVACY_PATH}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-accent-brand underline underline-offset-4"
                   >
-                    Terms of Service
-                  </a>
-                </span>
-              </label>
+                    Privacy Policy
+                  </a>{' '}
+                  says how we use your data.
+                </p>
+              </div>
               <Button
                 type="submit"
                 disabled={loading !== null}
