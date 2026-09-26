@@ -109,9 +109,9 @@ we use your data.” Every sign-in form renders `components/SignInNotice.tsx`
 under it, “By continuing you agree to the Terms and acknowledge the Privacy
 Policy”, with both linked: the magic-link `AuthModal` (opened from the header,
 the home page, `/dashboard`, the lookup history card and `/claim`) and the
-OAuth consent screen's own form. It records nothing; acceptance is recorded at
-purchase. `check-invariants` finds sign-in forms by their `fetch` to an
-`/api/auth/` route and refuses one without the notice.
+OAuth consent screen's own form. The notice records no agreement; acceptance
+is recorded at purchase. `check-invariants` finds sign-in forms by their `fetch`
+to an `/api/auth/` route and refuses one without the notice.
 
 **Legacy tiers are never metered.** `pro` ($99 one-time, 5,000 wallets per
 lookup) and `unlimited` ($249 one-time) were sold before credits existed and

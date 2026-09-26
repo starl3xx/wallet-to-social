@@ -27,8 +27,8 @@ All notable changes to walletlink.social. Newest first.
 - **Signing in shows a notice.** Under the sign-in form, in the sign-in window
   and on the screen where you connect an application: “By continuing you agree
   to the Terms and acknowledge the Privacy Policy”, with both linked. Signing in
-  records nothing. The agreement that is recorded is the one you make when you
-  buy credits.
+  records no agreement. The agreement that is recorded is the one you make when
+  you buy credits.
 - Operator: `TERMS_VERSION` in `lib/terms.ts` is the one version, an ISO date,
   and the terms page (draft PR #388) should print its date from
   `TERMS_UPDATED`. Two nullable columns on `credit_lots`, `terms_version` and
@@ -37,10 +37,10 @@ All notable changes to walletlink.social. Newest first.
   Nothing is backfilled. Merge with #388 or right after it, because the
   checkbox and the sign-in notice link to `/terms`. The two notices (decided
   2026-09-26) are one shared `components/SignInNotice.tsx` and a line in
-  `UpgradeModal.tsx`, and need no migration. Linear STA-47. Forty-one new
+  `UpgradeModal.tsx`, and need no migration. Linear STA-47. Forty-two new
   invariants, including the checkout route run against every refusal and a
   scan that finds every sign-in form by its `fetch` to `/api/auth/`, and
-  thirty-six new guard mutations. A local PGlite scenario ran the real webhook
+  thirty-nine new guard mutations. A local PGlite scenario ran the real webhook
   and grant code on main's schema plus the migration: a signed
   `checkout.session.completed` recorded the version and the time to the
   millisecond, a replay and the PaymentIntent twin added no second lot, a
