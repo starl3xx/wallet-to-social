@@ -470,9 +470,13 @@ export default function PrivacyPage() {
             </li>
             <li>
               <span className="text-foreground">Cloudflare</span> serves the
-              domain, forwards mail sent to us, and runs the assistant on this
-              site and on the documentation site, which sees the questions typed
-              into it.
+              domain and runs the assistant on this site and on the
+              documentation site, which sees the questions typed into it.
+            </li>
+            <li>
+              <span className="text-foreground">Google Workspace</span> hosts
+              our support mailbox, so it holds the email you send us and our
+              replies, including removal requests for as long as we keep them.
             </li>
             <li>
               <span className="text-foreground">Mintlify</span> hosts the

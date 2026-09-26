@@ -81,7 +81,9 @@ All notable changes to walletlink.social. Newest first.
     suspends the account the payment was for, and checkout reads the
     connection's country and region without storing it. The terms say the
     same, and say where to write about a suspension.
-  - Named: the entity is a Wyoming LLC, PayAI is the facilitator, each
+  - Named: Google Workspace hosts the support mailbox (Cloudflare serves
+    the domain and no longer forwards mail), the entity is a Wyoming LLC,
+    PayAI is the facilitator, each
     processor’s own terms govern it, legitimate interest is the basis for the
     welcome and check-in emails and for the index, the rule for the home
     page’s recent-lookups strip, and the age is 18.

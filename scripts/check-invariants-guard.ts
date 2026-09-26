@@ -4090,6 +4090,12 @@ const MUTATIONS: Mutation[] = [
     to: '          retention-days: 120',
   },
   {
+    name: 'the privacy policy says Cloudflare forwards our mail again',
+    file: 'app/privacy/page.tsx',
+    from: '              domain and runs the assistant on this site and on the',
+    to: '              domain, forwards mail sent to us, and runs the assistant on this site and on the',
+  },
+  {
     name: 'the privacy policy restates the sanctions record period as a digit',
     file: 'app/privacy/page.tsx',
     from: '`${SANCTIONS_SCREENING_RETENTION_YEARS} years, then deleted.',

@@ -6889,6 +6889,15 @@ async function main() {
       );
     }
 
+    // Mail to walletlink.social is hosted by Google Workspace (MX
+    // smtp.google.com since September 2026); Cloudflare no longer forwards
+    // it. The processor list must say who holds the support mailbox.
+    ok(
+      'the privacy policy names Google Workspace as the support mailbox host and no longer says Cloudflare forwards mail',
+      /Google Workspace<\/span>\s+hosts\s+our support mailbox/.test(privacy) &&
+        !/forwards mail sent to us/.test(privacy)
+    );
+
     // The purchase-record purge is written and switched off, so the page may
     // promise the deletion only through the switch. A fixed "then deleted"
     // would be true of the ledger and false of every credit pack.
