@@ -15,6 +15,16 @@ import { PRODUCTION_URL } from '@/lib/site-url';
  * A record of acceptance that cannot say WHICH terms were accepted is a
  * timestamp and nothing more.
  *
+ * ## What the other forms say, and why they record nothing
+ *
+ * Decided 2026-09-26. The checkbox is an agreement to the terms and names
+ * only them: a privacy policy is a notice of what we do with data, not
+ * something a buyer agrees to, so the checkout links it on a line of its own,
+ * outside the label. Signing in shows a notice under the form, "By continuing
+ * you agree to the Terms and acknowledge the Privacy Policy"
+ * (`components/SignInNotice.tsx`), and records nothing: acceptance is
+ * recorded at purchase, where the terms page says it is.
+ *
  * ## Why an ISO date
  *
  * The terms page says when it was last updated, and the version is that date,
@@ -35,6 +45,9 @@ import { PRODUCTION_URL } from '@/lib/site-url';
 export const TERMS_VERSION = '2026-09-25';
 
 export const TERMS_PATH = '/terms';
+
+/** The privacy policy, which the checkout and sign-in link as a notice. */
+export const PRIVACY_PATH = '/privacy';
 
 /** Absolute, for the surfaces a machine reads: the x402 challenge, errors. */
 export const TERMS_URL = `${PRODUCTION_URL}${TERMS_PATH}`;

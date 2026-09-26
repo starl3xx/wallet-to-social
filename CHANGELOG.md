@@ -20,20 +20,32 @@ All notable changes to walletlink.social. Newest first.
   `Link: <…>; rel="terms-of-service"` header. Nothing new is asked of the
   request, so agents already paying are not affected. The credits record the
   version in force when the payment settled.
+- **The checkout links the Privacy Policy, as a notice.** A line under the box,
+  outside it, reads “Our Privacy Policy says how we use your data.” Ticking the
+  box agrees to the terms and nothing else: a privacy policy says what we do
+  with your data, and is not something you agree to.
+- **Signing in shows a notice.** Under the sign-in form, in the sign-in window
+  and on the screen where you connect an application: “By continuing you agree
+  to the Terms and acknowledge the Privacy Policy”, with both linked. Signing in
+  records nothing. The agreement that is recorded is the one you make when you
+  buy credits.
 - Operator: `TERMS_VERSION` in `lib/terms.ts` is the one version, an ISO date,
   and the terms page (draft PR #388) should print its date from
   `TERMS_UPDATED`. Two nullable columns on `credit_lots`, `terms_version` and
   `terms_accepted_at`, applied by `scripts/migrate-terms-acceptance.ts`, which
   must run BEFORE deploy: every insert into `credit_lots` names every column.
   Nothing is backfilled. Merge with #388 or right after it, because the
-  checkbox links to `/terms`. Linear STA-47. Thirty-four new invariants,
-  including the checkout route run against every refusal, and twenty-four new
-  guard mutations. A local PGlite scenario ran the real webhook and grant code
-  on main's schema plus the migration: a signed `checkout.session.completed`
-  recorded the version and the time to the millisecond, a replay and the
-  PaymentIntent twin added no second lot, a session with no agreement and one
-  with a broken version were granted with both columns NULL, and an onchain
-  grant recorded the version in force.
+  checkbox and the sign-in notice link to `/terms`. The two notices (decided
+  2026-09-26) are one shared `components/SignInNotice.tsx` and a line in
+  `UpgradeModal.tsx`, and need no migration. Linear STA-47. Forty-one new
+  invariants, including the checkout route run against every refusal and a
+  scan that finds every sign-in form by its `fetch` to `/api/auth/`, and
+  thirty-six new guard mutations. A local PGlite scenario ran the real webhook
+  and grant code on main's schema plus the migration: a signed
+  `checkout.session.completed` recorded the version and the time to the
+  millisecond, a replay and the PaymentIntent twin added no second lot, a
+  session with no agreement and one with a broken version were granted with
+  both columns NULL, and an onchain grant recorded the version in force.
 
 ### 2026-09-26 (A claim-page withdrawal leaves an email in help@)
 

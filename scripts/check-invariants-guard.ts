@@ -5738,6 +5738,80 @@ const MUTATIONS: Mutation[] = [
     from: "import { TERMS_URL, TERMS_VERSION } from '@/lib/terms';",
     to: "import { TERMS_URL } from '@/lib/terms';\nconst TERMS_VERSION = '2026-09-25';",
   },
+  // The checkbox agrees to the terms and nothing else; the privacy policy is
+  // a notice beside it, and every sign-in form shows one (2026-09-26).
+  {
+    name: 'terms: the privacy path stops pointing at the privacy page',
+    file: 'lib/terms.ts',
+    from: "export const PRIVACY_PATH = '/privacy';",
+    to: "export const PRIVACY_PATH = '/privacy-policy';",
+  },
+  {
+    name: 'terms: the checkbox label asks for agreement to the privacy policy too',
+    file: 'components/UpgradeModal.tsx',
+    from: '                      Terms of Service\n                    </a>\n                  </span>\n',
+    to: "                      Terms of Service\n                    </a>{' '}\n                    and the <a href={PRIVACY_PATH}>Privacy Policy</a>\n                  </span>\n",
+  },
+  {
+    name: 'terms: the privacy notice is folded inside the checkbox label',
+    file: 'components/UpgradeModal.tsx',
+    from: '                </label>\n                {/* The privacy policy is a notice, not something anybody\n                    agrees to, so it is a line of its own and not part of the\n                    label: ticking the box agrees to the terms and nothing\n                    else. Indented to the label\'s text, past the box and its\n                    gap. */}\n                <p className="pl-6 text-xs text-muted-foreground">\n                  Our{\' \'}\n                  <a\n                    href={PRIVACY_PATH}\n                    target="_blank"\n                    rel="noopener noreferrer"\n                    className="text-accent-brand underline underline-offset-4"\n                  >\n                    Privacy Policy\n                  </a>{\' \'}\n                  says how we use your data.\n                </p>\n',
+    to: '                {/* The privacy policy is a notice, not something anybody\n                    agrees to, so it is a line of its own and not part of the\n                    label: ticking the box agrees to the terms and nothing\n                    else. Indented to the label\'s text, past the box and its\n                    gap. */}\n                <p className="pl-6 text-xs text-muted-foreground">\n                  Our{\' \'}\n                  <a\n                    href={PRIVACY_PATH}\n                    target="_blank"\n                    rel="noopener noreferrer"\n                    className="text-accent-brand underline underline-offset-4"\n                  >\n                    Privacy Policy\n                  </a>{\' \'}\n                  says how we use your data.\n                </p>\n                </label>\n',
+  },
+  {
+    name: 'terms: the checkout privacy notice links to the terms instead',
+    file: 'components/UpgradeModal.tsx',
+    from: '                    href={PRIVACY_PATH}\n',
+    to: '                    href={TERMS_PATH}\n',
+  },
+  {
+    name: 'terms: the checkout drops the privacy notice',
+    file: 'components/UpgradeModal.tsx',
+    from: '                <p className="pl-6 text-xs text-muted-foreground">\n                  Our{\' \'}\n                  <a\n                    href={PRIVACY_PATH}\n                    target="_blank"\n                    rel="noopener noreferrer"\n                    className="text-accent-brand underline underline-offset-4"\n                  >\n                    Privacy Policy\n                  </a>{\' \'}\n                  says how we use your data.\n                </p>\n',
+    to: '',
+  },
+  {
+    name: 'terms: the sign-in notice loses its Terms link',
+    file: 'components/SignInNotice.tsx',
+    from: '      <a\n        href={TERMS_PATH}\n        target="_blank"\n        rel="noopener noreferrer"\n        className="text-accent-brand underline underline-offset-4"\n      >\n        Terms\n      </a>{\' \'}\n',
+    to: "      Terms{' '}\n",
+  },
+  {
+    name: 'terms: the sign-in notice loses its Privacy Policy link',
+    file: 'components/SignInNotice.tsx',
+    from: '      <a\n        href={PRIVACY_PATH}\n        target="_blank"\n        rel="noopener noreferrer"\n        className="text-accent-brand underline underline-offset-4"\n      >\n        Privacy Policy\n      </a>\n',
+    to: '      Privacy Policy\n',
+  },
+  {
+    name: 'terms: the sign-in notice asks for agreement to the privacy policy',
+    file: 'components/SignInNotice.tsx',
+    from: "      and acknowledge the{' '}\n",
+    to: "      and the{' '}\n",
+  },
+  {
+    name: 'terms: the sign-in modal drops the notice',
+    file: 'components/AuthModal.tsx',
+    from: '              <SignInNotice />\n',
+    to: '',
+  },
+  {
+    name: 'terms: the sign-in notice moves to after the link has gone',
+    file: 'components/AuthModal.tsx',
+    from: '              <SignInNotice />\n            </div>\n          </>\n        ) : (\n          <>\n',
+    to: '            </div>\n          </>\n        ) : (\n          <>\n            <SignInNotice />\n',
+  },
+  {
+    name: 'terms: the consent screen signs people in without the notice',
+    file: 'app/oauth/authorize/ConsentScreen.tsx',
+    from: '            <SignInNotice className="mt-3" />\n',
+    to: '',
+  },
+  {
+    name: 'terms: a new sign-in form ships without the notice',
+    file: 'components/ClaimFlow.tsx',
+    from: '      <AuthModal open={authOpen} onOpenChange={setAuthOpen} next="/claim" />\n',
+    to: "      <form\n        onSubmit={(event) => {\n          event.preventDefault();\n          void fetch('/api/auth/send-magic-link', {\n            method: 'POST',\n            body: JSON.stringify({ next: '/claim' }),\n          });\n        }}\n      />\n      <AuthModal open={authOpen} onOpenChange={setAuthOpen} next=\"/claim\" />\n",
+  },
 ];
 
 function invariantsPass(): boolean {

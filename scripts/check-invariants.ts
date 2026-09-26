@@ -20657,6 +20657,53 @@ async function main() {
         /href=\{TERMS_PATH\}/.test(termsLabel)
     );
 
+    /**
+     * The box agrees to the terms and to nothing else (decided 2026-09-26).
+     *
+     * A privacy policy is a notice, not an agreement, so it is linked on a
+     * line of its own, outside the label. Text is read off the source with
+     * the tags stripped: the label's after the checkbox's own `/>`, and the
+     * notice's whole paragraph.
+     */
+    const jsxText = (src: string) =>
+      src
+        .replace(/\{' '\}/g, ' ')
+        .replace(/<[^>]*>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    ok(
+      'the privacy path is the privacy page, and the page exists',
+      terms.PRIVACY_PATH === '/privacy' && existsSync('app/privacy/page.tsx')
+    );
+    ok(
+      'the checkbox label names the terms and nothing else',
+      jsxText(termsLabel.slice(termsLabel.lastIndexOf('/>') + 2)) ===
+        'I agree to the Terms of Service' &&
+        (termsLabel.match(/<a\b/g) ?? []).length === 1 &&
+        !/privacy/i.test(termsLabel)
+    );
+    const privacyAt = modalTermsSrc.indexOf('says how we use your data.');
+    const privacyStart = modalTermsSrc.lastIndexOf('<p ', privacyAt);
+    const privacyEnd = modalTermsSrc.indexOf('</p>', privacyAt);
+    const privacyNotice =
+      privacyAt > 0 && privacyStart > 0 && privacyEnd > 0
+        ? modalTermsSrc.slice(privacyStart, privacyEnd + 4)
+        : '';
+    const labelEnd = termsLabel
+      ? modalTermsSrc.indexOf(termsLabel) + termsLabel.length
+      : -1;
+    ok(
+      'the checkout links the privacy policy on a line of its own, outside the box’s label',
+      privacyNotice !== '' &&
+        labelEnd > 0 &&
+        privacyStart > labelEnd &&
+        privacyEnd < modalTermsSrc.indexOf('</form>') &&
+        jsxText(privacyNotice) ===
+          'Our Privacy Policy says how we use your data.' &&
+        (privacyNotice.match(/<a\b/g) ?? []).length === 1 &&
+        /href=\{PRIVACY_PATH\}/.test(privacyNotice)
+    );
+
     // The x402 challenge discloses the terms, and asks for nothing new.
     const x402TermsSrc = withoutComments(
       readFileSync('app/api/x402/buy/route.ts', 'utf8')
@@ -20737,6 +20784,108 @@ async function main() {
       ok(
         'the terms page prints the date from lib/terms.ts, not its own',
         /from '@\/lib\/terms'/.test(pageSrc) && !typesOwnDate(pageSrc)
+      );
+    }
+
+    /**
+     * Every sign-in form carries the notice (decided 2026-09-26).
+     *
+     * A notice and not an agreement: it records nothing, and the acceptance
+     * that is recorded is the purchase's. The forms are found by what they
+     * call, not listed, so a sign-in form added later is held to this too:
+     * any fetch to an `/api/auth/` route other than the three that are not a
+     * sign-in (the session read, logout, and the success page's poll).
+     */
+    {
+      const { createElement } = await import('react');
+      const { renderToStaticMarkup } = await import('react-dom/server');
+      const { SignInNotice } = await import('@/components/SignInNotice');
+      const htmlText = (html: string) =>
+        html
+          .replace(/<[^>]*>/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      const noticeHtml = renderToStaticMarkup(createElement(SignInNotice));
+      ok(
+        'the sign-in notice says the one sentence, linking the terms and the privacy policy',
+        htmlText(noticeHtml) ===
+          'By continuing you agree to the Terms and acknowledge the Privacy Policy.' &&
+          (noticeHtml.match(/<a\b/g) ?? []).length === 2 &&
+          /<a href="\/terms"[^>]*>Terms<\/a>/.test(noticeHtml) &&
+          /<a href="\/privacy"[^>]*>Privacy Policy<\/a>/.test(noticeHtml)
+      );
+
+      const signInForms = ['app', 'components']
+        .flatMap((dir) =>
+          readdirSync(dir, { recursive: true })
+            .map(String)
+            .filter((f) => /\.tsx?$/.test(f))
+            .map((f) => `${dir}/${f}`)
+        )
+        .filter((f) => !f.startsWith('app/api/'))
+        .filter((f) =>
+          /fetch\(\s*['"`]\/api\/auth\/(?!(?:session|logout|checkout-status)\b)/.test(
+            withoutComments(readFileSync(f, 'utf8'))
+          )
+        );
+      ok(
+        'every form that signs somebody in renders the sign-in notice',
+        signInForms.includes('components/AuthModal.tsx') &&
+          signInForms.includes('app/oauth/authorize/ConsentScreen.tsx') &&
+          signInForms.every((f) =>
+            /<SignInNotice\b/.test(withoutComments(readFileSync(f, 'utf8')))
+          )
+      );
+
+      // The modal: on the step with the address and the button, under the
+      // button. Not on "Check your email", after the link has already gone.
+      // The email step ends at the ternary's `) : (`, found at the indent of
+      // the `{state === 'email' ? (` that opens it, which prettier fixes.
+      const authSrc = withoutComments(
+        readFileSync('components/AuthModal.tsx', 'utf8')
+      );
+      const stepOpen = /\n( *)\{state === 'email' \? \(\n/.exec(authSrc);
+      const stepSplit = stepOpen
+        ? authSrc.indexOf(`\n${stepOpen[1]}) : (\n`, stepOpen.index + 1)
+        : -1;
+      const emailStep =
+        stepOpen && stepSplit > 0
+          ? authSrc.slice(stepOpen.index, stepSplit)
+          : '';
+      const sentStep = stepSplit > 0 ? authSrc.slice(stepSplit) : '';
+      ok(
+        'the sign-in modal shows the notice under the send button, on the email step',
+        emailStep.indexOf('Send sign-in link') > 0 &&
+          emailStep.indexOf('<SignInNotice') >
+            emailStep.indexOf('Send sign-in link') &&
+          sentStep.includes('Check your email') &&
+          !sentStep.includes('<SignInNotice')
+      );
+
+      // The consent screen's own sign-in, rendered signed out: the notice is
+      // inside the form that sends the link.
+      const { ConsentScreen } =
+        await import('@/app/oauth/authorize/ConsentScreen');
+      const consentHtml = renderToStaticMarkup(
+        createElement(ConsentScreen, {
+          requestId: 'req',
+          subject: 'example.com',
+          claimedName: null,
+          verified: true,
+          replyHost: 'example.com',
+          replyAuthority: 'example.com',
+          local: false,
+          email: null,
+          keepsAccess: false,
+        })
+      );
+      const consentForm = /<form[\s\S]*?<\/form>/.exec(consentHtml)?.[0] ?? '';
+      ok(
+        'the consent screen’s sign-in form carries the notice with both links',
+        consentForm.includes('id="consent-email"') &&
+          consentForm.includes('data-notice="sign-in"') &&
+          consentForm.includes('href="/terms"') &&
+          consentForm.includes('href="/privacy"')
       );
     }
   }

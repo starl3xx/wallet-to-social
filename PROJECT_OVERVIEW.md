@@ -102,6 +102,17 @@ and the payment is the acceptance (see Onchain rail). `TERMS_VERSION` in
 `lib/terms.ts` is an ISO date and the only copy: the terms page prints
 `TERMS_UPDATED` from it, and `check-invariants` refuses a second one.
 
+**Notices, not agreements (2026-09-26, STA-47).** The checkbox label names the
+terms and nothing else. The privacy policy is a notice, so the modal links it on
+a line of its own under the box, outside the label: “Our Privacy Policy says how
+we use your data.” Every sign-in form renders `components/SignInNotice.tsx`
+under it, “By continuing you agree to the Terms and acknowledge the Privacy
+Policy”, with both linked: the magic-link `AuthModal` (opened from the header,
+the home page, `/dashboard`, the lookup history card and `/claim`) and the
+OAuth consent screen's own form. It records nothing; acceptance is recorded at
+purchase. `check-invariants` finds sign-in forms by their `fetch` to an
+`/api/auth/` route and refuses one without the notice.
+
 **Legacy tiers are never metered.** `pro` ($99 one-time, 5,000 wallets per
 lookup) and `unlimited` ($249 one-time) were sold before credits existed and
 keep exactly what they bought, permanently. `unlimited` carries one condition,
@@ -162,6 +173,7 @@ wallet-to-social/
 │   ├── FileUpload.tsx        # CSV/Excel upload dropzone
 │   ├── ResultsTable.tsx      # Virtualized results table
 │   ├── UpgradeModal.tsx      # Checkout modal: the four pack cards, reads lib/packs.ts
+│   ├── SignInNotice.tsx      # The terms and privacy notice under every sign-in form
 │   ├── StarterCollections.tsx # First action: run a seeded collection, brings nothing
 │   ├── PackPricing.tsx       # Pack ladder on the /vs pages, reads lib/packs.ts
 │   ├── AccessBanner.tsx      # Header chip, Buy credits button, account menu
