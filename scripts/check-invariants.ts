@@ -20192,8 +20192,94 @@ async function main() {
     // The runbook says where the emails are and what to do with them.
     const ops = readFileSync('docs/OPERATIONS.md', 'utf8').replace(/\s+/g, ' ');
     {
-      // How long the withdrawal emails are kept is Jake's to decide, and
-      // nothing deletes them yet: no public text may state it as done.
+      // How long help@ keeps removal emails, decided 2026-09-26: as long as
+      // the nightly backups, then a permanent delete by the Apps Script in
+      // scripts/ops, for the withdrawal emails and the emailed requests
+      // alike. The number is one constant, checked against the workflow that
+      // enforces the backups, the script and every text that states it. And
+      // a text may state the deletion only while the script is here and
+      // performs it: every assertion that a text states it also requires
+      // that, so a promised deletion cannot outlive the thing that does it.
+      const { BACKUP_RETENTION_DAYS: days } =
+        await import('@/lib/backup-retention');
+      const yml = readFileSync('.github/workflows/db-backup.yml', 'utf8');
+      ok(
+        'BACKUP_RETENTION_DAYS is the retention-days the backup workflow sets, its only one',
+        (yml.match(/retention-days:/g) ?? []).length === 1 &&
+          Number(yml.match(/^\s*retention-days: (\d+)\s*$/m)?.[1]) === days
+      );
+
+      const SCRIPT = 'scripts/ops/help-inbox-removal-retention.gs';
+      const script = existsSync(SCRIPT) ? readFileSync(SCRIPT, 'utf8') : '';
+      const code = withoutComments(script).replace(/\s+/g, ' ');
+      // The header, without its comment markers.
+      const setup = script.replace(/^\s*\*\s?/gm, '').replace(/\s+/g, ' ');
+      const deletesForGood =
+        code.includes(
+          "for (const id of due) { Gmail.Users.Threads.remove('me', id); }"
+        ) &&
+        code.split('Gmail.Users.Threads.remove(').length === 2 &&
+        !/trash/i.test(code);
+      const atTheBackupPeriod =
+        code.includes(`const RETENTION_DAYS = ${days};`) &&
+        code.includes(
+          'const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;'
+        ) &&
+        code.includes(
+          "const query = 'label:' + LABEL + ' older_than:' + RETENTION_DAYS + 'd';"
+        );
+      const byTheLabel = code.includes("const LABEL = 'walletlink-removals';");
+      const performs = deletesForGood && atTheBackupPeriod && byTheLabel;
+      ok(
+        'the help@ script deletes a thread for good, through Gmail.Users.Threads.remove, and never moves one to Trash',
+        deletesForGood
+      );
+      ok(
+        'it keeps a removal email BACKUP_RETENTION_DAYS, in its cutoff and in its search, and touches only the walletlink-removals label',
+        atTheBackupPeriod && byTheLabel
+      );
+      ok(
+        'it decides by each thread’s last message, since older_than matches a thread by any one old message',
+        code.includes(
+          'if (thread.getLastMessageDate().getTime() < cutoff) { due.push(thread.getId()); }'
+        ) && code.split('due.push(').length === 2
+      );
+      ok(
+        'it pages through every result before it deletes anything',
+        code.includes(
+          'for (let start = 0; ; start += PAGE_SIZE) { const threads = GmailApp.search(query, start, PAGE_SIZE);'
+        ) &&
+          code.includes('if (threads.length < PAGE_SIZE) break;') &&
+          code.indexOf('if (threads.length < PAGE_SIZE) break;') <
+            code.indexOf('for (const id of due)')
+      );
+      ok(
+        'it logs a count, never a subject or an address',
+        (code.match(/console\.|Logger\./g) ?? []).length === 1 &&
+          code.includes(
+            "console.log('Deleted ' + due.length + ' removal thread(s).');"
+          ) &&
+          !/getSubject|getFrom|getTo\b|getBody|getPlainBody|getMessages|getFirstMessageSubject/.test(
+            code
+          )
+      );
+      ok(
+        'its setup labels the withdrawal emails by their exact subject, names the manual step, and runs it daily',
+        setup.includes(`"${R.WITHDRAWAL_SUBJECT}"`) &&
+          setup.includes('create the label `walletlink-removals`') &&
+          setup.includes(
+            'the operator applies the label by hand to each request thread once its removal is done'
+          ) &&
+          setup.includes('the Gmail API (the Gmail advanced service)') &&
+          setup.includes(
+            'add a time-driven trigger for deleteOldRemovalEmails with a day timer'
+          )
+      );
+
+      // The texts. The runbook's reply script is a quote, so its markers go.
+      const runbook = readFileSync('docs/OPERATIONS.md', 'utf8')
+        .replace(/^> /gm, '')
+        .replace(/\s+/g, ' ');
       const log = readFileSync('CHANGELOG.md', 'utf8');
       const entryAt = log.indexOf(
         '### 2026-09-26 (A claim-page withdrawal leaves an email in help@)'
@@ -20201,20 +20287,73 @@ async function main() {
       const entry = log
         .slice(entryAt, log.indexOf('\n### ', entryAt + 1))
         .replace(/\s+/g, ' ');
+      const overview = readFileSync('PROJECT_OVERVIEW.md', 'utf8').replace(
+        /\s+/g,
+        ' '
+      );
       ok(
-        'the withdrawal emails’ retention is stated as undecided, never as a deletion nothing performs',
-        entryAt !== -1 &&
-          /How long these emails are kept is \*\*not decided yet\*\*/.test(
-            ops
+        'the runbook states the help@ deletion at BACKUP_RETENTION_DAYS, and only while the script performs it',
+        performs &&
+          runbook.includes(
+            `We keep this email thread for ${days} days after the removal is done`
           ) &&
-          /Nothing deletes them today, so until the decision is made and a mechanism is named here, keep them\./.test(
-            ops
+          runbook.includes(
+            `permanently deletes each labeled thread ${days} days after its last message`
           ) &&
-          !/delete each one after/i.test(ops) &&
-          /How long the withdrawal emails are kept is not decided yet; until it is, they are kept\./.test(
-            entry
+          runbook.includes(
+            `**The help@ retention: removal emails are kept ${days} days, then deleted**`
           ) &&
-          !/deleted after \d+ days/i.test(entry)
+          runbook.includes(`(\`retention-days: ${days}\` in`) &&
+          runbook.includes(
+            `\`scripts/ops/help-inbox-removal-retention.gs\`, permanently deletes each thread labeled \`walletlink-removals\` whose last message is more than ${days} days old`
+          ) &&
+          !/not decided yet/.test(runbook)
+      );
+      ok(
+        'the runbook keeps the manual label step for emailed requests, which no filter can find, and no longer deletes a thread at once',
+        runbook.includes(
+          '**Then label the thread `walletlink-removals`.** After the reply confirming execution, apply the Gmail label `walletlink-removals` to the request thread by hand.'
+        ) &&
+          runbook.includes(
+            '3. Label each emailed removal request by hand when its removal is done'
+          ) &&
+          !runbook.includes('**Then delete the thread.**')
+      );
+      ok(
+        'the CHANGELOG and the overview state the help@ deletion at BACKUP_RETENTION_DAYS, and only while the script performs it',
+        performs &&
+          entryAt !== -1 &&
+          entry.includes(
+            `**Removal emails in help@ are kept ${days} days, then deleted**`
+          ) &&
+          entry.includes(
+            `whose last message is more than ${days} days old, never moving it to Trash`
+          ) &&
+          entry.includes('labeled by hand once its removal is done') &&
+          !/not decided yet/.test(entry) &&
+          overview.includes(
+            `**Removal emails in help@ are kept ${days} days, then deleted**`
+          ) &&
+          overview.includes(
+            `whose last message is more than ${days} days old, through \`Gmail.Users.Threads.remove\`, not Trash`
+          )
+      );
+      // The privacy page states it once the terms PR (#388) lands; from then
+      // the same rule binds it.
+      const privacy = readFileSync('app/privacy/page.tsx', 'utf8').replace(
+        /\s+/g,
+        ' '
+      );
+      ok(
+        'the privacy page states no deletion of a support-inbox email that the script does not perform',
+        performs ||
+          !privacy
+            .split(/(?<=[.;])\s/)
+            .some(
+              (s) =>
+                /support inbox|email thread|that email/i.test(s) &&
+                /\bdelete/i.test(s)
+            )
       );
     }
     ok(

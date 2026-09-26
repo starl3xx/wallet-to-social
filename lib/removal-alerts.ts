@@ -10,7 +10,9 @@
  * withdrawal has committed, `app/api/claim/withdraw/route.ts` sends one
  * plain-text email to the ops inbox with what an operator needs to apply it
  * again after a restore: the identifiers it suppressed, the claim reference
- * and the time. docs/OPERATIONS.md says how the emails are found and used.
+ * and the time. docs/OPERATIONS.md says how the emails are found and used;
+ * help@ keeps them `BACKUP_RETENTION_DAYS` (lib/backup-retention.ts), and
+ * scripts/ops/help-inbox-removal-retention.gs deletes them after that.
  *
  * ## The body names a person who asked to be removed, on purpose
  *

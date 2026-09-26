@@ -130,14 +130,24 @@ free removal channel must not become a membership oracle for the very facts
 > We received your removal request. Each identifier you named will be
 > suppressed, and suppressed identifiers are not re-collected. This will be
 > complete within 30 days. If you want other identifiers removed, name them
-> in a reply; we deliberately keep nothing that would let us work out which
-> identifiers belong together, so we can only act on the ones you name.
+> in a reply; we deliberately keep nothing in our database that would let
+> us work out which identifiers belong together, so we can only act on the
+> ones you name. We keep this email thread for 90 days after the removal is
+> done, so that we can apply the removal again if we ever restore our
+> database from a backup, and then delete it.
 
-**Then delete the thread.** After the reply confirming execution, delete
-the help@ correspondence. The decided policy (decision 4) rejects keeping
-it: an inbox of removal emails is the requester-to-identifier join rebuilt
-in a mailbox, outside every control the schema enforces by refusing to
-store it. The suppression rows are the entire durable record.
+**Then label the thread `walletlink-removals`.** After the reply confirming
+execution, apply the Gmail label `walletlink-removals` to the request
+thread by hand. Nothing else labels an emailed request, and a thread
+without the label is never deleted. The daily help@ retention script
+(below) permanently deletes each labeled thread 90 days after its last
+message. This amends decision 4, which deleted the thread at once (Jake,
+2026-09-26, Linear STA-50): the nightly backups are kept 90 days, and until
+every backup is newer than the thread, a restore can need it to apply the
+removal again. An inbox of removal emails is still the
+requester-to-identifier join rebuilt in a mailbox, outside every control
+the schema enforces by refusing to store it, so it is kept for that window
+and no longer. The suppression rows remain the only durable record.
 
 **Executing a removal.** Run the operator removal endpoint (admin-gated, the
 shared `ADMIN_PASSWORD` via `lib/admin-auth.ts`) for the named identifiers.
@@ -193,11 +203,10 @@ decided 2026-09-26). A restore of the whole project from the nightly backup
 leaves no live list to export, so every removal made since that backup is
 re-run by hand from the help@ inbox, through the operator removal endpoint:
 
-- **Emailed removals:** from the removal requests in the inbox, as they were
-  executed the first time. The reply policy above deletes a thread once its
-  removal is done, so a request that was emailed and executed after the
-  backup is no longer there to re-run. That gap is open, for Jake to decide
-  (keep the threads until the backups older than them expire, or accept it).
+- **Emailed removals:** from the removal request threads in the inbox
+  (label `walletlink-removals`), as they were executed the first time. A
+  thread is kept 90 days after its last message, as long as the backups
+  are, so every request executed after the backup is still there.
 - **Claim-page withdrawals:** a withdrawal made with the withdraw button on
   `/claim` sends help@ one plain-text email, always with the subject
   `[walletlink] Removal: claim withdrawn on /claim`, which names nobody.
@@ -224,11 +233,34 @@ email is out, the record keeps only its name and the time it was sent.
 whole-project restore can use. The email names a person who asked to be
 removed, on purpose, because nothing else can put the removal back.
 
-How long these emails are kept is **not decided yet** (Linear STA-50, for
-Jake). The proposal is 90 days, when the oldest backup
-(`retention-days: 90` in `.github/workflows/db-backup.yml`) is newer than
-the email and no restore can need it. Nothing deletes them today, so until
-the decision is made and a mechanism is named here, keep them.
+**The help@ retention: removal emails are kept 90 days, then deleted**
+(decided by Jake 2026-09-26, Linear STA-50). Both kinds: the emailed
+removal requests and the withdrawal emails. 90 days is how long the nightly
+backups are kept (`retention-days: 90` in `.github/workflows/db-backup.yml`,
+`BACKUP_RETENTION_DAYS` in `lib/backup-retention.ts`), so once an email is
+older than every backup, no restore can need it. A daily Apps Script in the
+help@ mailbox, `scripts/ops/help-inbox-removal-retention.gs`, permanently
+deletes each thread labeled `walletlink-removals` whose last message is
+more than 90 days old. It deletes through the Gmail API rather than moving
+the thread to Trash, which would keep it 30 more days, and it logs only a
+count. Set up once, signed in as help@ (the script’s header has the same
+steps):
+
+1. Create the Gmail label `walletlink-removals`.
+2. Create a Gmail filter on the subject of the withdrawal email (above)
+   that applies the label, and apply it to matching conversations too, so
+   every withdrawal email is labeled as it arrives.
+3. Label each emailed removal request by hand when its removal is done
+   (the reply policy above). No filter can find these, and a request
+   thread without the label is kept.
+4. On script.google.com, in a project owned by help@: add the Gmail API
+   under Services (the Gmail advanced service), paste in the script, run
+   `deleteOldRemovalEmails` once to grant access, and add a daily
+   time-driven trigger for it.
+
+Its runs are on the project’s Executions page. Apps Script emails the
+project’s owner, help@, about a failed run (daily by default), and the next
+day’s run tries again.
 
 **Un-suppress.** Operator-only, within 30 days of the removal: it deletes
 the suppression row, then restores the quarantined rows. A copy whose

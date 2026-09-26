@@ -24,8 +24,18 @@ All notable changes to walletlink.social. Newest first.
 - **The runbook says how a restore uses it.** After a whole-project restore,
   every removal made since the backup is re-run from help@: the emailed
   requests, and these emails, found by their subject (`docs/OPERATIONS.md`).
-  How long the withdrawal emails are kept is not decided yet; until it is,
-  they are kept.
+- **Removal emails in help@ are kept 90 days, then deleted** (decided
+  2026-09-26). That is how long the nightly backups are kept
+  (`BACKUP_RETENTION_DAYS`, new in `lib/backup-retention.ts` and checked
+  against `db-backup.yml`), so after it no restore can need the email. A
+  daily Apps Script in the help@ mailbox, kept for review at
+  `scripts/ops/help-inbox-removal-retention.gs`, permanently deletes each
+  thread labeled `walletlink-removals` whose last message is more than
+  90 days old, never moving it to Trash. A Gmail filter labels the
+  withdrawal emails by their subject. An emailed removal request is now
+  labeled by hand once its removal is done, where the runbook used to
+  delete its thread at once. The script’s header and the runbook give the
+  one-time setup.
 - **The ops-alert records are shared.** The claims, durable records and retry
   sweep the sanctions alerts were built on moved to `lib/ops-alerts.ts`,
   unchanged for sanctions except in two failure cases: an email that cannot

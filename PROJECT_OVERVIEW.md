@@ -707,6 +707,21 @@ never throws and the route awaits it as a statement of its own, so it can
 neither block nor undo the withdrawal. The restore runbook is in
 `docs/OPERATIONS.md`.
 
+**Removal emails in help@ are kept 90 days, then deleted** (decided
+2026-09-26): the withdrawal emails, and the emailed removal requests, which
+until then were deleted once done. 90 days is how long the nightly backups
+are kept (`BACKUP_RETENTION_DAYS` in `lib/backup-retention.ts`, asserted equal
+to `retention-days` in `db-backup.yml`), so after it no restore can need the
+email. A daily Apps Script in the help@ mailbox
+(`scripts/ops/help-inbox-removal-retention.gs`, kept in the repo for review)
+permanently deletes each thread labeled `walletlink-removals` whose last
+message is more than 90 days old, through `Gmail.Users.Threads.remove`, not
+Trash. A Gmail filter labels the withdrawal emails by subject, and the
+operator labels each emailed request by hand once its removal is done.
+`scripts/check-invariants.ts` checks the script against the constant and lets
+the runbook, this file and the CHANGELOG state the deletion only while the
+script performs it.
+
 **The suppression refusal on `/api/claim/challenge` is claim-only.** Withdrawal
 suppresses before it erases, so a failure between the two leaves the wallet
 suppressed with the pairing still served; refusing the retry told the person
