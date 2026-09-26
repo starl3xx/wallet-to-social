@@ -18779,9 +18779,14 @@ async function main() {
         )) === 'failed' && noClaim.mails.length === 0
       );
       {
-        const alertsSrc = withoutComments(
-          readFileSync('lib/sanctions-alerts.ts', 'utf8')
-        );
+        // The claims live in lib/ops-alerts.ts since STA-50; all three read.
+        const alertsSrc = [
+          'lib/sanctions-alerts.ts',
+          'lib/ops-alerts.ts',
+          'lib/removal-alerts.ts',
+        ]
+          .map((f) => withoutComments(readFileSync(f, 'utf8')))
+          .join('\n');
         ok(
           'no alert state is kept in memory',
           !/^(let|var) /m.test(alertsSrc) &&
@@ -19496,6 +19501,11 @@ async function main() {
       const alertsSrc = withoutComments(
         readFileSync('lib/sanctions-alerts.ts', 'utf8')
       ).replace(/\s+/g, ' ');
+      // The send itself lives in lib/ops-alerts.ts since STA-50 (2026-09-26),
+      // shared by the sanctions alerts and the withdrawal trail.
+      const opsAlertsSrc = withoutComments(
+        readFileSync('lib/ops-alerts.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
       ok(
         'an operator alert gives up after ten seconds, in the sender and around every send',
         hung === 'gave up' &&
@@ -19504,7 +19514,13 @@ async function main() {
           /await withTimeout\(\s*resend\.emails\.send\(/.test(emailSrc) &&
           /OPS_ALERT_TIMEOUT_MS,/.test(emailSrc) &&
           /result = await withTimeout\(send\(subject, text\), OPS_ALERT_TIMEOUT_MS, \{/.test(
-            alertsSrc
+            opsAlertsSrc
+          ) &&
+          (opsAlertsSrc.match(/await withTimeout\(/g) ?? []).length === 1 &&
+          // Neither family calls its sender except through that one send.
+          !/\bsend\(/.test(alertsSrc) &&
+          !/\bsend\(/.test(
+            withoutComments(readFileSync('lib/removal-alerts.ts', 'utf8'))
           )
       );
 
@@ -19785,6 +19801,315 @@ async function main() {
       'the screening record is in the nightly dump and the rebuildable list is not',
       /'sanctions_screenings'/.test(backupList) &&
         !/'sanctioned_addresses'/.test(backupList)
+    );
+  }
+
+  // ------------------------------------- the withdrawal email trail (STA-50)
+  // A removal asked for by email leaves its request in help@; a withdrawal on
+  // /claim left nothing outside the database, so a restore of the whole
+  // project from the nightly backup would lose it. Decided 2026-09-26
+  // ("backup plus email trail"): once the withdrawal has committed, one email
+  // to help@ with what re-applying it takes, sent through the durable records
+  // of lib/ops-alerts.ts, and never able to block or undo the withdrawal.
+  // Driven through the real functions with a recording database and a
+  // recording sender; the route's order is read from its source, because the
+  // route cannot run here without a session and a signature.
+  {
+    const R = await import('@/lib/removal-alerts');
+    const { OPS_ALERT_TO } = await import('@/lib/email');
+    const { PgDialect } = await import('drizzle-orm/pg-core');
+    const dialect = new PgDialect();
+    type Sent = { sql: string; params: unknown[] };
+    type Mail = { subject: string; text: string };
+    const W = '0x' + 'ab'.repeat(20);
+    const CLAIM_A = '5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a';
+    const CLAIM_B = '6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b6b6b';
+    const ROW = `alert:removal:withdrawal:${CLAIM_A}`;
+    const report = {
+      suppressed: [{ kind: 'wallet' as const, identifier: W }],
+      claimIds: [CLAIM_A, CLAIM_B],
+      withdrawnAt: '2026-09-26T16:00:00.000Z',
+    };
+    const trailRig = (
+      opts: {
+        claim?: 'win' | 'throw';
+        send?: 'ok' | 'fail' | 'throw';
+        records?: unknown[];
+      } = {}
+    ) => {
+      const sent: Sent[] = [];
+      const mails: Mail[] = [];
+      const logged: string[] = [];
+      const db = {
+        execute: async (query: Parameters<typeof dialect.sqlToQuery>[0]) => {
+          const q = dialect.sqlToQuery(query);
+          const flat = q.sql.replace(/\s+/g, ' ').trim();
+          sent.push({ sql: flat, params: q.params });
+          if (flat.startsWith('INSERT INTO ingest_state')) {
+            // A failed statement as Drizzle throws it: its parameters, the
+            // payload with the wallet among them, are in the message.
+            if (opts.claim === 'throw') {
+              throw new DrizzleQueryError(flat, q.params, new Error('down'));
+            }
+            return {
+              rows: ((q.params[0] as string[]) ?? []).map((name) => ({
+                name,
+              })),
+            };
+          }
+          if (flat.startsWith("SELECT name, value->'payload' AS payload")) {
+            return { rows: opts.records ?? [] };
+          }
+          return { rows: [] };
+        },
+      };
+      const send = async (subject: string, text: string) => {
+        sent.push({ sql: 'SEND', params: [] });
+        if (opts.send === 'throw') throw new Error('provider down');
+        mails.push({ subject, text });
+        return opts.send === 'fail'
+          ? { success: false, error: 'rejected' }
+          : { success: true };
+      };
+      const run = async <T>(f: () => Promise<T>): Promise<T> => {
+        const quiet = console.error;
+        console.error = (...a: unknown[]) =>
+          logged.push(a.map(String).join(' '));
+        try {
+          return await f();
+        } finally {
+          console.error = quiet;
+        }
+      };
+      return { db, sent, mails, logged, send, run };
+    };
+    const at = (rig: { sent: Sent[] }, prefix: string) =>
+      rig.sent.findIndex((s) => s.sql.startsWith(prefix));
+
+    const good = trailRig();
+    const goodResult = await good.run(() =>
+      R.alertClaimWithdrawal(report, good.db, good.send)
+    );
+    const mail = good.mails[0];
+    ok(
+      'a withdrawal emails the ops inbox the identifiers it suppressed, the claim reference and the time',
+      goodResult === 'sent' &&
+        good.mails.length === 1 &&
+        OPS_ALERT_TO === 'help@walletlink.social' &&
+        mail.text.includes(`Suppressed: wallet ${W}`) &&
+        mail.text.includes(`Claim reference: ${CLAIM_A}, ${CLAIM_B}`) &&
+        mail.text.includes('Withdrawn at: 2026-09-26T16:00:00.000Z') &&
+        /lane wallet_sig, reason requested/.test(mail.text)
+    );
+    ok(
+      'and nothing more: no email address, no handle, no account, one wallet',
+      !/@/.test(mail.text) &&
+        !/account id|handle|user/i.test(mail.text) &&
+        (mail.text.match(/0x[0-9a-f]{40}/gi) ?? []).length === 1
+    );
+    ok(
+      'the subject names nobody and is the same on every withdrawal',
+      mail.subject === R.WITHDRAWAL_SUBJECT &&
+        R.WITHDRAWAL_SUBJECT ===
+          '[walletlink] Removal: claim withdrawn on /claim' &&
+        !mail.subject.includes(W.slice(2, 10)) &&
+        !mail.subject.includes(CLAIM_A.slice(0, 8)) &&
+        !/0x|\d{4}-\d{2}-\d{2}/.test(mail.subject)
+    );
+    const goodClaim = good.sent[at(good, 'INSERT INTO ingest_state')];
+    ok(
+      'the record, with its payload, is written before the send, keyed on the claim reference',
+      at(good, 'INSERT INTO ingest_state') === 0 &&
+        at(good, 'INSERT INTO ingest_state') < at(good, 'SEND') &&
+        JSON.stringify(goodClaim?.params[0]) === JSON.stringify([ROW]) &&
+        String((goodClaim?.params[1] as string[])?.[0] ?? '').includes(W) &&
+        String((goodClaim?.params[1] as string[])?.[0] ?? '').includes(CLAIM_B)
+    );
+    ok(
+      'once sent, the record keeps no copy of the identifiers: the payload goes with the claim',
+      good.sent.some(
+        (s) =>
+          s.sql ===
+            "UPDATE ingest_state SET value = (value - 'claimedAt' - 'payload') || jsonb_build_object('sentAt', now()), updated_at = now() WHERE name = ANY($1::text[])" &&
+          JSON.stringify(s.params[0]) === JSON.stringify([ROW])
+      ) && at(good, 'UPDATE ingest_state') > at(good, 'SEND')
+    );
+
+    // A failed send is kept for the daily cleanup, logged, and thrown nowhere.
+    for (const mode of ['fail', 'throw'] as const) {
+      const bad = trailRig({ send: mode });
+      let threw = false;
+      let result: unknown;
+      try {
+        result = await bad.run(() =>
+          R.alertClaimWithdrawal(report, bad.db, bad.send)
+        );
+      } catch {
+        threw = true;
+      }
+      ok(
+        `a withdrawal email that ${mode === 'fail' ? 'is rejected' : 'throws'} is kept for retry: claim released, payload kept, nothing thrown`,
+        !threw &&
+          result === 'failed' &&
+          bad.logged.some((l) => /\[removal\] alert email failed/.test(l)) &&
+          bad.sent.some(
+            (s) =>
+              s.sql ===
+                "UPDATE ingest_state SET value = value - 'claimedAt', updated_at = now() WHERE name = ANY($1::text[]) AND value->>'sentAt' IS NULL" &&
+              JSON.stringify(s.params[0]) === JSON.stringify([ROW])
+          ) &&
+          !bad.sent.some(
+            (s) => s.sql.includes("'payload'") && s.sql.startsWith('UPDATE')
+          ) &&
+          !bad.sent.some((s) => s.sql.startsWith('DELETE'))
+      );
+    }
+    {
+      const swept = trailRig({
+        records: [{ name: ROW, payload: report }],
+      });
+      const result = await swept.run(() =>
+        R.sendUnsentRemovalRecords(swept.db, swept.send)
+      );
+      const select = swept.sent[0];
+      ok(
+        'the daily cleanup sends a withdrawal whose email failed, from its record',
+        result.sent === 1 &&
+          result.failed === 0 &&
+          swept.mails[0]?.subject === R.WITHDRAWAL_SUBJECT &&
+          (swept.mails[0]?.text ?? '').includes(`Suppressed: wallet ${W}`) &&
+          JSON.stringify(select?.params[0]) ===
+            JSON.stringify(['alert:removal:withdrawal:%']) &&
+          /AND value->'payload' IS NOT NULL AND value->>'sentAt' IS NULL/.test(
+            select?.sql ?? ''
+          )
+      );
+      const cleanupRun = withoutComments(
+        readFileSync('app/api/cron/cleanup/route.ts', 'utf8')
+      ).replace(/\s+/g, ' ');
+      const runPart = cleanupRun.slice(
+        cleanupRun.indexOf('async function run(')
+      );
+      ok(
+        'and the daily cleanup does run that sweep, after its housekeeping, and reports it',
+        /const removalAlertRecords = await sendUnsentRemovalRecords\(db\);/.test(
+          runPart
+        ) &&
+          runPart.indexOf('await sendUnsentRemovalRecords(db)') >
+            runPart.indexOf('.delete(analyticsEvents)') &&
+          /removalAlertRecords, walletCacheRows, \}\);/.test(runPart)
+      );
+    }
+
+    // Never throws, whatever fails, and every log line is redacted.
+    {
+      const noClaim = trailRig({ claim: 'throw' });
+      let threw = false;
+      let result: unknown;
+      try {
+        result = await noClaim.run(() =>
+          R.alertClaimWithdrawal(report, noClaim.db, noClaim.send)
+        );
+      } catch {
+        threw = true;
+      }
+      ok(
+        'a record that cannot be written sends nothing, throws nothing, and logs the failed statement redacted',
+        !threw &&
+          result === 'failed' &&
+          noClaim.mails.length === 0 &&
+          noClaim.logged.some((l) =>
+            /\[removal\] alert claim failed/.test(l)
+          ) &&
+          noClaim.logged.some((l) => l.includes('0xabab...abab')) &&
+          !noClaim.logged.some((l) => l.includes(W))
+      );
+      const broken = trailRig();
+      const hostile = {
+        get suppressed() {
+          return report.suppressed;
+        },
+        get claimIds(): string[] {
+          throw new Error(`no claim ids for ${W}`);
+        },
+        withdrawnAt: report.withdrawnAt,
+      };
+      let brokenThrew = false;
+      let brokenResult: unknown;
+      try {
+        brokenResult = await broken.run(() =>
+          R.alertClaimWithdrawal(hostile, broken.db, broken.send)
+        );
+      } catch {
+        brokenThrew = true;
+      }
+      let nullResult: unknown;
+      try {
+        nullResult = await R.alertClaimWithdrawal(report, null, broken.send);
+      } catch {
+        nullResult = 'threw';
+      }
+      ok(
+        'a withdrawal email never throws into the withdrawal response, and its own log line is redacted too',
+        !brokenThrew &&
+          brokenResult === 'failed' &&
+          broken.mails.length === 0 &&
+          broken.logged.some((l) => l.includes('0xabab...abab')) &&
+          !broken.logged.some((l) => l.includes(W)) &&
+          nullResult === 'failed'
+      );
+    }
+
+    // The route: after the committed withdrawal, once, and nothing reads it.
+    const route = withoutComments(
+      readFileSync('app/api/claim/withdraw/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    const eraseAt = route.indexOf(
+      "const erased = await eraseIdentifier(db, 'wallet', wallet);"
+    );
+    const alertAt = route.indexOf('alertClaimWithdrawal(');
+    const replyAt = route.indexOf(
+      'return NextResponse.json({ withdrawn: true,'
+    );
+    ok(
+      'the withdraw route sends the email only after the withdrawal is committed, before it answers',
+      eraseAt !== -1 &&
+        alertAt > eraseAt &&
+        replyAt > alertAt &&
+        route.split('alertClaimWithdrawal(').length === 2
+    );
+    ok(
+      'it is awaited as a statement of its own, right after the erase, so its result cannot change the response',
+      route.includes(
+        "const erased = await eraseIdentifier(db, 'wallet', wallet); await alertClaimWithdrawal( {"
+      ) &&
+        !/(=|return|if \(|\?|void)\s*(await )?alertClaimWithdrawal\(/.test(
+          route
+        )
+    );
+    ok(
+      'the email names exactly the suppression the route wrote, and the claims it found',
+      /const suppressed: RemovalTarget\[\] = \[\{ kind: 'wallet', identifier: wallet \}\]; await insertSuppressions\(db, suppressed, 'wallet_sig', 'requested'\);/.test(
+        route
+      ) &&
+        /await alertClaimWithdrawal\( \{ suppressed, claimIds: found\.rows\.map\(\(r\) => r\.id\), withdrawnAt: new Date\(\)\.toISOString\(\), \}, db \);/.test(
+          route
+        )
+    );
+    ok(
+      'the claim reference is this account’s own completed claims for the wallet, and none is a 404',
+      /SELECT id::text AS id FROM identity_attestations WHERE user_id = \$\{session\.user\.id\} AND wallet = \$\{wallet\} AND status = 'completed'/.test(
+        route
+      ) && /if \(found\.rows\.length === 0\) \{/.test(route)
+    );
+
+    // The runbook says where the emails are and what to do with them.
+    const ops = readFileSync('docs/OPERATIONS.md', 'utf8').replace(/\s+/g, ' ');
+    ok(
+      'the restore runbook re-runs removals since the backup from help@, and finds the withdrawals by their subject',
+      ops.includes(`\`${R.WITHDRAWAL_SUBJECT}\``) &&
+        /removal made since that backup is re-run/.test(ops) &&
+        /"lane": "wallet_sig"/.test(ops)
     );
   }
 

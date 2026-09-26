@@ -50,7 +50,7 @@ export async function withTimeout<T>(
  *
  * No unsubscribe link and no opt-out check, because it goes to our own inbox;
  * those rules protect customers and there is none on the other end. Callers
- * decide when to send and how often (lib/sanctions-alerts.ts dedupes in the
+ * decide when to send and how often (lib/ops-alerts.ts dedupes in the
  * database). Never throws, and never waits more than `OPS_ALERT_TIMEOUT_MS`:
  * an alert that fails or times out is reported in the result, and the caller
  * logs it and carries on.

@@ -188,6 +188,40 @@ endpoint is idempotent). The exact commands are in the restore section of
 the private ops runbook (starl3xx/walletlink-ops, `docs/SECURITY.md`),
 beside the restore they belong to.
 
+**When today's list is lost too, re-run the removals from help@** (STA-50,
+decided 2026-09-26). A restore of the whole project from the nightly backup
+leaves no live list to export, so every removal made since that backup is
+re-run by hand from the help@ inbox, through the operator removal endpoint:
+
+- **Emailed removals:** from the removal requests in the inbox, as they were
+  executed the first time. The reply policy above deletes a thread once its
+  removal is done, so a request that was emailed and executed after the
+  backup is no longer there to re-run. That gap is open, for Jake to decide
+  (keep the threads until the backups older than them expire, or accept it).
+- **Claim-page withdrawals:** a withdrawal made with the withdraw button on
+  `/claim` sends help@ one plain-text email, always with the subject
+  `[walletlink] Removal: claim withdrawn on /claim`, which names nobody.
+  Search the inbox for that subject. Each email gives `Withdrawn at:` (UTC),
+  `Claim reference:` (the `identity_attestations` ids the person withdrew)
+  and one `Suppressed:` line per identifier the withdrawal put on the list
+  (a wallet; a withdrawal never suppresses the handle). For every email
+  newer than the backup, call the endpoint with those identifiers,
+  `"lane": "wallet_sig"` and `"reason": "requested"`, the lane and reason the
+  withdrawal itself wrote.
+
+The withdrawal email is sent by the withdraw route once the withdrawal has
+committed (`lib/removal-alerts.ts`, on the `lib/ops-alerts.ts` records the
+sanctions alerts use). Before the send it writes a record,
+`alert:removal:withdrawal:<claim id>` in `ingest_state`; a send that fails or
+times out (10 seconds) leaves the record, and the daily cleanup sends it
+(`removalAlertRecords` in its response). Once the email is out, the record
+keeps only its name and the time it was sent. `ingest_state` is not in the nightly dump, so the inbox
+is the only copy a whole-project restore can use. The email names a person
+who asked to be removed, on purpose, because nothing else can put the
+removal back; delete each one after 90 days, when the oldest backup
+(`retention-days: 90` in `.github/workflows/db-backup.yml`) is newer than it
+and no restore can need it.
+
 **Un-suppress.** Operator-only, within 30 days of the removal: it deletes
 the suppression row, then restores the quarantined rows. A copy whose
 restore is refused (a sibling suppression still covers it) is KEPT and

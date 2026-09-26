@@ -564,8 +564,9 @@ checkouts, this route and `/api/checkout`, first refuse a request whose Vercel
 IP headers place it in `RESTRICTED_CHECKOUT_LOCATIONS` (`lib/geoblock.ts`: CU,
 IR, KP, SY and UA-43, UA-40, UA-14, UA-09) with 403 `REGION_RESTRICTED`. A freeze,
 a guard-refused refresh and 36 hours without a successful one each email
-help@ at most once a day per condition (`lib/sanctions-alerts.ts`, claims and
-sent markers in `ingest_state`, a dead claim expiring after 5 minutes, every
+help@ at most once a day per condition (`lib/sanctions-alerts.ts` on the
+shared `lib/ops-alerts.ts`, claims and sent markers in `ingest_state`, a dead
+claim expiring after 5 minutes, every
 send bounded to 10 s; the freeze email is read from the database, once per
 account and listed payer; payment and job alerts are durable records resent
 until sent), and show on the admin health panel; the runbook is in
@@ -659,13 +660,14 @@ writes, what it earns and what we keep, in that order, before it asks for
 anything, because the first thing we ask a stranger should not be an account
 for a page whose subject is what we already hold about them.
 
-| File                                            | Does                                                                                                                           |
-| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `lib/attestation.ts`                            | The challenge a wallet signs, the frozen `ATTESTATION_CUTOFF` that is the entire grant gate, and `ClaimIntent`                 |
-| `lib/attestation-consent.ts`                    | Hash-pinned consent versions. A correction ADDS a version, never edits one, so a row points at the words it actually agreed to |
-| `lib/claim-callback.ts`                         | The X half: reads the account once, keeps the numeric id, never the token. Also `cleanupAbandonedClaims`                       |
-| `components/ClaimFlow.tsx`                      | EIP-6963 discovery, the wallet signature, and the claim/withdraw mode toggle                                                   |
-| `app/api/claim/{challenge,start,withdraw,mine}` | Issue, begin, take back, and read back what this account holds                                                                 |
+| File                                            | Does                                                                                                                               |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `lib/attestation.ts`                            | The challenge a wallet signs, the frozen `ATTESTATION_CUTOFF` that is the entire grant gate, and `ClaimIntent`                     |
+| `lib/attestation-consent.ts`                    | Hash-pinned consent versions. A correction ADDS a version, never edits one, so a row points at the words it actually agreed to     |
+| `lib/claim-callback.ts`                         | The X half: reads the account once, keeps the numeric id, never the token. Also `cleanupAbandonedClaims`                           |
+| `components/ClaimFlow.tsx`                      | EIP-6963 discovery, the wallet signature, and the claim/withdraw mode toggle                                                       |
+| `app/api/claim/{challenge,start,withdraw,mine}` | Issue, begin, take back, and read back what this account holds                                                                     |
+| `lib/removal-alerts.ts`                         | The email a withdrawal sends help@ (STA-50): what re-applying it after a restore takes, as a durable record of `lib/ops-alerts.ts` |
 
 **A challenge carries an intent, in the signed text and in the HMAC prefix.**
 Claiming and withdrawing are opposite acts and were once proved by identical
@@ -689,6 +691,20 @@ literal paths `isAllowedReturnPath` in `lib/auth.ts` accepts beside the consent
 shape (`/dashboard` is the other, added with the dashboard for the same
 reason). Each is compared with `===` and carries no query, so tampering
 produces that exact page or a refusal and nothing else.
+
+**A withdrawal leaves an email in help@, as an emailed removal does** (STA-50,
+2026-09-26). A withdrawal lives only in the database, so a restore of the
+whole project from the nightly backup would lose every one made since that
+backup. Once the erase has returned, the withdraw route sends one plain-text
+email with the subject `[walletlink] Removal: claim withdrawn on /claim`,
+which names nobody, and a body giving the time, the claim ids and each
+identifier the withdrawal suppressed: what the operator removal endpoint needs
+to apply it again. It is a durable record of `lib/ops-alerts.ts`
+(`alert:removal:withdrawal:<claim id>` in `ingest_state`, written before the
+send, resent by the daily cleanup, stripped of its payload once sent), it
+never throws and the route awaits it as a statement of its own, so it can
+neither block nor undo the withdrawal. The restore runbook is in
+`docs/OPERATIONS.md`.
 
 **The suppression refusal on `/api/claim/challenge` is claim-only.** Withdrawal
 suppresses before it erases, so a failure between the two leaves the wallet

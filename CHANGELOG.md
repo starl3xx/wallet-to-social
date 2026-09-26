@@ -2,6 +2,33 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-26 (A claim-page withdrawal leaves an email in help@)
+
+- **A withdrawal on the claim page now has a record outside the database.**
+  A removal asked for by email has its request in the help@ inbox. A
+  withdrawal made with the withdraw button on `/claim` had only the
+  database, so a restore of the whole project from the nightly backup would
+  have lost every withdrawal made since that backup. Once the withdrawal has
+  committed, the route sends help@ one plain-text email, subject
+  `[walletlink] Removal: claim withdrawn on /claim`, with the time, the claim
+  reference and the wallet the withdrawal suppressed: what the operator
+  removal endpoint needs to apply it again. The subject names nobody.
+  (Linear STA-50)
+- **It cannot block or undo the withdrawal.** The email goes out after the
+  erase has returned, never throws, and gives up after 10 seconds. Its record
+  is written before the send, a failed send is sent again by the daily
+  cleanup, and once the email is out the record keeps no identifier.
+- **The runbook says how a restore uses it.** After a whole-project restore,
+  every removal made since the backup is re-run from help@: the emailed
+  requests, and these emails, found by their subject. Each withdrawal email
+  is deleted after 90 days, when no backup is older than it
+  (`docs/OPERATIONS.md`).
+- **The ops-alert records are shared.** The claims, durable records and retry
+  sweep the sanctions alerts were built on moved to `lib/ops-alerts.ts`,
+  unchanged for sanctions except in two failure cases: an email that cannot
+  be composed now counts as a failed send instead of throwing, and a stored
+  payload that cannot be parsed is skipped instead of stopping the sweep.
+
 ### 2026-09-26 (a security contact: security.txt and SECURITY.md)
 
 - **`/.well-known/security.txt` (RFC 9116)** says where a vulnerability report
