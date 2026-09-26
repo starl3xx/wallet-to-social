@@ -3,6 +3,15 @@ import { requireAdmin } from '@/lib/admin-auth';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { PACKS, PACK_IDS } from '@/lib/packs';
+import { SANCTIONS_ALERT_AFTER_HOURS } from '@/lib/sanctions';
+
+/**
+ * How long a sanctions freeze stays an alert on this panel. A freeze is
+ * permanent and the account stays counted after this, but a panel that is
+ * red for ever teaches nobody anything; a month covers the follow-up the
+ * runbook in docs/OPERATIONS.md asks for.
+ */
+const FREEZE_ALERT_DAYS = 30;
 
 export const runtime = 'nodejs';
 
@@ -204,6 +213,20 @@ const JOBS: Array<{
     schedule: 'every 5 minutes',
     subtype: 'welcome_first_touch',
     maxAgeHours: 2,
+    reportsOutcome: true,
+  },
+  {
+    /**
+     * The sanctions list the USDC rail screens against (lib/sanctions.ts,
+     * Linear STA-41). This row IS the refresh alert: `late` once no refresh
+     * has succeeded for SANCTIONS_ALERT_AFTER_HOURS, well before the rail
+     * stops selling at SANCTIONS_REFUSE_AFTER_DAYS, and `failing` when the
+     * latest run was refused or could not download.
+     */
+    name: 'Sanctions list refresh',
+    schedule: 'every 6 hours, at :15',
+    subtype: 'sanctions_refresh',
+    maxAgeHours: SANCTIONS_ALERT_AFTER_HOURS,
     reportsOutcome: true,
   },
 ];
@@ -439,6 +462,31 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  /**
+   * Accounts the sanctions refresh froze (`users.frozen_at`), and how many in
+   * the last FREEZE_ALERT_DAYS: those are the alert. Null when the count could
+   * not be read, which is not the same as none.
+   */
+  let frozenAccounts: { total: number; recent: number } | null = null;
+  if (db) {
+    try {
+      const frozen = (await db.execute(sql`
+        SELECT count(*)::int AS total,
+               count(*) FILTER (
+                 WHERE frozen_at > now() - make_interval(days => ${FREEZE_ALERT_DAYS}::int)
+               )::int AS recent
+        FROM users
+        WHERE frozen_at IS NOT NULL
+      `)) as unknown as { rows: Array<{ total: number; recent: number }> };
+      frozenAccounts = {
+        total: Number(frozen.rows[0]?.total ?? 0),
+        recent: Number(frozen.rows[0]?.recent ?? 0),
+      };
+    } catch (error) {
+      console.error('Dependency health: frozen account query failed', error);
+    }
+  }
+
   const missingCritical = dependencies.filter(
     (d) => !d.configured && d.severity === 'critical'
   ).length;
@@ -455,11 +503,13 @@ export async function GET(request: NextRequest) {
     dependencies,
     jobs,
     unscheduled: UNSCHEDULED,
+    frozenAccounts,
     summary: {
       missingCritical,
       missingDegraded,
       jobsUnhealthy,
       databaseReachable,
+      recentFreezes: frozenAccounts?.recent ?? null,
     },
   });
 }

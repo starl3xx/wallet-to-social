@@ -29,6 +29,7 @@
  * | API rate-limit buckets     | 2 days after their period ends    |
  * | Credit ledger rows         | 7 years, then deleted             |
  * | Credit lots, Stripe ids    | 7 years; purge written, OFF       |
+ * | Sanctions screenings       | 5 years, then deleted             |
  * | Lifecycle email records    | While the account exists          |
  *
  * The two removal-system rows run FIRST, and each catches its own errors.
@@ -39,8 +40,9 @@
  * fail: past `purge_after` the copy has no reason to exist at all.
  *
  * The retention branches added for STA-45 (cache, API usage, API buckets,
- * payment records) are isolated the same way, each in its own try, because
- * each is a period the privacy page states. They run before the housekeeping
+ * payment records) and STA-41 (sanctions screenings) are isolated the same
+ * way, each in its own try, because each is a period the privacy page states
+ * or will. They run before the housekeeping
  * tail and share one time budget, so a large backlog (the cache had about
  * 498,000 expired rows when it was first wired up) drains over a few daily
  * runs instead of pushing the rest of this job past `maxDuration`.
@@ -78,12 +80,18 @@ import { ACCESS_TOKEN_PREFIX } from '@/lib/oauth/grants';
 import { cleanExpiredCache } from '@/lib/cache';
 import { cleanupOldBuckets } from '@/lib/rate-limiter';
 import {
+  alertIfListStale,
+  alertPendingFreezes,
+  sendUnsentAlertRecords,
+} from '@/lib/sanctions-alerts';
+import {
   clearOldStripeIds,
   countLotsDue,
   countStripeIdsDue,
   deleteOldApiUsage,
   deleteOldLedgerRows,
   deleteOldLots,
+  deleteOldScreenings,
   drainBatches,
   RETENTION_DELETE_BATCH,
 } from '@/lib/retention';
@@ -165,6 +173,13 @@ export const API_BUCKET_RETENTION_DAYS = 2;
  * after that are in lib/retention.ts.
  */
 export const PAYMENT_RECORD_RETENTION_YEARS = 7;
+
+/**
+ * How long a sanctions screening record is kept (`sanctions_screenings`: the
+ * payer, the list's publish date, the verdict, the time). Five years, decided
+ * 2026-09-25 (Linear STA-41); the lawyer may lengthen it (Linear STA-49).
+ */
+export const SANCTIONS_SCREENING_RETENTION_YEARS = 5;
 
 /**
  * Whether the purge may delete `credit_lots` rows and clear the Stripe ids on
@@ -366,6 +381,22 @@ async function run(request: NextRequest): Promise<NextResponse> {
     console.error('Credit ledger cleanup error:', error);
   }
 
+  // STA-41: the screening record, five years (deleteOldScreenings).
+  let sanctionsScreenings: number | null = null;
+  try {
+    sanctionsScreenings = await drainBatches(
+      () =>
+        deleteOldScreenings(
+          db,
+          SANCTIONS_SCREENING_RETENTION_YEARS,
+          RETENTION_DELETE_BATCH
+        ),
+      retentionDeadline
+    );
+  } catch (error) {
+    console.error('Sanctions screening cleanup error:', error);
+  }
+
   /**
    * Lots and Stripe ids: counted every run, deleted only when the flag is
    * on. `purged: false` with a non-zero count is the signal that the
@@ -435,6 +466,19 @@ async function run(request: NextRequest): Promise<NextResponse> {
     .where(lt(analyticsEvents.createdAt, cutoff))
     .returning();
 
+  /**
+   * Not a deletion: the watchdog for the sanctions alerts (STA-41). The
+   * refresh cron emails a stale list, a freeze and the durable alert records,
+   * but a job that has stopped running cannot report that it stopped, so this
+   * daily job checks the same database state and sends the same emails under
+   * the same claims. Last, after the housekeeping, because a slow mail
+   * provider must not cost the deletes above; every send has its own timeout.
+   * Never throws.
+   */
+  const sanctionsListAlert = await alertIfListStale(db);
+  const sanctionsFreezeAlert = await alertPendingFreezes(db);
+  const sanctionsAlertRecords = await sendUnsentAlertRecords(db);
+
   return NextResponse.json({
     sessions: auth.sessionsDeleted,
     magicLinkTokens: auth.tokensDeleted,
@@ -452,6 +496,10 @@ async function run(request: NextRequest): Promise<NextResponse> {
     apiUsageRows,
     apiBuckets,
     creditLedgerRows,
+    sanctionsScreenings,
+    sanctionsListAlert,
+    sanctionsFreezeAlert,
+    sanctionsAlertRecords,
     purchaseRecords,
     walletCacheRows,
   });

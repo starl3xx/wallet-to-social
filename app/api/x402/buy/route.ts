@@ -61,6 +61,8 @@ import {
   payerFrom,
   quantityFrom,
   BASE_MAINNET,
+  EVM_ADDRESS,
+  isEip3009Only,
 } from '@/lib/x402';
 import {
   X402_PACKS,
@@ -76,8 +78,21 @@ import {
 import {
   getOrCreateWalletAccount,
   countSettledPurchases,
+  findWalletAccount,
 } from '@/lib/x402-account';
-import { createApiKeyIfUnderCap, validateApiKey } from '@/lib/api-keys';
+import {
+  recordClearScreening,
+  sanctionsRefusal,
+  screenPayer,
+} from '@/lib/sanctions';
+import { alertSettledPayerMismatch } from '@/lib/sanctions-alerts';
+import { isAccountFrozen } from '@/lib/account-freeze';
+import { checkoutGeoblock } from '@/lib/geoblock';
+import {
+  createApiKeyIfUnderCap,
+  isFrozenAccountKey,
+  validateApiKey,
+} from '@/lib/api-keys';
 import { readBodyCapped } from '@/lib/api-auth';
 import { looksLikeAccessToken } from '@/lib/oauth/grants';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
@@ -110,6 +125,10 @@ function unb64(value: string): unknown {
 }
 
 export async function POST(request: NextRequest) {
+  // Before anything is priced or signed (lib/geoblock.ts, Linear STA-41).
+  const geoblocked = checkoutGeoblock(request.headers);
+  if (geoblocked) return geoblocked;
+
   const payTo = payToAddress();
   if (!payTo) {
     // Unset by design. A payment rail with a default address is a rail that
@@ -200,6 +219,11 @@ export async function POST(request: NextRequest) {
     }
     const keyResult = await validateApiKey(bearer);
     if (!keyResult) {
+      // A frozen account's key never validates; it gets the frozen refusal
+      // every other path gives, not advice to fix the key (Linear STA-41).
+      if (await isFrozenAccountKey(bearer)) {
+        return sanctionsRefusal('listed')!;
+      }
       return NextResponse.json(
         {
           error:
@@ -416,6 +440,35 @@ export async function POST(request: NextRequest) {
   }
 
   /**
+   * The payer that is screened is the payer that pays (Linear STA-41). The
+   * payer is an EVM address, and the payload is an EIP-3009 authorization
+   * and its signature with nothing beside them (`isEip3009Only`), so no
+   * other field can decide who pays. Refused before the screen.
+   */
+  if (!EVM_ADDRESS.test(payer) || !isEip3009Only(payload)) {
+    return NextResponse.json(
+      {
+        error:
+          'Payment payload must be an EIP-3009 authorization from an EVM address and its signature, and nothing else.',
+        code: 'INVALID_PAYMENT',
+      },
+      { status: 400 }
+    );
+  }
+
+  /**
+   * The sanctions screen (lib/sanctions.ts, Linear STA-41), as soon as the
+   * payer is known and before anything reads, verifies or settles, so a
+   * listed payer never reaches the facilitator. A listed payer is refused
+   * with 403; a list that is missing or too old, or a screen that cannot run,
+   * refuses with 503. Either way no money moves. A clear screen is recorded
+   * after verify, below.
+   */
+  const screen = await screenPayer(payer);
+  const screened = sanctionsRefusal(screen.verdict);
+  if (screened) return screened;
+
+  /**
    * Has this payment already been honoured?
    *
    * Asked before anything is verified or settled, because settlement is the
@@ -539,6 +592,41 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  /**
+   * The payer verify proved must be the payer that was screened: anything
+   * else is refused before the record and before settle (Linear STA-41). A
+   * verify answer that names no payer is refused too.
+   */
+  if (verification.payer?.toLowerCase() !== payer) {
+    console.error(
+      '[sanctions] the verified payer is not the screened payer; refused before settle'
+    );
+    return NextResponse.json(
+      { error: 'Payment did not verify.', code: 'PAYMENT_INVALID' },
+      { status: 402 }
+    );
+  }
+
+  /**
+   * A frozen account takes no new money (lib/account-freeze.ts). The account
+   * this purchase would credit, found without creating it: the top-up key's
+   * account, or the paying wallet's existing account. Asked only now, after
+   * verify has proven the payer holds the wallet, so the answer tells no one
+   * whether some other wallet's account is frozen; still before the record
+   * and settle, so no money moves. Refused with the same 403.
+   */
+  const creditedAccount = topUp?.userId ?? (await findWalletAccount(payer));
+  if (creditedAccount && (await isAccountFrozen(creditedAccount))) {
+    return sanctionsRefusal('listed')!;
+  }
+
+  // The clear screen's record, now that verify has proven the payer. No
+  // record, no settlement: a failed write refuses with 503 (Linear STA-41).
+  const unrecorded = sanctionsRefusal(
+    await recordClearScreening(payer, screen.publishDate)
+  );
+  if (unrecorded) return unrecorded;
+
   const settlement = await server.settlePayment(
     payload as Parameters<typeof server.settlePayment>[0],
     accepted
@@ -550,6 +638,24 @@ export async function POST(request: NextRequest) {
         code: 'SETTLEMENT_FAILED',
       },
       { status: 402 }
+    );
+  }
+
+  /**
+   * Money has moved, so a settled payer that is not the screened one cannot
+   * be refused any more: it is logged here and emailed to the operator right
+   * after the grant below (lib/sanctions-alerts.ts, Linear STA-41). The email
+   * waits for the grant, never the other way round: a send can take up to
+   * `OPS_ALERT_TIMEOUT_MS`, and an invocation cut short in that time would
+   * leave a settled payment with no lot.
+   */
+  const settledElsewhere =
+    settlement.payer && settlement.payer.toLowerCase() !== payer
+      ? settlement.payer.toLowerCase()
+      : null;
+  if (settledElsewhere) {
+    console.error(
+      `[sanctions] ALERT: settlement ${redact(settlementId)} was paid by a payer other than the screened one`
     );
   }
 
@@ -568,6 +674,15 @@ export async function POST(request: NextRequest) {
       totalCents,
       quantity
     );
+    if (settledElsewhere) {
+      // Never throws, so it cannot turn a written grant into GRANT_FAILED.
+      await alertSettledPayerMismatch({
+        settlementId,
+        screenedPayer: payer,
+        settledPayer: settledElsewhere,
+        transaction: settlement.transaction,
+      });
+    }
 
     /**
      * The loyalty bonus (gap 18). Only on a grant that actually wrote:

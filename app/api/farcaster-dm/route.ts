@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { hasPaidAccess } from '@/lib/credits';
+import { frozenAccountResponse, isAccountFrozen } from '@/lib/account-freeze';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -28,6 +29,8 @@ export async function POST(request: Request) {
     if (!session.user) {
       return NextResponse.json({ error: 'Sign in required' }, { status: 401 });
     }
+    // A frozen account gets no offer to buy (lib/account-freeze.ts).
+    if (await isAccountFrozen(session.user.id)) return frozenAccountResponse();
     const access = await getUserAccess(session.user.email);
     if (!(await hasPaidAccess(session.user.id, access.tier))) {
       return NextResponse.json(

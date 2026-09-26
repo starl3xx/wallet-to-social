@@ -1,7 +1,13 @@
 import { createHash, randomBytes } from 'crypto';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { apiKeys, apiPlans, type ApiKey, type ApiPlan } from '@/db/schema';
+import {
+  apiKeys,
+  apiPlans,
+  users,
+  type ApiKey,
+  type ApiPlan,
+} from '@/db/schema';
 import { API_PLANS } from '@/lib/api-plans';
 
 // Key format: wts_live_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx (32 random chars)
@@ -175,9 +181,11 @@ async function lookupActiveKey(
     .select({
       key: apiKeys,
       plan: apiPlans,
+      frozenAt: users.frozenAt,
     })
     .from(apiKeys)
     .innerJoin(apiPlans, eq(apiKeys.plan, apiPlans.id))
+    .innerJoin(users, eq(apiKeys.userId, users.id))
     .where(eq(apiKeys.key, hashedKey))
     .limit(1);
 
@@ -185,7 +193,17 @@ async function lookupActiveKey(
     return null;
   }
 
-  const { key, plan } = result[0];
+  const { key, plan, frozenAt } = result[0];
+
+  /**
+   * A frozen account's keys do not validate (lib/account-freeze.ts). Read
+   * from the account rather than trusted to the keys the freeze deactivated,
+   * so a key minted after the freeze (a recovery, an OAuth refresh) is
+   * refused too.
+   */
+  if (frozenAt) {
+    return null;
+  }
 
   // Check if key is active
   if (!key.isActive) {
@@ -223,6 +241,28 @@ export async function validateApiKey(
     .catch(console.error);
 
   return found;
+}
+
+/**
+ * Whether a key that failed validation belongs to a frozen account, so the
+ * caller can give the frozen refusal instead of "fix the key" (Linear
+ * STA-41). Reads the account without the checks `lookupActiveKey` applies,
+ * only to choose an error: it never returns the key, and a frozen account's
+ * key still never validates. Throws when the database does.
+ */
+export async function isFrozenAccountKey(rawKey: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!ACCEPTED_KEY_PREFIXES.some((prefix) => rawKey.startsWith(prefix))) {
+    return false;
+  }
+  const [row] = await db
+    .select({ frozenAt: users.frozenAt })
+    .from(apiKeys)
+    .innerJoin(users, eq(apiKeys.userId, users.id))
+    .where(eq(apiKeys.key, hashApiKey(rawKey)))
+    .limit(1);
+  return Boolean(row?.frozenAt);
 }
 
 /**

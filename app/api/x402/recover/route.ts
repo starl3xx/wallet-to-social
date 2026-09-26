@@ -32,6 +32,8 @@ import {
 import { createApiKeyIfUnderCap, revokeAllAndReissueKey } from '@/lib/api-keys';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
 import { getBalance } from '@/lib/credits';
+import { isAccountFrozen } from '@/lib/account-freeze';
+import { sanctionsRefusal } from '@/lib/sanctions';
 import { getDb } from '@/db';
 import { users } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
@@ -217,6 +219,16 @@ export async function POST(request: NextRequest) {
       },
       { status: 404 }
     );
+  }
+
+  /**
+   * A frozen account gets no key (lib/account-freeze.ts, Linear STA-41), and
+   * the buy route's refusal with nothing added. Asked only after the
+   * signature has proven the wallet, so this answer cannot be used to learn
+   * whether some other wallet is frozen.
+   */
+  if (await isAccountFrozen(userId)) {
+    return sanctionsRefusal('listed')!;
   }
 
   /**

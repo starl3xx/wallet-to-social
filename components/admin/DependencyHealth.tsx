@@ -49,12 +49,16 @@ interface Payload {
   dependencies: Dependency[];
   jobs: Job[];
   unscheduled: Array<{ name: string; how: string; why: string }>;
+  /** Accounts frozen by the sanctions refresh; null when unreadable. */
+  frozenAccounts: { total: number; recent: number } | null;
   summary: {
     missingCritical: number;
     missingDegraded: number;
     jobsUnhealthy: number;
     /** null when the query never resolved. Not the same as false. */
     databaseReachable: boolean | null;
+    /** Sanctions freezes in the alert window. */
+    recentFreezes: number | null;
   };
 }
 
@@ -94,7 +98,8 @@ export function DependencyHealth({ password }: { password: string }) {
   const allWell =
     summary.missingCritical === 0 &&
     summary.jobsUnhealthy === 0 &&
-    summary.databaseReachable === true;
+    summary.databaseReachable === true &&
+    !summary.recentFreezes;
 
   return (
     <div className="space-y-6">
@@ -122,6 +127,16 @@ export function DependencyHealth({ password }: { password: string }) {
           <RefreshButton onClick={fetchData} loading={loading} />
         </CardHeader>
         <CardContent className="space-y-6">
+          {data.frozenAccounts && data.frozenAccounts.recent > 0 && (
+            <Banner tone="error">
+              {data.frozenAccounts.recent === 1
+                ? 'An account was'
+                : `${data.frozenAccounts.recent} accounts were`}{' '}
+              frozen in the last month because the wallet that paid for credits
+              is now on the sanctions list. Follow the runbook in
+              docs/OPERATIONS.md. Do not refund.
+            </Banner>
+          )}
           {data.summary.databaseReachable === false && (
             <Banner tone="error">
               Job history could not be read, so every row below says “could not

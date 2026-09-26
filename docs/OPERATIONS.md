@@ -56,6 +56,7 @@ here.
 | Daily social pipeline            | **new 2026-09-09**                                        | One standalone post per platform per day, media on every post. X: scheduled in Typefully (17:00 UTC) with card PNGs downloaded from `/social-card/[slug]` at scheduling time. Farcaster: the `daily-cast` workflow (17:35 UTC) casts from `content/social/queue.json` with the live card URL embedded; idempotent via `ingest_state` (`daily_cast_state`), budget-guarded like every Neynar cron, and loud from three days out when the queue runs low. The queue changes only by PR, and `check:social` (in preflight) enforces lengths, CTAs, house style and the figures allowlist. Cards render figures at request time; a hand-typed figure in `lib/social-cards.tsx` fails the checker. Refill by extending the queue and registry in one PR.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | OAuth access-token cleanup       | **new 2026-09-24; deletes nothing before 2027-09-29**     | A branch of the daily `/api/cron/cleanup` (04:00 UTC) deletes an OAuth access token's `api_keys` row `OAUTH_TOKEN_RETENTION_DAYS` (400) after it stopped working, fenced by `oauth_grant_id` and the `wts_mcp_` prefix, up to 2,000 rows a run. The delete cascades to `api_usage`, `rate_limit_buckets` and `idempotency_keys`. The run's JSON reports `oauthAccessTokens`: `0` means it ran and nothing was due, `null` means the branch failed and the reason is in the function log. Every foreign key on `api_keys` was `ON DELETE CASCADE` on 2026-09-24 (3 of 3); a `NO ACTION` key added later would turn every run into a silent `null`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Retention cleanup (STA-45)       | **new 2026-09-25; lot and Stripe-id purge OFF**           | Five branches of the daily `/api/cron/cleanup` (04:00 UTC), each in its own try and sharing one 30-second budget (`RETENTION_BUDGET_MS`), before the housekeeping tail. The cache had 498,075 expired rows of 616,026 on 2026-09-25, so the first runs drain it 5,000 rows a statement until the budget is spent; `walletCacheRows` in the run's JSON should fall to a steady daily figure within a few runs. The other dry-run counts that day: 51 of 64 API rate-limit buckets, and nothing in `api_usage` (72 rows), `credit_ledger` (35), `credit_lots` (101) or the Stripe ids on `users` (1). `purchaseRecords` counts lots and Stripe ids past seven years and deletes nothing while `PURCHASE_RECORD_PURGE_ENABLED` is false (pinned by an invariant): `purged: false` with a non-zero count, no earlier than August 2033, is the day that decision is due. Every field is `null` when its branch failed; the reason is in the function log. **After deploy, run** `scripts/migrate-clear-session-user-agents.ts --commit` once (10 sessions held a user agent on 2026-09-25).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Sanctions screening (STA-41)     | **new 2026-09-25; migrations before merge**               | `/api/cron/sanctions-refresh` (every 6 hours, at :15 UTC) rebuilds `sanctioned_addresses` from OFAC’s SDN.XML and then re-checks every past x402 payer; the buy route screens each payer before verify. Measured on 2026-09-25: the file is 29,089,607 bytes, downloaded in about 4 s and parsed in under 0.1 s, and the 2026-09-23 publication holds 124 EVM addresses. The list’s publish date and last successful refresh are the `sanctions_list` row of `ingest_state`, so `ops-status` prints them. A freeze (read from the database, once per account and listed payer), a guard refusal, and 36 hours without a successful refresh each email help@ at most once a day per condition (claims are `alert:sanctions:*` rows of `ingest_state`; a download or parse failure is emailed only through the 36-hour alert); the admin health panel shows the same: the “Sanctions list refresh” row goes `late` after 36 hours without a success and `failing` when the latest run was refused or could not download, and a freeze in the last 30 days turns the panel red. USDC sales answer 503 once the last success is 7 days old. Runbook below.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 ## The daily cleanup: what it deletes
 
@@ -74,6 +75,7 @@ states.
 | API rate-limit buckets             | 2 days after the minute, day or month they count has ended              | `API_BUCKET_RETENTION_DAYS`                          |
 | Credit ledger rows                 | 7 years, and longer while a live lot or a running or gated job reads it | `PAYMENT_RECORD_RETENTION_YEARS`, `lib/retention.ts` |
 | Credit lots, Stripe ids on `users` | 7 years; the purge is written, counted and switched off                 | `PURCHASE_RECORD_PURGE_ENABLED`                      |
+| Sanctions screening records        | 5 years                                                                 | `SANCTIONS_SCREENING_RETENTION_YEARS`                |
 | Wallet cache rows                  | 7 days                                                                  | `CACHE_TTL_HOURS`, `lib/cache-constants.ts`          |
 | Sessions                           | Until they expire                                                       | `cleanupExpiredAuth`, `lib/auth.ts`                  |
 | Magic-link tokens                  | 24 hours                                                                | `MAGIC_LINK_RETENTION_HOURS`, `lib/auth.ts`          |
@@ -205,6 +207,158 @@ restore without the table would un-remove people, and with it plus the
 triggers, restored identity rows re-suppress on their next write. The
 quarantine table goes in NEITHER list; backing it up would extend the
 stated 30-day retention.
+
+## Sanctions screening: the operator runbook (STA-41)
+
+What runs, decided 2026-09-25:
+
+- **The screen.** `/api/x402/buy` checks the paying wallet the moment it is
+  decoded, before the lot read, verify and settle (`lib/sanctions.ts`). The
+  payer that is screened is the payer that pays: a payload that is not a
+  plain EIP-3009 authorization from an EVM address gets 400 `INVALID_PAYMENT`
+  first, and after verify the verified payer must equal the screened one or
+  the sale gets 402 before settle. A listed payer gets 403
+  `SANCTIONED_PAYER`; a missing list, a list whose last successful refresh is
+  7 days old (`SANCTIONS_REFUSE_AFTER_DAYS`), or a screen that cannot run
+  gets 503 `SCREENING_UNAVAILABLE`. No money moves on any of them.
+- **The record.** `sanctions_screenings`, kept 5 years. A refusal is written
+  before verify, one row per payer, verdict and UTC hour, with `attempts`
+  counting the tries and `verify_reached` false: the payer was named by the
+  request, never proven. A `clear` row is written after verify passes and
+  before settle, `verify_reached` true, and a sale whose row cannot be
+  written is refused with 503.
+- **The refresh.** Every 6 hours. It refuses an empty parse, an older
+  publication, and a list more than 20% smaller than the one in force
+  (`SANCTIONS_MAX_DROP`), and keeps the old list. Then it re-checks every past
+  x402 payer against the list in force, refused run or not.
+- **The freeze.** An account a listed wallet paid for (its own wallet account,
+  or the account a top-up from that wallet credited) gets `users.frozen_at`
+  and a `frozen_reason` naming every listed payer and the list date, and
+  every active key is deactivated. From then on (`lib/account-freeze.ts` has
+  the full list): its keys are refused even if one is minted later; it has no
+  paid entitlement (`hasPaidAccess`), and reverse lookups, X lists, Farcaster
+  DMs, contract import and saved-lookup merges answer 403 `ACCOUNT_SUSPENDED`
+  with no offer to buy; it can start no lookup or unlock, again with no offer
+  to buy; a job or call in flight when the freeze lands draws nothing, and
+  the job fails with its results cleared (one charged on an earlier pass is
+  emailed for a refund decision); key recovery, a top-up with its key, a
+  USDC buy into it and a signed-in card checkout all answer the buy route’s
+  403, the USDC buy only after verify has proven the payer. Nothing is
+  refunded by code.
+- **The alerts.** Email to help@ (`sendOpsAlert` in `lib/email.ts`, which
+  gives up after 10 seconds), at most once per condition per 24 hours. Each
+  condition is an `alert:sanctions:<condition>` row of `ingest_state`; all the
+  conditions of one email are claimed in one statement (`claimedAt`), and a
+  send that works turns the claim into a sent marker (`sentAt`). A claim with
+  no sent marker that is older than 5 minutes belongs to a run that died, and
+  counts as unclaimed. What is emailed:
+  - **a freeze**, read from the database: every frozen account’s listed
+    payer that no email has reported yet (condition
+    `freeze:<account>:<payer>`), with the account id, the matched address,
+    the SDN entry uid and the date of the list in force. The sent marker is
+    permanent, so each pair is reported once, including a second payer
+    listed months later and a freeze whose first email failed;
+  - **a guard refusal** (`refused`: empty, older or sharply smaller), at
+    once;
+  - **no successful refresh for 36 hours, or no list** (`stale`). A download
+    or parse failure is not emailed by itself: it shows at once as `failing`
+    on the health panel and reaches the inbox only through this 36-hour
+    alert;
+  - **a payment that settled from a wallet other than the one screened**
+    (`settled-payer:<settlement>`), as soon as the credits are granted (the
+    log line comes at once, and the email never holds up the grant);
+  - **a card payment that landed on a frozen account** (`frozen-payment:<id>`),
+    at once;
+  - **a job charged before its account was frozen** (`frozen-job:<job>`),
+    when finalize fails it.
+    The last three carry their content in the row, written before the first
+    send, so they are durable records: the refresh and the daily cleanup
+    resend any that has no sent marker (`sendUnsentAlertRecords`).
+    The refresh sends them after its own writes, and the daily cleanup runs
+    every check too, after its housekeeping, in case the refresh stops
+    running. A failed or timed-out send is logged (`[sanctions] alert email
+failed`) and its claim released, so the next run sends it again; it never
+    blocks or undoes a freeze, a refusal or a payment.
+- **The geoblock.** Both checkouts refuse a request whose Vercel IP headers
+  place it in `RESTRICTED_CHECKOUT_LOCATIONS` (`lib/geoblock.ts`) with 403
+  `REGION_RESTRICTED`. The lawyer may change that list (Linear STA-49); it is
+  the only place it lives. The location is the one Vercel reports for the
+  request’s IP.
+
+**Before merge.** Run `scripts/migrate-sanctions-screening.ts` with the owner
+`DATABASE_URL` on the direct endpoint. It adds the two tables and the two
+`users` columns, then seeds the list with one download, so the rail sells from
+the moment the code deploys. The seed freezes nobody: the first scheduled
+refresh after deploy does, with the enforcement live and the email sent. Then run `scripts/migrate-grant-readonly.ts`, so
+the nightly dump can read `sanctions_screenings`. Merging first is an outage:
+every API key check reads `users.frozen_at`.
+
+**After deploy.** The first scheduled refresh is at the next :15 of a
+six-hour mark. Its run shows on the health panel; an unpaid `POST
+/api/x402/buy` still answers 402.
+
+**The refresh alert.** A guard refusal is emailed at once, with its reason. A
+download or parse failure is not: it shows as `failing` on the health panel
+at once and is emailed only as the 36-hour stale alert, which does not carry
+the reason. For either, the function log carries a `[sanctions]` line for
+every run that did not update the list:
+
+- a download error: OFAC or the network. The next run retries; nothing to do
+  unless it persists toward the 7 days.
+- `download or parse failed` with a parse message: the file changed shape or
+  arrived cut short. Look at the file before anything else.
+- `sharp_drop`: the parse is more than 20% smaller. Check OFAC’s recent
+  actions for a delisting of that size. If it is real, accept it by calling
+  the route with the cron secret and `?acceptCount=<the parsed count>`; any
+  other count is still refused.
+- `older_publication`: the download is older than the list in force. Wait
+  for the next run.
+
+USDC sales stop 7 days after the last success. That is the deadline for a fix,
+and the 36-hour alert is there to leave most of it.
+
+**A payer refused with 403.** No money moved and the screening row records
+it. Whether a refused attempt must be reported, and to whom, is a question
+for the lawyer (Linear STA-49).
+
+**A freeze (a buyer listed after they paid).** An email to help@ names each
+account id, matched address and SDN entry uid; the log line reads
+`[sanctions] ALERT: froze N account(s)`, and the health panel turns red.
+
+1. Do not refund, and do not move the USDC those purchases paid: it may be
+   property that must be held. Do not lift the freeze.
+2. Read the accounts, read-only:
+   `SELECT id, frozen_at, frozen_reason FROM users WHERE frozen_at IS NOT NULL`.
+   The reason names every listed payer and the list date; a payer listed
+   later is in its own email. The purchases are the `credit_lots` rows whose
+   `settlement_id` names one of those payers.
+3. Tell the lawyer the same day (Linear STA-49). The reporting duty, its
+   deadline and who files are theirs to confirm, and the clock may be short.
+4. Leave the account frozen until the lawyer says otherwise. To lift it
+   on their advice, run
+   `scripts/sanctions-lift-freeze.ts --account <id> --note "<who advised it, and why>"`
+   (owner `DATABASE_URL`) to see it, then again with `--commit`. It records
+   every listed payer the account has now in `sanctions_freeze_releases` and
+   clears `frozen_at`, in one statement, so the next refresh does not freeze
+   the account again for those payers. A payer listed after the lift still
+   freezes the account and is emailed. Keys stay off; the account makes a new
+   one. Never lift a freeze by editing `frozen_at` by hand: the next refresh
+   would freeze it again, without an email.
+
+**A card payment for a frozen account.** The email names the account and the
+Stripe payment. The payment was granted as usual, so its record is kept and
+the credits are held. Decide on a refund with the lawyer (Linear STA-49); do
+not lift the freeze.
+
+**A payment settled from a wallet other than the one screened.** The email
+names the settlement, the transaction and both wallets. The money has moved.
+Check the settled payer against `sanctioned_addresses` at once; if it is
+listed, follow the freeze steps above.
+
+**A job charged before its account was frozen.** The email names the account
+and the job. The job was failed and its results cleared; the charge stands.
+Decide on a refund of that charge with the lawyer (Linear STA-49); do not
+lift the freeze.
 
 ## The PR protocol
 

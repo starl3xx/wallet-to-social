@@ -147,6 +147,30 @@ export function quantityFrom(body: unknown): number | null {
   return quantity;
 }
 
+/** A lowercased EVM address: `0x` and 40 hex digits, nothing else. */
+export const EVM_ADDRESS = /^0x[0-9a-f]{40}$/;
+
+/**
+ * Whether a payment payload is the one shape this rail screens: an EIP-3009
+ * `authorization` and its `signature`, and nothing beside them.
+ *
+ * The sanctions screen reads the payer from `authorization.from`, so the
+ * payer that is screened must be the payer that pays. A payload carrying any
+ * other field could be settled some other way, from some other wallet, so it
+ * is refused before the screen rather than interpreted (Linear STA-41).
+ */
+export function isEip3009Only(payload: unknown): boolean {
+  const inner = (payload as { payload?: unknown } | null)?.payload;
+  if (!inner || typeof inner !== 'object' || Array.isArray(inner)) {
+    return false;
+  }
+  const keys = Object.keys(inner);
+  return (
+    keys.includes('authorization') &&
+    keys.every((k) => k === 'authorization' || k === 'signature')
+  );
+}
+
 /** The payer's address from a payload, for the account the pack belongs to. */
 export function payerFrom(payload: unknown): string | null {
   const p = payload as

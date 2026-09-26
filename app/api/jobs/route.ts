@@ -260,7 +260,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: verdict.reason,
-            upgradeRequired: true,
+            // A frozen account is not offered a purchase (STA-41).
+            upgradeRequired: !verdict.frozen,
+            ...(verdict.frozen ? { code: 'ACCOUNT_SUSPENDED' } : {}),
             tier: access.tier,
             creditsAvailable: verdict.balance.available,
             maxWallets: verdict.maxWallets,

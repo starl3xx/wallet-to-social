@@ -84,7 +84,8 @@ export async function POST(
     const verdict = await unlockJobMatches(session.user.id, job.id, locked);
     if (!verdict.ok) {
       return NextResponse.json(
-        { error: verdict.reason, upgradeRequired: true, locked },
+        // A frozen account is not offered a purchase (STA-41).
+        { error: verdict.reason, upgradeRequired: !verdict.frozen, locked },
         { status: 402 }
       );
     }

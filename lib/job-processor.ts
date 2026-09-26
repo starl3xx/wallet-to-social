@@ -23,6 +23,8 @@ import {
 } from '@/lib/csv-parser';
 import { trackEvent } from '@/lib/analytics';
 import { chargeForJob } from '@/lib/credits';
+import { FROZEN_ACCOUNT_MESSAGE, isAccountFrozen } from '@/lib/account-freeze';
+import { alertFrozenBilledJob } from '@/lib/sanctions-alerts';
 import { ANON_MATCHES_PER_JOB } from '@/lib/match-gate';
 import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
 import { reconcileAgentClaim } from '@/lib/agent-claim';
@@ -1827,6 +1829,8 @@ async function finalizeJobWithResults(
    */
   let matchesDelivered: number | null = null;
   let gateIsFresh = false;
+  /** Set when the account was frozen while this job ran (see below). */
+  let frozenAccount = false;
   /**
    * What an anonymous caller is allowed to see from THIS job. Clamped to the
    * per-job constant so a stale or hand-edited option cannot widen the gate.
@@ -1857,6 +1861,16 @@ async function finalizeJobWithResults(
     sliceAttempts: 0,
     leasedUntil: sql`now() + make_interval(secs => ${LEASE_SECONDS})`,
   });
+  /**
+   * The freeze, read here and not only inside the charge: the charge's
+   * catch-all below completes the job on any error, and a failed freeze read
+   * must never complete a frozen account's job with its rows. A throw here
+   * reaches the slice's catch, which hands the saved job back to be retried
+   * (lib/account-freeze.ts, Linear STA-41).
+   */
+  if (options.meteredUserId && (await isAccountFrozen(options.meteredUserId))) {
+    frozenAccount = true;
+  }
   if (options.meteredUserId) {
     try {
       const charge = await chargeForJob(
@@ -1866,6 +1880,7 @@ async function finalizeJobWithResults(
         job.wallets.length,
         options.tier ?? 'free'
       );
+      if (charge.frozen) frozenAccount = true;
       /**
        * The gate arms on either meter now, and on `delivered` rather than
        * `billed`.
@@ -1912,6 +1927,46 @@ async function finalizeJobWithResults(
      */
     matchesDelivered = anonGate;
     gateIsFresh = true;
+  }
+
+  /**
+   * The account was frozen after this job was accepted (lib/account-freeze.ts,
+   * Linear STA-41). The job fails, and its results go with it: the saved rows
+   * are cleared, nothing is saved to history and nothing is served. Nothing
+   * is billed now; a charge that landed on an earlier pass, before the
+   * freeze, stands, and is logged and emailed for a refund decision the way
+   * a billed job that cannot finish is (`BILLED_STOPPED`). Outside the
+   * charge's try, so a failure here is a failure of the job, never a job
+   * completed with its rows.
+   */
+  if (frozenAccount) {
+    const { billed } = await completionState(db, job.id);
+    if (billed) {
+      console.error(
+        `Job ${job.id} was charged before its account was frozen: failed with its results cleared; the charge needs a refund decision`
+      );
+      await alertFrozenBilledJob({
+        jobId: job.id,
+        userId: options.meteredUserId!,
+      });
+    }
+    await writeOwned(db, job, {
+      status: 'failed',
+      errorMessage: FROZEN_ACCOUNT_MESSAGE,
+      partialResults: null,
+      updatedAt: new Date(),
+      leasedUntil: sql`now()`,
+      sliceAttempts: 0,
+    });
+    return {
+      completed: true,
+      processedCount: job.wallets.length,
+      twitterFound: 0,
+      farcasterFound: 0,
+      anySocialFound: 0,
+      cacheHits,
+      error: FROZEN_ACCOUNT_MESSAGE,
+    };
   }
 
   // Save to history if requested

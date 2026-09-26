@@ -142,6 +142,16 @@ const BACKUP_TABLES = [
   // of it would extend the promised 30-day retention of quarantined rows
   // into a 90-day artifact.
   'suppressed_identifiers',
+  // Added 2026-09-25 with sanctions screening (Linear STA-41,
+  // scripts/migrate-sanctions-screening.ts). A compliance record kept five
+  // years, and nothing can rebuild it. Its neighbour `sanctioned_addresses`
+  // is in neither list: the next refresh rebuilds it from OFAC, and a restore
+  // without it fails closed (USDC sales answer 503 until the refresh).
+  'sanctions_screenings',
+  // With it: the pairs an operator released from a sanctions freeze on legal
+  // advice. A restore without them would freeze those accounts again on the
+  // next refresh.
+  'sanctions_freeze_releases',
 ];
 
 const GRANTS: { role: string; tables: string[] }[] = [

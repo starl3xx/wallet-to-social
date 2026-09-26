@@ -7,6 +7,7 @@ import { everySourceAttested } from '@/lib/social-graph';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { hasPaidAccess } from '@/lib/credits';
+import { frozenAccountResponse, isAccountFrozen } from '@/lib/account-freeze';
 import { publicSources } from '@/lib/api-sources';
 import { saveLookup } from '@/lib/history';
 import { lockedReverseBody } from '@/lib/reverse-access';
@@ -83,6 +84,10 @@ export async function POST(request: NextRequest) {
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const session = token ? await validateSession(token) : { user: null };
   const user = session.user ?? null;
+
+  // A frozen account is told so, not shown the locked count and a buy
+  // button for a purchase the checkout would refuse (lib/account-freeze.ts).
+  if (user && (await isAccountFrozen(user.id))) return frozenAccountResponse();
 
   // Reverse lookup is included in every pack. A pack buyer keeps tier 'free',
   // so this cannot be a tier check: see hasPaidAccess.

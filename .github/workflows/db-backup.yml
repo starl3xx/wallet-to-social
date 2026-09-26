@@ -1,7 +1,9 @@
 # Nightly encrypted backup of the irreplaceable tables (users, api_keys,
 # api_plans, whitelist, lookup_history, known_agents, credit_lots,
-# credit_ledger, suppressed_identifiers). The Farcaster/ENS/holdings data is
-# rebuildable from source; customer/business data is not, and the suppression
+# credit_ledger, suppressed_identifiers, sanctions_screenings,
+# sanctions_freeze_releases). The
+# Farcaster/ENS/holdings data is rebuildable from source, and so is the
+# sanctions list; customer/business data is not, and the suppression
 # list least of all: a restore without it would un-remove every person who
 # asked to be gone. suppression_quarantine is deliberately NOT dumped; a
 # backup would extend its promised 30-day retention. The authoritative pair
@@ -97,6 +99,8 @@ jobs:
             -t public.credit_lots \
             -t public.credit_ledger \
             -t public.suppressed_identifiers \
+            -t public.sanctions_screenings \
+            -t public.sanctions_freeze_releases \
             | age -r "$BACKUP_AGE_PUBLIC_KEY" -o "$OUT"
           # A backup that "succeeds" but is empty is worse than no backup — it
           # looks green until the day you need it. The nine tables always carry

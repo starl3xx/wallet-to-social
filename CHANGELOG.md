@@ -2,6 +2,91 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-25 (USDC buyers are screened against the sanctions list)
+
+- **The wallet paying for an Agent pack is screened before any money
+  moves.** On `/api/x402/buy`, the paying wallet is checked against the EVM
+  addresses on OFAC's SDN list as soon as the payment is read, before it is
+  verified or settled. A listed wallet gets `403 SANCTIONED_PAYER` with one
+  sentence, "This payment cannot be accepted.", and nothing more. The payer
+  that is screened is the payer that pays: a payment must be a plain EIP-3009
+  authorization from an EVM address (`400 INVALID_PAYMENT` otherwise), verify
+  must name the same payer or the sale stops before settlement, and a
+  settlement that names another payer is emailed to the operator at once.
+- **The screen fails closed.** When there is no list, when the list's last
+  successful refresh is 7 days old, or when the check cannot run, the buy
+  answers `503 SCREENING_UNAVAILABLE` with a `Retry-After`, and nothing is
+  charged.
+- **The list is OFAC's own, refreshed every six hours.** A new cron,
+  `/api/cron/sanctions-refresh`, reads SDN.XML and keeps every EVM address in
+  it, whatever token it is filed under: 124 in the 2026-09-23 publication. The
+  free onchain oracle was measured first and was stale; it missed 42 of
+  those 124. A refresh never replaces the list with an empty parse, an older
+  publication or a list more than 20% smaller; an operator can accept a real
+  delisting of that size only by naming its exact count.
+- **A wallet listed after it bought is frozen, never refunded.** After every
+  refresh, each past USDC payer is checked again. The payer of every
+  purchase was already stored (in the purchase's settlement reference), so
+  nothing new is recorded for it. An account a listed wallet paid for,
+  including a top-up to an email account, is marked frozen with the reason
+  and the time (every listed payer is named), and its keys are switched off.
+  Its keys stay refused even if one is minted later; every paid feature
+  answers it `403 ACCOUNT_SUSPENDED`, with no offer to buy; it cannot start a
+  lookup or spend credits, and a job still running when the freeze lands
+  fails with its results cleared and nothing more billed (a charge from
+  before the freeze is emailed for a refund decision); key recovery, a
+  top-up with its key, a USDC buy into it (once the payment has verified)
+  and a signed-in card checkout all answer it `403 SANCTIONED_PAYER`. A card
+  payment that lands on a frozen account anyway is granted as usual, so its
+  record is kept, and the operator is emailed to decide on a refund. An
+  operator lifts a freeze only on legal advice, with
+  `scripts/sanctions-lift-freeze.ts`: the payers it releases never freeze
+  the account again, and a payer listed later still does.
+- **Both checkouts refuse comprehensively sanctioned regions.** The USDC buy
+  and card checkout answer `403 REGION_RESTRICTED` ("Purchases are not
+  available in your region.") for a request from Cuba, Iran, North Korea,
+  Syria, Crimea, Sevastopol, Donetsk or Luhansk, by the location Vercel
+  reports for the IP. The rest of the site is open everywhere. The list is
+  one constant the lawyer may adjust (Linear STA-49).
+- **Every screening is recorded and kept five years.** The address, the list
+  date, the verdict and the time, in a new table the daily cleanup purges
+  after five years and the nightly backup includes. A clear screening is
+  recorded once verify has passed and before settlement, and a sale whose
+  record cannot be written is refused. A refusal is recorded before verify,
+  once per payer, verdict and hour with a count of attempts, and marked as
+  never having reached verify.
+- **Alerts are emailed.** A freeze (with the account id, the matched address,
+  the list entry and the date of the list in force), a refresh refused by its
+  guard, and 36 hours without a successful refresh each email help@, at most
+  once a day per condition, remembered in the database. A download or parse
+  failure is emailed only through the 36-hour alert, and shows at once on
+  the admin health panel. The freeze email is read from the database, once
+  per account and listed payer, so an email that failed is sent on the next
+  run, and a second payer listed later is reported too. A payment or job
+  alert is kept as a record, written before the first send, and resent until
+  it goes out. A claim and a sent marker are kept apart, a claim from a run
+  that died expires after five minutes, and every send gives up after ten
+  seconds. An email never holds up or undoes a freeze, a refusal or a
+  payment. The daily cleanup runs every check too, after its housekeeping,
+  in case the refresh stops running. The runbook is in
+  `docs/OPERATIONS.md`.
+- Operator: run `scripts/migrate-sanctions-screening.ts` (three tables, two
+  `users` columns, and the first copy of the list; it freezes nobody, the
+  first refresh after deploy does) and then
+  `scripts/migrate-grant-readonly.ts`, both before merge. Linear STA-41.
+  One hundred thirty-four new invariants drive the parser on a fixture in
+  the real SDN.XML shape, the refresh guard, the screen, its records and its
+  answers, the payment shape and the payer checks, the freeze, every place
+  it is enforced and its lift, the alerts, their claims, records and
+  timeouts, the geoblock and the purge through the real functions, and pin
+  the order in the buy, checkout, recovery and job routes; one hundred
+  thirty new guard mutations, each caught. A local Postgres scenario ran the
+  real buy route up to and past verify and settle, the refresh cron on the
+  real SDN.XML, the freeze, its enforcement and its lift, jobs finishing
+  after a freeze (including a failed freeze read and an earlier charge),
+  card checkout and fulfilment, the alert claims and records, recovery and
+  the purge: 110 checks.
+
 ### 2026-09-25 (the retention periods the privacy page states are enforced)
 
 - **Expired cache copies are deleted.** A cached lookup result was already
