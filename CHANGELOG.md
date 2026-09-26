@@ -10,9 +10,8 @@ All notable changes to walletlink.social. Newest first.
   log masking (STA-45, #398) and the removal gaps (STA-46, #396, plus a
   restore-runbook step in the ops repo), both merged, and the “I agree to
   the terms” step at checkout and the USDC buy (STA-47, #399), which this
-  merges after. The one blank
-  is the registered agent’s postal address, marked
-  `[REGISTERED AGENT ADDRESS]`.
+  merges after. Email is the only contact the terms give; there is no postal
+  address.
 - **`/terms`**, new: the terms of service with an acceptable-use policy,
   linked from the footer beside Privacy, from the sitemap and from the privacy
   page. Every price, lifetime, limit and allowance is read from the constant

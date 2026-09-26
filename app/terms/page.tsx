@@ -876,8 +876,7 @@ export default function TermsPage() {
             <Mail />, for a question about these terms, a report of misuse, a
             removal request or a billing problem. It reaches a person rather
             than a queue. walletlink.social is operated by {LEGAL_ENTITY}, a
-            limited liability company organized in Wyoming. Post reaches us care
-            of our registered agent: [REGISTERED AGENT ADDRESS].
+            limited liability company organized in Wyoming.
           </p>
         </Section>
       </div>

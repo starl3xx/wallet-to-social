@@ -817,9 +817,9 @@ and the legacy unlimited plan's fair-use cap is `LEGACY_UNLIMITED_DAILY_WALLETS`
 Enforcement lists revoking keys and disconnecting applications, which exist;
 an account block and deletion for a breach are STA-47 and are not promised
 until they ship. The x402 tenth-purchase bonus is documented, not promised in
-the terms. Wyoming law and courts govern, and the entity is a Wyoming LLC; the
-registered agent's postal address is a marked placeholder until the owner
-supplies it. The outreach rules (own token, collection or community only)
+the terms. Wyoming law and courts govern, and the entity is a Wyoming LLC. Email is
+the only contact the page gives: the owner chose to leave out a postal
+address (2026-09-26). The outreach rules (own token, collection or community only)
 agree with the "who it is not for" line in `app/llms.txt/route.ts` and with
 `.agents/product-marketing.md`. It is not yet in `namesEntity` or the footer
 and sitemap assertions in `scripts/check-invariants.ts`, which check `/privacy`
