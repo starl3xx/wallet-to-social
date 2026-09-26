@@ -37,6 +37,7 @@ import {
 import { CHAIN_LABELS, SUPPORTED_CHAINS } from '@/lib/chains';
 import { LEGAL_ENTITY } from '@/lib/site-url';
 import { SECURITY_POLICY_URL, SECURITY_TXT_URL } from '@/lib/security-contact';
+import { TERMS_URL } from '@/lib/terms';
 
 export const runtime = 'nodejs';
 export const revalidate = 86400;
@@ -219,6 +220,8 @@ An agent can buy its own credits over x402, with no account, no card and no emai
 One settlement can buy more: send {"quantity": N}, 1 to ${X402_MAX_QUANTITY}, and the challenge, the payment and the grant all scale linearly, so N packs cost N signatures’ worth of nothing extra. A buy that carries a valid wts_live_ key in the Authorization header is a top-up: the credits land on that key’s account and no new key is minted, which is how an agent recovers from a 402 mid-session without a second credential. An OAuth token cannot buy, there or anywhere. Every ${X402_LOYALTY_EVERY_N}th settled purchase from the same wallet grants one bonus pack of matches, on the settlement history of that wallet alone.
 
 The credits are the same ones a card buys and are metered the same way, so an address that resolves to nobody still costs nothing. The key works on the REST API and on the MCP server, with one exception: a key bought with no account behind it cannot use the reverse lookups, which answer 403 ACCOUNT_REQUIRED, because turning a handle into wallets needs an account somebody answers for.
+
+The 402 challenge also names the terms of service, at ${TERMS_URL}, and their version, in the payment request itself, in the response body and in a Link header. Paying the challenge accepts them; nothing extra is sent to do so, and the credits record the version in force when the payment settled.
 
 The key is shown once. If it is lost, sign a challenge with the wallet that paid at https://walletlink.social/api/x402/recover and a new one is issued against the same credits; the credits belong to the account rather than to the key. Signing is required because every field of a settled payment is public onchain, so a payment cannot prove who is holding the wallet afterwards.
 

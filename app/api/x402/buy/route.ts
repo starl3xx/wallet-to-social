@@ -51,6 +51,15 @@
  * payer (lib/redact.ts); the nonce and the transaction hash stay whole, the
  * transaction names the payer onchain, and the 500 hands the buyer the full
  * reference to quote, so the id can always be rebuilt.
+ *
+ * ## The payment is the acceptance of the terms
+ *
+ * Decided 2026-09-25 (STA-47). The card checkout asks for a ticked "I agree";
+ * this endpoint cannot, because its callers are mostly agents and a new
+ * required field would break every client already paying it. So the 402
+ * challenge states the terms instead, in the three places an x402 caller can
+ * read (see `TERMS_DISCLOSURE`), before anything is signed, and the grant
+ * records the version in force when the payment settled on the lot it writes.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { maskWallet, redact } from '@/lib/redact';
@@ -96,6 +105,7 @@ import {
 import { readBodyCapped } from '@/lib/api-auth';
 import { looksLikeAccessToken } from '@/lib/oauth/grants';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
+import { TERMS_URL, TERMS_VERSION } from '@/lib/terms';
 
 export const runtime = 'nodejs';
 
@@ -115,6 +125,23 @@ const X402_MAX_KEYS = 3;
  * not a buyer.
  */
 const MAX_BODY_BYTES = 1_000;
+
+/**
+ * The terms, as the challenge states them.
+ *
+ * In three places, because x402 callers read different parts of a 402:
+ *
+ *  - the resource description, inside `PAYMENT-REQUIRED`. An x402 client that
+ *    pays automatically reads that header and nothing else, and a discovery
+ *    index lists the description beside the price.
+ *  - a `terms` object in the JSON body, for a caller reading the response.
+ *  - `Link: <...>; rel="terms-of-service"` (RFC 6903), for generic HTTP
+ *    tooling that knows the relation and not this API.
+ *
+ * Nothing new is required of the caller: the request that pays is the same
+ * request it was before the terms existed.
+ */
+const TERMS_DISCLOSURE = `Paying accepts the terms of service at ${TERMS_URL}, version ${TERMS_VERSION}.`;
 
 function b64(value: unknown): string {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
@@ -243,7 +270,7 @@ export async function POST(request: NextRequest) {
 
   const resourceInfo = {
     url: 'https://walletlink.social/api/x402/buy',
-    description: `${PACK.name} pack: ${PACK.matches} match credits for wallet identity lookups. One settlement buys 1 to ${X402_MAX_QUANTITY} packs at linear price via {"quantity": N}.`,
+    description: `${PACK.name} pack: ${PACK.matches} match credits for wallet identity lookups. One settlement buys 1 to ${X402_MAX_QUANTITY} packs at linear price via {"quantity": N}. ${TERMS_DISCLOSURE}`,
     mimeType: 'application/json',
     serviceName: 'walletlink.social',
     // Free-text, and the only thing a discovery index can filter on. There is
@@ -404,8 +431,19 @@ export async function POST(request: NextRequest) {
       {
         error: `Payment required: ${totalMatches} match credits for $${(totalCents / 100).toFixed(2)} in USDC on Base${quantity > 1 ? ` (${quantity} packs, one settlement)` : ''}.`,
         code: 'PAYMENT_REQUIRED',
+        terms: {
+          url: TERMS_URL,
+          version: TERMS_VERSION,
+          note: TERMS_DISCLOSURE,
+        },
       },
-      { status: 402, headers: { 'PAYMENT-REQUIRED': b64(required) } }
+      {
+        status: 402,
+        headers: {
+          'PAYMENT-REQUIRED': b64(required),
+          Link: `<${TERMS_URL}>; rel="terms-of-service"`,
+        },
+      }
     );
   }
 

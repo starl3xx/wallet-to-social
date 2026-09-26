@@ -5590,6 +5590,248 @@ const MUTATIONS: Mutation[] = [
     from: 'through `Gmail.Users.Threads.remove`, not\nTrash.',
     to: 'through `GmailApp.moveThreadToTrash`, then\nTrash.',
   },
+  // The terms, agreed where money changes hands (STA-47). Each is a way the
+  // record the terms page promises could quietly stop being true.
+  {
+    name: 'terms: checkout opens Stripe without the box ticked',
+    file: 'app/api/checkout/route.ts',
+    from: '    if (body.acceptTerms !== true) {',
+    to: '    if (false) {',
+  },
+  {
+    name: 'terms: checkout takes any truthy value as an agreement',
+    file: 'app/api/checkout/route.ts',
+    from: '    if (body.acceptTerms !== true) {',
+    to: '    if (!body.acceptTerms) {',
+  },
+  {
+    name: 'terms: checkout records an agreement to terms the page no longer shows',
+    file: 'app/api/checkout/route.ts',
+    from: '    if (body.termsVersion !== TERMS_VERSION) {',
+    to: '    if (false) {',
+  },
+  {
+    name: 'terms: the session metadata drops the acceptance',
+    file: 'lib/stripe.ts',
+    from: '      email: normalizedEmail,\n      ...termsMetadata(terms),\n',
+    to: '      email: normalizedEmail,\n',
+  },
+  {
+    name: 'terms: the PaymentIntent mirror drops the acceptance',
+    file: 'lib/stripe.ts',
+    from: '        email: normalizedEmail,\n        ...termsMetadata(terms),\n',
+    to: '        email: normalizedEmail,\n',
+  },
+  {
+    name: 'terms: the checkout.session grant ignores the acceptance',
+    file: 'app/api/webhook/route.ts',
+    from: "      'checkout.session',\n      termsAcceptanceFrom(session.metadata)\n",
+    to: "      'checkout.session',\n      null\n",
+  },
+  {
+    name: 'terms: the payment_intent grant ignores the acceptance',
+    file: 'app/api/webhook/route.ts',
+    from: "      'payment_intent',\n      termsAcceptanceFrom(paymentIntent.metadata)\n",
+    to: "      'payment_intent',\n      null\n",
+  },
+  {
+    name: 'terms: the webhook reads the acceptance and never passes it on',
+    file: 'app/api/webhook/route.ts',
+    from: '    amountCents,\n    terms\n  );',
+    to: '    amountCents,\n    null\n  );',
+  },
+  {
+    name: 'terms: the success page grants first and records no acceptance',
+    file: 'app/api/auth/checkout-status/route.ts',
+    from: '        termsAcceptanceFrom(session.metadata)\n      );',
+    to: '        null\n      );',
+  },
+  {
+    name: 'terms: the fulfilment drops the acceptance before the grant',
+    file: 'lib/pack-fulfilment.ts',
+    from: '    amountCents || PACKS[pack].priceCents,\n    terms\n  );',
+    to: '    amountCents || PACKS[pack].priceCents,\n    null\n  );',
+  },
+  {
+    name: 'terms: a card grant inserts the lot without the acceptance',
+    file: 'lib/credits.ts',
+    from: '      stripePaymentId,\n      ...termsColumns(terms),\n',
+    to: '      stripePaymentId,\n',
+  },
+  {
+    name: 'terms: an onchain grant records no terms version',
+    file: 'lib/credits.ts',
+    from: '      ...termsColumns(acceptanceByPayment()),\n',
+    to: '',
+  },
+  {
+    // Month and day together: either comparison alone refuses a rollover
+    // (2026-02-30 parses as 2 March), so dropping one is not a defect.
+    name: 'terms: the version check accepts a date that does not exist',
+    file: 'lib/terms.ts',
+    from: '    d.getUTCMonth() + 1 === Number(m[2]) &&\n    d.getUTCDate() === Number(m[3])',
+    to: '    true',
+  },
+  {
+    name: 'terms: the metadata reader returns an unparseable acceptance time',
+    file: 'lib/terms.ts',
+    from: '  if (Number.isNaN(acceptedAt.getTime())) return null;\n',
+    to: '',
+  },
+  {
+    name: 'terms: the printed date is typed instead of derived from the version',
+    file: 'lib/terms.ts',
+    from: 'export const TERMS_UPDATED = updatedLabel(TERMS_VERSION);',
+    to: "export const TERMS_UPDATED = '24 September 2026';",
+  },
+  {
+    name: 'terms: the modal pre-ticks the box',
+    file: 'components/UpgradeModal.tsx',
+    from: '  const [agreed, setAgreed] = useState(false);',
+    to: '  const [agreed, setAgreed] = useState(true);',
+  },
+  {
+    name: 'terms: the modal keeps a tick from the last time it was open',
+    file: 'components/UpgradeModal.tsx',
+    from: '      setAgreed(false);\n',
+    to: '',
+  },
+  {
+    name: 'terms: the modal opens checkout with the box unticked',
+    file: 'components/UpgradeModal.tsx',
+    from: '    if (!agreed) {',
+    to: '    if (false) {',
+  },
+  {
+    name: 'terms: the modal tells the server the buyer agreed whatever they ticked',
+    file: 'components/UpgradeModal.tsx',
+    from: '          acceptTerms: agreed,',
+    to: '          acceptTerms: true,',
+  },
+  {
+    name: 'terms: the x402 challenge body loses the terms',
+    file: 'app/api/x402/buy/route.ts',
+    from: "        code: 'PAYMENT_REQUIRED',\n        terms: {\n          url: TERMS_URL,\n          version: TERMS_VERSION,\n          note: TERMS_DISCLOSURE,\n        },\n",
+    to: "        code: 'PAYMENT_REQUIRED',\n",
+  },
+  {
+    name: 'terms: the x402 challenge loses its terms-of-service Link',
+    file: 'app/api/x402/buy/route.ts',
+    from: '          Link: `<${TERMS_URL}>; rel="terms-of-service"`,\n',
+    to: '',
+  },
+  {
+    name: 'terms: PAYMENT-REQUIRED no longer discloses the terms to an auto-paying client',
+    file: 'app/api/x402/buy/route.ts',
+    from: ' ${TERMS_DISCLOSURE}`,',
+    to: '`,',
+  },
+  {
+    name: 'terms: the onchain buy starts requiring an agreement field and breaks paying agents',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  const totalCents = PACK.priceCents * quantity;',
+    to: "  if ((parsedBody as { acceptTerms?: unknown } | undefined)?.acceptTerms !== true) {\n    return NextResponse.json({ error: 'Agree to the terms.', code: 'TERMS_NOT_ACCEPTED' }, { status: 400 });\n  }\n  const totalCents = PACK.priceCents * quantity;",
+  },
+  {
+    name: 'terms: a route keeps its own copy of the terms version',
+    file: 'app/api/x402/buy/route.ts',
+    from: "import { TERMS_URL, TERMS_VERSION } from '@/lib/terms';",
+    to: "import { TERMS_URL } from '@/lib/terms';\nconst TERMS_VERSION = '2026-09-25';",
+  },
+  // The checkbox agrees to the terms and nothing else; the privacy policy is
+  // a notice beside it, and every sign-in form shows one (2026-09-26).
+  {
+    name: 'terms: the privacy path stops pointing at the privacy page',
+    file: 'lib/terms.ts',
+    from: "export const PRIVACY_PATH = '/privacy';",
+    to: "export const PRIVACY_PATH = '/privacy-policy';",
+  },
+  {
+    name: 'terms: the checkbox label asks for agreement to the privacy policy too',
+    file: 'components/UpgradeModal.tsx',
+    from: '                      Terms of Service\n                    </a>\n                  </span>\n',
+    to: "                      Terms of Service\n                    </a>{' '}\n                    and the <a href={PRIVACY_PATH}>Privacy Policy</a>\n                  </span>\n",
+  },
+  {
+    name: 'terms: the privacy notice is folded inside the checkbox label',
+    file: 'components/UpgradeModal.tsx',
+    from: '                </label>\n                {/* The privacy policy is a notice, not something anybody\n                    agrees to, so it is a line of its own and not part of the\n                    label: ticking the box agrees to the terms and nothing\n                    else. Indented to the label\'s text, past the box and its\n                    gap. */}\n                <p className="pl-6 text-xs text-muted-foreground">\n                  Our{\' \'}\n                  <a\n                    href={PRIVACY_PATH}\n                    target="_blank"\n                    rel="noopener noreferrer"\n                    className="text-accent-brand underline underline-offset-4"\n                  >\n                    Privacy Policy\n                  </a>{\' \'}\n                  says how we use your data.\n                </p>\n',
+    to: '                {/* The privacy policy is a notice, not something anybody\n                    agrees to, so it is a line of its own and not part of the\n                    label: ticking the box agrees to the terms and nothing\n                    else. Indented to the label\'s text, past the box and its\n                    gap. */}\n                <p className="pl-6 text-xs text-muted-foreground">\n                  Our{\' \'}\n                  <a\n                    href={PRIVACY_PATH}\n                    target="_blank"\n                    rel="noopener noreferrer"\n                    className="text-accent-brand underline underline-offset-4"\n                  >\n                    Privacy Policy\n                  </a>{\' \'}\n                  says how we use your data.\n                </p>\n                </label>\n',
+  },
+  {
+    name: 'terms: the checkout privacy notice links to the terms instead',
+    file: 'components/UpgradeModal.tsx',
+    from: '                    href={PRIVACY_PATH}\n',
+    to: '                    href={TERMS_PATH}\n',
+  },
+  {
+    name: 'terms: the checkout drops the privacy notice',
+    file: 'components/UpgradeModal.tsx',
+    from: '                <p className="pl-6 text-xs text-muted-foreground">\n                  Our{\' \'}\n                  <a\n                    href={PRIVACY_PATH}\n                    target="_blank"\n                    rel="noopener noreferrer"\n                    className="text-accent-brand underline underline-offset-4"\n                  >\n                    Privacy Policy\n                  </a>{\' \'}\n                  says how we use your data.\n                </p>\n',
+    to: '',
+  },
+  {
+    name: 'terms: the sign-in notice loses its Terms link',
+    file: 'components/SignInNotice.tsx',
+    from: '      <a\n        href={TERMS_PATH}\n        target="_blank"\n        rel="noopener noreferrer"\n        className="text-accent-brand underline underline-offset-4"\n      >\n        Terms\n      </a>{\' \'}\n',
+    to: "      Terms{' '}\n",
+  },
+  {
+    name: 'terms: the sign-in notice loses its Privacy Policy link',
+    file: 'components/SignInNotice.tsx',
+    from: '      <a\n        href={PRIVACY_PATH}\n        target="_blank"\n        rel="noopener noreferrer"\n        className="text-accent-brand underline underline-offset-4"\n      >\n        Privacy Policy\n      </a>\n',
+    to: '      Privacy Policy\n',
+  },
+  {
+    name: 'terms: the sign-in notice asks for agreement to the privacy policy',
+    file: 'components/SignInNotice.tsx',
+    from: "      and acknowledge the{' '}\n",
+    to: "      and the{' '}\n",
+  },
+  {
+    name: 'terms: the sign-in modal drops the notice',
+    file: 'components/AuthModal.tsx',
+    from: '              <SignInNotice />\n',
+    to: '',
+  },
+  {
+    name: 'terms: the sign-in notice moves to after the link has gone',
+    file: 'components/AuthModal.tsx',
+    from: '              <SignInNotice />\n            </div>\n          </>\n        ) : (\n          <>\n',
+    to: '            </div>\n          </>\n        ) : (\n          <>\n            <SignInNotice />\n',
+  },
+  {
+    name: 'terms: the consent screen signs people in without the notice',
+    file: 'app/oauth/authorize/ConsentScreen.tsx',
+    from: '            <SignInNotice className="mt-3" />\n',
+    to: '',
+  },
+  {
+    name: 'terms: a new sign-in form ships without the notice',
+    file: 'components/ClaimFlow.tsx',
+    from: '      <AuthModal open={authOpen} onOpenChange={setAuthOpen} next="/claim" />\n',
+    to: "      <form\n        onSubmit={(event) => {\n          event.preventDefault();\n          void fetch('/api/auth/send-magic-link', {\n            method: 'POST',\n            body: JSON.stringify({ next: '/claim' }),\n          });\n        }}\n      />\n      <AuthModal open={authOpen} onOpenChange={setAuthOpen} next=\"/claim\" />\n",
+  },
+  // A sign-in records data (a link, a session, an account), so the docs may
+  // say it records no agreement and never that it records nothing.
+  {
+    name: 'terms: the API docs say signing in records nothing',
+    file: 'docs-site/api-reference/introduction.mdx',
+    from: 'Signing in to the website records no agreement to the terms. The sign-in form\n',
+    to: 'Signing in to the website records nothing. The sign-in form\n',
+  },
+  {
+    name: 'terms: the changelog says signing in records nothing',
+    file: 'CHANGELOG.md',
+    from: '  records no agreement. The agreement that is recorded is the one you make when\n',
+    to: '  records nothing. The agreement that is recorded is the one you make when\n',
+  },
+  {
+    name: 'terms: the overview says the sign-in notice records nothing',
+    file: 'PROJECT_OVERVIEW.md',
+    from: "OAuth consent screen's own form. The notice records no agreement; acceptance\n",
+    to: "OAuth consent screen's own form. It records nothing; acceptance\n",
+  },
 ];
 
 function invariantsPass(): boolean {

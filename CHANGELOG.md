@@ -2,6 +2,51 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-26 (buying credits records your agreement to the terms)
+
+- **Checkout asks you to agree to the Terms of Service.** The buy-credits
+  window has an unticked “I agree to the Terms of Service” box between your
+  email and the button, with a link to the terms. Checkout does not open
+  Stripe until you tick it. The server refuses a checkout request without the
+  agreement too (400), and one from a page that shows an older version of the
+  terms (409: reload the page and agree again).
+- **Your purchase records what you agreed to.** The version of the terms and
+  the moment you agreed travel with the Stripe payment, and the credits it
+  buys record both. A checkout opened before this change and paid after it is
+  still granted in full, with no agreement recorded.
+- **The USDC buy states the terms, and paying accepts them.** The `402` from
+  `POST /api/x402/buy` names the terms of service and their version in the
+  payment request, in the response body (`terms`) and in a
+  `Link: <…>; rel="terms-of-service"` header. Nothing new is asked of the
+  request, so agents already paying are not affected. The credits record the
+  version in force when the payment settled.
+- **The checkout links the Privacy Policy, as a notice.** A line under the box,
+  outside it, reads “Our Privacy Policy says how we use your data.” Ticking the
+  box agrees to the terms and nothing else: a privacy policy says what we do
+  with your data, and is not something you agree to.
+- **Signing in shows a notice.** Under the sign-in form, in the sign-in window
+  and on the screen where you connect an application: “By continuing you agree
+  to the Terms and acknowledge the Privacy Policy”, with both linked. Signing in
+  records no agreement. The agreement that is recorded is the one you make when
+  you buy credits.
+- Operator: `TERMS_VERSION` in `lib/terms.ts` is the one version, an ISO date,
+  and the terms page (draft PR #388) should print its date from
+  `TERMS_UPDATED`. Two nullable columns on `credit_lots`, `terms_version` and
+  `terms_accepted_at`, applied by `scripts/migrate-terms-acceptance.ts`, which
+  must run BEFORE deploy: every insert into `credit_lots` names every column.
+  Nothing is backfilled. Merge with #388 or right after it, because the
+  checkbox and the sign-in notice link to `/terms`. The two notices (decided
+  2026-09-26) are one shared `components/SignInNotice.tsx` and a line in
+  `UpgradeModal.tsx`, and need no migration. Linear STA-47. Forty-two new
+  invariants, including the checkout route run against every refusal and a
+  scan that finds every sign-in form by its `fetch` to `/api/auth/`, and
+  thirty-nine new guard mutations. A local PGlite scenario ran the real webhook
+  and grant code on main's schema plus the migration: a signed
+  `checkout.session.completed` recorded the version and the time to the
+  millisecond, a replay and the PaymentIntent twin added no second lot, a
+  session with no agreement and one with a broken version were granted with
+  both columns NULL, and an onchain grant recorded the version in force.
+
 ### 2026-09-26 (A claim-page withdrawal leaves an email in help@)
 
 - **A withdrawal on the claim page now has a record outside the database.**

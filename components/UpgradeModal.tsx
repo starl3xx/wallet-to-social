@@ -35,6 +35,7 @@ import {
   centsPerMatch,
 } from '@/lib/packs';
 import { CHAIN_COUNT_WORD } from '@/lib/public-figures';
+import { PRIVACY_PATH, TERMS_PATH, TERMS_VERSION } from '@/lib/terms';
 import { Analytics } from '@/lib/client-analytics';
 import { useAuth } from '@/components/AuthProvider';
 import { cn } from '@/lib/utils';
@@ -133,9 +134,16 @@ export function UpgradeModal({
   const [email, setEmail] = useState('');
   const [selected, setSelected] = useState<PackId | null>(null);
   const [emailInvalid, setEmailInvalid] = useState(false);
+  /**
+   * "I agree to the Terms of Service". Unchecked on every open, never
+   * pre-ticked: an agreement the buyer did not make is not one we can record.
+   */
+  const [agreed, setAgreed] = useState(false);
+  const [termsInvalid, setTermsInvalid] = useState(false);
   const [loading, setLoading] = useState<PackId | null>(null);
   const [error, setError] = useState<string | null>(null);
   const emailRef = useRef<HTMLInputElement>(null);
+  const termsRef = useRef<HTMLInputElement>(null);
   const selectedPackRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -143,6 +151,8 @@ export function UpgradeModal({
       setSelected(null);
       setError(null);
       setEmailInvalid(false);
+      setAgreed(false);
+      setTermsInvalid(false);
       Analytics.upgradeModalViewed(
         trigger ?? (walletCount ? 'limit' : 'feature'),
         currentTier
@@ -169,7 +179,16 @@ export function UpgradeModal({
       return;
     }
 
+    // Checked here for the buyer's sake; the checkout route refuses it too.
+    if (!agreed) {
+      setTermsInvalid(true);
+      setError('Agree to the Terms of Service to continue.');
+      termsRef.current?.focus();
+      return;
+    }
+
     setEmailInvalid(false);
+    setTermsInvalid(false);
     setLoading(pack);
     setError(null);
     Analytics.checkoutStarted(pack);
@@ -178,7 +197,14 @@ export function UpgradeModal({
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), pack }),
+        // The version shown beside the box, so the route can refuse a tab
+        // that has been open across a terms update.
+        body: JSON.stringify({
+          email: email.trim(),
+          pack,
+          acceptTerms: agreed,
+          termsVersion: TERMS_VERSION,
+        }),
       });
 
       const data = await response.json();
@@ -253,37 +279,88 @@ export function UpgradeModal({
               if (!loading) void handleBuy(chosen);
             }}
           >
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1 space-y-2">
-                <label
-                  htmlFor="buy-credits-email"
-                  className="text-sm font-medium"
-                >
-                  Email for your credits and receipt
+            <div className="space-y-2">
+              <label
+                htmlFor="buy-credits-email"
+                className="text-sm font-medium"
+              >
+                Email for your credits and receipt
+              </label>
+              <Input
+                ref={emailRef}
+                id="buy-credits-email"
+                type="email"
+                name="email"
+                required
+                autoComplete="email"
+                spellCheck={false}
+                placeholder="you@example.com"
+                value={email}
+                disabled={loading !== null}
+                aria-invalid={emailInvalid || undefined}
+                aria-describedby={
+                  error
+                    ? 'buy-credits-error buy-credits-note'
+                    : 'buy-credits-note'
+                }
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setEmailInvalid(false);
+                  if (error) setError(null);
+                }}
+              />
+            </div>
+            {/* The agreement sits between the address and the button, so it is
+                read, and reached by Tab, before the step that takes money. */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    ref={termsRef}
+                    id="buy-credits-terms"
+                    type="checkbox"
+                    name="acceptTerms"
+                    required
+                    checked={agreed}
+                    disabled={loading !== null}
+                    aria-invalid={termsInvalid || undefined}
+                    aria-describedby={error ? 'buy-credits-error' : undefined}
+                    onChange={(event) => {
+                      setAgreed(event.target.checked);
+                      setTermsInvalid(false);
+                      if (error) setError(null);
+                    }}
+                    className="h-4 w-4 flex-none"
+                  />
+                  <span>
+                    I agree to the{' '}
+                    <a
+                      href={TERMS_PATH}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-accent-brand underline underline-offset-4"
+                    >
+                      Terms of Service
+                    </a>
+                  </span>
                 </label>
-                <Input
-                  ref={emailRef}
-                  id="buy-credits-email"
-                  type="email"
-                  name="email"
-                  required
-                  autoComplete="email"
-                  spellCheck={false}
-                  placeholder="you@example.com"
-                  value={email}
-                  disabled={loading !== null}
-                  aria-invalid={emailInvalid || undefined}
-                  aria-describedby={
-                    error
-                      ? 'buy-credits-error buy-credits-note'
-                      : 'buy-credits-note'
-                  }
-                  onChange={(event) => {
-                    setEmail(event.target.value);
-                    setEmailInvalid(false);
-                    if (error) setError(null);
-                  }}
-                />
+                {/* The privacy policy is a notice, not something anybody
+                    agrees to, so it is a line of its own and not part of the
+                    label: ticking the box agrees to the terms and nothing
+                    else. Indented to the label's text, past the box and its
+                    gap. */}
+                <p className="pl-6 text-xs text-muted-foreground">
+                  Our{' '}
+                  <a
+                    href={PRIVACY_PATH}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent-brand underline underline-offset-4"
+                  >
+                    Privacy Policy
+                  </a>{' '}
+                  says how we use your data.
+                </p>
               </div>
               <Button
                 type="submit"

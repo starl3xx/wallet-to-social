@@ -5,6 +5,7 @@ import { generateMagicLinkToken } from '@/lib/auth';
 import { sendPurchaseSignInLink, isEmailConfigured } from '@/lib/email';
 import { PACKS, type PackId } from '@/lib/packs';
 import { maskEmail } from '@/lib/redact';
+import type { TermsAcceptance } from '@/lib/terms';
 
 /**
  * Everything that happens when someone pays for a pack.
@@ -34,12 +35,21 @@ import { maskEmail } from '@/lib/redact';
  * saying a purchase completed and here is a way in is useful to them too, and
  * suppressing it would mean deciding sign-in state inside a webhook that has no
  * session to inspect.
+ *
+ * ## The terms, and why every caller passes them
+ *
+ * `terms` is what the buyer agreed to at checkout, read back from the Stripe
+ * metadata with `termsAcceptanceFrom`. All three callers read the same
+ * metadata (the session, or the PaymentIntent it is mirrored onto), so
+ * whichever grants first records the same acceptance. It is a required
+ * argument so a fourth caller cannot grant a pack and forget it.
  */
 export async function fulfilPackPurchase(
   email: string,
   pack: PackId,
   stripePaymentId: string,
-  amountCents: number
+  amountCents: number,
+  terms: TermsAcceptance | null
 ): Promise<{ granted: boolean; userId: string }> {
   const user = await getOrCreateUser(email);
 
@@ -47,7 +57,8 @@ export async function fulfilPackPurchase(
     user.id,
     pack,
     stripePaymentId,
-    amountCents || PACKS[pack].priceCents
+    amountCents || PACKS[pack].priceCents,
+    terms
   );
 
   if (granted) {
