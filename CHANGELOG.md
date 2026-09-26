@@ -2,16 +2,16 @@
 
 All notable changes to walletlink.social. Newest first.
 
-### 2026-09-25 (terms of service, and a privacy policy that matches the code)
+### 2026-09-26 (terms of service, and a privacy policy that matches the code)
 
 - **A draft, not live until the owner approves it (STA-41).** Every open
   choice on both pages is now decided, and no `[DECIDE: …]` marker is left.
   Some sentences describe code from separate PRs: the retention cleanups and
-  log masking (STA-45, #398) and the removal gaps (STA-46, #396, plus a
-  restore-runbook step in the ops repo), both merged, and the “I agree to
-  the terms” step at checkout and the USDC buy (STA-47, #399) and the
-  script that deletes removal emails from help@ (STA-50, #401), which this
-  merges after. Email is the only contact the terms give; there is no postal
+  log masking (STA-45, #398), the removal gaps (STA-46, #396, plus a
+  restore-runbook step in the ops repo), the sanctions screening (#400) and
+  the script that deletes removal emails from help@ (STA-50, #401), all
+  merged, and the “I agree to the terms” step at checkout and the USDC buy
+  (STA-47, #399), which merges with this. Email is the only contact the terms give; there is no postal
   address.
 - **`/terms`**, new: the terms of service with an acceptable-use policy,
   linked from the footer beside Privacy, from the sitemap and from the privacy
