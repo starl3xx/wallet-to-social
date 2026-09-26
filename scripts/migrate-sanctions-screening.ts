@@ -27,6 +27,11 @@
  * from the moment the code deploys instead of answering 503 until the first
  * scheduled refresh. Rerunning the script refreshes again, idempotently.
  *
+ * The seed freezes nobody (`freeze: false`). A freeze here would land while
+ * the old code, which ignores it, is still serving, and with no email sent.
+ * The first scheduled refresh after deploy does the freeze, with the
+ * enforcement live, and the freeze email goes out from database state.
+ *
  * ## After it
  *
  * `sanctions_screenings` is a compliance record, so it is in `BACKUP_TABLES`
@@ -113,7 +118,7 @@ async function main() {
     sql`
       CREATE TABLE IF NOT EXISTS sanctions_screenings (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-        address text NOT NULL,
+        address text NOT NULL CHECK (address ~ '^0x[0-9a-f]{40}$'),
         list_publish_date date,
         verdict text NOT NULL
           CHECK (verdict IN ('clear', 'listed', 'stale', 'missing')),
@@ -211,15 +216,13 @@ async function main() {
   }
   if (bad) process.exit(1);
 
-  // Counted, not listed: `users` is customer accounts.
-  const [pre] = (await sql`
-    SELECT count(*) FILTER (WHERE frozen_at IS NOT NULL)::int AS frozen
-    FROM users
-  `) as unknown as Array<{ frozen: number }>;
-  console.log(`${pre.frozen} accounts frozen before the seed.`);
-
   console.log('\nSeeding the list from SDN.XML (one download, about 29 MB)');
-  const outcome = await refreshSanctionsList({ db: drizzle(sql) });
+  // The list only. The seed freezes nobody: the first refresh after deploy
+  // does, with enforcement live and the freeze email sent.
+  const outcome = await refreshSanctionsList({
+    db: drizzle(sql),
+    freeze: false,
+  });
   console.log(
     JSON.stringify(
       {
@@ -231,7 +234,6 @@ async function main() {
         previous: outcome.previous,
         added: outcome.added,
         removed: outcome.removed,
-        freeze: outcome.freeze,
       },
       null,
       2

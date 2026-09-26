@@ -75,6 +75,10 @@ export async function hasPaidAccess(
   userId: string,
   tier: UserTier
 ): Promise<boolean> {
+  // A frozen account has no paid entitlement at all, legacy tier or not: this
+  // is the one gate behind every paid feature a session reaches
+  // (lib/account-freeze.ts).
+  if (await isAccountFrozen(userId)) return false;
   if (legacyTierIsUnmetered(tier)) return true;
   const balance = await getBalance(userId);
   return !balance.onFreeAllowance;
@@ -264,6 +268,8 @@ export interface SubmissionVerdict {
   /** The most wallets this caller may submit right now. */
   maxWallets: number;
   balance: CreditBalance;
+  /** The account is frozen: buying more would not help, so no upsell. */
+  frozen?: true;
 }
 
 /**
@@ -285,6 +291,7 @@ export async function canSubmit(
       reason: FROZEN_ACCOUNT_MESSAGE,
       maxWallets: 0,
       balance: EMPTY_BALANCE,
+      frozen: true,
     };
   }
 
@@ -410,6 +417,11 @@ export interface JobCharge {
   /** True when this job already carries a debit; nothing changed. */
   duplicate: boolean;
   paidFrom: 'free' | 'lots' | 'legacy' | null;
+  /**
+   * The account was frozen while the job ran: nothing billed, nothing
+   * delivered, and the caller fails the job (lib/job-processor.ts).
+   */
+  frozen?: true;
 }
 
 export async function chargeForJob(
@@ -419,6 +431,22 @@ export async function chargeForJob(
   walletsSubmitted: number,
   tier: UserTier
 ): Promise<JobCharge> {
+  /**
+   * A job that was accepted before its account was frozen and finishes
+   * after: nothing is billed from the held credits and nothing is delivered,
+   * ahead of every other rule, the unmetered tiers included.
+   */
+  if (await isAccountFrozen(userId)) {
+    return {
+      billed: 0,
+      goodwill: 0,
+      delivered: 0,
+      duplicate: false,
+      paidFrom: null,
+      frozen: true,
+    };
+  }
+
   /**
    * An unmetered account is recorded but never debited.
    *
@@ -614,6 +642,10 @@ export async function chargeForApiCall(
   const db = getDb();
   if (!db) return 0;
 
+  // A call that was in flight when its account was frozen: the held credits
+  // are not drawn (lib/account-freeze.ts).
+  if (await isAccountFrozen(userId)) return 0;
+
   const balance = await getBalance(userId);
   const paidFrom = balance.onFreeAllowance ? 'free' : 'lots';
 
@@ -636,6 +668,8 @@ export interface UnlockVerdict {
   ok: boolean;
   /** Why not, for the UI. Empty when ok. */
   reason: string;
+  /** The account is frozen: no upsell. */
+  frozen?: true;
 }
 
 /**
@@ -664,7 +698,7 @@ export async function unlockJobMatches(
 
   // A frozen account's credits are held (lib/account-freeze.ts).
   if (await isAccountFrozen(userId)) {
-    return { ok: false, reason: FROZEN_ACCOUNT_MESSAGE };
+    return { ok: false, reason: FROZEN_ACCOUNT_MESSAGE, frozen: true };
   }
 
   const balance = await getBalance(userId);

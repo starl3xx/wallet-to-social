@@ -23,6 +23,7 @@ import {
 } from '@/lib/csv-parser';
 import { trackEvent } from '@/lib/analytics';
 import { chargeForJob } from '@/lib/credits';
+import { FROZEN_ACCOUNT_MESSAGE } from '@/lib/account-freeze';
 import { ANON_MATCHES_PER_JOB } from '@/lib/match-gate';
 import { detectKnownAgents, detectAgentFromBio } from '@/lib/agent-detection';
 import { reconcileAgentClaim } from '@/lib/agent-claim';
@@ -1827,6 +1828,8 @@ async function finalizeJobWithResults(
    */
   let matchesDelivered: number | null = null;
   let gateIsFresh = false;
+  /** Set when the account was frozen while this job ran (see below). */
+  let frozenAccount = false;
   /**
    * What an anonymous caller is allowed to see from THIS job. Clamped to the
    * per-job constant so a stale or hand-edited option cannot widen the gate.
@@ -1866,6 +1869,7 @@ async function finalizeJobWithResults(
         job.wallets.length,
         options.tier ?? 'free'
       );
+      if (charge.frozen) frozenAccount = true;
       /**
        * The gate arms on either meter now, and on `delivered` rather than
        * `billed`.
@@ -1912,6 +1916,33 @@ async function finalizeJobWithResults(
      */
     matchesDelivered = anonGate;
     gateIsFresh = true;
+  }
+
+  /**
+   * The account was frozen after this job was accepted (lib/account-freeze.ts,
+   * Linear STA-41). The job fails unbilled, and its results go with it: the
+   * saved rows are cleared, nothing is saved to history and nothing is
+   * served. Outside the charge's try, so a failure here is a failure of the
+   * job, never a job completed with its rows.
+   */
+  if (frozenAccount) {
+    await writeOwned(db, job, {
+      status: 'failed',
+      errorMessage: FROZEN_ACCOUNT_MESSAGE,
+      partialResults: null,
+      updatedAt: new Date(),
+      leasedUntil: sql`now()`,
+      sliceAttempts: 0,
+    });
+    return {
+      completed: true,
+      processedCount: job.wallets.length,
+      twitterFound: 0,
+      farcasterFound: 0,
+      anySocialFound: 0,
+      cacheHits,
+      error: FROZEN_ACCOUNT_MESSAGE,
+    };
   }
 
   // Save to history if requested

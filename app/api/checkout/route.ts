@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkoutGeoblock } from '@/lib/geoblock';
+import { SESSION_COOKIE_NAME, validateSession } from '@/lib/auth';
+import { isAccountFrozen } from '@/lib/account-freeze';
+import { sanctionsRefusal } from '@/lib/sanctions';
 import { createPackCheckoutSession, isStripeConfigured } from '@/lib/stripe';
 import { isPackId, PACK_IDS } from '@/lib/packs';
 
@@ -28,6 +31,18 @@ export async function POST(request: NextRequest) {
   // Before anything else, Stripe included (lib/geoblock.ts, Linear STA-41).
   const geoblocked = checkoutGeoblock(request.headers);
   if (geoblocked) return geoblocked;
+
+  /**
+   * A frozen account takes no new money (lib/account-freeze.ts): a signed-in
+   * frozen account gets the buy route's 403 before a Stripe session exists.
+   * Only the signed-in account is checked, never the email in the body, so
+   * this cannot tell a stranger whether some address's account is frozen.
+   */
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const session = token ? await validateSession(token) : { user: null };
+  if (session.user && (await isAccountFrozen(session.user.id))) {
+    return sanctionsRefusal('listed')!;
+  }
 
   try {
     if (!isStripeConfigured()) {

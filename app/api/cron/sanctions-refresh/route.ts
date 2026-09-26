@@ -79,7 +79,7 @@ export async function GET(request: NextRequest) {
     }
     if (outcome.freeze && outcome.freeze.newlyFrozen > 0) {
       console.error(
-        `[sanctions] ALERT: froze ${outcome.freeze.newlyFrozen} account(s) whose x402 payer is on the list published ${outcome.publishDate}; ` +
+        `[sanctions] ALERT: froze ${outcome.freeze.newlyFrozen} account(s) whose x402 payer is on the list in force; ` +
           `${outcome.freeze.keysDeactivated} key(s) deactivated. Follow the runbook in docs/OPERATIONS.md. Do not refund.`
       );
     }

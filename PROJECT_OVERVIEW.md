@@ -540,15 +540,24 @@ address in an entry, whatever ticker it is filed under (124 in the 2026-09-23
 publication). After each refresh, every past x402 payer (the third field of
 `credit_lots.settlement_id`, which has always stored it) is re-checked, and an
 account a listed wallet paid for is frozen: `users.frozen_at` set, its keys
-deactivated and refused by `lookupActiveKey` even if minted later, new work
-and unlocks refused (`lib/account-freeze.ts`), and x402 recovery answers it
-with the same 403. Nothing is refunded. Both
+deactivated and refused by `lookupActiveKey` even if minted later,
+`hasPaidAccess` false (every paid feature closed), new work and unlocks
+refused with no upsell, a job or call in flight billed nothing (the job
+fails with its results cleared), and x402 recovery, the USDC buy and a
+signed-in card checkout all answer it with the same 403; a card payment that
+still lands is granted and emailed to the operator (`lib/account-freeze.ts`
+lists every point). Nothing is refunded. The payer that is screened is the
+payer that pays: the buy accepts only a plain EIP-3009 authorization from an
+EVM address (`isEip3009Only`, `EVM_ADDRESS` in `lib/x402.ts`), refuses before
+settle unless verify names the screened payer, and emails the operator if a
+settlement names another. Both
 checkouts, this route and `/api/checkout`, first refuse a request whose Vercel
 IP headers place it in `RESTRICTED_CHECKOUT_LOCATIONS` (`lib/geoblock.ts`: CU,
 IR, KP, SY and UA-43, UA-40, UA-14, UA-09) with 403 `REGION_RESTRICTED`. A freeze,
-a refused refresh and 36 hours without a successful one each email help@ at
-most once a day per condition (`lib/sanctions-alerts.ts`, claims in
-`ingest_state`), and show on the admin health panel; the runbook is in
+a guard-refused refresh and 36 hours without a successful one each email
+help@ at most once a day per condition (`lib/sanctions-alerts.ts`, claims in
+`ingest_state`; the freeze email is read from the database, once per account
+and listed payer), and show on the admin health panel; the runbook is in
 `docs/OPERATIONS.md`.
 
 ### MCP server (for agents)

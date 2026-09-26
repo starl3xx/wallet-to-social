@@ -421,48 +421,59 @@ export async function replaceSanctionsList(
 
 // ---------------------------------------------------------------- freeze
 
-/** An account a freeze run froze, as the alert reports it. */
-export interface FrozenAccount {
-  userId: string;
-  /** The listed payer wallet, lowercased. */
-  payer: string;
-  /** The `<uid>` of the SDN entry that lists it. */
-  sdnUid: string | null;
-}
-
 export interface FreezeResult {
+  /** Accounts with at least one listed payer. */
   matched: number;
   newlyFrozen: number;
   keysDeactivated: number;
-  /** The accounts this run froze; empty when it froze none. */
-  frozen: FrozenAccount[];
 }
 
 /** The prefix of every x402 settlement id; the payer is the third field. */
 const SETTLEMENT_PREFIX = `${BASE_MAINNET}:`;
 
 /**
- * A wallet that bought and is now listed.
+ * Every (account, listed payer) pair, as a SQL fragment the freeze and the
+ * freeze alert (lib/sanctions-alerts.ts) share, so the two can never disagree
+ * about who is listed.
  *
  * The payer of every x402 purchase is stored: `credit_lots.settlement_id` is
  * `<network>:<from>:<nonce>` with `from` lowercased (`settlementIdFor` in
  * lib/x402.ts), so `split_part(..., ':', 3)` is the paying wallet whichever
  * account the purchase credited, including a top-up to an email account. A
- * wallet-keyed account also carries the wallet in `users.wallet`.
+ * wallet-keyed account also carries its wallet in `users.wallet`. `UNION`,
+ * not `UNION ALL`: one row per pair. Columns: user_id, payer.
+ */
+export function listedPayerPairs(): SQL {
+  return sql`
+    SELECT l.user_id, s.address AS payer
+    FROM credit_lots l
+    JOIN sanctioned_addresses s
+      ON s.address = split_part(l.settlement_id, ':', 3)
+    WHERE l.settlement_id LIKE ${SETTLEMENT_PREFIX + '%'}
+    UNION
+    SELECT u.id, s.address
+    FROM users u
+    JOIN sanctioned_addresses s ON s.address = u.wallet
+    WHERE u.origin = 'x402'
+  `;
+}
+
+/**
+ * A wallet that bought and is now listed.
  *
- * Every account either names is frozen, in one statement: `frozen_at` and a
- * reason on the account (set once, never moved), and every active key
+ * Every account a listed payer paid into is frozen, in one statement:
+ * `frozen_at` (set once, never moved) and a `frozen_reason` naming EVERY
+ * listed payer of the account and the list date, and every active key
  * deactivated. A frozen account's keys stop validating even if one is minted
- * later (`lookupActiveKey` in lib/api-keys.ts), and it can start no new work
- * or spend credits (`isAccountFrozen` in lib/account-freeze.ts). Nothing is
+ * later (`lookupActiveKey` in lib/api-keys.ts), and it can take no new money,
+ * start no work and spend nothing (lib/account-freeze.ts). Nothing is
  * refunded: see the runbook in docs/OPERATIONS.md.
  *
- * Idempotent. An account frozen by an earlier run is not counted again, but
- * any key it has gained since is deactivated again.
- *
- * Returns the accounts THIS run froze, each with the matched address and the
- * SDN entry that lists it: exactly what the freeze alert
- * (lib/sanctions-alerts.ts) tells the operator, and nothing more.
+ * Idempotent. An account frozen by an earlier run keeps its `frozen_at` and
+ * its reason, and any key it has gained since is deactivated again. A payer
+ * listed later on an already-frozen account changes nothing here; the freeze
+ * alert reports it, because it works from the pairs rather than from this
+ * statement's result.
  */
 export async function freezeListedBuyers(
   db: SanctionsDb,
@@ -472,31 +483,21 @@ export async function freezeListedBuyers(
     matched: number;
     newly_frozen: number;
     keys_deactivated: number;
-    frozen: unknown;
   }>(
     await db.execute(sql`
-      WITH hits AS (
-        SELECT DISTINCT ON (user_id) user_id, payer FROM (
-          SELECT l.user_id, s.address AS payer
-          FROM credit_lots l
-          JOIN sanctioned_addresses s
-            ON s.address = split_part(l.settlement_id, ':', 3)
-          WHERE l.settlement_id LIKE ${SETTLEMENT_PREFIX + '%'}
-          UNION ALL
-          SELECT u.id, s.address
-          FROM users u
-          JOIN sanctioned_addresses s ON s.address = u.wallet
-          WHERE u.origin = 'x402'
-        ) m
-        ORDER BY user_id, payer
+      WITH pairs AS (${listedPayerPairs()}),
+      hits AS (
+        SELECT user_id, string_agg(payer, ', ' ORDER BY payer) AS payers
+        FROM pairs
+        GROUP BY user_id
       ), frozen AS (
         UPDATE users u
         SET frozen_at = now(),
-            frozen_reason = 'sanctions list match: x402 payer ' || hits.payer
+            frozen_reason = 'sanctions list match: x402 payer(s) ' || hits.payers
               || ' (list published ' || coalesce(${publishDate}::text, 'unknown') || ')'
         FROM hits
         WHERE u.id = hits.user_id AND u.frozen_at IS NULL
-        RETURNING u.id, hits.payer
+        RETURNING u.id
       ), keys AS (
         UPDATE api_keys k
         SET is_active = false
@@ -507,28 +508,21 @@ export async function freezeListedBuyers(
       SELECT
         (SELECT count(*)::int FROM hits) AS matched,
         (SELECT count(*)::int FROM frozen) AS newly_frozen,
-        (SELECT count(*)::int FROM keys) AS keys_deactivated,
-        (SELECT coalesce(json_agg(json_build_object(
-            'userId', f.id, 'payer', f.payer, 'sdnUid', a.sdn_uid
-          ) ORDER BY f.id), '[]'::json)
-          FROM frozen f
-          LEFT JOIN sanctioned_addresses a ON a.address = f.payer) AS frozen
+        (SELECT count(*)::int FROM keys) AS keys_deactivated
     `)
   );
-  const frozen =
-    typeof row?.frozen === 'string' ? JSON.parse(row.frozen) : row?.frozen;
   return {
     matched: Number(row?.matched ?? 0),
     newlyFrozen: Number(row?.newly_frozen ?? 0),
     keysDeactivated: Number(row?.keys_deactivated ?? 0),
-    frozen: Array.isArray(frozen) ? (frozen as FrozenAccount[]) : [],
   };
 }
 
 // --------------------------------------------------------------- refresh
 
 export interface RefreshOutcome {
-  /** True only when a new list went in force AND the freeze check ran. */
+  /** True only when a new list went in force AND the freeze check ran (or
+   *  was switched off, for the seed). */
   ok: boolean;
   /** Why the parsed list was not put in force, when it was not. */
   refused: RefreshRefusal | null;
@@ -541,7 +535,7 @@ export interface RefreshOutcome {
   previous: number;
   added: number;
   removed: number;
-  /** Null when the freeze check could not run. */
+  /** Null when the freeze check could not run, or did not (the seed). */
   freeze: FreezeResult | null;
   /** Hours since the last successful refresh, after this run. */
   listAgeHours: number | null;
@@ -565,8 +559,19 @@ export async function refreshSanctionsList(options: {
   fetchXml?: () => Promise<string>;
   now?: Date;
   acceptCount?: number | null;
+  /**
+   * False only for the migration's seed, which puts the list in place and
+   * freezes nobody: the first refresh after deploy freezes, with enforcement
+   * live and the freeze email sent.
+   */
+  freeze?: boolean;
 }): Promise<RefreshOutcome> {
-  const { db, fetchXml = () => fetchSdnXml(), acceptCount = null } = options;
+  const {
+    db,
+    fetchXml = () => fetchSdnXml(),
+    acceptCount = null,
+    freeze: runFreeze = true,
+  } = options;
   const now = options.now ?? new Date();
   const current = await readCurrentList(db);
 
@@ -591,10 +596,14 @@ export async function refreshSanctionsList(options: {
 
   let freeze: RefreshOutcome['freeze'] = null;
   try {
-    freeze = await freezeListedBuyers(
-      db,
-      applied && list ? list.publishDate : (current.state?.publishDate ?? null)
-    );
+    if (runFreeze) {
+      freeze = await freezeListedBuyers(
+        db,
+        applied && list
+          ? list.publishDate
+          : (current.state?.publishDate ?? null)
+      );
+    }
   } catch (e) {
     error = [error, `freeze check failed: ${messageOf(e)}`]
       .filter(Boolean)
@@ -609,7 +618,7 @@ export async function refreshSanctionsList(options: {
     : null;
 
   return {
-    ok: Boolean(applied) && freeze !== null,
+    ok: Boolean(applied) && (freeze !== null || !runFreeze),
     refused,
     error,
     publishDate: list?.publishDate ?? current.state?.publishDate ?? null,

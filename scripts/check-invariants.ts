@@ -17646,7 +17646,7 @@ async function main() {
         if (flat.startsWith('WITH incoming AS')) {
           return { rows: [{ added: 6, removed: 0, total: 6 }] };
         }
-        if (flat.startsWith('WITH hits AS')) {
+        if (flat.startsWith('WITH pairs AS (')) {
           return {
             rows: [{ matched: 0, newly_frozen: 0, keys_deactivated: 0 }],
           };
@@ -17667,7 +17667,9 @@ async function main() {
           s.sql
         )
       );
-      const froze = db.sent.findIndex((s) => s.sql.startsWith('WITH hits AS'));
+      const froze = db.sent.findIndex((s) =>
+        s.sql.startsWith('WITH pairs AS (')
+      );
       const replacedAt = db.sent.findIndex((s) =>
         s.sql.startsWith('WITH incoming AS')
       );
@@ -17824,7 +17826,7 @@ async function main() {
       );
       ok(
         'a frozen account spends no credits unlocking matches',
-        /if \(await isAccountFrozen\(userId\)\) \{\s*return \{ ok: false, reason: FROZEN_ACCOUNT_MESSAGE \};/.test(
+        /if \(await isAccountFrozen\(userId\)\) \{\s*return \{ ok: false, reason: FROZEN_ACCOUNT_MESSAGE, frozen: true \};/.test(
           unlock
         ) &&
           unlock.indexOf('isAccountFrozen(') <
@@ -18211,7 +18213,7 @@ async function main() {
         ) &&
           runPart.indexOf('const retentionDeadline') <
             runPart.indexOf('sanctionsScreenings = await') &&
-          /creditLedgerRows, sanctionsScreenings, sanctionsListAlert, purchaseRecords,/.test(
+          /creditLedgerRows, sanctionsScreenings, sanctionsListAlert, sanctionsFreezeAlert, purchaseRecords,/.test(
             runPart
           )
       );
@@ -18231,6 +18233,8 @@ async function main() {
         send?: 'ok' | 'fail' | 'throw';
         state?: unknown;
         readThrows?: boolean;
+        pending?: unknown[];
+        frozen?: boolean;
       }) => {
         const mails: Mail[] = [];
         const logged: string[] = [];
@@ -18238,6 +18242,13 @@ async function main() {
           if (flat.startsWith('INSERT INTO ingest_state')) {
             if (opts.claim === 'throw') throw new Error('claim failed');
             return { rows: opts.claim === 'lose' ? [] : [{}] };
+          }
+          if (flat.startsWith('WITH pairs AS (')) {
+            if (opts.readThrows) throw new Error('read failed');
+            return { rows: opts.pending ?? [] };
+          }
+          if (flat.startsWith('SELECT frozen_at FROM users')) {
+            return { rows: [{ frozen_at: opts.frozen ? new Date() : null }] };
           }
           if (flat.startsWith('SELECT value FROM ingest_state')) {
             if (opts.readThrows) throw new Error('read failed');
@@ -18278,16 +18289,21 @@ async function main() {
           sdnUid: '27307',
         },
       ];
+      const pendingTwo = frozenTwo.map((f) => ({
+        ...f,
+        publishDate: '2026-09-23',
+      }));
 
-      const fz = alertRig({});
+      const fz = alertRig({ pending: pendingTwo });
       const fzResult = await fz.run(() =>
-        A.alertFreezes(fz.db, frozenTwo, '2026-09-23', fz.send)
+        A.alertPendingFreezes(fz.db, fz.send)
       );
       const fzMail = fz.mails[0];
       ok(
-        'a freeze emails at once, one email naming each frozen account',
+        'a freeze emails at once, one email naming each frozen account and the list in force',
         fzResult === 'sent' &&
           fz.mails.length === 1 &&
+          /published 2026-09-23/.test(fzMail.text) &&
           frozenTwo.every(
             (f) =>
               fzMail.text.includes(`Account id: ${f.userId}`) &&
@@ -18296,14 +18312,16 @@ async function main() {
           )
       );
       ok(
-        'each frozen account is its own condition, so a second freeze is never swallowed by the first',
+        'each frozen account and listed payer is its own condition, so no freeze and no later payer is swallowed',
         JSON.stringify(
           fz.db.sent
             .filter((s) => s.sql.startsWith('INSERT INTO ingest_state'))
             .map((s) => s.params[0])
         ) ===
           JSON.stringify(
-            frozenTwo.map((f) => `alert:sanctions:freeze:${f.userId}`)
+            frozenTwo.map(
+              (f) => `alert:sanctions:freeze:${f.userId}:${f.payer}`
+            )
           )
       );
       ok(
@@ -18335,18 +18353,17 @@ async function main() {
           ) &&
           claimSql?.params[1] === 24
       );
-      const dup = alertRig({ claim: 'lose' });
+      const dup = alertRig({ claim: 'lose', pending: pendingTwo });
       ok(
         'a condition already sent today sends nothing',
-        (await dup.run(() =>
-          A.alertFreezes(dup.db, frozenTwo, '2026-09-23', dup.send)
-        )) === 'deduped' && dup.mails.length === 0
+        (await dup.run(() => A.alertPendingFreezes(dup.db, dup.send))) ===
+          'deduped' && dup.mails.length === 0
       );
-      const noClaim = alertRig({ claim: 'throw' });
+      const noClaim = alertRig({ claim: 'throw', pending: pendingTwo });
       ok(
         'a claim that cannot be taken sends nothing and throws nothing',
         (await noClaim.run(() =>
-          A.alertFreezes(noClaim.db, frozenTwo, '2026-09-23', noClaim.send)
+          A.alertPendingFreezes(noClaim.db, noClaim.send)
         )) === 'deduped' && noClaim.mails.length === 0
       );
       {
@@ -18362,13 +18379,11 @@ async function main() {
 
       // A failed email: logged, claim given back, nothing thrown.
       for (const mode of ['fail', 'throw'] as const) {
-        const bad = alertRig({ send: mode });
+        const bad = alertRig({ send: mode, pending: pendingTwo });
         let threw = false;
         let result: unknown;
         try {
-          result = await bad.run(() =>
-            A.alertFreezes(bad.db, frozenTwo, '2026-09-23', bad.send)
-          );
+          result = await bad.run(() => A.alertPendingFreezes(bad.db, bad.send));
         } catch {
           threw = true;
         }
@@ -18448,7 +18463,6 @@ async function main() {
             matched: 0,
             newlyFrozen: 0,
             keysDeactivated: 0,
-            frozen: [],
           },
           listAgeHours: 6,
           alert: false,
@@ -18478,25 +18492,23 @@ async function main() {
         )) === null && okRig.mails.length === 0
       );
       {
-        const all = alertRig({ state: listAt('2026-09-25T00:15:00.000Z') });
+        const all = alertRig({
+          state: listAt('2026-09-25T00:15:00.000Z'),
+          pending: pendingTwo,
+        });
         const result = await all.run(() =>
           A.sendRefreshAlerts(
             all.db,
             outcomeOf({
               refused: 'sharp_drop',
-              freeze: {
-                matched: 2,
-                newlyFrozen: 2,
-                keysDeactivated: 2,
-                frozen: frozenTwo,
-              },
+              freeze: { matched: 2, newlyFrozen: 0, keysDeactivated: 0 },
             }),
             new Date('2026-09-25T06:15:00.000Z'),
             all.send
           )
         );
         ok(
-          'one refresh run raises the freeze email and the refused email, and checks the list age',
+          'one refresh run raises the pending freeze email (from the database, not from what it froze) and the refused email, and checks the list age',
           result.freeze === 'sent' &&
             result.refused === 'sent' &&
             result.stale === 'fresh' &&
@@ -18515,12 +18527,7 @@ async function main() {
               broken,
               outcomeOf({
                 refused: 'empty',
-                freeze: {
-                  matched: 1,
-                  newlyFrozen: 1,
-                  keysDeactivated: 1,
-                  frozen: [frozenTwo[0]],
-                },
+                freeze: { matched: 1, newlyFrozen: 1, keysDeactivated: 1 },
               }),
               new Date(),
               all.send
@@ -18571,6 +18578,434 @@ async function main() {
           cleanupSrc.slice(cleanupSrc.indexOf('async function run('))
         )
       );
+    }
+
+    // --- the review of 2026-09-25 (PR #400)
+    // A: the payer that is screened is the payer that pays. B: a frozen
+    // account has no paid entitlement and is not offered a purchase. C, F, G:
+    // the freeze email is driven by database state, once per account and
+    // listed payer, and cites the list in force. D: a frozen account takes no
+    // new money. E: nothing in flight draws held credits. H: the screened
+    // payer is an EVM address, in code and in the table.
+    {
+      const X = await import('@/lib/x402');
+      const auth = {
+        from: '0x' + '1'.repeat(40),
+        to: '0x' + '2'.repeat(40),
+        value: '1000000',
+        validAfter: '0',
+        validBefore: '9999999999',
+        nonce: '0x' + '3'.repeat(64),
+      };
+      ok(
+        'only a plain EIP-3009 authorization and its signature is screenable',
+        X.isEip3009Only({
+          payload: { authorization: auth, signature: '0x' },
+        }) &&
+          X.isEip3009Only({ payload: { authorization: auth } }) &&
+          !X.isEip3009Only({
+            payload: {
+              authorization: auth,
+              signature: '0x',
+              permit2Authorization: { from: '0x' + '4'.repeat(40) },
+            },
+          }) &&
+          !X.isEip3009Only({
+            payload: { authorization: auth, signature: '0x', note: 'x' },
+          }) &&
+          !X.isEip3009Only({ payload: { signature: '0x' } }) &&
+          !X.isEip3009Only({ payload: [auth] }) &&
+          !X.isEip3009Only({})
+      );
+      ok(
+        'a screened payer is a lowercase EVM address and nothing else',
+        X.EVM_ADDRESS.test('0x' + 'a'.repeat(40)) &&
+          !X.EVM_ADDRESS.test('0x' + 'a'.repeat(39)) &&
+          !X.EVM_ADDRESS.test('0x' + 'a'.repeat(41)) &&
+          !X.EVM_ADDRESS.test('ops@example.com') &&
+          !X.EVM_ADDRESS.test('0x' + 'A'.repeat(40))
+      );
+      const shapeAt = buy.indexOf(
+        'if (!EVM_ADDRESS.test(payer) || !isEip3009Only(payload)) {'
+      );
+      ok(
+        'the payload shape and the payer are checked before the screen, with 400 INVALID_PAYMENT',
+        shapeAt !== -1 &&
+          shapeAt < buy.indexOf('await screenPayer(payer)') &&
+          buy.slice(shapeAt, shapeAt + 400).includes("code: 'INVALID_PAYMENT'")
+      );
+      const verifiedAt = buy.indexOf(
+        'if (verification.payer?.toLowerCase() !== payer) {'
+      );
+      ok(
+        'the payer verify proved must equal the screened payer, or the sale stops before the record and settle',
+        verifiedAt !== -1 &&
+          verifiedAt > buy.indexOf('if (!verification.isValid) {') &&
+          verifiedAt < buy.indexOf('await recordClearScreening(') &&
+          verifiedAt < buy.indexOf('server.settlePayment(') &&
+          /if \(verification\.payer\?\.toLowerCase\(\) !== payer\) \{ console\.error\([^)]*\); return NextResponse\.json\( \{ error: 'Payment did not verify\.', code: 'PAYMENT_INVALID' \}, \{ status: 402 \} \); \}/.test(
+            buy
+          )
+      );
+      const settledAt = buy.indexOf(
+        'if (settlement.payer && settlement.payer.toLowerCase() !== payer) {'
+      );
+      ok(
+        'a settled payer that is not the screened one is logged and emailed before the grant',
+        settledAt > buy.indexOf('if (!settlement.success) {') &&
+          buy.indexOf('await alertSettledPayerMismatch({', settledAt) >
+            settledAt &&
+          buy.indexOf('await alertSettledPayerMismatch({', settledAt) <
+            buy.indexOf('getOrCreateWalletAccount(payer)')
+      );
+      const creditedAt = buy.indexOf(
+        "const creditedAccount = topUp?.userId ?? (await findWalletAccount(payer)); if (creditedAccount && (await isAccountFrozen(creditedAccount))) { return sanctionsRefusal('listed')!; }"
+      );
+      ok(
+        'a USDC buy into a frozen account is refused with the same 403 before verify and settle',
+        creditedAt !== -1 &&
+          creditedAt < buy.indexOf('server.verifyPayment(') &&
+          creditedAt < buy.indexOf('server.settlePayment(') &&
+          creditedAt < buy.indexOf('await lotForSettlement(settlementId)')
+      );
+      {
+        const acct = withoutComments(
+          readFileSync('lib/x402-account.ts', 'utf8')
+        );
+        const find = acct.slice(
+          acct.indexOf('export async function findWalletAccount('),
+          acct.indexOf('export async function countSettledPurchases(')
+        );
+        ok(
+          'finding the credited account never creates it',
+          /SELECT id FROM \$\{users\} WHERE email = \$\{syntheticEmailForWallet\(wallet\)\}/.test(
+            find
+          ) && !/INSERT|UPDATE/.test(find)
+        );
+      }
+      {
+        const checkoutSrc = withoutComments(
+          readFileSync('app/api/checkout/route.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        const frozenAt = checkoutSrc.indexOf(
+          "if (session.user && (await isAccountFrozen(session.user.id))) { return sanctionsRefusal('listed')!; }"
+        );
+        ok(
+          'a signed-in frozen account gets no card checkout session, and only the session is checked',
+          frozenAt !== -1 &&
+            frozenAt < checkoutSrc.indexOf('createPackCheckoutSession(') &&
+            frozenAt < checkoutSrc.indexOf('isStripeConfigured()') &&
+            /const session = token \? await validateSession\(token\) : \{ user: null \};/.test(
+              checkoutSrc
+            )
+        );
+        const fulfil = withoutComments(
+          readFileSync('lib/pack-fulfilment.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        ok(
+          'a card payment that lands on a frozen account is granted as usual and emailed',
+          /if \(granted\) \{ await alertFrozenAccountPayment\(\{ userId: user\.id, reference: stripePaymentId,/.test(
+            fulfil
+          ) &&
+            fulfil.indexOf('await alertFrozenAccountPayment(') >
+              fulfil.indexOf('await grantPack(')
+        );
+      }
+      {
+        const A = await import('@/lib/sanctions-alerts');
+        const mails: string[] = [];
+        const send = async (subject: string, text: string) => {
+          mails.push(`${subject}\n${text}`);
+          return { success: true };
+        };
+        const payDb = (frozen: boolean) =>
+          fakeDb((flat) => {
+            if (flat.startsWith('SELECT frozen_at FROM users')) {
+              return { rows: [{ frozen_at: frozen ? new Date() : null }] };
+            }
+            if (flat.startsWith('INSERT INTO ingest_state'))
+              return { rows: [{}] };
+            return { rows: [] };
+          });
+        const payment = {
+          userId: '55555555-5555-4555-8555-555555555555',
+          reference: 'pi_example',
+          pack: 'trial',
+          amountCents: 2900,
+        };
+        const clearPay = await A.alertFrozenAccountPayment(
+          payment,
+          payDb(false),
+          send
+        );
+        const frozenPayDb = payDb(true);
+        const frozenPay = await A.alertFrozenAccountPayment(
+          payment,
+          frozenPayDb,
+          send
+        );
+        ok(
+          'the frozen-payment email goes out only for a frozen account, once per payment',
+          clearPay === null &&
+            frozenPay === 'sent' &&
+            mails.length === 1 &&
+            /payment received for a frozen account/.test(mails[0]) &&
+            mails[0].includes(payment.userId) &&
+            mails[0].includes('pi_example') &&
+            frozenPayDb.sent.some((s) =>
+              s.params.includes('alert:sanctions:frozen-payment:pi_example')
+            )
+        );
+        const mismatchDb = fakeDb((flat) =>
+          flat.startsWith('INSERT INTO ingest_state')
+            ? { rows: [{}] }
+            : { rows: [] }
+        );
+        const mismatch = await A.alertSettledPayerMismatch(
+          {
+            settlementId: 'eip155:8453:0xaa:0x01',
+            screenedPayer: '0x' + 'a'.repeat(40),
+            settledPayer: '0x' + 'b'.repeat(40),
+            transaction: '0x' + 'c'.repeat(64),
+          },
+          mismatchDb,
+          send
+        );
+        ok(
+          'a settled-payer mismatch emails both wallets and the settlement, once',
+          mismatch === 'sent' &&
+            mails[1].includes('0x' + 'a'.repeat(40)) &&
+            mails[1].includes('0x' + 'b'.repeat(40)) &&
+            mismatchDb.sent.some((s) =>
+              s.params.includes(
+                'alert:sanctions:settled-payer:eip155:8453:0xaa:0x01'
+              )
+            )
+        );
+
+        // C and F: the pending freezes come from the database, and the list
+        // date is the in-force list's, whatever the run's own download was.
+        const pendingDb = fakeDb((flat) => {
+          if (flat.startsWith('WITH pairs AS (')) {
+            return {
+              rows: [
+                {
+                  userId: '66666666-6666-4666-8666-666666666666',
+                  payer: '0x' + 'd'.repeat(40),
+                  sdnUid: '1',
+                  publishDate: '2026-09-23',
+                },
+              ],
+            };
+          }
+          if (flat.startsWith('INSERT INTO ingest_state'))
+            return { rows: [{}] };
+          if (flat.startsWith('SELECT value FROM ingest_state')) {
+            return {
+              rows: [
+                {
+                  value: {
+                    publishDate: '2026-09-23',
+                    refreshedAt: new Date().toISOString(),
+                    addressCount: 124,
+                  },
+                },
+              ],
+            };
+          }
+          return { rows: [] };
+        });
+        const before = mails.length;
+        const res = await A.sendRefreshAlerts(
+          pendingDb,
+          {
+            ok: false,
+            refused: 'older_publication',
+            error: null,
+            publishDate: '2026-10-01',
+            parsed: 100,
+            previous: 124,
+            added: 0,
+            removed: 0,
+            freeze: { matched: 1, newlyFrozen: 0, keysDeactivated: 0 },
+            listAgeHours: 1,
+            alert: false,
+          },
+          new Date(),
+          send
+        );
+        const freezeMail =
+          mails.slice(before).find((m) => /frozen/.test(m)) ?? '';
+        ok(
+          'a freeze email for an account frozen earlier still goes out, citing the list in force',
+          res.freeze === 'sent' &&
+            /published 2026-09-23/.test(freezeMail) &&
+            !freezeMail.includes('2026-10-01')
+        );
+        const pendingSql =
+          pendingDb.sent.find((s) => s.sql.startsWith('WITH pairs AS ('))
+            ?.sql ?? '';
+        ok(
+          'pending freezes are frozen accounts with a listed payer and no sent marker for that pair',
+          pendingSql.includes("split_part(l.settlement_id, ':', 3)") &&
+            /JOIN users u ON u\.id = p\.user_id AND u\.frozen_at IS NOT NULL JOIN sanctioned_addresses s ON s\.address = p\.payer WHERE NOT EXISTS \( SELECT 1 FROM ingest_state a WHERE a\.name = \$\d+::text \|\| p\.user_id::text \|\| ':' \|\| p\.payer \)/.test(
+              pendingSql
+            ) &&
+            /\(SELECT value->>'publishDate' FROM ingest_state WHERE name = \$\d+\) AS "publishDate"/.test(
+              pendingSql
+            )
+        );
+        const cleanupRun = withoutComments(
+          readFileSync('app/api/cron/cleanup/route.ts', 'utf8')
+        );
+        ok(
+          'the daily cleanup sends pending freeze emails too',
+          /const sanctionsFreezeAlert = await alertPendingFreezes\(db\);/.test(
+            cleanupRun.slice(cleanupRun.indexOf('async function run('))
+          )
+        );
+      }
+      {
+        // G: every listed payer of an account names the freeze.
+        const db = fakeDb(() => ({
+          rows: [{ matched: 1, newly_frozen: 1, keys_deactivated: 0 }],
+        }));
+        await S.freezeListedBuyers(db, '2026-09-23');
+        ok(
+          'the freeze reason names every listed payer of the account',
+          /hits AS \( SELECT user_id, string_agg\(payer, ', ' ORDER BY payer\) AS payers FROM pairs GROUP BY user_id \)/.test(
+            db.sent[0]?.sql ?? ''
+          ) &&
+            /frozen_reason = 'sanctions list match: x402 payer\(s\) ' \|\| hits\.payers/.test(
+              db.sent[0]?.sql ?? ''
+            )
+        );
+      }
+      {
+        // C: the seed puts the list in place and freezes nobody.
+        const seedDb = fakeDb((flat) => {
+          if (flat.includes('FROM sanctioned_addresses) AS n')) {
+            return { rows: [{ n: 0, state: null }] };
+          }
+          if (flat.startsWith('WITH incoming AS')) {
+            return { rows: [{ added: 6, removed: 0, total: 6 }] };
+          }
+          return { rows: [] };
+        });
+        const seeded = await S.refreshSanctionsList({
+          db: seedDb,
+          fetchXml: async () => fixture,
+          freeze: false,
+        });
+        const migSrc = withoutComments(
+          readFileSync('scripts/migrate-sanctions-screening.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        ok(
+          'the migration seed puts the list in force and freezes nobody',
+          seeded.ok &&
+            seeded.freeze === null &&
+            !seedDb.sent.some((s) => s.sql.startsWith('WITH pairs AS (')) &&
+            /refreshSanctionsList\(\{ db: drizzle\(sql\), freeze: false, \}\)/.test(
+              migSrc
+            )
+        );
+        ok(
+          'the screening table refuses an address that is not an EVM address',
+          /address text NOT NULL CHECK \(address ~ '\^0x\[0-9a-f\]\{40\}\$'\), list_publish_date date,/.test(
+            migSrc
+          )
+        );
+      }
+      {
+        // B and E: the credits gates.
+        const credits = withoutComments(readFileSync('lib/credits.ts', 'utf8'));
+        const paid = credits.slice(
+          credits.indexOf('export async function hasPaidAccess('),
+          credits.indexOf('export interface CreditBalance')
+        );
+        ok(
+          'a frozen account has no paid entitlement, ahead of the legacy tiers',
+          /if \(await isAccountFrozen\(userId\)\) return false;\s*if \(legacyTierIsUnmetered\(tier\)\) return true;/.test(
+            paid
+          )
+        );
+        for (const route of [
+          'app/api/reverse/route.ts',
+          'app/api/x/lists/route.ts',
+          'app/api/farcaster-dm/route.ts',
+          'app/api/contract-holders/route.ts',
+        ]) {
+          ok(
+            `${route} gates its paid feature on hasPaidAccess, which a freeze closes`,
+            /await hasPaidAccess\(/.test(
+              withoutComments(readFileSync(route, 'utf8'))
+            )
+          );
+        }
+        ok(
+          'a frozen verdict is marked, and neither submission nor unlock offers a purchase',
+          /balance: EMPTY_BALANCE,\s*frozen: true,/.test(credits) &&
+            /upgradeRequired: !verdict\.frozen, \.\.\.\(verdict\.frozen \? \{ code: 'ACCOUNT_SUSPENDED' \} : \{\}\),/.test(
+              withoutComments(
+                readFileSync('app/api/jobs/route.ts', 'utf8')
+              ).replace(/\s+/g, ' ')
+            ) &&
+            /upgradeRequired: !verdict\.frozen, locked/.test(
+              withoutComments(
+                readFileSync('app/api/jobs/[id]/unlock/route.ts', 'utf8')
+              )
+            )
+        );
+        const job = credits.slice(
+          credits.indexOf('export async function chargeForJob('),
+          credits.indexOf('export async function chargeForApiCall(')
+        );
+        ok(
+          'a job finishing after its freeze bills nothing and delivers nothing, ahead of every other rule',
+          /^export async function chargeForJob\([^)]*\): Promise<JobCharge> \{\s*if \(await isAccountFrozen\(userId\)\) \{\s*return \{\s*billed: 0,\s*goodwill: 0,\s*delivered: 0,\s*duplicate: false,\s*paidFrom: null,\s*frozen: true,/.test(
+            job
+          )
+        );
+        const call = credits.slice(
+          credits.indexOf('export async function chargeForApiCall('),
+          credits.indexOf('export interface UnlockVerdict')
+        );
+        ok(
+          'an API call finishing after its freeze draws nothing',
+          call.indexOf('if (await isAccountFrozen(userId)) return 0;') !== -1 &&
+            call.indexOf('if (await isAccountFrozen(userId)) return 0;') <
+              call.indexOf('drawDown(')
+        );
+        const jp = withoutComments(
+          readFileSync('lib/job-processor.ts', 'utf8')
+        ).replace(/\s+/g, ' ');
+        const failAt = jp.indexOf(
+          "if (frozenAccount) { await writeOwned(db, job, { status: 'failed', errorMessage: FROZEN_ACCOUNT_MESSAGE, partialResults: null,"
+        );
+        ok(
+          'a job whose account froze fails with its results cleared, before history and completion',
+          jp.includes('if (charge.frozen) frozenAccount = true;') &&
+            failAt !== -1 &&
+            failAt < jp.indexOf('if (options.saveToHistory) {') &&
+            failAt < jp.indexOf("status: 'completed'")
+        );
+      }
+      {
+        // I: the public page names the list and where a 503 can come.
+        const page = readFileSync('docs-site/agent-pack.mdx', 'utf8');
+        ok(
+          'the agent pack page names OFAC’s SDN list and puts every refusal before settlement',
+          /OFAC’s SDN list/.test(page) &&
+            /before the payment is settled/.test(page) &&
+            !/before anything is\s+verified or settled/.test(page)
+        );
+        const ops = readFileSync('docs/OPERATIONS.md', 'utf8');
+        ok(
+          'the runbook says a download or parse failure is emailed only through the 36-hour alert',
+          /A download\s+or parse failure is not emailed by itself/.test(ops) &&
+            /shows at once as `failing`\s+on the health panel/.test(ops)
+        );
+      }
     }
 
     // --- the schedule, the alert and the backup

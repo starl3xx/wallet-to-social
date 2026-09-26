@@ -1,4 +1,5 @@
 import { getOrCreateUser } from '@/lib/access';
+import { alertFrozenAccountPayment } from '@/lib/sanctions-alerts';
 import { grantPack } from '@/lib/credits';
 import { generateMagicLinkToken } from '@/lib/auth';
 import { sendPurchaseSignInLink, isEmailConfigured } from '@/lib/email';
@@ -51,6 +52,22 @@ export async function fulfilPackPurchase(
 
   if (granted) {
     await sendSignInLink(email, pack);
+  }
+
+  /**
+   * A payment that landed on a frozen account, typically because the freeze
+   * came between checkout and payment (Linear STA-41). Granted as usual
+   * above, so the payment record is never dropped and the credits are held
+   * with the rest; the operator is emailed to decide on a refund. Never
+   * throws.
+   */
+  if (granted) {
+    await alertFrozenAccountPayment({
+      userId: user.id,
+      reference: stripePaymentId,
+      pack,
+      amountCents: amountCents || PACKS[pack].priceCents,
+    });
   }
 
   return { granted, userId: user.id };

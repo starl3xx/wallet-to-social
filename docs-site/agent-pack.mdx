@@ -208,10 +208,13 @@ challenge issued now, signed now, shows that you still hold the wallet.
 
 ## When a purchase is refused before payment
 
-The paying wallet is screened against sanctions lists as soon as the paid
-request arrives, and purchases are not available from a country or region
-under comprehensive US sanctions. These refusals happen **before anything is
-verified or settled**, so nothing is charged:
+The paying wallet is screened against OFAC’s SDN list as soon as the paid
+request arrives, and the payer that is screened is the payer that pays: a
+payment payload must be an EIP-3009 authorization and its signature, from an
+EVM address, and nothing else, or it is refused with `400` `INVALID_PAYMENT`.
+Purchases are not available from a country or region under comprehensive US
+sanctions. These refusals all happen **before the payment is settled**, so
+nothing is charged:
 
 | Status | Code                    | Meaning                                                                                                                           |
 | ------ | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
@@ -219,8 +222,12 @@ verified or settled**, so nothing is charged:
 | `403`  | `SANCTIONED_PAYER`      | This payment cannot be accepted. The response says nothing more.                                                                  |
 | `503`  | `SCREENING_UNAVAILABLE` | The screen could not run, so the sale was paused rather than made unchecked. Retry after the seconds in the `Retry-After` header. |
 
-An account whose paying wallet is found on a sanctions list after it bought
-is suspended: its keys stop working, its credits are held, and
+The `503` can also come after the payment is verified, when the screening
+cannot be recorded; it still comes before settlement.
+
+An account whose paying wallet is found on OFAC’s SDN list after it bought is
+suspended: its keys stop working, its credits are held, it cannot buy more
+(`403` `SANCTIONED_PAYER`, card checkout included), and
 [key recovery](#lost-your-key) answers `403` `SANCTIONED_PAYER`.
 
 ## If something goes wrong

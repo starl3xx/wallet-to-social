@@ -127,6 +127,25 @@ export async function getOrCreateWalletAccount(
 }
 
 /**
+ * The account this wallet's payments credit, if it has one, without creating
+ * it: the same row `getOrCreateWalletAccount` would return. Read before any
+ * money moves, so a buy into a frozen account is refused first (Linear
+ * STA-41). Throws when the database does, which the caller lets refuse.
+ */
+export async function findWalletAccount(
+  wallet: string
+): Promise<string | null> {
+  const db = getDb();
+  if (!db) throw new Error('No database: cannot find the wallet account.');
+  const [row] = (
+    await db.execute(
+      sql`SELECT id FROM ${users} WHERE email = ${syntheticEmailForWallet(wallet)} LIMIT 1`
+    )
+  ).rows as Array<{ id: string }>;
+  return row?.id ?? null;
+}
+
+/**
  * How many settled x402 purchases this wallet has ever made, for the loyalty
  * bonus (docs/AGENT-SYSTEM.md, gap 18).
  *

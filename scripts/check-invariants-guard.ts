@@ -4424,8 +4424,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 the freeze reads the nonce instead of the payer',
     file: 'lib/sanctions.ts',
-    from: "            ON s.address = split_part(l.settlement_id, ':', 3)",
-    to: "            ON s.address = split_part(l.settlement_id, ':', 4)",
+    from: "      ON s.address = split_part(l.settlement_id, ':', 3)",
+    to: "      ON s.address = split_part(l.settlement_id, ':', 4)",
   },
   {
     name: 'STA-41 the freeze never stamps the account',
@@ -4454,8 +4454,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 a frozen account can still unlock matches',
     file: 'lib/credits.ts',
-    from: '  if (await isAccountFrozen(userId)) {\n    return { ok: false, reason: FROZEN_ACCOUNT_MESSAGE };',
-    to: '  if (false) {\n    return { ok: false, reason: FROZEN_ACCOUNT_MESSAGE };',
+    from: '  if (await isAccountFrozen(userId)) {\n    return { ok: false, reason: FROZEN_ACCOUNT_MESSAGE, frozen: true };',
+    to: '  if (false) {\n    return { ok: false, reason: FROZEN_ACCOUNT_MESSAGE, frozen: true };',
   },
   {
     name: 'STA-41 the buy route never screens the payer',
@@ -4542,8 +4542,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 card checkout is not geoblocked',
     file: 'app/api/checkout/route.ts',
-    from: '  const geoblocked = checkoutGeoblock(request.headers);\n  if (geoblocked) return geoblocked;\n\n  try {',
-    to: '  try {',
+    from: '  const geoblocked = checkoutGeoblock(request.headers);\n  if (geoblocked) return geoblocked;\n',
+    to: '',
   },
   {
     name: 'STA-41 screening records are kept one year',
@@ -4621,8 +4621,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 a freeze sends no email',
     file: 'lib/sanctions-alerts.ts',
-    from: '    ? await alertFreezes(db, outcome.freeze.frozen, outcome.publishDate, send)',
-    to: '    ? null',
+    from: '  const freeze = await alertPendingFreezes(db, send);',
+    to: '  const freeze = null;',
   },
   {
     name: 'STA-41 the alert claim has no repeat window, so every run emails',
@@ -4681,14 +4681,14 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 the freeze email drops the SDN entry uid',
     file: 'lib/sanctions-alerts.ts',
-    from: "            `SDN entry uid: ${a.sdnUid ?? 'unknown'}`,\n",
+    from: "            `SDN entry uid: ${p.sdnUid ?? 'unknown'}`,\n",
     to: '',
   },
   {
-    name: 'STA-41 all freezes share one condition, so a second is swallowed by the first',
+    name: 'STA-41 a freeze is keyed by account alone, so a later listed payer is swallowed',
     file: 'lib/sanctions-alerts.ts',
-    from: '  const byCondition = new Map(frozen.map((f) => [`freeze:${f.userId}`, f]));',
-    to: '  const byCondition = new Map(frozen.map((f) => [`freeze`, f]));',
+    from: '    pending.map((f) => [`freeze:${f.userId}:${f.payer}`, f])',
+    to: '    pending.map((f) => [`freeze:${f.userId}`, f])',
   },
   {
     name: 'STA-41 alerts go to another inbox',
@@ -4785,6 +4785,187 @@ const MUTATIONS: Mutation[] = [
     file: 'app/api/cron/sanctions-refresh/route.ts',
     from: '      { ...outcome, freeze, alerts },',
     to: '      { ...outcome, alerts },',
+  },
+  // --- STA-41 review fixes (2026-09-25) -----------------------------------
+  {
+    name: 'STA-41 a payload with extra fields reaches the screen',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  if (!EVM_ADDRESS.test(payer) || !isEip3009Only(payload)) {',
+    to: '  if (!EVM_ADDRESS.test(payer)) {',
+  },
+  {
+    name: 'STA-41 a payer that is not an EVM address reaches the screen',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  if (!EVM_ADDRESS.test(payer) || !isEip3009Only(payload)) {',
+    to: '  if (!isEip3009Only(payload)) {',
+  },
+  {
+    name: 'STA-41 the payload check lets any extra field through',
+    file: 'lib/x402.ts',
+    from: "    keys.every((k) => k === 'authorization' || k === 'signature')",
+    to: '    keys.every(() => true)',
+  },
+  {
+    name: 'STA-41 the payer check accepts any string',
+    file: 'lib/x402.ts',
+    from: 'export const EVM_ADDRESS = /^0x[0-9a-f]{40}$/;',
+    to: 'export const EVM_ADDRESS = /0x/;',
+  },
+  {
+    name: 'STA-41 settle proceeds when the verified payer is not the screened one',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  if (verification.payer?.toLowerCase() !== payer) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'STA-41 a verify answer that names no payer is accepted',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  if (verification.payer?.toLowerCase() !== payer) {',
+    to: '  if (verification.payer && verification.payer.toLowerCase() !== payer) {',
+  },
+  {
+    name: 'STA-41 a settled payer that is not the screened one is not reported',
+    file: 'app/api/x402/buy/route.ts',
+    from: '    await alertSettledPayerMismatch({',
+    to: '    void ({',
+  },
+  {
+    name: 'STA-41 a USDC buy into a frozen account settles',
+    file: 'app/api/x402/buy/route.ts',
+    from: '  if (creditedAccount && (await isAccountFrozen(creditedAccount))) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'STA-41 a signed-in frozen account gets a checkout session',
+    file: 'app/api/checkout/route.ts',
+    from: '  if (session.user && (await isAccountFrozen(session.user.id))) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'STA-41 a card payment on a frozen account is not reported',
+    file: 'lib/pack-fulfilment.ts',
+    from: '    await alertFrozenAccountPayment({',
+    to: '    void ({',
+  },
+  {
+    name: 'STA-41 the frozen-payment email goes out for any account',
+    file: 'lib/sanctions-alerts.ts',
+    from: '    if (!row?.frozen_at) return null;\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 a frozen account keeps its paid entitlement',
+    file: 'lib/credits.ts',
+    from: '  if (await isAccountFrozen(userId)) return false;\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 the frozen verdict loses its mark, so the UI upsells',
+    file: 'lib/credits.ts',
+    from: '      balance: EMPTY_BALANCE,\n      frozen: true,\n',
+    to: '      balance: EMPTY_BALANCE,\n',
+  },
+  {
+    name: 'STA-41 a frozen account is offered a purchase on submit',
+    file: 'app/api/jobs/route.ts',
+    from: '            upgradeRequired: !verdict.frozen,',
+    to: '            upgradeRequired: true,',
+  },
+  {
+    name: 'STA-41 a frozen account is offered a purchase on unlock',
+    file: 'app/api/jobs/[id]/unlock/route.ts',
+    from: '        { error: verdict.reason, upgradeRequired: !verdict.frozen, locked },',
+    to: '        { error: verdict.reason, upgradeRequired: true, locked },',
+  },
+  {
+    name: 'STA-41 a job finishing after its freeze is billed',
+    file: 'lib/credits.ts',
+    from: '  if (await isAccountFrozen(userId)) {\n    return {\n      billed: 0,',
+    to: '  if (false) {\n    return {\n      billed: 0,',
+  },
+  {
+    name: 'STA-41 an API call finishing after its freeze draws held credits',
+    file: 'lib/credits.ts',
+    from: '  if (await isAccountFrozen(userId)) return 0;\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 a job whose account froze still completes with its rows',
+    file: 'lib/job-processor.ts',
+    from: '      if (charge.frozen) frozenAccount = true;\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 a failed frozen job keeps its results',
+    file: 'lib/job-processor.ts',
+    from: '      errorMessage: FROZEN_ACCOUNT_MESSAGE,\n      partialResults: null,\n',
+    to: '      errorMessage: FROZEN_ACCOUNT_MESSAGE,\n',
+  },
+  {
+    name: 'STA-41 the pending freeze query re-sends pairs already reported',
+    file: 'lib/sanctions-alerts.ts',
+    from: '        WHERE NOT EXISTS (',
+    to: '        WHERE EXISTS (',
+  },
+  {
+    name: 'STA-41 the pending freeze query reports accounts that are not frozen',
+    file: 'lib/sanctions-alerts.ts',
+    from: '        JOIN users u ON u.id = p.user_id AND u.frozen_at IS NOT NULL',
+    to: '        JOIN users u ON u.id = p.user_id',
+  },
+  {
+    name: 'STA-41 the freeze email loses the date of the list in force',
+    file: 'lib/sanctions-alerts.ts',
+    from: '    publishDate = rows[0]?.publishDate ?? null;',
+    to: '    publishDate = null;',
+  },
+  {
+    name: 'STA-41 the daily cleanup sends no pending freeze email',
+    file: 'app/api/cron/cleanup/route.ts',
+    from: '  const sanctionsFreezeAlert = await alertPendingFreezes(db);',
+    to: '  const sanctionsFreezeAlert = null;',
+  },
+  {
+    name: 'STA-41 the freeze reason names one payer of several',
+    file: 'lib/sanctions.ts',
+    from: "        SELECT user_id, string_agg(payer, ', ' ORDER BY payer) AS payers",
+    to: '        SELECT user_id, min(payer) AS payers',
+  },
+  {
+    name: 'STA-41 the migration seed freezes accounts',
+    file: 'scripts/migrate-sanctions-screening.ts',
+    from: '    freeze: false,\n  });',
+    to: '    freeze: true,\n  });',
+  },
+  {
+    name: 'STA-41 the no-freeze option is ignored',
+    file: 'lib/sanctions.ts',
+    from: '    if (runFreeze) {',
+    to: '    if (true) {',
+  },
+  {
+    name: 'STA-41 the screening table takes any string as an address',
+    file: 'scripts/migrate-sanctions-screening.ts',
+    from: "        address text NOT NULL CHECK (address ~ '^0x[0-9a-f]{40}$'),\n        list_publish_date date,",
+    to: '        address text NOT NULL,\n        list_publish_date date,',
+  },
+  {
+    name: 'STA-41 the agent pack page says every refusal comes before verify',
+    file: 'docs-site/agent-pack.mdx',
+    from: 'sanctions. These refusals all happen **before the payment is settled**, so',
+    to: 'sanctions. These refusals happen **before anything is verified or settled**, so',
+  },
+  {
+    name: 'STA-41 the agent pack page stops naming the list',
+    file: 'docs-site/agent-pack.mdx',
+    from: 'The paying wallet is screened against OFAC’s SDN list as soon as the paid',
+    to: 'The paying wallet is screened against sanctions lists as soon as the paid',
+  },
+  {
+    name: 'STA-41 the runbook says a parse failure is emailed at once',
+    file: 'docs/OPERATIONS.md',
+    from: 'A download\n    or parse failure is not emailed by itself',
+    to: 'A download\n    or parse failure is emailed at once',
   },
 ];
 

@@ -79,7 +79,7 @@ import { cleanupIdempotencyKeys } from '@/lib/idempotency';
 import { ACCESS_TOKEN_PREFIX } from '@/lib/oauth/grants';
 import { cleanExpiredCache } from '@/lib/cache';
 import { cleanupOldBuckets } from '@/lib/rate-limiter';
-import { alertIfListStale } from '@/lib/sanctions-alerts';
+import { alertIfListStale, alertPendingFreezes } from '@/lib/sanctions-alerts';
 import {
   clearOldStripeIds,
   countLotsDue,
@@ -444,11 +444,13 @@ async function run(request: NextRequest): Promise<NextResponse> {
 
   /**
    * Not a deletion: the watchdog for the sanctions list (STA-41). The refresh
-   * cron emails when the list goes stale, but a job that has stopped running
-   * cannot report that it stopped, so this daily job checks the same
-   * database row and sends the same once-a-day email. Never throws.
+   * cron emails when the list goes stale and when an account is frozen, but a
+   * job that has stopped running cannot report that it stopped, so this
+   * daily job checks the same database state and sends the same emails
+   * under the same claims. Never throws.
    */
   const sanctionsListAlert = await alertIfListStale(db);
+  const sanctionsFreezeAlert = await alertPendingFreezes(db);
 
   const auth = await cleanupExpiredAuth();
   const ipBuckets = await cleanupOldIpBuckets(IP_BUCKET_RETENTION_HOURS);
@@ -489,6 +491,7 @@ async function run(request: NextRequest): Promise<NextResponse> {
     creditLedgerRows,
     sanctionsScreenings,
     sanctionsListAlert,
+    sanctionsFreezeAlert,
     purchaseRecords,
     walletCacheRows,
   });

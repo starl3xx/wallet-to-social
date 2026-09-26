@@ -8,7 +8,11 @@ All notable changes to walletlink.social. Newest first.
   moves.** On `/api/x402/buy`, the paying wallet is checked against the EVM
   addresses on OFAC's SDN list as soon as the payment is read, before it is
   verified or settled. A listed wallet gets `403 SANCTIONED_PAYER` with one
-  sentence, "This payment cannot be accepted.", and nothing more.
+  sentence, "This payment cannot be accepted.", and nothing more. The payer
+  that is screened is the payer that pays: a payment must be a plain EIP-3009
+  authorization from an EVM address (`400 INVALID_PAYMENT` otherwise), verify
+  must name the same payer or the sale stops before settlement, and a
+  settlement that names another payer is emailed to the operator at once.
 - **The screen fails closed.** When there is no list, when the list's last
   successful refresh is 7 days old, or when the check cannot run, the buy
   answers `503 SCREENING_UNAVAILABLE` with a `Retry-After`, and nothing is
@@ -25,9 +29,14 @@ All notable changes to walletlink.social. Newest first.
   purchase was already stored (in the purchase's settlement reference), so
   nothing new is recorded for it. An account a listed wallet paid for,
   including a top-up to an email account, is marked frozen with the reason
-  and the time, and its keys are switched off. Its keys stay refused even if
-  one is minted later, key recovery answers it with the same `403`, and it
-  cannot start a lookup or spend credits.
+  and the time (every listed payer is named), and its keys are switched off.
+  Its keys stay refused even if one is minted later; it loses every paid
+  feature and is not offered a purchase; it cannot start a lookup or spend
+  credits, and a job still running when the freeze lands fails with its
+  results cleared and nothing billed; key recovery, the USDC buy and a
+  signed-in card checkout answer it with the same `403`. A card payment that
+  lands on a frozen account anyway is granted as usual, so its record is
+  kept, and the operator is emailed to decide on a refund.
 - **Both checkouts refuse comprehensively sanctioned regions.** The USDC buy
   and card checkout answer `403 REGION_RESTRICTED` ("Purchases are not
   available in your region.") for a request from Cuba, Iran, North Korea,
@@ -41,23 +50,31 @@ All notable changes to walletlink.social. Newest first.
   record cannot be written is refused. A refusal is recorded before verify,
   once per payer, verdict and hour with a count of attempts, and marked as
   never having reached verify.
-- **Alerts are emailed.** A freeze (with the account id, the matched address
-  and the list entry), a refused refresh, and 36 hours without a successful
-  refresh each email help@, at most once a day per condition, remembered in
-  the database. A failed email is logged and retried on the next run; it
-  never holds up or undoes a freeze or a refusal. The daily cleanup checks the
-  list age too, in case the refresh stops running. The admin health panel
-  shows the same conditions. The runbook is in `docs/OPERATIONS.md`.
+- **Alerts are emailed.** A freeze (with the account id, the matched address,
+  the list entry and the date of the list in force), a refresh refused by its
+  guard, and 36 hours without a successful refresh each email help@, at most
+  once a day per condition, remembered in the database. A download or parse
+  failure is emailed only through the 36-hour alert, and shows at once on
+  the admin health panel. The freeze email is read from the database, once
+  per account and listed payer, so an email that failed is sent on the next
+  run, and a second payer listed later is reported too. An email never holds
+  up or undoes a freeze, a refusal or a payment. The daily cleanup runs the
+  freeze and list-age checks too, in case the refresh stops running. The
+  runbook is in `docs/OPERATIONS.md`.
 - Operator: run `scripts/migrate-sanctions-screening.ts` (two tables, two
-  `users` columns, and the first copy of the list) and then
+  `users` columns, and the first copy of the list; it freezes nobody, the
+  first refresh after deploy does) and then
   `scripts/migrate-grant-readonly.ts`, both before merge. Linear STA-41.
-  Eighty-seven new invariants drive the parser on a fixture in the real
-  SDN.XML shape, the refresh guard, the screen, its records and its answers,
-  the freeze, the alerts, the geoblock and the purge through the real
-  functions, and pin the order in the buy and recovery routes; seventy-three
-  new guard mutations, each caught. A local Postgres scenario ran the real
-  buy route up to and past verify, the refresh cron on the real SDN.XML, the
-  freeze, the alert claims, recovery and the purge: 80 checks.
+  One hundred fifteen new invariants drive the parser on a fixture in the
+  real SDN.XML shape, the refresh guard, the screen, its records and its
+  answers, the payment shape and the payer checks, the freeze and every
+  place it is enforced, the alerts, the geoblock and the purge through the
+  real functions, and pin the order in the buy, checkout and recovery
+  routes; one hundred three new guard mutations, each caught. A local
+  Postgres scenario ran the real buy route up to and past verify and settle,
+  the refresh cron on the real SDN.XML, the freeze and its enforcement, a job
+  finishing after a freeze, card checkout and fulfilment, the alert claims,
+  recovery and the purge: 94 checks.
 
 ### 2026-09-25 (the retention periods the privacy page states are enforced)
 

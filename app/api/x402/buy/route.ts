@@ -61,6 +61,8 @@ import {
   payerFrom,
   quantityFrom,
   BASE_MAINNET,
+  EVM_ADDRESS,
+  isEip3009Only,
 } from '@/lib/x402';
 import {
   X402_PACKS,
@@ -76,12 +78,15 @@ import {
 import {
   getOrCreateWalletAccount,
   countSettledPurchases,
+  findWalletAccount,
 } from '@/lib/x402-account';
 import {
   recordClearScreening,
   sanctionsRefusal,
   screenPayer,
 } from '@/lib/sanctions';
+import { alertSettledPayerMismatch } from '@/lib/sanctions-alerts';
+import { isAccountFrozen } from '@/lib/account-freeze';
 import { checkoutGeoblock } from '@/lib/geoblock';
 import { createApiKeyIfUnderCap, validateApiKey } from '@/lib/api-keys';
 import { readBodyCapped } from '@/lib/api-auth';
@@ -426,6 +431,23 @@ export async function POST(request: NextRequest) {
   }
 
   /**
+   * The payer that is screened is the payer that pays (Linear STA-41). The
+   * payer is an EVM address, and the payload is an EIP-3009 authorization
+   * and its signature with nothing beside them (`isEip3009Only`), so no
+   * other field can decide who pays. Refused before the screen.
+   */
+  if (!EVM_ADDRESS.test(payer) || !isEip3009Only(payload)) {
+    return NextResponse.json(
+      {
+        error:
+          'Payment payload must be an EIP-3009 authorization from an EVM address and its signature, and nothing else.',
+        code: 'INVALID_PAYMENT',
+      },
+      { status: 400 }
+    );
+  }
+
+  /**
    * The sanctions screen (lib/sanctions.ts, Linear STA-41), as soon as the
    * payer is known and before anything reads, verifies or settles, so a
    * listed payer never reaches the facilitator. A listed payer is refused
@@ -436,6 +458,17 @@ export async function POST(request: NextRequest) {
   const screen = await screenPayer(payer);
   const screened = sanctionsRefusal(screen.verdict);
   if (screened) return screened;
+
+  /**
+   * A frozen account takes no new money (lib/account-freeze.ts). The account
+   * this purchase would credit, found without creating it: the top-up key's
+   * account, or the paying wallet's existing account. Refused with the same
+   * 403, before anything verifies or settles.
+   */
+  const creditedAccount = topUp?.userId ?? (await findWalletAccount(payer));
+  if (creditedAccount && (await isAccountFrozen(creditedAccount))) {
+    return sanctionsRefusal('listed')!;
+  }
 
   /**
    * Has this payment already been honoured?
@@ -561,6 +594,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  /**
+   * The payer verify proved must be the payer that was screened: anything
+   * else is refused before the record and before settle (Linear STA-41). A
+   * verify answer that names no payer is refused too.
+   */
+  if (verification.payer?.toLowerCase() !== payer) {
+    console.error(
+      '[sanctions] the verified payer is not the screened payer; refused before settle'
+    );
+    return NextResponse.json(
+      { error: 'Payment did not verify.', code: 'PAYMENT_INVALID' },
+      { status: 402 }
+    );
+  }
+
   // The clear screen's record, now that verify has proven the payer. No
   // record, no settlement: a failed write refuses with 503 (Linear STA-41).
   const unrecorded = sanctionsRefusal(
@@ -580,6 +628,24 @@ export async function POST(request: NextRequest) {
       },
       { status: 402 }
     );
+  }
+
+  /**
+   * Money has moved, so a settled payer that is not the screened one cannot
+   * be refused any more: it is logged and emailed to the operator at once
+   * (lib/sanctions-alerts.ts, Linear STA-41). The alert never throws and
+   * never holds up the grant below.
+   */
+  if (settlement.payer && settlement.payer.toLowerCase() !== payer) {
+    console.error(
+      `[sanctions] ALERT: settlement ${redact(settlementId)} was paid by a payer other than the screened one`
+    );
+    await alertSettledPayerMismatch({
+      settlementId,
+      screenedPayer: payer,
+      settledPayer: settlement.payer.toLowerCase(),
+      transaction: settlement.transaction,
+    });
   }
 
   // Money has moved. Everything below is recorded or reported loudly.
