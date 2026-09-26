@@ -4826,8 +4826,14 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 a settled payer that is not the screened one is not reported',
     file: 'app/api/x402/buy/route.ts',
-    from: '    await alertSettledPayerMismatch({',
-    to: '    void ({',
+    from: '      await alertSettledPayerMismatch({',
+    to: '      void ({',
+  },
+  {
+    name: 'STA-41 the settled-payer email holds up the grant again',
+    file: 'app/api/x402/buy/route.ts',
+    from: '    const { userId } = topUp ?? (await getOrCreateWalletAccount(payer));\n',
+    to: '    if (settledElsewhere) await alertSettledPayerMismatch({ settlementId, screenedPayer: payer, settledPayer: settledElsewhere, transaction: settlement.transaction });\n    const { userId } = topUp ?? (await getOrCreateWalletAccount(payer));\n',
   },
   {
     name: 'STA-41 a USDC buy into a frozen account settles',

@@ -643,20 +643,20 @@ export async function POST(request: NextRequest) {
 
   /**
    * Money has moved, so a settled payer that is not the screened one cannot
-   * be refused any more: it is logged and emailed to the operator at once
-   * (lib/sanctions-alerts.ts, Linear STA-41). The alert never throws and
-   * never holds up the grant below.
+   * be refused any more: it is logged here and emailed to the operator right
+   * after the grant below (lib/sanctions-alerts.ts, Linear STA-41). The email
+   * waits for the grant, never the other way round: a send can take up to
+   * `OPS_ALERT_TIMEOUT_MS`, and an invocation cut short in that time would
+   * leave a settled payment with no lot.
    */
-  if (settlement.payer && settlement.payer.toLowerCase() !== payer) {
+  const settledElsewhere =
+    settlement.payer && settlement.payer.toLowerCase() !== payer
+      ? settlement.payer.toLowerCase()
+      : null;
+  if (settledElsewhere) {
     console.error(
       `[sanctions] ALERT: settlement ${redact(settlementId)} was paid by a payer other than the screened one`
     );
-    await alertSettledPayerMismatch({
-      settlementId,
-      screenedPayer: payer,
-      settledPayer: settlement.payer.toLowerCase(),
-      transaction: settlement.transaction,
-    });
   }
 
   // Money has moved. Everything below is recorded or reported loudly.
@@ -674,6 +674,15 @@ export async function POST(request: NextRequest) {
       totalCents,
       quantity
     );
+    if (settledElsewhere) {
+      // Never throws, so it cannot turn a written grant into GRANT_FAILED.
+      await alertSettledPayerMismatch({
+        settlementId,
+        screenedPayer: payer,
+        settledPayer: settledElsewhere,
+        transaction: settlement.transaction,
+      });
+    }
 
     /**
      * The loyalty bonus (gap 18). Only on a grant that actually wrote:

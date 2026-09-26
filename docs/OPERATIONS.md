@@ -265,7 +265,8 @@ What runs, decided 2026-09-25:
     on the health panel and reaches the inbox only through this 36-hour
     alert;
   - **a payment that settled from a wallet other than the one screened**
-    (`settled-payer:<settlement>`), at once;
+    (`settled-payer:<settlement>`), as soon as the credits are granted (the
+    log line comes at once, and the email never holds up the grant);
   - **a card payment that landed on a frozen account** (`frozen-payment:<id>`),
     at once;
   - **a job charged before its account was frozen** (`frozen-job:<job>`),

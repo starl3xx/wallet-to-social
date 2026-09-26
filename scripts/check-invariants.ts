@@ -18683,15 +18683,18 @@ async function main() {
           )
       );
       const settledAt = buy.indexOf(
-        'if (settlement.payer && settlement.payer.toLowerCase() !== payer) {'
+        'settlement.payer && settlement.payer.toLowerCase() !== payer'
       );
+      const grantAt = buy.indexOf('await grantPackBySettlement(');
+      const alertAt = buy.indexOf('await alertSettledPayerMismatch({');
       ok(
-        'a settled payer that is not the screened one is logged and emailed before the grant',
+        'a settled payer that is not the screened one is logged at once and emailed only after the grant, so a slow send never holds up the lot',
         settledAt > buy.indexOf('if (!settlement.success) {') &&
-          buy.indexOf('await alertSettledPayerMismatch({', settledAt) >
-            settledAt &&
-          buy.indexOf('await alertSettledPayerMismatch({', settledAt) <
-            buy.indexOf('getOrCreateWalletAccount(payer)')
+          buy.indexOf('[sanctions] ALERT: settlement', settledAt) > settledAt &&
+          buy.indexOf('[sanctions] ALERT: settlement', settledAt) < grantAt &&
+          alertAt > grantAt &&
+          alertAt < buy.indexOf('createApiKeyIfUnderCap(') &&
+          buy.split('alertSettledPayerMismatch(').length === 2
       );
       const creditedAt = buy.indexOf(
         "const creditedAccount = topUp?.userId ?? (await findWalletAccount(payer)); if (creditedAccount && (await isAccountFrozen(creditedAccount))) { return sanctionsRefusal('listed')!; }"
