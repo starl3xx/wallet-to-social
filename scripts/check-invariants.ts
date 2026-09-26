@@ -20887,6 +20887,51 @@ async function main() {
           consentForm.includes('href="/terms"') &&
           consentForm.includes('href="/privacy"')
       );
+
+      /**
+       * What the docs say a sign-in records. It records no agreement, and
+       * that is all the docs may claim: a sign-in does record data (the
+       * sign-in link, the session and its cookie, the account on first use),
+       * and `/privacy` lists each one. "Signing in records nothing" was
+       * published once, a false data-handling claim the privacy page
+       * contradicted. Read per paragraph, a list item counting as one, with
+       * the line wrapping undone, so a sentence split across lines, or an
+       * "It records nothing" after a sentence about sign-in, is still seen.
+       */
+      const markdownDocs = [
+        'README.md',
+        'PROJECT_OVERVIEW.md',
+        'CHANGELOG.md',
+        ...['docs', 'docs-site'].flatMap((dir) =>
+          readdirSync(dir, { recursive: true })
+            .map(String)
+            .filter((f) => /\.mdx?$/.test(f))
+            .map((f) => `${dir}/${f}`)
+        ),
+      ];
+      const signInParagraphs = markdownDocs.flatMap((f) =>
+        readFileSync(f, 'utf8')
+          .split(/\n[ \t]*\n|\n(?=[ \t]*[-*] )/)
+          .map((p) => p.replace(/\s+/g, ' '))
+          .filter((p) => /\bsign(?:ing|s|ed)?[ -]in\b/i.test(p))
+          .map((p) => ({ f, p }))
+      );
+      const claimsNothing = signInParagraphs.filter(({ p }) =>
+        /\brecords? nothing\b/i.test(p)
+      );
+      ok(
+        'no doc says a sign-in records nothing; it records no agreement, and the privacy policy lists what it does record' +
+          (claimsNothing.length
+            ? ` (${claimsNothing.map(({ f }) => f).join(', ')})`
+            : ''),
+        signInParagraphs.some(
+          ({ f, p }) =>
+            f === 'docs-site/api-reference/introduction.mdx' &&
+            p.includes(
+              'Signing in to the website records no agreement to the terms.'
+            )
+        ) && claimsNothing.length === 0
+      );
     }
   }
 

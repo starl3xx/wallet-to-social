@@ -5812,6 +5812,26 @@ const MUTATIONS: Mutation[] = [
     from: '      <AuthModal open={authOpen} onOpenChange={setAuthOpen} next="/claim" />\n',
     to: "      <form\n        onSubmit={(event) => {\n          event.preventDefault();\n          void fetch('/api/auth/send-magic-link', {\n            method: 'POST',\n            body: JSON.stringify({ next: '/claim' }),\n          });\n        }}\n      />\n      <AuthModal open={authOpen} onOpenChange={setAuthOpen} next=\"/claim\" />\n",
   },
+  // A sign-in records data (a link, a session, an account), so the docs may
+  // say it records no agreement and never that it records nothing.
+  {
+    name: 'terms: the API docs say signing in records nothing',
+    file: 'docs-site/api-reference/introduction.mdx',
+    from: 'Signing in to the website records no agreement to the terms. The sign-in form\n',
+    to: 'Signing in to the website records nothing. The sign-in form\n',
+  },
+  {
+    name: 'terms: the changelog says signing in records nothing',
+    file: 'CHANGELOG.md',
+    from: '  records no agreement. The agreement that is recorded is the one you make when\n',
+    to: '  records nothing. The agreement that is recorded is the one you make when\n',
+  },
+  {
+    name: 'terms: the overview says the sign-in notice records nothing',
+    file: 'PROJECT_OVERVIEW.md',
+    from: "OAuth consent screen's own form. The notice records no agreement; acceptance\n",
+    to: "OAuth consent screen's own form. It records nothing; acceptance\n",
+  },
 ];
 
 function invariantsPass(): boolean {
