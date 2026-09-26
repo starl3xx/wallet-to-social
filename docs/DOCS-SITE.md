@@ -161,7 +161,8 @@ Test an address by sending to it from a mailbox outside the domain; a message
 sent from inside Workspace does not go through MX.
 
 help@ is also the second Contact in `/.well-known/security.txt`, after GitHub
-private vulnerability reporting, and the reply-to on every transactional email.
+private vulnerability reporting, and the reply-to on lifecycle email (sign-in
+and purchase mail come from noreply@ with no reply-to).
 So it must keep taking mail from outside the domain, which is exactly where
 security reports come from. It does: help@ exists in Workspace and takes
 outside mail (confirmed 2026-09-26). There is no security@ (decided

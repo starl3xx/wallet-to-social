@@ -708,7 +708,7 @@ for (const file of walk('app', [], ['.tsx', '.ts']).concat(
  * carry the title and the input labels the Actor's page renders, so they are
  * read too.
  *
- * SECURITY.md joined on 2026-09-24. GitHub renders it on the repository's
+ * SECURITY.md joined on 2026-09-26. GitHub renders it on the repository's
  * Security tab and `/.well-known/security.txt` points researchers at it, so
  * it is published copy too.
  */

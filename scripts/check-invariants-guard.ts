@@ -3595,6 +3595,31 @@ const MUTATIONS: Mutation[] = [
       '   Only you and the maintainers can read it, and it does not depend on email.\n',
   },
   {
+    // The claim a reviewer found false, restored: help@ is not the reply-to
+    // on sign-in or purchase mail, which go out from noreply@ with none.
+    name: 'security contact prose calls help@ every reply-to again',
+    file: 'lib/security-contact.ts',
+    from: '/** The support mailbox a person reads. The second channel. */',
+    to: '/** The mailbox a person reads, and every reply-to. The second channel. */',
+  },
+  {
+    // The docs still say lifecycle email replies to help@ after the one
+    // sender that sets it stops, so the stated reason for the channel is
+    // false about the code.
+    name: 'security contact prose keeps the lifecycle reply-to after sendLifecycleEmail drops it',
+    file: 'lib/email.ts',
+    from: "      replyTo: 'help@walletlink.social',\n",
+    to: '',
+  },
+  {
+    // The first draft's date, left behind by a rebase that re-dated the
+    // CHANGELOG entry and AGENT-SYSTEM but not this note.
+    name: 'security contact ship date disagrees in the house-style note',
+    file: 'scripts/check-house-style.mjs',
+    from: ' * SECURITY.md joined on 2026-09-26.',
+    to: ' * SECURITY.md joined on 2026-09-24.',
+  },
+  {
     // Paragraph (c) of the policy makes deletion the dangerous edit: an
     // omitted signal is a refusal to answer, not a quiet no, so this reads
     // as tidying and is a withdrawal.

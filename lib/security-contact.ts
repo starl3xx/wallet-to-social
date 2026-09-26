@@ -16,10 +16,12 @@
  *    construction, it does not depend on the domain's mail setup, and it
  *    stands in for an Encryption field: there is no OpenPGP key to publish.
  *    Enabled on the repository on 2026-09-25.
- * 2. **help@walletlink.social**, second. It is the mailbox a person reads,
- *    and every transactional email already uses it as its reply-to, so it is
- *    the address whose delivery is exercised every day. It exists in Google
- *    Workspace and takes mail from outside the domain, confirmed 2026-09-26.
+ * 2. **help@walletlink.social**, second. It is the support mailbox a person
+ *    reads: the site, the purchase email and the error messages all name
+ *    it, and lifecycle email (the welcome sequence) sets it as the reply-to.
+ *    Sign-in and purchase mail come from noreply@ with no reply-to, so they
+ *    do not exercise it. It exists in Google Workspace and takes mail from
+ *    outside the domain, confirmed 2026-09-26.
  *
  * No security@. RFC 9116 suggests the RFC 2142 SECURITY@ convention, but a
  * Contact has to reach somebody, and a security@ that does not exist bounces
@@ -71,7 +73,7 @@ import { PRODUCTION_URL } from '@/lib/site-url';
 export const SECURITY_REPORT_URL =
   'https://github.com/starl3xx/wallet-to-social/security/advisories/new';
 
-/** The mailbox a person reads, and every reply-to. The second channel. */
+/** The support mailbox a person reads. The second channel. */
 export const SECURITY_EMAIL = 'help@walletlink.social';
 
 /** GitHub renders the root SECURITY.md here. */

@@ -518,8 +518,10 @@ order, because RFC 9116 makes the first one preferred:
 
 1. GitHub private vulnerability reporting (PVR),
    `https://github.com/starl3xx/wallet-to-social/security/advisories/new`;
-2. `help@walletlink.social`, the mailbox a person reads and the reply-to on
-   every transactional email. There is no security@: a Contact must reach
+2. `help@walletlink.social`, the support mailbox a person reads. The site,
+   the purchase email and the error messages name it, and lifecycle email
+   sets it as the reply-to; sign-in and purchase mail come from noreply@
+   with no reply-to. There is no security@: a Contact must reach
    somebody, and one that does not exist would bounce every report
    (decided 2026-09-25).
 

@@ -11753,8 +11753,8 @@ async function main() {
      * and a misspelled repository is a report form on a repository that is
      * not this one, or a 404 that looks like the form is down.
      *
-     * The local part is pinned too. help@ is the mailbox a person reads and
-     * every transactional reply-to; no security@ exists (decided
+     * The local part is pinned too. help@ is the support mailbox a person
+     * reads and the reply-to on lifecycle email; no security@ exists (decided
      * 2026-09-25), so publishing the RFC 2142 name would bounce every report
      * sent to it. Creating that alias is the only reason to change this.
      */
@@ -11962,6 +11962,82 @@ async function main() {
     ok(
       'SECURITY.md points at the machine-readable file',
       canonical.length === 1 && policyDoc.includes(canonical[0])
+    );
+
+    /**
+     * Why help@ is the second channel is argued in prose, and the renewal
+     * procedure leans on that argument, so it has to be true of the code.
+     * A draft of this PR called help@ the reply-to on every transactional
+     * email. It was not: sign-in and purchase mail go out from noreply@ with
+     * no reply-to, and only lifecycle email sets help@. So the prose may say
+     * "every" only once every send in lib/email.ts carries help@, and the
+     * narrower claim it does make is read against the lifecycle sender.
+     *
+     * Comment markers are stripped and whitespace collapsed first, because
+     * the claim wraps across lines in every one of these files. The send
+     * count must be above zero, so a renamed client cannot pass this by
+     * matching nothing.
+     */
+    const emailCode = withoutComments(readFileSync('lib/email.ts', 'utf8'));
+    const sendCount = (emailCode.match(/\.emails\.send\(/g) ?? []).length;
+    const helpReplyCount = (
+      emailCode.match(/replyTo:\s*'help@walletlink\.social'/g) ?? []
+    ).length;
+    const lifecycleSender =
+      /export async function sendLifecycleEmail\([\s\S]*?(?=\nexport |(?![\s\S]))/.exec(
+        emailCode
+      )?.[0] ?? '';
+    const contactProse = [
+      'lib/security-contact.ts',
+      'SECURITY.md',
+      'CHANGELOG.md',
+      'PROJECT_OVERVIEW.md',
+      'README.md',
+      'docs/OPERATIONS.md',
+      'docs/DOCS-SITE.md',
+      'docs/AGENT-SYSTEM.md',
+    ].map((path) =>
+      readFileSync(path, 'utf8')
+        .replace(/^[ \t]*(?:\*|\/\/)[ \t]?/gm, '')
+        .replace(/\s+/g, ' ')
+    );
+    const claimsEveryReplyTo =
+      /\b(?:every|all)\s+(?:[\w-]+\s+){0,3}reply-to\b|\breply-to on (?:every|all)\b|\bas its reply-to\b/i;
+    ok(
+      'no doc calls help@ the reply-to on every email unless every send in lib/email.ts sets it',
+      sendCount > 0 &&
+        (helpReplyCount === sendCount ||
+          !contactProse.some((text) => claimsEveryReplyTo.test(text)))
+    );
+    ok(
+      'the docs call help@ the reply-to on lifecycle email only while sendLifecycleEmail sets it',
+      !contactProse.some((text) =>
+        /\breply-to on lifecycle email\b/i.test(text)
+      ) || /replyTo:\s*'help@walletlink\.social'/.test(lifecycleSender)
+    );
+
+    /**
+     * One ship date. The CHANGELOG heading is the record; the house-style
+     * note that SECURITY.md joined the scan and the L4 paragraph in
+     * docs/AGENT-SYSTEM.md restate it, and a rebase that re-dates the entry
+     * forgets the copies (the house-style note kept the first draft's date
+     * once). A heading that stops matching leaves the date undefined, which
+     * fails this rather than passing it.
+     */
+    const shipDate = /^### (\d{4}-\d{2}-\d{2}) \(a security contact:/m.exec(
+      readFileSync('CHANGELOG.md', 'utf8')
+    )?.[1];
+    const styleNoteDate = /SECURITY\.md joined on (\d{4}-\d{2}-\d{2})/.exec(
+      readFileSync('scripts/check-house-style.mjs', 'utf8')
+    )?.[1];
+    const agentDocDate = /\*\*security\.txt \((\d{4}-\d{2}-\d{2})\)/.exec(
+      readFileSync('docs/AGENT-SYSTEM.md', 'utf8')
+    )?.[1];
+    ok(
+      'the security contact has one ship date in the CHANGELOG, the house-style note and AGENT-SYSTEM',
+      shipDate !== undefined &&
+        styleNoteDate === shipDate &&
+        agentDocDate === shipDate
     );
   }
 
