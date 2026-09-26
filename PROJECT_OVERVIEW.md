@@ -749,6 +749,13 @@ first-party identifier under the Chrome cap.
 constant rather than written as a digit, that each cleanup is actually called,
 and that the job is scheduled in `vercel.json`.
 
+**The backup period is one constant too.** `BACKUP_RETENTION_DAYS`
+(`lib/backup-retention.ts`, 90) is the `retention-days` GitHub enforces in
+`db-backup.yml`, asserted equal, and every use on the page reads it: the
+backups, and the removal emails in help@, which are kept that long after the
+removal and then deleted (decided 2026-09-26, STA-50). What deletes those
+emails is the help@ Apps Script from #401, so this page merges after it.
+
 **STA-45 (2026-09-25) closed the periods the page stated with nothing behind
 them.** `cleanExpiredCache` existed with no caller, so an expired cache copy
 stayed until a later lookup replaced it; the cleanup now calls it, in

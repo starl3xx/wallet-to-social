@@ -6799,6 +6799,7 @@ async function main() {
       'API_BUCKET_RETENTION_DAYS',
       'PAYMENT_RECORD_RETENTION_YEARS',
       'SANCTIONS_SCREENING_RETENTION_YEARS',
+      'BACKUP_RETENTION_DAYS',
     ]) {
       ok(
         `the privacy policy reads ${constant} rather than restating the number`,
@@ -6848,6 +6849,44 @@ async function main() {
             )
         );
       }
+    }
+
+    // The backup period is GitHub's `retention-days` in db-backup.yml, which
+    // the page cannot import, so it reads BACKUP_RETENTION_DAYS and that is
+    // checked against the workflow. The page states it six times: the backups
+    // twice, their table row, and the removal emails help@ keeps as long (the
+    // request thread, the withdrawal email and their table row, decided
+    // 2026-09-26, STA-50). A digit in any one would leave the others still
+    // reading the constant, so no use may be a number.
+    {
+      const { BACKUP_RETENTION_DAYS: days } =
+        await import('@/lib/backup-retention');
+      const yml = readFileSync('.github/workflows/db-backup.yml', 'utf8');
+      ok(
+        'the backup period the privacy policy reads is the retention-days the backup workflow sets',
+        (yml.match(/retention-days:/g) ?? []).length === 1 &&
+          Number(yml.match(/^\s*retention-days: (\d+)\s*$/m)?.[1]) === days
+      );
+      const prose = withoutComments(privacy).toLowerCase();
+      ok(
+        `the privacy policy never states BACKUP_RETENTION_DAYS (${days} days) as a number`,
+        Number.isInteger(days) &&
+          !new RegExp(`\\b(${days}|ninety)[\\s-]+day`).test(prose)
+      );
+      const flat = privacy.replace(/\s+/g, ' ');
+      ok(
+        'the privacy policy keeps an emailed removal request and a withdrawal email BACKUP_RETENTION_DAYS after the removal, then deletes them, and says so in its table',
+        flat.includes(
+          'We keep the email thread, your message and our replies, for {BACKUP_RETENTION_DAYS} days after the removal is done, so that we can apply the removal again if we ever restore our database from a backup, and then delete it.'
+        ) &&
+          flat.includes(
+            "we delete that email after {BACKUP_RETENTION_DAYS}{' '} days, when no backup older than it is left."
+          ) &&
+          flat.includes(
+            "'Removal emails in our support inbox', `A removal request with our replies, and the email a withdrawal on the claim page sends us: ${BACKUP_RETENTION_DAYS} days after the removal is done,"
+          ) &&
+          !/once the removal is done we delete the email thread/.test(flat)
+      );
     }
 
     // The purchase-record purge is written and switched off, so the page may

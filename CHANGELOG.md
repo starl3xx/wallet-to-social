@@ -9,7 +9,8 @@ All notable changes to walletlink.social. Newest first.
   Some sentences describe code from separate PRs: the retention cleanups and
   log masking (STA-45, #398) and the removal gaps (STA-46, #396, plus a
   restore-runbook step in the ops repo), both merged, and the “I agree to
-  the terms” step at checkout and the USDC buy (STA-47, #399), which this
+  the terms” step at checkout and the USDC buy (STA-47, #399) and the
+  script that deletes removal emails from help@ (STA-50, #401), which this
   merges after. Email is the only contact the terms give; there is no postal
   address.
 - **`/terms`**, new: the terms of service with an acceptable-use policy,
@@ -65,6 +66,15 @@ All notable changes to walletlink.social. Newest first.
     removal amends API retry copies and clears the claim record, and a
     restored backup keeps today’s suppression list. Customers are not told of
     a removal, and the page says why.
+  - Removal emails in the support inbox are kept `BACKUP_RETENTION_DAYS`
+    (90 days, as long as the nightly backups) after the removal is done, then
+    deleted (decided 2026-09-26, STA-50): the thread of an emailed request,
+    which the page used to say was deleted once the removal was done, and the
+    email a withdrawal on the claim page sends help@, which the claim
+    paragraph now describes. The retention table has a row for them. Every
+    backup period on the page reads `BACKUP_RETENTION_DAYS`
+    (`lib/backup-retention.ts`, checked against `retention-days` in
+    `db-backup.yml`), and an invariant fails if one is written as a number.
   - The sanctions screening from #400: each onchain payment's address is
     checked against the SDN list and the check is kept
     `SANCTIONS_SCREENING_RETENTION_YEARS` (five years), a later listing

@@ -26,6 +26,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import { Eyebrow } from '@/components/ui/eyebrow';
+import { BACKUP_RETENTION_DAYS } from '@/lib/backup-retention';
 import { CACHE_TTL_DAYS } from '@/lib/cache-constants';
 import {
   ANALYTICS_RETENTION_DAYS,
@@ -55,7 +56,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/privacy' },
 };
 
-const UPDATED = '25 September 2026';
+const UPDATED = '26 September 2026';
 
 function Section({
   id,
@@ -321,8 +322,10 @@ export default function PrivacyPage() {
             only on the ones you name, and we do not search the index for others
             that might be yours. The suppression list stores each identifier on
             its own row, with nothing that ties the ones in your request
-            together, and once the removal is done we delete the email thread,
-            your message and our replies.
+            together. We keep the email thread, your message and our replies,
+            for {BACKUP_RETENTION_DAYS} days after the removal is done, so that
+            we can apply the removal again if we ever restore our database from
+            a backup, and then delete it.
           </p>
           <p>
             <span className="text-foreground">What happens next.</span> A person
@@ -351,17 +354,17 @@ export default function PrivacyPage() {
             a removal made in error (a mistyped address, somebody else’s handle)
             can be undone. After {QUARANTINE_RETENTION_DAYS} days that copy is
             deleted automatically. Our encrypted nightly backups include saved
-            lookups and our list of AI agent wallets, and each is kept for 90
-            days, so a removed link can survive in a backup until then. If we
-            ever restore one, we keep today’s suppression list rather than the
-            backup’s, so nothing removed since that night comes back. An API
-            batch answer kept for a retry is amended or deleted in a removal,
-            and a replayed answer is filtered, so a retry never brings the link
-            back. If the address was ever claimed on our claim page, the removal
-            clears the claim record too, as a withdrawal on the claim page does.
-            And the identifier you named stays on the suppression list, and on
-            internal do-not-recheck lists that hold the identifier on its own,
-            never the link.
+            lookups and our list of AI agent wallets, and each is kept for{' '}
+            {BACKUP_RETENTION_DAYS} days, so a removed link can survive in a
+            backup until then. If we ever restore one, we keep today’s
+            suppression list rather than the backup’s, so nothing removed since
+            that night comes back. An API batch answer kept for a retry is
+            amended or deleted in a removal, and a replayed answer is filtered,
+            so a retry never brings the link back. If the address was ever
+            claimed on our claim page, the removal clears the claim record too,
+            as a withdrawal on the claim page does. And the identifier you named
+            stays on the suppression list, and on internal do-not-recheck lists
+            that hold the identifier on its own, never the link.
           </p>
           <p>
             <span className="text-foreground">
@@ -390,10 +393,15 @@ export default function PrivacyPage() {
             adds it to the same suppression list, so a later sweep cannot put it
             back. We keep a record on your account that you claimed the address
             and withdrew it: the address and a one-way hash of the X account id,
-            so the same account cannot claim the free matches twice. Email stays
-            the route that asks nothing of you, and it is the only route for a
-            handle, for an address whose key you no longer have, and for asking
-            to be removed from the index entirely.
+            so the same account cannot claim the free matches twice. A
+            withdrawal also sends our support inbox a short email naming the
+            address, a reference to your claim and the time, so that we can
+            apply the withdrawal again if we ever have to restore our database
+            from a backup; we delete that email after {BACKUP_RETENTION_DAYS}{' '}
+            days, when no backup older than it is left. Email stays the route
+            that asks nothing of you, and it is the only route for a handle, for
+            an address whose key you no longer have, and for asking to be
+            removed from the index entirely.
           </p>
           <p>
             Two things are beyond our reach whatever we build. A customer who
@@ -449,7 +457,7 @@ export default function PrivacyPage() {
               <span className="text-foreground">GitHub</span> runs our scheduled
               jobs and stores our nightly database backups. The backups are
               encrypted before they leave the job, with a key GitHub never
-              holds, and each is kept for 90 days.
+              holds, and each is kept for {BACKUP_RETENTION_DAYS} days.
             </li>
             <li>
               <span className="text-foreground">Stripe</span> takes card
@@ -581,6 +589,10 @@ export default function PrivacyPage() {
                       'Removal suppression list',
                       'One identifier per row, with no account attached, until you ask us to undo the removal or we undo one made in error. A withdrawal made on the claim page is also recorded on the claimant’s account',
                     ],
+                    [
+                      'Removal emails in our support inbox',
+                      `A removal request with our replies, and the email a withdrawal on the claim page sends us: ${BACKUP_RETENTION_DAYS} days after the removal is done, so that we can apply it again after restoring a backup, then deleted`,
+                    ],
                     ['Cached raw results', `${CACHE_TTL_DAYS} days`],
                     [
                       'Product and page-view events',
@@ -624,7 +636,7 @@ export default function PrivacyPage() {
                     ],
                     [
                       'Encrypted backups',
-                      'Accounts, API keys, credits, payments, saved lookups, our list of AI agent wallets, the list of accounts we have given free access and the suppression list: 90 days from each nightly copy',
+                      `Accounts, API keys, credits, payments, saved lookups, our list of AI agent wallets, the list of accounts we have given free access and the suppression list: ${BACKUP_RETENTION_DAYS} days from each nightly copy`,
                     ],
                     [
                       'Sanctions checks on onchain payments',
