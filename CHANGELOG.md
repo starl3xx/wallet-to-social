@@ -66,6 +66,12 @@ All notable changes to walletlink.social. Newest first.
     removal amends API retry copies and clears the claim record, and a
     restored backup keeps today’s suppression list. Customers are not told of
     a removal, and the page says why.
+  - The sanctions screening from #400: each onchain payment's address is
+    checked against the SDN list and the check is kept
+    `SANCTIONS_SCREENING_RETENTION_YEARS` (five years), a later listing
+    suspends the account the payment was for, and checkout reads the
+    connection's country and region without storing it. The terms say the
+    same, and say where to write about a suspension.
   - Named: the entity is a Wyoming LLC, PayAI is the facilitator, each
     processor’s own terms govern it, legitimate interest is the basis for the
     welcome and check-in emails and for the index, the rule for the home

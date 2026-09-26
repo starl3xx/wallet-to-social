@@ -4042,6 +4042,12 @@ const MUTATIONS: Mutation[] = [
     to: '`Deleted 400 days after',
   },
   {
+    name: 'the privacy policy restates the sanctions record period as a digit',
+    file: 'app/privacy/page.tsx',
+    from: '`${SANCTIONS_SCREENING_RETENTION_YEARS} years, then deleted.',
+    to: '`5 years, then deleted.',
+  },
+  {
     name: 'the privacy policy restates the API request record period as a digit',
     file: 'app/privacy/page.tsx',
     from: '                      `${API_USAGE_RETENTION_MONTHS} months`,',

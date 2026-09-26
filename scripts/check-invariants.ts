@@ -6798,6 +6798,7 @@ async function main() {
       'API_USAGE_RETENTION_MONTHS',
       'API_BUCKET_RETENTION_DAYS',
       'PAYMENT_RECORD_RETENTION_YEARS',
+      'SANCTIONS_SCREENING_RETENTION_YEARS',
     ]) {
       ok(
         `the privacy policy reads ${constant} rather than restating the number`,
@@ -6831,6 +6832,7 @@ async function main() {
         ['API_USAGE_RETENTION_MONTHS', 'months'],
         ['API_BUCKET_RETENTION_DAYS', 'days'],
         ['PAYMENT_RECORD_RETENTION_YEARS', 'years'],
+        ['SANCTIONS_SCREENING_RETENTION_YEARS', 'years'],
       ] as const) {
         const m = cleanup.match(
           new RegExp(`export const ${constant} = (\\d+);`)

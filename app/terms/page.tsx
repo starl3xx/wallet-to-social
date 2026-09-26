@@ -568,6 +568,17 @@ export default function TermsPage() {
             service to anyone we believe is.
           </p>
           <p>
+            We check the paying address of every onchain payment against the US
+            Treasury’s list of Specially Designated Nationals before we accept
+            it, and we refuse the payment if the address is on the list or if we
+            cannot check it. We do not sell to buyers whose connection comes
+            from a country or region under comprehensive US sanctions. If an
+            address that paid us is added to the list later, we suspend the
+            account the payment was for: its keys stop working, its credits are
+            held, and we deal with them as the law requires. If you believe a
+            suspension is a mistake, write to <Mail />.
+          </p>
+          <p>
             If the law gives you duties for personal data you get from us, those
             duties are yours. You receive our results as an independent
             controller: you decide what to do with them, and you need your own

@@ -36,6 +36,7 @@ import {
   OAUTH_TOKEN_RETENTION_DAYS,
   PAYMENT_RECORD_RETENTION_YEARS,
   PURCHASE_RECORD_PURGE_ENABLED,
+  SANCTIONS_SCREENING_RETENTION_YEARS,
 } from '@/app/api/cron/cleanup/route';
 import { QUARANTINE_RETENTION_DAYS } from '@/lib/removal-admin';
 import { NEGATIVE_RECHECK_DAYS } from '@/lib/social-graph';
@@ -153,6 +154,17 @@ export default function PrivacyPage() {
             happens on the processor’s own pages. For an onchain payment, the
             paying address and the settlement reference, both of which are
             already public on the chain.
+          </p>
+          <p>
+            <span className="text-foreground">Sanctions checks.</span> Before we
+            accept an onchain payment, we check the paying address against the
+            US Treasury’s list of Specially Designated Nationals, and we keep a
+            record of the check: the address, the date of the list, the result
+            and when it was made. If an address that paid us is added to that
+            list later, we suspend the account the payment was for and note on
+            the account why. At checkout we also read the country and region
+            your connection comes from, as our host reports it, so that we can
+            refuse a sale where sanctions law forbids one. We do not store it.
           </p>
           <p>
             <span className="text-foreground">What you looked up.</span> The
@@ -502,12 +514,14 @@ export default function PrivacyPage() {
           <p>
             For your account, your payments and the lookups you run, we use your
             data because you asked for the service and it cannot run without it.
-            We keep payment records because tax law requires them. We keep IP
-            counters and product analytics because we have a legitimate interest
-            in keeping the service standing. We send the welcome and check-in
-            emails to account holders on the same basis, a legitimate interest
-            in telling a new account what it can do, and every one of them
-            carries a one-click unsubscribe.
+            We keep payment records because tax law requires them, and we check
+            onchain payments against the sanctions list and keep a record of
+            each check because sanctions law requires us not to deal with the
+            people on it. We keep IP counters and product analytics because we
+            have a legitimate interest in keeping the service standing. We send
+            the welcome and check-in emails to account holders on the same
+            basis, a legitimate interest in telling a new account what it can
+            do, and every one of them carries a one-click unsubscribe.
           </p>
           <p>
             For people in the index, who never signed up, we rely on legitimate
@@ -613,6 +627,10 @@ export default function PrivacyPage() {
                       'Accounts, API keys, credits, payments, saved lookups, our list of AI agent wallets, the list of accounts we have given free access and the suppression list: 90 days from each nightly copy',
                     ],
                     [
+                      'Sanctions checks on onchain payments',
+                      `${SANCTIONS_SCREENING_RETENTION_YEARS} years, then deleted. A suspension stays on the account until it is lifted`,
+                    ],
+                    [
                       'Payment records',
                       PURCHASE_RECORD_PURGE_ENABLED
                         ? `${PAYMENT_RECORD_RETENTION_YEARS} years, for tax and accounting, then deleted once no unexpired credits or open lookup depend on them`
@@ -680,7 +698,9 @@ export default function PrivacyPage() {
           <p>
             Some things we cannot delete on request. Payment records are kept
             for at least {PAYMENT_RECORD_RETENTION_YEARS} years, for tax and
-            accounting. Deleting your account does not remove a
+            accounting, and records of sanctions checks for{' '}
+            {SANCTIONS_SCREENING_RETENTION_YEARS} years, to show that we
+            complied with sanctions law. Deleting your account does not remove a
             wallet-to-identity mapping from the index, because that mapping is
             not about you unless the wallet is yours, in which case the section
             above is the one that applies.
