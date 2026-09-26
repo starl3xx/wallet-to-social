@@ -212,15 +212,23 @@ re-run by hand from the help@ inbox, through the operator removal endpoint:
 The withdrawal email is sent by the withdraw route once the withdrawal has
 committed (`lib/removal-alerts.ts`, on the `lib/ops-alerts.ts` records the
 sanctions alerts use). Before the send it writes a record,
-`alert:removal:withdrawal:<claim id>` in `ingest_state`; a send that fails or
-times out (10 seconds) leaves the record, and the daily cleanup sends it
-(`removalAlertRecords` in its response). Once the email is out, the record
-keeps only its name and the time it was sent. `ingest_state` is not in the nightly dump, so the inbox
-is the only copy a whole-project restore can use. The email names a person
-who asked to be removed, on purpose, because nothing else can put the
-removal back; delete each one after 90 days, when the oldest backup
-(`retention-days: 90` in `.github/workflows/db-backup.yml`) is newer than it
-and no restore can need it.
+`alert:removal:withdrawal:<claim id>:<time>` in `ingest_state`, one per
+withdrawal (a claim put back by an un-suppress and withdrawn again gets a
+second record and a second email); a send that fails or times out
+(10 seconds) leaves the record, and the daily cleanup sends it
+(`removalAlertRecords` in its response). If the record itself cannot be
+written, the email is still sent once, with nothing to retry it, and the
+log says `alert claim failed ... sending once with no record`. Once the
+email is out, the record keeps only its name and the time it was sent.
+`ingest_state` is not in the nightly dump, so the inbox is the only copy a
+whole-project restore can use. The email names a person who asked to be
+removed, on purpose, because nothing else can put the removal back.
+
+How long these emails are kept is **not decided yet** (Linear STA-50, for
+Jake). The proposal is 90 days, when the oldest backup
+(`retention-days: 90` in `.github/workflows/db-backup.yml`) is newer than
+the email and no restore can need it. Nothing deletes them today, so until
+the decision is made and a mechanism is named here, keep them.
 
 **Un-suppress.** Operator-only, within 30 days of the removal: it deletes
 the suppression row, then restores the quarantined rows. A copy whose

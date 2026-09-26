@@ -4850,8 +4850,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 a claim that cannot be taken still sends',
     file: 'lib/ops-alerts.ts',
-    from: "      error\n    );\n    return 'failed';\n  }\n  if (claimed.length === 0) return 'deduped';",
-    to: "      error\n    );\n    claimed = conditions;\n  }\n  if (claimed.length === 0) return 'deduped';",
+    from: '    if (!options.sendIfClaimFails) {',
+    to: '    if (false) {',
   },
   {
     name: 'STA-41 a failed email throws into the refresh',
@@ -5182,8 +5182,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 a recorded alert is claimed without its payload, so a failed send is lost',
     file: 'lib/ops-alerts.ts',
-    from: '    () => family.records[kind](payload as never),\n    send,\n    { [condition]: payload }\n  );\n}',
-    to: '    () => family.records[kind](payload as never),\n    send\n  );\n}',
+    from: '    send,\n    { [condition]: payload },\n    { sendIfClaimFails',
+    to: '    send,\n    {},\n    { sendIfClaimFails',
   },
   {
     name: 'STA-41 the record sweep resends records already sent',
@@ -5449,6 +5449,55 @@ const MUTATIONS: Mutation[] = [
     file: 'docs/OPERATIONS.md',
     from: '  `"lane": "wallet_sig"` and',
     to: '  `"lane": "email"` and',
+  },
+  // --- STA-50 review (2026-09-26) -----------------------------------------
+  {
+    name: 'STA-50 a withdrawal record is keyed on the claim alone, so a second withdrawal of it is deduped',
+    file: 'lib/removal-alerts.ts',
+    from: "    const key = `${report.claimIds[0] ?? 'none'}:${report.withdrawnAt}`;",
+    to: '    const key = report.claimIds[0] ?? report.withdrawnAt;',
+  },
+  {
+    name: 'STA-50 a withdrawal whose record cannot be written is never sent',
+    file: 'lib/removal-alerts.ts',
+    from: '  sendIfRecordFails: true,',
+    to: '  sendIfRecordFails: false,',
+  },
+  {
+    name: 'STA-50 sendRecorded ignores the family choice to send without a record',
+    file: 'lib/ops-alerts.ts',
+    from: '    { sendIfClaimFails: family.sendIfRecordFails === true }\n',
+    to: '    {}\n',
+  },
+  {
+    name: 'STA-50 a claim that fails with the fallback on still sends nothing',
+    file: 'lib/ops-alerts.ts',
+    from: "    claimed = conditions;\n  }\n  if (claimed.length === 0) return 'deduped';",
+    to: "    return 'failed';\n  }\n  if (claimed.length === 0) return 'deduped';",
+  },
+  {
+    name: 'STA-50 a send with no record behind it is not logged as such',
+    file: 'lib/ops-alerts.ts',
+    from: "      `alert claim failed (${conditions.join(', ')}); sending once with no record, so nothing retries it`,",
+    to: "      `alert claim failed (${conditions.join(', ')})`,",
+  },
+  {
+    name: 'STA-50 the sweep sends a record whose claim failed, so it may be emailed twice',
+    file: 'lib/ops-alerts.ts',
+    from: "      send,\n      { [condition]: payload }\n    );\n    if (result === 'sent') sent++;",
+    to: "      send,\n      { [condition]: payload },\n      { sendIfClaimFails: true }\n    );\n    if (result === 'sent') sent++;",
+  },
+  {
+    name: 'STA-50 the runbook states the proposed retention as settled',
+    file: 'docs/OPERATIONS.md',
+    from: 'How long these emails are kept is **not decided yet** (Linear STA-50, for',
+    to: 'Delete each one after 90 days, as decided (Linear STA-50, for',
+  },
+  {
+    name: 'STA-50 the changelog promises a deletion nothing performs',
+    file: 'CHANGELOG.md',
+    from: '  How long the withdrawal emails are kept is not decided yet; until it is,\n  they are kept.',
+    to: '  Each withdrawal email is deleted after 90 days, when no backup is older\n  than it.',
   },
 ];
 

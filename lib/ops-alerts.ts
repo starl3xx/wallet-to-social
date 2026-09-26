@@ -37,7 +37,11 @@
  * throwing. Every send is given `OPS_ALERT_TIMEOUT_MS`. A send that fails or
  * times out is logged and its claim released (the row and any record stay),
  * so the next run tries again; a claim that cannot be taken sends nothing,
- * because the one-a-day rule cannot be kept without it.
+ * because the one-a-day rule cannot be kept without it. The one exception is
+ * a family that sets `sendIfRecordFails`: a new record of a one-shot event
+ * (a withdrawal) whose row cannot be written is sent once anyway, because
+ * nothing else holds that event and a duplicate email costs less than a
+ * lost one.
  */
 import { format } from 'node:util';
 import { sql, type SQL } from 'drizzle-orm';
@@ -81,6 +85,16 @@ export interface AlertFamily {
   records: Record<string, (payload: never) => AlertEmail>;
   /** Whether a sent record drops its payload, keeping only the marker. */
   dropPayloadWhenSent?: boolean;
+  /**
+   * Whether a NEW record whose row cannot be written is still sent, once,
+   * with no record behind it. For one-shot events that nothing else holds (a
+   * withdrawal): with no row there is nothing for the sweep to retry, and a
+   * duplicate email costs far less than a lost one. Never for a condition
+   * alert, whose one-a-day rule needs the claim. Only `sendRecorded` honors
+   * it: the sweep sends records that exist, so a claim it cannot take is
+   * left for the next sweep instead of risking a second email.
+   */
+  sendIfRecordFails?: boolean;
 }
 
 export function rowsOf(result: unknown): unknown[] {
@@ -201,6 +215,12 @@ export async function releaseAlerts(
  * Send one alert for each of `conditions` at most once a day, as ONE email
  * covering the conditions it could claim. Never throws: an email that cannot
  * be composed counts as a failed send, like one the provider refused.
+ *
+ * `sendIfClaimFails` (from `sendRecorded`, for a family that sets
+ * `sendIfRecordFails`) sends once even when the claim statement fails. The
+ * marker and the release below then still run: they change nothing when no
+ * row was written, and if the statement did commit before its reply was
+ * lost, they mark or release that row as usual.
  */
 export async function sendClaimed(
   db: AlertDb,
@@ -208,18 +228,27 @@ export async function sendClaimed(
   conditions: string[],
   compose: (claimed: string[]) => AlertEmail,
   send: AlertSender,
-  payloads: Record<string, unknown> = {}
+  payloads: Record<string, unknown> = {},
+  options: { sendIfClaimFails?: boolean } = {}
 ): Promise<AlertResult> {
   let claimed: string[];
   try {
     claimed = await claimAlerts(db, family, conditions, payloads);
   } catch (error) {
+    if (!options.sendIfClaimFails) {
+      logAlert(
+        family,
+        `alert claim failed (${conditions.join(', ')}); not sent`,
+        error
+      );
+      return 'failed';
+    }
     logAlert(
       family,
-      `alert claim failed (${conditions.join(', ')}); not sent`,
+      `alert claim failed (${conditions.join(', ')}); sending once with no record, so nothing retries it`,
       error
     );
-    return 'failed';
+    claimed = conditions;
   }
   if (claimed.length === 0) return 'deduped';
 
@@ -267,7 +296,9 @@ export async function sendClaimed(
 /**
  * Record and send one alert with a payload: the row `<prefix><kind>:<key>`
  * is written with the payload before the send is tried, so a send that
- * fails leaves it for `sendUnsentRecords`. Never throws.
+ * fails leaves it for `sendUnsentRecords`. `key` must be unique per event:
+ * a second event under a key sent less than `ALERT_REPEAT_HOURS` ago is
+ * deduped, sending nothing. Never throws.
  */
 export async function sendRecorded(
   db: AlertDb | null,
@@ -285,7 +316,8 @@ export async function sendRecorded(
     [condition],
     () => family.records[kind](payload as never),
     send,
-    { [condition]: payload }
+    { [condition]: payload },
+    { sendIfClaimFails: family.sendIfRecordFails === true }
   );
 }
 

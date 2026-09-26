@@ -700,8 +700,9 @@ email with the subject `[walletlink] Removal: claim withdrawn on /claim`,
 which names nobody, and a body giving the time, the claim ids and each
 identifier the withdrawal suppressed: what the operator removal endpoint needs
 to apply it again. It is a durable record of `lib/ops-alerts.ts`
-(`alert:removal:withdrawal:<claim id>` in `ingest_state`, written before the
-send, resent by the daily cleanup, stripped of its payload once sent), it
+(`alert:removal:withdrawal:<claim id>:<time>` in `ingest_state`, one per
+withdrawal, written before the send, resent by the daily cleanup, stripped of
+its payload once sent, and sent once anyway if the row cannot be written), it
 never throws and the route awaits it as a statement of its own, so it can
 neither block nor undo the withdrawal. The restore runbook is in
 `docs/OPERATIONS.md`.

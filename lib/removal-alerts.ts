@@ -27,12 +27,20 @@
  * ## Sent through the durable-record pattern, and never blocking
  *
  * lib/ops-alerts.ts: the record is written to `ingest_state` (row
- * `alert:removal:withdrawal:<claim id>`) before the send, a send that fails
- * or times out leaves it for the daily cleanup to send again
+ * `alert:removal:withdrawal:<claim id>:<time>`) before the send, a send that
+ * fails or times out leaves it for the daily cleanup to send again
  * (`sendUnsentRemovalRecords`), and nothing here throws. Once the email is
  * out, the payload is dropped (`dropPayloadWhenSent`): the email is the
  * record, and the database keeps no second copy of the identifiers beside
  * the suppression row. Log lines go through `redact`.
+ *
+ * Two choices differ from the condition alerts, because a withdrawal is one
+ * event and not a condition that holds: the row is keyed on the claim AND
+ * the time, since an un-suppress puts the same claim row back and its owner
+ * can withdraw it again within a day, which a key of the claim alone would
+ * dedupe into no email at all; and a record whose row cannot be written is
+ * still sent once (`sendIfRecordFails`), because with no row nothing would
+ * ever retry it.
  */
 import { format } from 'node:util';
 import { getDb } from '@/db';
@@ -91,6 +99,7 @@ const REMOVAL: AlertFamily = {
   tag: 'removal',
   records: { withdrawal: composeWithdrawal },
   dropPayloadWhenSent: true,
+  sendIfRecordFails: true,
 };
 
 /**
@@ -104,7 +113,8 @@ export async function alertClaimWithdrawal(
   send: AlertSender = sendOpsAlert
 ): Promise<AlertResult> {
   try {
-    const key = report.claimIds[0] ?? report.withdrawnAt;
+    // One row per withdrawal, never per claim: see the header.
+    const key = `${report.claimIds[0] ?? 'none'}:${report.withdrawnAt}`;
     return await sendRecorded(db, REMOVAL, 'withdrawal', key, report, send);
   } catch (error) {
     console.error(

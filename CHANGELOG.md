@@ -17,12 +17,15 @@ All notable changes to walletlink.social. Newest first.
 - **It cannot block or undo the withdrawal.** The email goes out after the
   erase has returned, never throws, and gives up after 10 seconds. Its record
   is written before the send, a failed send is sent again by the daily
-  cleanup, and once the email is out the record keeps no identifier.
+  cleanup, and once the email is out the record keeps no identifier. Each
+  withdrawal has its own record, so a claim withdrawn a second time after an
+  un-suppress still sends its email, and a record that cannot be written is
+  still sent once.
 - **The runbook says how a restore uses it.** After a whole-project restore,
   every removal made since the backup is re-run from help@: the emailed
-  requests, and these emails, found by their subject. Each withdrawal email
-  is deleted after 90 days, when no backup is older than it
-  (`docs/OPERATIONS.md`).
+  requests, and these emails, found by their subject (`docs/OPERATIONS.md`).
+  How long the withdrawal emails are kept is not decided yet; until it is,
+  they are kept.
 - **The ops-alert records are shared.** The claims, durable records and retry
   sweep the sanctions alerts were built on moved to `lib/ops-alerts.ts`,
   unchanged for sanctions except in two failure cases: an email that cannot

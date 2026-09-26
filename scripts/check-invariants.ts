@@ -19824,7 +19824,7 @@ async function main() {
     const W = '0x' + 'ab'.repeat(20);
     const CLAIM_A = '5a5a5a5a-5a5a-4a5a-8a5a-5a5a5a5a5a5a';
     const CLAIM_B = '6b6b6b6b-6b6b-4b6b-8b6b-6b6b6b6b6b6b';
-    const ROW = `alert:removal:withdrawal:${CLAIM_A}`;
+    const ROW = `alert:removal:withdrawal:${CLAIM_A}:2026-09-26T16:00:00.000Z`;
     const report = {
       suppressed: [{ kind: 'wallet' as const, identifier: W }],
       claimIds: [CLAIM_A, CLAIM_B],
@@ -19840,6 +19840,9 @@ async function main() {
       const sent: Sent[] = [];
       const mails: Mail[] = [];
       const logged: string[] = [];
+      // Names marked sent in this rig: as `claimableRow` rules, a row sent
+      // less than a day ago is not claimed again, so the INSERT skips it.
+      const sentNames = new Set<string>();
       const db = {
         execute: async (query: Parameters<typeof dialect.sqlToQuery>[0]) => {
           const q = dialect.sqlToQuery(query);
@@ -19852,10 +19855,18 @@ async function main() {
               throw new DrizzleQueryError(flat, q.params, new Error('down'));
             }
             return {
-              rows: ((q.params[0] as string[]) ?? []).map((name) => ({
-                name,
-              })),
+              rows: ((q.params[0] as string[]) ?? [])
+                .filter((name) => !sentNames.has(name))
+                .map((name) => ({ name })),
             };
+          }
+          if (
+            flat.startsWith('UPDATE ingest_state') &&
+            flat.includes("jsonb_build_object('sentAt', now())")
+          ) {
+            for (const name of (q.params[0] as string[]) ?? []) {
+              sentNames.add(name);
+            }
           }
           if (flat.startsWith("SELECT name, value->'payload' AS payload")) {
             return { rows: opts.records ?? [] };
@@ -19935,6 +19946,40 @@ async function main() {
       ) && at(good, 'UPDATE ingest_state') > at(good, 'SEND')
     );
 
+    // An un-suppress puts the same claim row back as `completed`, with its
+    // id, and its owner may withdraw it again the same day. That is a second
+    // withdrawal, and it gets its own record and its own email.
+    {
+      const twice = trailRig();
+      const first = await twice.run(() =>
+        R.alertClaimWithdrawal(report, twice.db, twice.send)
+      );
+      const again = await twice.run(() =>
+        R.alertClaimWithdrawal(
+          { ...report, withdrawnAt: '2026-09-26T17:30:00.000Z' },
+          twice.db,
+          twice.send
+        )
+      );
+      const claimNames = twice.sent
+        .filter((q) => q.sql.startsWith('INSERT INTO ingest_state'))
+        .map((q) => (q.params[0] as string[])[0]);
+      ok(
+        'a claim withdrawn again within the day, after an un-suppress, is recorded and emailed again',
+        first === 'sent' &&
+          again === 'sent' &&
+          twice.mails.length === 2 &&
+          twice.mails[1].text.includes(
+            'Withdrawn at: 2026-09-26T17:30:00.000Z'
+          ) &&
+          twice.mails[1].text.includes(`Suppressed: wallet ${W}`) &&
+          claimNames.length === 2 &&
+          claimNames[0] === ROW &&
+          claimNames[1] ===
+            `alert:removal:withdrawal:${CLAIM_A}:2026-09-26T17:30:00.000Z`
+      );
+    }
+
     // A failed send is kept for the daily cleanup, logged, and thrown nowhere.
     for (const mode of ['fail', 'throw'] as const) {
       const bad = trailRig({ send: mode });
@@ -20003,6 +20048,9 @@ async function main() {
 
     // Never throws, whatever fails, and every log line is redacted.
     {
+      // The record cannot be written: nothing else holds this withdrawal, so
+      // it is sent once anyway, and a send that fails then still throws
+      // nothing. The sanctions alerts keep refusing (their invariant above).
       const noClaim = trailRig({ claim: 'throw' });
       let threw = false;
       let result: unknown;
@@ -20013,16 +20061,54 @@ async function main() {
       } catch {
         threw = true;
       }
+      const noClaimBad = trailRig({ claim: 'throw', send: 'fail' });
+      let noClaimBadResult: unknown;
+      try {
+        noClaimBadResult = await noClaimBad.run(() =>
+          R.alertClaimWithdrawal(report, noClaimBad.db, noClaimBad.send)
+        );
+      } catch {
+        noClaimBadResult = 'threw';
+      }
       ok(
-        'a record that cannot be written sends nothing, throws nothing, and logs the failed statement redacted',
+        'a withdrawal whose record cannot be written is still emailed, once, throws nothing, and logs the failed statement redacted',
         !threw &&
-          result === 'failed' &&
-          noClaim.mails.length === 0 &&
+          result === 'sent' &&
+          noClaim.mails.length === 1 &&
+          noClaim.mails[0].subject === R.WITHDRAWAL_SUBJECT &&
+          noClaim.mails[0].text.includes(`Suppressed: wallet ${W}`) &&
+          noClaim.mails[0].text.includes(
+            `Claim reference: ${CLAIM_A}, ${CLAIM_B}`
+          ) &&
           noClaim.logged.some((l) =>
-            /\[removal\] alert claim failed/.test(l)
+            /\[removal\] alert claim failed \(.*\); sending once with no record/.test(
+              l
+            )
           ) &&
           noClaim.logged.some((l) => l.includes('0xabab...abab')) &&
-          !noClaim.logged.some((l) => l.includes(W))
+          !noClaim.logged.some((l) => l.includes(W)) &&
+          noClaimBadResult === 'failed' &&
+          noClaimBad.logged.some((l) =>
+            /\[removal\] alert email failed/.test(l)
+          )
+      );
+      // The sweep reads records that exist: a claim it cannot take waits for
+      // the next sweep rather than risking a second email.
+      const sweepNoClaim = trailRig({
+        claim: 'throw',
+        records: [{ name: ROW, payload: report }],
+      });
+      const sweepNoClaimResult = await sweepNoClaim.run(() =>
+        R.sendUnsentRemovalRecords(sweepNoClaim.db, sweepNoClaim.send)
+      );
+      ok(
+        'but the cleanup sweep does not send a record whose claim fails, since the record stays for the next sweep',
+        sweepNoClaimResult.sent === 0 &&
+          sweepNoClaimResult.failed === 1 &&
+          sweepNoClaim.mails.length === 0 &&
+          sweepNoClaim.logged.some((l) =>
+            /\[removal\] alert claim failed \(.*\); not sent/.test(l)
+          )
       );
       const broken = trailRig();
       const hostile = {
@@ -20105,6 +20191,32 @@ async function main() {
 
     // The runbook says where the emails are and what to do with them.
     const ops = readFileSync('docs/OPERATIONS.md', 'utf8').replace(/\s+/g, ' ');
+    {
+      // How long the withdrawal emails are kept is Jake's to decide, and
+      // nothing deletes them yet: no public text may state it as done.
+      const log = readFileSync('CHANGELOG.md', 'utf8');
+      const entryAt = log.indexOf(
+        '### 2026-09-26 (A claim-page withdrawal leaves an email in help@)'
+      );
+      const entry = log
+        .slice(entryAt, log.indexOf('\n### ', entryAt + 1))
+        .replace(/\s+/g, ' ');
+      ok(
+        'the withdrawal emails’ retention is stated as undecided, never as a deletion nothing performs',
+        entryAt !== -1 &&
+          /How long these emails are kept is \*\*not decided yet\*\*/.test(
+            ops
+          ) &&
+          /Nothing deletes them today, so until the decision is made and a mechanism is named here, keep them\./.test(
+            ops
+          ) &&
+          !/delete each one after/i.test(ops) &&
+          /How long the withdrawal emails are kept is not decided yet; until it is, they are kept\./.test(
+            entry
+          ) &&
+          !/deleted after \d+ days/i.test(entry)
+      );
+    }
     ok(
       'the restore runbook re-runs removals since the backup from help@, and finds the withdrawals by their subject',
       ops.includes(`\`${R.WITHDRAWAL_SUBJECT}\``) &&
