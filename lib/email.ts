@@ -15,14 +15,45 @@ const FROM_EMAIL = 'walletlink.social <noreply@walletlink.social>';
 export const OPS_ALERT_TO = 'help@walletlink.social';
 
 /**
+ * How long an operator alert may take before it counts as failed. The mail
+ * client has no timeout of its own, and a send that hangs would otherwise hold
+ * the cron that called it until the platform kills it, with the alert's claim
+ * taken and nothing sent.
+ */
+export const OPS_ALERT_TIMEOUT_MS = 10_000;
+
+/**
+ * `work`, or `onTimeout` once `ms` have passed, whichever comes first. The
+ * work is not cancelled, only no longer waited for.
+ */
+export async function withTimeout<T>(
+  work: Promise<T>,
+  ms: number,
+  onTimeout: T
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<T>((resolve) => {
+        timer = setTimeout(() => resolve(onTimeout), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
  * Send one operator alert: plain text to `OPS_ALERT_TO`, from the same sender
  * and the same Resend client as every other message here.
  *
  * No unsubscribe link and no opt-out check, because it goes to our own inbox;
  * those rules protect customers and there is none on the other end. Callers
  * decide when to send and how often (lib/sanctions-alerts.ts dedupes in the
- * database). Never throws: an alert that fails is reported in the result, and
- * the caller logs it and carries on.
+ * database). Never throws, and never waits more than `OPS_ALERT_TIMEOUT_MS`:
+ * an alert that fails or times out is reported in the result, and the caller
+ * logs it and carries on.
  */
 export async function sendOpsAlert(
   subject: string,
@@ -32,12 +63,19 @@ export async function sendOpsAlert(
     return { success: false, error: 'Email service not configured' };
   }
   try {
-    const { error } = await resend.emails.send({
-      from: FROM_EMAIL,
-      to: OPS_ALERT_TO,
-      subject,
-      text,
-    });
+    const { error } = await withTimeout(
+      resend.emails.send({
+        from: FROM_EMAIL,
+        to: OPS_ALERT_TO,
+        subject,
+        text,
+      }),
+      OPS_ALERT_TIMEOUT_MS,
+      {
+        data: null,
+        error: { message: 'timed out', name: 'application_error' },
+      } as Awaited<ReturnType<typeof resend.emails.send>>
+    );
     if (error) return { success: false, error: error.message };
     return { success: true };
   } catch (error) {

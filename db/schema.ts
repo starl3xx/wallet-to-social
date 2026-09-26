@@ -1605,3 +1605,27 @@ export const sanctionsScreenings = pgTable(
       .where(sql`NOT ${table.verifyReached}`),
   ]
 );
+
+/**
+ * An (account, payer) pair an operator released from the sanctions freeze on
+ * legal advice (`liftFreeze` in lib/sanctions.ts, via
+ * scripts/sanctions-lift-freeze.ts). The freeze leaves a released pair out,
+ * so the next refresh does not freeze the account again for that payer; a
+ * payer listed later still does. In the nightly dump: a restore without it
+ * would re-freeze every released account.
+ */
+export const sanctionsFreezeReleases = pgTable(
+  'sanctions_freeze_releases',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id),
+    payer: text('payer').notNull(),
+    releasedAt: timestamp('released_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    /** Who advised the lift, and why. */
+    note: text('note').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.userId, table.payer] })]
+);

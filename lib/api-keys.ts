@@ -244,6 +244,28 @@ export async function validateApiKey(
 }
 
 /**
+ * Whether a key that failed validation belongs to a frozen account, so the
+ * caller can give the frozen refusal instead of "fix the key" (Linear
+ * STA-41). Reads the account without the checks `lookupActiveKey` applies,
+ * only to choose an error: it never returns the key, and a frozen account's
+ * key still never validates. Throws when the database does.
+ */
+export async function isFrozenAccountKey(rawKey: string): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  if (!ACCEPTED_KEY_PREFIXES.some((prefix) => rawKey.startsWith(prefix))) {
+    return false;
+  }
+  const [row] = await db
+    .select({ frozenAt: users.frozenAt })
+    .from(apiKeys)
+    .innerJoin(users, eq(apiKeys.userId, users.id))
+    .where(eq(apiKeys.key, hashApiKey(rawKey)))
+    .limit(1);
+  return Boolean(row?.frozenAt);
+}
+
+/**
  * Which account a key belongs to, under exactly the rules `validateApiKey`
  * applies, and without touching `last_used_at`: a handshake is not a use.
  */

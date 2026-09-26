@@ -442,20 +442,76 @@ const SETTLEMENT_PREFIX = `${BASE_MAINNET}:`;
  * account the purchase credited, including a top-up to an email account. A
  * wallet-keyed account also carries its wallet in `users.wallet`. `UNION`,
  * not `UNION ALL`: one row per pair. Columns: user_id, payer.
+ *
+ * A pair an operator released on legal advice (`sanctions_freeze_releases`,
+ * written by `liftFreeze`) is left out, so the next refresh does not freeze
+ * the account again for it. A payer listed after the release is a new pair,
+ * so it still freezes the account and is emailed.
  */
 export function listedPayerPairs(): SQL {
   return sql`
-    SELECT l.user_id, s.address AS payer
-    FROM credit_lots l
-    JOIN sanctioned_addresses s
-      ON s.address = split_part(l.settlement_id, ':', 3)
-    WHERE l.settlement_id LIKE ${SETTLEMENT_PREFIX + '%'}
-    UNION
-    SELECT u.id, s.address
-    FROM users u
-    JOIN sanctioned_addresses s ON s.address = u.wallet
-    WHERE u.origin = 'x402'
+    SELECT lp.user_id, lp.payer FROM (
+      SELECT l.user_id, s.address AS payer
+      FROM credit_lots l
+      JOIN sanctioned_addresses s
+        ON s.address = split_part(l.settlement_id, ':', 3)
+      WHERE l.settlement_id LIKE ${SETTLEMENT_PREFIX + '%'}
+      UNION
+      SELECT u.id, s.address
+      FROM users u
+      JOIN sanctioned_addresses s ON s.address = u.wallet
+      WHERE u.origin = 'x402'
+    ) lp
+    WHERE NOT EXISTS (
+      SELECT 1 FROM sanctions_freeze_releases r
+      WHERE r.user_id = lp.user_id AND r.payer = lp.payer
+    )
   `;
+}
+
+/**
+ * Lift a freeze on legal advice (docs/OPERATIONS.md, the freeze runbook).
+ *
+ * In ONE statement: every listed payer the account has now is recorded in
+ * `sanctions_freeze_releases` with `note` (who advised it, and why), so no
+ * later refresh freezes the account for those payers again, and `frozen_at`
+ * is cleared. `frozen_reason` keeps the history with the lift appended.
+ * Keys stay deactivated: the account makes a new one. Nothing happens to an
+ * account that is not frozen. Run by scripts/sanctions-lift-freeze.ts.
+ */
+export async function liftFreeze(
+  db: SanctionsDb,
+  userId: string,
+  note: string
+): Promise<{ released: number; unfrozen: number }> {
+  const [row] = rowsOf<{ released: number; unfrozen: number }>(
+    await db.execute(sql`
+      WITH target AS (
+        SELECT id FROM users WHERE id = ${userId}::uuid AND frozen_at IS NOT NULL
+      ), pairs AS (${listedPayerPairs()}),
+      released AS (
+        INSERT INTO sanctions_freeze_releases (user_id, payer, note)
+        SELECT p.user_id, p.payer, ${note}::text
+        FROM pairs p JOIN target t ON t.id = p.user_id
+        ON CONFLICT (user_id, payer) DO NOTHING
+        RETURNING payer
+      ), unfrozen AS (
+        UPDATE users u
+        SET frozen_at = NULL,
+            frozen_reason = coalesce(u.frozen_reason, '')
+              || ' (lifted ' || to_char(now(), 'YYYY-MM-DD') || ': ' || ${note}::text || ')'
+        FROM target t
+        WHERE u.id = t.id
+        RETURNING u.id
+      )
+      SELECT (SELECT count(*)::int FROM released) AS released,
+             (SELECT count(*)::int FROM unfrozen) AS unfrozen
+    `)
+  );
+  return {
+    released: Number(row?.released ?? 0),
+    unfrozen: Number(row?.unfrozen ?? 0),
+  };
 }
 
 /**

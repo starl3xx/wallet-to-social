@@ -13,6 +13,7 @@ import { getEnrichedWalletsSince } from '@/lib/social-graph';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { getUserAccess } from '@/lib/access';
 import { hasPaidAccess } from '@/lib/credits';
+import { frozenAccountResponse, isAccountFrozen } from '@/lib/account-freeze';
 import { scrubSuppressed } from '@/lib/suppression';
 import { gateResults } from '@/lib/match-gate';
 import type { WalletSocialResult } from '@/lib/types';
@@ -247,6 +248,10 @@ export async function PATCH(
      * for no reason.
      */
     const access = await getUserAccess(validation.email ?? undefined);
+    // A frozen account gets no offer to buy (lib/account-freeze.ts).
+    if (await isAccountFrozen(validation.userId)) {
+      return frozenAccountResponse();
+    }
     if (!(await hasPaidAccess(validation.userId, access.tier))) {
       return NextResponse.json(
         {

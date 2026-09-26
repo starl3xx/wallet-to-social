@@ -30,13 +30,18 @@ All notable changes to walletlink.social. Newest first.
   nothing new is recorded for it. An account a listed wallet paid for,
   including a top-up to an email account, is marked frozen with the reason
   and the time (every listed payer is named), and its keys are switched off.
-  Its keys stay refused even if one is minted later; it loses every paid
-  feature and is not offered a purchase; it cannot start a lookup or spend
-  credits, and a job still running when the freeze lands fails with its
-  results cleared and nothing billed; key recovery, the USDC buy and a
-  signed-in card checkout answer it with the same `403`. A card payment that
-  lands on a frozen account anyway is granted as usual, so its record is
-  kept, and the operator is emailed to decide on a refund.
+  Its keys stay refused even if one is minted later; every paid feature
+  answers it `403 ACCOUNT_SUSPENDED`, with no offer to buy; it cannot start a
+  lookup or spend credits, and a job still running when the freeze lands
+  fails with its results cleared and nothing more billed (a charge from
+  before the freeze is emailed for a refund decision); key recovery, a
+  top-up with its key, a USDC buy into it (once the payment has verified)
+  and a signed-in card checkout all answer it `403 SANCTIONED_PAYER`. A card
+  payment that lands on a frozen account anyway is granted as usual, so its
+  record is kept, and the operator is emailed to decide on a refund. An
+  operator lifts a freeze only on legal advice, with
+  `scripts/sanctions-lift-freeze.ts`: the payers it releases never freeze
+  the account again, and a payer listed later still does.
 - **Both checkouts refuse comprehensively sanctioned regions.** The USDC buy
   and card checkout answer `403 REGION_RESTRICTED` ("Purchases are not
   available in your region.") for a request from Cuba, Iran, North Korea,
@@ -57,24 +62,30 @@ All notable changes to walletlink.social. Newest first.
   failure is emailed only through the 36-hour alert, and shows at once on
   the admin health panel. The freeze email is read from the database, once
   per account and listed payer, so an email that failed is sent on the next
-  run, and a second payer listed later is reported too. An email never holds
-  up or undoes a freeze, a refusal or a payment. The daily cleanup runs the
-  freeze and list-age checks too, in case the refresh stops running. The
-  runbook is in `docs/OPERATIONS.md`.
-- Operator: run `scripts/migrate-sanctions-screening.ts` (two tables, two
+  run, and a second payer listed later is reported too. A payment or job
+  alert is kept as a record, written before the first send, and resent until
+  it goes out. A claim and a sent marker are kept apart, a claim from a run
+  that died expires after five minutes, and every send gives up after ten
+  seconds. An email never holds up or undoes a freeze, a refusal or a
+  payment. The daily cleanup runs every check too, after its housekeeping,
+  in case the refresh stops running. The runbook is in
+  `docs/OPERATIONS.md`.
+- Operator: run `scripts/migrate-sanctions-screening.ts` (three tables, two
   `users` columns, and the first copy of the list; it freezes nobody, the
   first refresh after deploy does) and then
   `scripts/migrate-grant-readonly.ts`, both before merge. Linear STA-41.
-  One hundred fifteen new invariants drive the parser on a fixture in the
-  real SDN.XML shape, the refresh guard, the screen, its records and its
-  answers, the payment shape and the payer checks, the freeze and every
-  place it is enforced, the alerts, the geoblock and the purge through the
-  real functions, and pin the order in the buy, checkout and recovery
-  routes; one hundred three new guard mutations, each caught. A local
-  Postgres scenario ran the real buy route up to and past verify and settle,
-  the refresh cron on the real SDN.XML, the freeze and its enforcement, a job
-  finishing after a freeze, card checkout and fulfilment, the alert claims,
-  recovery and the purge: 94 checks.
+  One hundred thirty-four new invariants drive the parser on a fixture in
+  the real SDN.XML shape, the refresh guard, the screen, its records and its
+  answers, the payment shape and the payer checks, the freeze, every place
+  it is enforced and its lift, the alerts, their claims, records and
+  timeouts, the geoblock and the purge through the real functions, and pin
+  the order in the buy, checkout, recovery and job routes; one hundred
+  thirty new guard mutations, each caught. A local Postgres scenario ran the
+  real buy route up to and past verify and settle, the refresh cron on the
+  real SDN.XML, the freeze, its enforcement and its lift, jobs finishing
+  after a freeze (including a failed freeze read and an earlier charge),
+  card checkout and fulfilment, the alert claims and records, recovery and
+  the purge: 110 checks.
 
 ### 2026-09-25 (the retention periods the privacy page states are enforced)
 

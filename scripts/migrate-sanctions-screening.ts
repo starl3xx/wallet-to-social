@@ -1,5 +1,5 @@
 /**
- * Sanctions screening for the USDC rail (Linear STA-41): two tables, two
+ * Sanctions screening for the USDC rail (Linear STA-41): three tables, two
  * columns on `users`, and the first copy of the list.
  *
  * - `sanctioned_addresses`: the EVM addresses on OFAC's SDN list, lowercased,
@@ -10,6 +10,9 @@
  * - `sanctions_screenings`: the screening record, kept five years (the daily
  *   cleanup deletes older rows): a `clear` row per verified payment, and a
  *   refusal row per payer, verdict and hour with an attempt counter.
+ * - `sanctions_freeze_releases`: the (account, payer) pairs an operator
+ *   released on legal advice, which the freeze then leaves out
+ *   (scripts/sanctions-lift-freeze.ts). Empty until someone lifts a freeze.
  * - `users.frozen_at`, `users.frozen_reason`: set when a wallet that already
  *   bought is later listed. Both nullable with no default, which Postgres adds
  *   as a catalog change without rewriting the table.
@@ -34,7 +37,8 @@
  *
  * ## After it
  *
- * `sanctions_screenings` is a compliance record, so it is in `BACKUP_TABLES`
+ * `sanctions_screenings` is a compliance record and `sanctions_freeze_releases`
+ * a legal decision, so both are in `BACKUP_TABLES`
  * in scripts/migrate-grant-readonly.ts and in the dump list of
  * .github/workflows/db-backup.yml. Run migrate-grant-readonly.ts with the
  * owner URL right after this, BEFORE merge: the nightly dump fails on a table
@@ -44,6 +48,7 @@
  * ## Rollback
  *
  * Revert the code first, then:
+ *   DROP TABLE sanctions_freeze_releases;
  *   DROP TABLE sanctions_screenings; DROP TABLE sanctioned_addresses;
  *   DELETE FROM ingest_state WHERE name = 'sanctions_list';
  *   ALTER TABLE users DROP COLUMN frozen_at, DROP COLUMN frozen_reason;
@@ -77,6 +82,7 @@ const EXPECTED_COLUMNS: Record<string, string[]> = {
     'screened_at',
     'last_screened_at',
   ],
+  sanctions_freeze_releases: ['user_id', 'payer', 'released_at', 'note'],
 };
 
 async function main() {
@@ -100,7 +106,9 @@ async function main() {
    * `lock_timeout` makes it give up rather than queue them, and SET LOCAL
    * cannot outlive the transaction.
    */
-  console.log('sanctioned_addresses, sanctions_screenings, users.frozen_*');
+  console.log(
+    'sanctioned_addresses, sanctions_screenings, sanctions_freeze_releases, users.frozen_*'
+  );
   await sql.transaction([
     sql`SET LOCAL lock_timeout = '3s'`,
     sql`
@@ -149,6 +157,15 @@ async function main() {
       ALTER TABLE users
         ADD COLUMN IF NOT EXISTS frozen_at timestamptz,
         ADD COLUMN IF NOT EXISTS frozen_reason text
+    `,
+    sql`
+      CREATE TABLE IF NOT EXISTS sanctions_freeze_releases (
+        user_id uuid NOT NULL REFERENCES users(id),
+        payer text NOT NULL CHECK (payer ~ '^0x[0-9a-f]{40}$'),
+        released_at timestamptz NOT NULL DEFAULT now(),
+        note text NOT NULL CHECK (length(note) > 0),
+        PRIMARY KEY (user_id, payer)
+      )
     `,
   ]);
 
@@ -248,7 +265,7 @@ async function main() {
 
   console.log('\nOK. Now run scripts/migrate-grant-readonly.ts with the owner');
   console.log(
-    'role, so the nightly dump can read sanctions_screenings, and then merge.'
+    'role, so the nightly dump can read sanctions_screenings and sanctions_freeze_releases, and then merge.'
   );
 }
 

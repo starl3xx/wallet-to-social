@@ -226,9 +226,9 @@ The `503` can also come after the payment is verified, when the screening
 cannot be recorded; it still comes before settlement.
 
 An account whose paying wallet is found on OFAC’s SDN list after it bought is
-suspended: its keys stop working, its credits are held, it cannot buy more
-(`403` `SANCTIONED_PAYER`, card checkout included), and
-[key recovery](#lost-your-key) answers `403` `SANCTIONED_PAYER`.
+suspended: its keys stop working and its credits are held. A USDC buy into it,
+a top-up with its key, a card checkout while signed in to it, and
+[key recovery](#lost-your-key) all answer `403` `SANCTIONED_PAYER`.
 
 ## If something goes wrong
 

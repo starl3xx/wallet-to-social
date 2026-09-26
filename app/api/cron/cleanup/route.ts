@@ -79,7 +79,11 @@ import { cleanupIdempotencyKeys } from '@/lib/idempotency';
 import { ACCESS_TOKEN_PREFIX } from '@/lib/oauth/grants';
 import { cleanExpiredCache } from '@/lib/cache';
 import { cleanupOldBuckets } from '@/lib/rate-limiter';
-import { alertIfListStale, alertPendingFreezes } from '@/lib/sanctions-alerts';
+import {
+  alertIfListStale,
+  alertPendingFreezes,
+  sendUnsentAlertRecords,
+} from '@/lib/sanctions-alerts';
 import {
   clearOldStripeIds,
   countLotsDue,
@@ -442,16 +446,6 @@ async function run(request: NextRequest): Promise<NextResponse> {
     console.error('Wallet cache cleanup error:', error);
   }
 
-  /**
-   * Not a deletion: the watchdog for the sanctions list (STA-41). The refresh
-   * cron emails when the list goes stale and when an account is frozen, but a
-   * job that has stopped running cannot report that it stopped, so this
-   * daily job checks the same database state and sends the same emails
-   * under the same claims. Never throws.
-   */
-  const sanctionsListAlert = await alertIfListStale(db);
-  const sanctionsFreezeAlert = await alertPendingFreezes(db);
-
   const auth = await cleanupExpiredAuth();
   const ipBuckets = await cleanupOldIpBuckets(IP_BUCKET_RETENTION_HOURS);
   const authorizationRequests = await cleanupAuthorizationRequests();
@@ -471,6 +465,19 @@ async function run(request: NextRequest): Promise<NextResponse> {
     .delete(analyticsEvents)
     .where(lt(analyticsEvents.createdAt, cutoff))
     .returning();
+
+  /**
+   * Not a deletion: the watchdog for the sanctions alerts (STA-41). The
+   * refresh cron emails a stale list, a freeze and the durable alert records,
+   * but a job that has stopped running cannot report that it stopped, so this
+   * daily job checks the same database state and sends the same emails under
+   * the same claims. Last, after the housekeeping, because a slow mail
+   * provider must not cost the deletes above; every send has its own timeout.
+   * Never throws.
+   */
+  const sanctionsListAlert = await alertIfListStale(db);
+  const sanctionsFreezeAlert = await alertPendingFreezes(db);
+  const sanctionsAlertRecords = await sendUnsentAlertRecords(db);
 
   return NextResponse.json({
     sessions: auth.sessionsDeleted,
@@ -492,6 +499,7 @@ async function run(request: NextRequest): Promise<NextResponse> {
     sanctionsScreenings,
     sanctionsListAlert,
     sanctionsFreezeAlert,
+    sanctionsAlertRecords,
     purchaseRecords,
     walletCacheRows,
   });

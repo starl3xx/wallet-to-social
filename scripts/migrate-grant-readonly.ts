@@ -148,6 +148,10 @@ const BACKUP_TABLES = [
   // is in neither list: the next refresh rebuilds it from OFAC, and a restore
   // without it fails closed (USDC sales answer 503 until the refresh).
   'sanctions_screenings',
+  // With it: the pairs an operator released from a sanctions freeze on legal
+  // advice. A restore without them would freeze those accounts again on the
+  // next refresh.
+  'sanctions_freeze_releases',
 ];
 
 const GRANTS: { role: string; tables: string[] }[] = [

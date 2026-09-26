@@ -35,6 +35,7 @@ import { sql } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { hasPaidAccess } from '@/lib/credits';
+import { frozenAccountResponse, isAccountFrozen } from '@/lib/account-freeze';
 import { isConfigured as boxConfigured } from '@/lib/secret-box';
 import {
   isConfigured as xConfigured,
@@ -99,6 +100,9 @@ export async function POST(request: NextRequest) {
       { status: 503 }
     );
   }
+
+  // A frozen account gets no offer to buy (lib/account-freeze.ts).
+  if (await isAccountFrozen(session.user.id)) return frozenAccountResponse();
 
   const entitled = await hasPaidAccess(
     session.user.id,

@@ -236,20 +236,27 @@ What runs, decided 2026-09-25:
   and a `frozen_reason` naming every listed payer and the list date, and
   every active key is deactivated. From then on (`lib/account-freeze.ts` has
   the full list): its keys are refused even if one is minted later; it has no
-  paid entitlement (`hasPaidAccess`), so reverse lookups, X lists, Farcaster
-  DMs, contract import and enrichment are closed; it can start no lookup, and
-  is not offered a purchase; a job or call in flight when the freeze lands
-  draws nothing, and the job fails with its results cleared; key recovery,
-  the USDC buy and a signed-in card checkout all answer the buy route’s 403.
-  Nothing is refunded by code.
-- **The alerts.** Email to help@ (`sendOpsAlert` in `lib/email.ts`), at most
-  once per condition per 24 hours, each condition claimed in one statement
-  as an `alert:sanctions:<condition>` row of `ingest_state`. What is emailed:
+  paid entitlement (`hasPaidAccess`), and reverse lookups, X lists, Farcaster
+  DMs, contract import and saved-lookup merges answer 403 `ACCOUNT_SUSPENDED`
+  with no offer to buy; it can start no lookup or unlock, again with no offer
+  to buy; a job or call in flight when the freeze lands draws nothing, and
+  the job fails with its results cleared (one charged on an earlier pass is
+  emailed for a refund decision); key recovery, a top-up with its key, a
+  USDC buy into it and a signed-in card checkout all answer the buy route’s
+  403, the USDC buy only after verify has proven the payer. Nothing is
+  refunded by code.
+- **The alerts.** Email to help@ (`sendOpsAlert` in `lib/email.ts`, which
+  gives up after 10 seconds), at most once per condition per 24 hours. Each
+  condition is an `alert:sanctions:<condition>` row of `ingest_state`; all the
+  conditions of one email are claimed in one statement (`claimedAt`), and a
+  send that works turns the claim into a sent marker (`sentAt`). A claim with
+  no sent marker that is older than 5 minutes belongs to a run that died, and
+  counts as unclaimed. What is emailed:
   - **a freeze**, read from the database: every frozen account’s listed
     payer that no email has reported yet (condition
     `freeze:<account>:<payer>`), with the account id, the matched address,
-    the SDN entry uid and the date of the list in force. The claim row is the
-    sent marker, so each pair is reported once, including a second payer
+    the SDN entry uid and the date of the list in force. The sent marker is
+    permanent, so each pair is reported once, including a second payer
     listed months later and a freeze whose first email failed;
   - **a guard refusal** (`refused`: empty, older or sharply smaller), at
     once;
@@ -260,12 +267,17 @@ What runs, decided 2026-09-25:
   - **a payment that settled from a wallet other than the one screened**
     (`settled-payer:<settlement>`), at once;
   - **a card payment that landed on a frozen account** (`frozen-payment:<id>`),
-    at once.
+    at once;
+  - **a job charged before its account was frozen** (`frozen-job:<job>`),
+    when finalize fails it.
+    The last three carry their content in the row, written before the first
+    send, so they are durable records: the refresh and the daily cleanup
+    resend any that has no sent marker (`sendUnsentAlertRecords`).
     The refresh sends them after its own writes, and the daily cleanup runs
-    the freeze and stale checks too, in case the refresh stops running. A
-    failed send is logged (`[sanctions] alert email failed`) and its claim
-    released, so the next run sends it again; it never blocks or undoes a
-    freeze, a refusal or a payment.
+    every check too, after its housekeeping, in case the refresh stops
+    running. A failed or timed-out send is logged (`[sanctions] alert email
+failed`) and its claim released, so the next run sends it again; it never
+    blocks or undoes a freeze, a refusal or a payment.
 - **The geoblock.** Both checkouts refuse a request whose Vercel IP headers
   place it in `RESTRICTED_CHECKOUT_LOCATIONS` (`lib/geoblock.ts`) with 403
   `REGION_RESTRICTED`. The lawyer may change that list (Linear STA-49); it is
@@ -321,9 +333,16 @@ account id, matched address and SDN entry uid; the log line reads
    `settlement_id` names one of those payers.
 3. Tell the lawyer the same day (Linear STA-49). The reporting duty, its
    deadline and who files are theirs to confirm, and the clock may be short.
-4. Leave the account frozen until the lawyer says otherwise. Lifting a freeze
-   is a hand-run update of `frozen_at` and of the keys, and only on their
-   advice.
+4. Leave the account frozen until the lawyer says otherwise. To lift it
+   on their advice, run
+   `scripts/sanctions-lift-freeze.ts --account <id> --note "<who advised it, and why>"`
+   (owner `DATABASE_URL`) to see it, then again with `--commit`. It records
+   every listed payer the account has now in `sanctions_freeze_releases` and
+   clears `frozen_at`, in one statement, so the next refresh does not freeze
+   the account again for those payers. A payer listed after the lift still
+   freezes the account and is emailed. Keys stay off; the account makes a new
+   one. Never lift a freeze by editing `frozen_at` by hand: the next refresh
+   would freeze it again, without an email.
 
 **A card payment for a frozen account.** The email names the account and the
 Stripe payment. The payment was granted as usual, so its record is kept and
@@ -334,6 +353,11 @@ not lift the freeze.
 names the settlement, the transaction and both wallets. The money has moved.
 Check the settled payer against `sanctioned_addresses` at once; if it is
 listed, follow the freeze steps above.
+
+**A job charged before its account was frozen.** The email names the account
+and the job. The job was failed and its results cleared; the charge stands.
+Decide on a refund of that charge with the lawyer (Linear STA-49); do not
+lift the freeze.
 
 ## The PR protocol
 

@@ -732,8 +732,8 @@ const MUTATIONS: Mutation[] = [
     // keeps this applying to the dump list and not the read-only list.
     name: 'BACKUP_TABLES diverges from the pg_dump list',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'sanctions_screenings',\n];\n\nconst GRANTS",
-    to: "  'sanctions_screenings',\n  'x402_recovery_redemptions',\n];\n\nconst GRANTS",
+    from: "  'sanctions_freeze_releases',\n];\n\nconst GRANTS",
+    to: "  'sanctions_freeze_releases',\n  'x402_recovery_redemptions',\n];\n\nconst GRANTS",
   },
 
   // --- the MCP server's OAuth flow ----------------------------------------
@@ -989,8 +989,8 @@ const MUTATIONS: Mutation[] = [
     // dump list's last entry is now 'suppressed_identifiers'.
     name: 'a grant table joins the nightly dump, so a restore resurrects a revoked connection',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'sanctions_screenings',\n];\n\nconst GRANTS",
-    to: "  'sanctions_screenings',\n  'oauth_grants',\n];\n\nconst GRANTS",
+    from: "  'sanctions_freeze_releases',\n];\n\nconst GRANTS",
+    to: "  'sanctions_freeze_releases',\n  'oauth_grants',\n];\n\nconst GRANTS",
   },
   {
     name: 'a refresh rotates in its own statement again, so a failed mint burns the token',
@@ -2955,8 +2955,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the quarantine table joins the nightly dump, stretching 30 days into a 90-day artifact',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'sanctions_screenings',\n];\n\nconst GRANTS",
-    to: "  'sanctions_screenings',\n  'suppression_quarantine',\n];\n\nconst GRANTS",
+    from: "  'sanctions_freeze_releases',\n];\n\nconst GRANTS",
+    to: "  'sanctions_freeze_releases',\n  'suppression_quarantine',\n];\n\nconst GRANTS",
   },
   {
     name: 'the suppression list leaves the dump, so a restore un-removes everyone who asked',
@@ -4614,8 +4614,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 the screening record leaves the nightly dump',
     file: 'scripts/migrate-grant-readonly.ts',
-    from: "  'sanctions_screenings',\n];\n\nconst GRANTS",
-    to: '];\n\nconst GRANTS',
+    from: "  'sanctions_screenings',\n  // With it: the pairs",
+    to: '  // With it: the pairs',
   },
   // --- STA-41 follow-up: email alerts, the refusal dedupe, recovery -------
   {
@@ -4627,8 +4627,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 the alert claim has no repeat window, so every run emails',
     file: 'lib/sanctions-alerts.ts',
-    from: '            <= now() - make_interval(hours => ${ALERT_REPEAT_HOURS}::int)',
-    to: "            <= now() + interval '1 day'",
+    from: '        <= now() - make_interval(hours => ${ALERT_REPEAT_HOURS}::int))',
+    to: "        <= now() + interval '1 day')",
   },
   {
     name: 'STA-41 the alert repeat window shrinks to an hour',
@@ -4639,14 +4639,14 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 an alert is sent without winning its claim',
     file: 'lib/sanctions-alerts.ts',
-    from: '      if (await claimAlert(db, condition)) claimed.push(condition);',
-    to: '      await claimAlert(db, condition);\n      claimed.push(condition);',
+    from: '    claimed = await claimAlerts(db, conditions, payloads);',
+    to: '    await claimAlerts(db, conditions, payloads);\n    claimed = conditions;',
   },
   {
     name: 'STA-41 a claim that cannot be taken still sends',
     file: 'lib/sanctions-alerts.ts',
-    from: '        `[sanctions] alert claim failed (${condition}); not sent:`,\n        error\n      );',
-    to: '        `[sanctions] alert claim failed (${condition}); not sent:`,\n        error\n      );\n      claimed.push(condition);',
+    from: "      error\n    );\n    return 'failed';\n  }\n  if (claimed.length === 0) return 'deduped';",
+    to: "      error\n    );\n    claimed = conditions;\n  }\n  if (claimed.length === 0) return 'deduped';",
   },
   {
     name: 'STA-41 a failed email throws into the refresh',
@@ -4657,8 +4657,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-41 a failed email keeps its claim, so the next run cannot retry',
     file: 'lib/sanctions-alerts.ts',
-    from: '      await releaseAlert(db, condition);',
-    to: '      void condition;',
+    from: '    await releaseAlerts(db, claimed);',
+    to: '    void claimed;',
   },
   {
     name: 'STA-41 the stale-list email waits for 72 hours',
@@ -4966,6 +4966,169 @@ const MUTATIONS: Mutation[] = [
     file: 'docs/OPERATIONS.md',
     from: 'A download\n    or parse failure is not emailed by itself',
     to: 'A download\n    or parse failure is emailed at once',
+  },
+  // --- STA-41 second review (2026-09-25) ----------------------------------
+  {
+    name: 'STA-41 a recorded alert is claimed without its payload, so a failed send is lost',
+    file: 'lib/sanctions-alerts.ts',
+    from: '    () => COMPOSERS[kind](payload as never),\n    send,\n    { [condition]: payload }\n  );\n}',
+    to: '    () => COMPOSERS[kind](payload as never),\n    send\n  );\n}',
+  },
+  {
+    name: 'STA-41 the record sweep resends records already sent',
+    file: 'lib/sanctions-alerts.ts',
+    from: "          AND value->'payload' IS NOT NULL\n          AND value->>'sentAt' IS NULL\n",
+    to: "          AND value->'payload' IS NOT NULL\n",
+  },
+  {
+    name: 'STA-41 the daily cleanup no longer resends alert records',
+    file: 'app/api/cron/cleanup/route.ts',
+    from: '  const sanctionsAlertRecords = await sendUnsentAlertRecords(db);',
+    to: '  const sanctionsAlertRecords = null;',
+  },
+  {
+    name: 'STA-41 the refresh no longer resends alert records',
+    file: 'lib/sanctions-alerts.ts',
+    from: '  const records = await sendUnsentAlertRecords(db, send);',
+    to: '  const records = { sent: 0, failed: 0 };',
+  },
+  {
+    name: 'STA-41 a claim from a run that died never expires',
+    file: 'lib/sanctions-alerts.ts',
+    from: '          <= now() - make_interval(mins => ${CLAIM_EXPIRY_MINUTES}::int)))\n  )`;',
+    to: "          <= now() - interval '100 years'))\n  )`;",
+  },
+  {
+    name: 'STA-41 the pending freeze query waits forever on a dead claim',
+    file: 'lib/sanctions-alerts.ts',
+    from: "            AND (a.value->>'sentAt' IS NOT NULL\n              OR (a.value->>'claimedAt')::timestamptz",
+    to: "            AND (a.value->>'sentAt' IS NOT NULL\n              OR a.value->>'claimedAt' IS NOT NULL OR (a.value->>'claimedAt')::timestamptz",
+  },
+  {
+    name: 'STA-41 a claim takes an hour to expire',
+    file: 'lib/sanctions-alerts.ts',
+    from: 'export const CLAIM_EXPIRY_MINUTES = 5;',
+    to: 'export const CLAIM_EXPIRY_MINUTES = 60;',
+  },
+  {
+    name: 'STA-41 an operator alert may take ten thousand seconds',
+    file: 'lib/email.ts',
+    from: 'export const OPS_ALERT_TIMEOUT_MS = 10_000;',
+    to: 'export const OPS_ALERT_TIMEOUT_MS = 10_000_000;',
+  },
+  {
+    name: 'STA-41 the timeout never gives the fallback',
+    file: 'lib/email.ts',
+    from: '        timer = setTimeout(() => resolve(onTimeout), ms);',
+    to: '        timer = setTimeout(() => resolve(undefined as T), ms);',
+  },
+  {
+    name: 'STA-41 a send inside the alerts is not bounded',
+    file: 'lib/sanctions-alerts.ts',
+    from: '    result = await withTimeout(send(subject, text), OPS_ALERT_TIMEOUT_MS, {',
+    to: '    result = await withTimeout(send(subject, text), 2 ** 31 - 1, {',
+  },
+  {
+    name: 'STA-41 a frozen account’s top-up key is told to fix the key',
+    file: 'app/api/x402/buy/route.ts',
+    from: '      if (await isFrozenAccountKey(bearer)) {',
+    to: '      if (false) {',
+  },
+  {
+    name: 'STA-41 the freeze is read only inside the charge’s catch-all',
+    file: 'lib/job-processor.ts',
+    from: '  if (options.meteredUserId && (await isAccountFrozen(options.meteredUserId))) {\n    frozenAccount = true;\n  }\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 a job charged before its freeze is not reported',
+    file: 'lib/job-processor.ts',
+    from: '      await alertFrozenBilledJob({',
+    to: '      void ({',
+  },
+  {
+    name: 'STA-41 a job charged before its freeze is not even checked for',
+    file: 'lib/job-processor.ts',
+    from: '    const { billed } = await completionState(db, job.id);\n    if (billed) {',
+    to: '    const { billed } = await completionState(db, job.id);\n    if (false && billed) {',
+  },
+  {
+    name: 'STA-41 reverse offers a frozen account a purchase',
+    file: 'app/api/reverse/route.ts',
+    from: '  if (user && (await isAccountFrozen(user.id))) return frozenAccountResponse();\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 Farcaster DMs offer a frozen account a purchase',
+    file: 'app/api/farcaster-dm/route.ts',
+    from: '    if (await isAccountFrozen(session.user.id)) return frozenAccountResponse();\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 contract import offers a frozen account a purchase',
+    file: 'app/api/contract-holders/route.ts',
+    from: '    if (await isAccountFrozen(session.user.id)) return frozenAccountResponse();\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 X lists offer a frozen account a purchase',
+    file: 'app/api/x/lists/route.ts',
+    from: '  if (await isAccountFrozen(session.user.id)) return frozenAccountResponse();\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 a saved-lookup merge offers a frozen account a purchase',
+    file: 'app/api/history/[id]/route.ts',
+    from: '    if (await isAccountFrozen(validation.userId)) {\n      return frozenAccountResponse();\n    }\n',
+    to: '',
+  },
+  {
+    name: 'STA-41 the frozen refusal offers a purchase',
+    file: 'lib/account-freeze.ts',
+    from: "      code: 'ACCOUNT_SUSPENDED',\n    },\n    { status: 403 }",
+    to: "      code: 'ACCOUNT_SUSPENDED',\n      upgradeRequired: true,\n    },\n    { status: 403 }",
+  },
+  {
+    name: 'STA-41 a released pair is frozen again by the next refresh',
+    file: 'lib/sanctions.ts',
+    from: '    WHERE NOT EXISTS (\n      SELECT 1 FROM sanctions_freeze_releases r',
+    to: '    WHERE true OR NOT EXISTS (\n      SELECT 1 FROM sanctions_freeze_releases r',
+  },
+  {
+    name: 'STA-41 a lift leaves the account frozen',
+    file: 'lib/sanctions.ts',
+    from: '        SET frozen_at = NULL,',
+    to: '        SET frozen_at = u.frozen_at,',
+  },
+  {
+    name: 'STA-41 a lift records no release',
+    file: 'lib/sanctions.ts',
+    from: '        INSERT INTO sanctions_freeze_releases (user_id, payer, note)',
+    to: '        INSERT INTO sanctions_freeze_releases_off (user_id, payer, note)',
+  },
+  {
+    name: 'STA-41 a lift touches an account that is not frozen',
+    file: 'lib/sanctions.ts',
+    from: '        SELECT id FROM users WHERE id = ${userId}::uuid AND frozen_at IS NOT NULL',
+    to: '        SELECT id FROM users WHERE id = ${userId}::uuid',
+  },
+  {
+    name: 'STA-41 the lift script writes without --commit',
+    file: 'scripts/sanctions-lift-freeze.ts',
+    from: '  if (!commit) {',
+    to: '  if (false) {',
+  },
+  {
+    name: 'STA-41 the release record leaves the nightly dump',
+    file: 'scripts/migrate-grant-readonly.ts',
+    from: "  'sanctions_freeze_releases',\n];",
+    to: '];',
+  },
+  {
+    name: 'STA-41 runbook step 4 goes back to a hand edit',
+    file: 'docs/OPERATIONS.md',
+    from: '4. Leave the account frozen until the lawyer says otherwise. To lift it',
+    to: '4. Leave the account frozen until the lawyer says otherwise. Edit frozen_at to lift it. To lift it',
   },
 ];
 

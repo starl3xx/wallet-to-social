@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getUserAccess } from '@/lib/access';
 import { canSubmit, hasPaidAccess, legacyTierIsUnmetered } from '@/lib/credits';
+import { frozenAccountResponse, isAccountFrozen } from '@/lib/account-freeze';
 import { walletsCoveredBy } from '@/lib/packs';
 import {
   getContractHolders,
@@ -96,6 +97,9 @@ export async function POST(request: NextRequest) {
     // ever). It is now included in every pack, which is why this is a credit
     // check and not a tier check: a pack buyer keeps tier 'free'.
     const access = await getUserAccess(session.user.email);
+
+    // A frozen account gets no offer to buy (lib/account-freeze.ts).
+    if (await isAccountFrozen(session.user.id)) return frozenAccountResponse();
 
     if (!(await hasPaidAccess(session.user.id, access.tier))) {
       trackEvent('contract_import_blocked', {

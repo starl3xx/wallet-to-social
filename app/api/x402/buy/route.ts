@@ -88,7 +88,11 @@ import {
 import { alertSettledPayerMismatch } from '@/lib/sanctions-alerts';
 import { isAccountFrozen } from '@/lib/account-freeze';
 import { checkoutGeoblock } from '@/lib/geoblock';
-import { createApiKeyIfUnderCap, validateApiKey } from '@/lib/api-keys';
+import {
+  createApiKeyIfUnderCap,
+  isFrozenAccountKey,
+  validateApiKey,
+} from '@/lib/api-keys';
 import { readBodyCapped } from '@/lib/api-auth';
 import { looksLikeAccessToken } from '@/lib/oauth/grants';
 import { CREDIT_API_PLAN } from '@/lib/api-plans';
@@ -215,6 +219,11 @@ export async function POST(request: NextRequest) {
     }
     const keyResult = await validateApiKey(bearer);
     if (!keyResult) {
+      // A frozen account's key never validates; it gets the frozen refusal
+      // every other path gives, not advice to fix the key (Linear STA-41).
+      if (await isFrozenAccountKey(bearer)) {
+        return sanctionsRefusal('listed')!;
+      }
       return NextResponse.json(
         {
           error:
@@ -460,17 +469,6 @@ export async function POST(request: NextRequest) {
   if (screened) return screened;
 
   /**
-   * A frozen account takes no new money (lib/account-freeze.ts). The account
-   * this purchase would credit, found without creating it: the top-up key's
-   * account, or the paying wallet's existing account. Refused with the same
-   * 403, before anything verifies or settles.
-   */
-  const creditedAccount = topUp?.userId ?? (await findWalletAccount(payer));
-  if (creditedAccount && (await isAccountFrozen(creditedAccount))) {
-    return sanctionsRefusal('listed')!;
-  }
-
-  /**
    * Has this payment already been honoured?
    *
    * Asked before anything is verified or settled, because settlement is the
@@ -607,6 +605,19 @@ export async function POST(request: NextRequest) {
       { error: 'Payment did not verify.', code: 'PAYMENT_INVALID' },
       { status: 402 }
     );
+  }
+
+  /**
+   * A frozen account takes no new money (lib/account-freeze.ts). The account
+   * this purchase would credit, found without creating it: the top-up key's
+   * account, or the paying wallet's existing account. Asked only now, after
+   * verify has proven the payer holds the wallet, so the answer tells no one
+   * whether some other wallet's account is frozen; still before the record
+   * and settle, so no money moves. Refused with the same 403.
+   */
+  const creditedAccount = topUp?.userId ?? (await findWalletAccount(payer));
+  if (creditedAccount && (await isAccountFrozen(creditedAccount))) {
+    return sanctionsRefusal('listed')!;
   }
 
   // The clear screen's record, now that verify has proven the payer. No
