@@ -84,6 +84,7 @@ import {
   alertPendingFreezes,
   sendUnsentAlertRecords,
 } from '@/lib/sanctions-alerts';
+import { sendUnsentRemovalRecords } from '@/lib/removal-alerts';
 import {
   clearOldStripeIds,
   countLotsDue,
@@ -478,6 +479,13 @@ async function run(request: NextRequest): Promise<NextResponse> {
   const sanctionsListAlert = await alertIfListStale(db);
   const sanctionsFreezeAlert = await alertPendingFreezes(db);
   const sanctionsAlertRecords = await sendUnsentAlertRecords(db);
+  /**
+   * The same sweep for the withdrawal trail (STA-50): a claim-page
+   * withdrawal whose email failed or timed out is sent from its record here.
+   * The withdraw route is its only other sender, so without this line a
+   * failed send would never be tried again. Never throws.
+   */
+  const removalAlertRecords = await sendUnsentRemovalRecords(db);
 
   return NextResponse.json({
     sessions: auth.sessionsDeleted,
@@ -501,6 +509,7 @@ async function run(request: NextRequest): Promise<NextResponse> {
     sanctionsFreezeAlert,
     sanctionsAlertRecords,
     purchaseRecords,
+    removalAlertRecords,
     walletCacheRows,
   });
 }

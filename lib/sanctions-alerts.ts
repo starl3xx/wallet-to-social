@@ -28,28 +28,14 @@
  * durable record that the refresh and the daily cleanup resend until it is
  * marked sent (`sendUnsentAlertRecords`).
  *
- * ## At most one email per condition per day, remembered in the database
+ * ## At most one email per condition per day, and never blocking
  *
- * Each condition is a row of `ingest_state` named `alert:sanctions:<condition>`.
- * Claimed and sent are recorded apart: `claimAlerts` takes every condition of
- * one email in ONE statement and writes `claimedAt`; a send that succeeds
- * replaces it with `sentAt`. A row is claimable again once it was sent more
- * than `ALERT_REPEAT_HOURS` ago, or when it was never sent and its claim is
- * gone or older than `CLAIM_EXPIRY_MINUTES`, which is how a run that died
- * between claiming and sending is recovered. So of two runs at once only one
- * sends, and a function instance that restarts remembers nothing it needs
- * to. Nothing here keeps state in memory. A freeze pair's `sentAt` is its
- * permanent sent marker: the pending query skips it, so a freeze is reported
- * once, not daily.
- *
- * ## An alert never blocks or undoes what it reports
- *
- * The freeze and the refusal are committed before any of this runs, and
- * every function here catches its own errors and returns a result instead of
- * throwing. Every send is given `OPS_ALERT_TIMEOUT_MS`. A send that fails or
- * times out is logged and its claim released (the row and any record stay),
- * so the next run tries again; a claim that cannot be taken sends nothing,
- * because the one-a-day rule cannot be kept without it.
+ * The claims, the durable records, the timeout and the never-throw rule are
+ * lib/ops-alerts.ts, shared with the withdrawal trail since 2026-09-26. Each
+ * condition here is a row of `ingest_state` named `alert:sanctions:<condition>`.
+ * A freeze pair's `sentAt` is its permanent sent marker: the pending query
+ * skips it, so a freeze is reported once, not daily. The freeze and the
+ * refusal are committed before any of this runs.
  *
  * ## What an email says
  *
@@ -58,9 +44,20 @@
  * matched; the list alerts name counts and dates; a payment alert names the
  * account or settlement and the payment.
  */
-import { sql, type SQL } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { getDb } from '@/db';
-import { OPS_ALERT_TIMEOUT_MS, sendOpsAlert, withTimeout } from '@/lib/email';
+import { sendOpsAlert } from '@/lib/email';
+import {
+  CLAIM_EXPIRY_MINUTES,
+  rowsOf,
+  sendClaimed as sendClaimedIn,
+  sendRecorded as sendRecordedIn,
+  sendUnsentRecords,
+  type AlertEmail,
+  type AlertFamily,
+  type AlertResult,
+  type AlertSender,
+} from '@/lib/ops-alerts';
 import {
   listedPayerPairs,
   parseListState,
@@ -71,8 +68,12 @@ import {
   type SanctionsDb,
 } from '@/lib/sanctions';
 
-/** At most one email per condition in this many hours. */
-export const ALERT_REPEAT_HOURS = 24;
+export {
+  ALERT_REPEAT_HOURS,
+  CLAIM_EXPIRY_MINUTES,
+  type AlertResult,
+  type AlertSender,
+} from '@/lib/ops-alerts';
 
 /** The `ingest_state` name prefix of the alert claims. */
 export const ALERT_KEY_PREFIX = 'alert:sanctions:';
@@ -80,173 +81,15 @@ export const ALERT_KEY_PREFIX = 'alert:sanctions:';
 const RUNBOOK =
   'Runbook: docs/OPERATIONS.md, "Sanctions screening: the operator runbook".';
 
-export type AlertSender = (
-  subject: string,
-  text: string
-) => Promise<{ success: boolean; error?: string }>;
-
-export type AlertResult = 'sent' | 'deduped' | 'failed';
-
-function rowsOf(result: unknown): unknown[] {
-  return ((result as { rows?: unknown[] }).rows ?? []) as unknown[];
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-/**
- * A claim with no sent marker that is older than this belongs to a run that
- * died between claiming and sending (or whose release failed): it counts as
- * unclaimed again. Far above `OPS_ALERT_TIMEOUT_MS`, so a live send is never
- * taken from under the run that is making it.
- */
-export const CLAIM_EXPIRY_MINUTES = 5;
-
-/**
- * When an existing claim row may be taken: sent more than
- * `ALERT_REPEAT_HOURS` ago, or never sent and not claimed in the last
- * `CLAIM_EXPIRY_MINUTES` (a released claim has no `claimedAt` at all).
- */
-function claimableRow(): SQL {
-  return sql`(
-    (ingest_state.value->>'sentAt' IS NOT NULL
-      AND (ingest_state.value->>'sentAt')::timestamptz
-        <= now() - make_interval(hours => ${ALERT_REPEAT_HOURS}::int))
-    OR (ingest_state.value->>'sentAt' IS NULL
-      AND (ingest_state.value->>'claimedAt' IS NULL
-        OR (ingest_state.value->>'claimedAt')::timestamptz
-          <= now() - make_interval(mins => ${CLAIM_EXPIRY_MINUTES}::int)))
-  )`;
-}
-
-/**
- * Claim `conditions` in ONE statement and return the ones this caller won.
- *
- * A claim is a row `alert:sanctions:<condition>` holding `claimedAt`; a send
- * that succeeds replaces it with `sentAt` (`markAlertsSent`), and one that
- * fails drops `claimedAt` (`releaseAlerts`). `payloads` rides with the claim
- * for the alerts that cannot be recomputed from other tables (a payment, a
- * job): the row is then the durable record a later sweep sends from
- * (`sendUnsentAlertRecords`), written before the first send is tried.
- */
-export async function claimAlerts(
+/** Send under the sanctions family's claims (lib/ops-alerts.ts). */
+function sendClaimed(
   db: SanctionsDb,
   conditions: string[],
-  payloads: Record<string, unknown> = {}
-): Promise<string[]> {
-  if (conditions.length === 0) return [];
-  const names = conditions.map((c) => ALERT_KEY_PREFIX + c);
-  const bodies = conditions.map((c) =>
-    payloads[c] === undefined ? null : JSON.stringify(payloads[c])
-  );
-  const rows = rowsOf(
-    await db.execute(sql`
-      INSERT INTO ingest_state (name, value, updated_at)
-      SELECT t.name,
-             jsonb_strip_nulls(jsonb_build_object('claimedAt', now(), 'payload', t.payload::jsonb)),
-             now()
-      FROM unnest(${sql.param(names)}::text[], ${sql.param(bodies)}::text[]) AS t(name, payload)
-      ON CONFLICT (name) DO UPDATE
-        SET value = jsonb_strip_nulls(jsonb_build_object(
-              'claimedAt', now(),
-              'payload', coalesce(EXCLUDED.value->'payload', ingest_state.value->'payload'))),
-            updated_at = now()
-        WHERE ${claimableRow()}
-      RETURNING name
-    `)
-  ) as Array<{ name: string }>;
-  return rows.map((r) => r.name.slice(ALERT_KEY_PREFIX.length));
-}
-
-/** The claim becomes the sent marker. */
-export async function markAlertsSent(
-  db: SanctionsDb,
-  conditions: string[]
-): Promise<void> {
-  await db.execute(sql`
-    UPDATE ingest_state
-    SET value = (value - 'claimedAt') || jsonb_build_object('sentAt', now()),
-        updated_at = now()
-    WHERE name = ANY(${sql.param(conditions.map((c) => ALERT_KEY_PREFIX + c))}::text[])
-  `);
-}
-
-/**
- * Give claims back after a failed send, so the next run may try again. The
- * row stays, with any payload, so a durable record is never lost.
- */
-export async function releaseAlerts(
-  db: SanctionsDb,
-  conditions: string[]
-): Promise<void> {
-  await db.execute(sql`
-    UPDATE ingest_state
-    SET value = value - 'claimedAt', updated_at = now()
-    WHERE name = ANY(${sql.param(conditions.map((c) => ALERT_KEY_PREFIX + c))}::text[])
-      AND value->>'sentAt' IS NULL
-  `);
-}
-
-/**
- * Send one alert for each of `conditions` at most once a day, as ONE email
- * covering the conditions it could claim. Never throws.
- */
-async function sendClaimed(
-  db: SanctionsDb,
-  conditions: string[],
-  compose: (claimed: string[]) => { subject: string; text: string },
+  compose: (claimed: string[]) => AlertEmail,
   send: AlertSender,
   payloads: Record<string, unknown> = {}
 ): Promise<AlertResult> {
-  let claimed: string[];
-  try {
-    claimed = await claimAlerts(db, conditions, payloads);
-  } catch (error) {
-    console.error(
-      `[sanctions] alert claim failed (${conditions.join(', ')}); not sent:`,
-      error
-    );
-    return 'failed';
-  }
-  if (claimed.length === 0) return 'deduped';
-
-  const { subject, text } = compose(claimed);
-  let result: { success: boolean; error?: string };
-  try {
-    result = await withTimeout(send(subject, text), OPS_ALERT_TIMEOUT_MS, {
-      success: false,
-      error: 'timed out',
-    });
-  } catch (error) {
-    result = { success: false, error: messageOf(error) };
-  }
-  if (result.success) {
-    try {
-      await markAlertsSent(db, claimed);
-    } catch (error) {
-      // The email went out; at worst the claim expires and it goes out again.
-      console.error(
-        `[sanctions] alert sent but not marked (${claimed.join(', ')}):`,
-        error
-      );
-    }
-    return 'sent';
-  }
-
-  console.error(
-    `[sanctions] alert email failed (${claimed.join(', ')}): ${result.error ?? 'unknown error'}`
-  );
-  try {
-    await releaseAlerts(db, claimed);
-  } catch (error) {
-    // The claim then expires after CLAIM_EXPIRY_MINUTES instead.
-    console.error(
-      `[sanctions] alert claim release failed (${claimed.join(', ')}):`,
-      error
-    );
-  }
-  return 'failed';
+  return sendClaimedIn(db, SANCTIONS, conditions, compose, send, payloads);
 }
 
 /** A frozen account's listed payer that no email has reported yet. */
@@ -361,10 +204,7 @@ export interface FrozenJobReport {
   userId: string;
 }
 
-const COMPOSERS: Record<
-  string,
-  (payload: never) => { subject: string; text: string }
-> = {
+const COMPOSERS: Record<string, (payload: never) => AlertEmail> = {
   'settled-payer': (r: SettledPayerReport) => ({
     subject:
       '[walletlink] Sanctions: a payment settled from an unscreened wallet',
@@ -411,28 +251,22 @@ const COMPOSERS: Record<
 /** The kinds with a durable record, which the sweep resends. */
 export const RECORDED_ALERT_KINDS = Object.keys(COMPOSERS);
 
-/** Their row names, as LIKE patterns. */
-const RECORD_PATTERNS = RECORDED_ALERT_KINDS.map(
-  (kind) => ALERT_KEY_PREFIX + kind + ':%'
-);
+/** The sanctions alerts, as a family of lib/ops-alerts.ts. */
+const SANCTIONS: AlertFamily = {
+  prefix: ALERT_KEY_PREFIX,
+  tag: 'sanctions',
+  records: COMPOSERS,
+};
 
 /** Record and send one alert with a payload. Never throws. */
-async function sendRecorded(
+function sendRecorded(
   db: SanctionsDb | null,
   kind: string,
   key: string,
   payload: object,
   send: AlertSender
 ): Promise<AlertResult> {
-  if (!db) return 'failed';
-  const condition = `${kind}:${key}`;
-  return sendClaimed(
-    db,
-    [condition],
-    () => COMPOSERS[kind](payload as never),
-    send,
-    { [condition]: payload }
-  );
+  return sendRecordedIn(db, SANCTIONS, kind, key, payload, send);
 }
 
 /**
@@ -497,46 +331,7 @@ export async function sendUnsentAlertRecords(
   db: SanctionsDb,
   send: AlertSender = sendOpsAlert
 ): Promise<{ sent: number; failed: number }> {
-  let records: Array<{ name: string; payload: unknown }>;
-  try {
-    records = rowsOf(
-      await db.execute(sql`
-        SELECT name, value->'payload' AS payload
-        FROM ingest_state
-        WHERE name LIKE ANY(${sql.param(RECORD_PATTERNS)}::text[])
-          AND value->'payload' IS NOT NULL
-          AND value->>'sentAt' IS NULL
-          AND (value->>'claimedAt' IS NULL
-            OR (value->>'claimedAt')::timestamptz
-              <= now() - make_interval(mins => ${CLAIM_EXPIRY_MINUTES}::int))
-        ORDER BY name
-      `)
-    ) as Array<{ name: string; payload: unknown }>;
-  } catch (error) {
-    console.error('[sanctions] alert records could not be read:', error);
-    return { sent: 0, failed: 1 };
-  }
-  let sent = 0;
-  let failed = 0;
-  for (const record of records) {
-    const condition = record.name.slice(ALERT_KEY_PREFIX.length);
-    const kind = condition.slice(0, condition.indexOf(':'));
-    const payload =
-      typeof record.payload === 'string'
-        ? JSON.parse(record.payload)
-        : record.payload;
-    if (!COMPOSERS[kind] || !payload) continue;
-    const result = await sendClaimed(
-      db,
-      [condition],
-      () => COMPOSERS[kind](payload as never),
-      send,
-      { [condition]: payload }
-    );
-    if (result === 'sent') sent++;
-    else if (result === 'failed') failed++;
-  }
-  return { sent, failed };
+  return sendUnsentRecords(db, SANCTIONS, send);
 }
 
 /** The refused-refresh email. Nothing about any account. */

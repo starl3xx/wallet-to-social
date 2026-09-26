@@ -36,6 +36,16 @@
  * the support address erased the pair from the index and left the claim
  * record naming it, `completed`, with the handle and the signature. One
  * function is how the two lanes stay the same.
+ *
+ * ## It leaves an email, as an emailed removal does
+ *
+ * A removal asked for by email has its request in the help@ inbox. This one
+ * had nothing outside the database until 2026-09-26 (Linear STA-50), so a
+ * restore of the whole project from the nightly backup would have lost it.
+ * Once the erase has returned, `alertClaimWithdrawal` (lib/removal-alerts.ts)
+ * sends the ops inbox what re-applying it takes. It never throws and never
+ * runs before the withdrawal is committed, so it can neither block nor undo
+ * one.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { isAddress } from 'viem';
@@ -45,7 +55,12 @@ import { getDb } from '@/db';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { verifyClaim, isConfigured } from '@/lib/attestation';
 import { checkIpRateLimit, getClientIp } from '@/lib/ip-rate-limiter';
-import { insertSuppressions, eraseIdentifier } from '@/lib/removal-admin';
+import {
+  insertSuppressions,
+  eraseIdentifier,
+  type RemovalTarget,
+} from '@/lib/removal-admin';
+import { alertClaimWithdrawal } from '@/lib/removal-alerts';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -139,14 +154,15 @@ export async function POST(request: NextRequest) {
    * the callback requires both.
    */
   const found = (await db.execute(sql`
-    SELECT count(*)::int AS n
+    SELECT id::text AS id
     FROM identity_attestations
     WHERE user_id = ${session.user.id}
       AND wallet = ${wallet}
       AND status = 'completed'
-  `)) as unknown as { rows: Array<{ n: number }> };
+    ORDER BY created_at, id
+  `)) as unknown as { rows: Array<{ id: string }> };
 
-  if ((found.rows[0]?.n ?? 0) === 0) {
+  if (found.rows.length === 0) {
     return NextResponse.json(
       {
         error: 'not_found',
@@ -171,12 +187,8 @@ export async function POST(request: NextRequest) {
    * entirely. The operator endpoint remains the way to ask for that, and it
    * is linked from the privacy page.
    */
-  await insertSuppressions(
-    db,
-    [{ kind: 'wallet', identifier: wallet }],
-    'wallet_sig',
-    'requested'
-  );
+  const suppressed: RemovalTarget[] = [{ kind: 'wallet', identifier: wallet }];
+  await insertSuppressions(db, suppressed, 'wallet_sig', 'requested');
   /**
    * The erase ends by withdrawing EVERY claim row for this wallet, not the
    * most recent one, and `awaiting_x` rows with them, so a claim opened
@@ -185,6 +197,24 @@ export async function POST(request: NextRequest) {
    * still `completed` and this route can be retried to finish.
    */
   const erased = await eraseIdentifier(db, 'wallet', wallet);
+
+  /**
+   * The email trail (STA-50), only now that the withdrawal is committed: both
+   * statements above autocommit, and the erase throws on any failed step, so
+   * reaching this line means the whole withdrawal is in the database. It
+   * names the rows written to the suppression list and the claims this
+   * person withdrew, for the operator to re-apply after a restore. Awaited so
+   * the record is written before the function can be frozen; it never
+   * throws, and a send that fails is left for the daily cleanup.
+   */
+  await alertClaimWithdrawal(
+    {
+      suppressed,
+      claimIds: found.rows.map((r) => r.id),
+      withdrawnAt: new Date().toISOString(),
+    },
+    db
+  );
 
   return NextResponse.json({
     withdrawn: true,
