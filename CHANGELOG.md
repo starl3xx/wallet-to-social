@@ -2,7 +2,7 @@
 
 All notable changes to walletlink.social. Newest first.
 
-### 2026-09-25 (buying credits records your agreement to the terms)
+### 2026-09-26 (buying credits records your agreement to the terms)
 
 - **Checkout asks you to agree to the Terms of Service.** The buy-credits
   window has an unticked “I agree to the Terms of Service” box between your
