@@ -153,7 +153,7 @@ Support address for the docs and the site: **help@walletlink.social**
 (`gm@walletlink.social` is the friendlier general/inbound one).
 
 Inbound mail for walletlink.social is delivered by Google Workspace: the only MX
-record is `smtp.google.com` (`dig MX walletlink.social`, checked 2026-09-24).
+record is `smtp.google.com` (`dig MX walletlink.social`, checked 2026-09-26).
 Cloudflare Email Routing, which forwarded help@ and gm@ from 2026-08-14, is no
 longer in the inbound path. So an address works only if it exists in Workspace
 as a user, an alias or a group, and no file in this repo can show which ones do.
@@ -163,4 +163,6 @@ sent from inside Workspace does not go through MX.
 help@ is also the second Contact in `/.well-known/security.txt`, after GitHub
 private vulnerability reporting, and the reply-to on every transactional email.
 So it must keep taking mail from outside the domain, which is exactly where
-security reports come from. There is no security@ (decided 2026-09-25).
+security reports come from. It does: help@ exists in Workspace and takes
+outside mail (confirmed 2026-09-26). There is no security@ (decided
+2026-09-25).

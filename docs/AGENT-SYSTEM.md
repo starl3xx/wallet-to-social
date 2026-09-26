@@ -264,7 +264,7 @@ therefore imports the handler and parses what it returns rather than reading
 its source, because that class of defect is invisible to a regex over a
 literal that says exactly what it means to say.
 
-**security.txt (2026-09-24) is the same kind of well-known projection, for a
+**security.txt (2026-09-26) is the same kind of well-known projection, for a
 different reader.** `/.well-known/security.txt` (RFC 9116) tells a researcher,
 or a scanner acting for one, where a vulnerability report goes. It **points
 at** the root `SECURITY.md` through its `Policy` field and restates none of the

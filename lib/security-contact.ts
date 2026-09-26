@@ -18,7 +18,8 @@
  *    Enabled on the repository on 2026-09-25.
  * 2. **help@walletlink.social**, second. It is the mailbox a person reads,
  *    and every transactional email already uses it as its reply-to, so it is
- *    the address whose delivery is exercised every day.
+ *    the address whose delivery is exercised every day. It exists in Google
+ *    Workspace and takes mail from outside the domain, confirmed 2026-09-26.
  *
  * No security@. RFC 9116 suggests the RFC 2142 SECURITY@ convention, but a
  * Contact has to reach somebody, and a security@ that does not exist bounces
@@ -55,7 +56,7 @@
  * The invariants check Expires against SECURITY_CONTACT_VERIFIED and never
  * against the clock, so no PR turns red because of the date it runs on. The
  * clock is checked by `.github/workflows/security-contact.yml` every Monday,
- * which fails when fewer than 30 days remain. docs/OPERATIONS.md has the
+ * which fails when 30 days or fewer remain. docs/OPERATIONS.md has the
  * procedure.
  *
  * ## Why the strings below look the way they do
@@ -81,7 +82,7 @@ export const SECURITY_POLICY_URL =
  * The day both channels were last proven to deliver: a test report sent from
  * outside the domain arrived. Expires is measured from this, not from today.
  */
-export const SECURITY_CONTACT_VERIFIED = '2026-09-25';
+export const SECURITY_CONTACT_VERIFIED = '2026-09-26';
 
 /** RFC 3339, UTC. Under a year after SECURITY_CONTACT_VERIFIED. */
 export const SECURITY_TXT_EXPIRES = '2027-03-31T00:00:00Z';

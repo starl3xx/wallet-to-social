@@ -532,8 +532,10 @@ Two of the facts behind them are settings, not files, so this is their record:
   reads it. If it is ever switched off by mistake,
   `gh api -X PUT repos/starl3xx/wallet-to-social/private-vulnerability-reporting`
   (expect 204) switches it back on.
-- **help@ receiving outside mail** is a Google Workspace fact. Inbound mail
-  goes only to Workspace (MX `smtp.google.com`), and no file shows it.
+- **help@ receiving outside mail: confirmed 2026-09-26.** help@ exists in
+  Google Workspace and takes mail from outside the domain. Inbound mail goes
+  only to Workspace (MX `smtp.google.com`); DMARC is `p=none` and Google's DKIM
+  key is published. No file shows any of this, so this line is the record.
 
 `.github/workflows/security-contact.yml` checks both every Monday against
 production, plus the one thing the invariants deliberately do not read: the

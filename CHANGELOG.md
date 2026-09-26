@@ -9,7 +9,8 @@ All notable changes to walletlink.social. Newest first.
   reporting first, because it is confidential and does not depend on mail
   delivery (enabled on the repository 2026-09-25), then
   `help@walletlink.social`, the mailbox a person reads and every transactional
-  reply-to. No security@ exists, so none is published. The legacy
+  reply-to (it exists in Google Workspace and takes mail from outside the
+  domain, confirmed 2026-09-26). No security@ exists, so none is published. The legacy
   `/security.txt` answers 308 to it. Served as `text/plain; charset=utf-8`
   from `app/api/security-txt` through a rewrite; the fields live in
   `lib/security-contact.ts`. Unsigned, because no OpenPGP key exists.
