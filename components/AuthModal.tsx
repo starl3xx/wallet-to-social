@@ -18,6 +18,7 @@ import {
   CheckCircle as CheckCircle2,
   ArrowLeft,
 } from '@phosphor-icons/react';
+import { SignInNotice } from '@/components/SignInNotice';
 import { originTag } from '@/lib/first-touch';
 
 interface AuthModalProps {
@@ -166,6 +167,11 @@ export function AuthModal({ open, onOpenChange, next }: AuthModalProps) {
                   )}
                 </Button>
               </ModalFooter>
+
+              {/* A notice, not a checkbox: signing in asks for no tick and
+                  records nothing. The agreement that is recorded is the one
+                  made at purchase. */}
+              <SignInNotice />
             </div>
           </>
         ) : (

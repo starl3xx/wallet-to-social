@@ -457,6 +457,26 @@ export const creditLots = pgTable(
     /** Which rail paid for this lot: `'stripe'`, `'x402'`, or NULL for a row
      *  that predates the column. Never backfilled by guessing. */
     rail: text('rail'),
+    /**
+     * The terms of service the buyer agreed to, as `TERMS_VERSION` in
+     * lib/terms.ts, and when. Written together by `termsColumns`, so a lot
+     * carries both or neither.
+     *
+     * A card purchase records the version the buyer saw and the moment they
+     * submitted checkout with the box ticked, carried through the Stripe
+     * metadata. An onchain purchase records the version in force when the
+     * payment settled, at that moment: its 402 challenge discloses the terms,
+     * and paying is the acceptance.
+     *
+     * NULL on a hand grant, on the lots bought before 2026-09-25, and on a
+     * checkout opened before the checkbox shipped. Never backfilled: nobody
+     * agreed to anything on those purchases, and a record saying otherwise
+     * would be invented.
+     *
+     * Applied by scripts/migrate-terms-acceptance.ts.
+     */
+    termsVersion: text('terms_version'),
+    termsAcceptedAt: timestamp('terms_accepted_at', { withTimezone: true }),
     createdAt: timestamp('created_at').defaultNow().notNull(),
     expiresAt: timestamp('expires_at').notNull(),
     /** Why a lot was granted by hand. Empty for a purchase. */

@@ -8,6 +8,7 @@ import { provisionPaidCheckout, type PaidTier } from '@/lib/access';
 import { fulfilPackPurchase } from '@/lib/pack-fulfilment';
 import { PACKS, isPackId, type PackId } from '@/lib/packs';
 import { maskEmail } from '@/lib/redact';
+import { termsAcceptanceFrom, type TermsAcceptance } from '@/lib/terms';
 import type Stripe from 'stripe';
 
 export const runtime = 'nodejs';
@@ -91,19 +92,24 @@ export async function POST(request: NextRequest) {
  * A pack never changes `users.tier`. Tier is the legacy one-time entitlement
  * and packs are credits; conflating them would either hand a pack buyer the old
  * unmetered Pro limits or retroactively meter someone who bought Unlimited.
+ *
+ * `terms` is read from the same metadata as the pack, by each caller, so the
+ * lot records the terms version and the moment the buyer agreed at checkout.
  */
 async function grantPackFromWebhook(
   email: string,
   pack: PackId,
   stripePaymentId: string,
   amountCents: number,
-  via: string
+  via: string,
+  terms: TermsAcceptance | null
 ) {
   const { granted } = await fulfilPackPurchase(
     email,
     pack,
     stripePaymentId,
-    amountCents
+    amountCents,
+    terms
   );
   console.log(
     granted
@@ -130,7 +136,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
       // change between a checkout opening and completing, and this row is the
       // record of the payment rather than of the price list.
       session.amount_total ?? PACKS[pack].priceCents,
-      'checkout.session'
+      'checkout.session',
+      termsAcceptanceFrom(session.metadata)
     );
     return;
   }
@@ -182,7 +189,8 @@ async function handlePaymentSucceeded(paymentIntent: Stripe.PaymentIntent) {
       pack,
       paymentIntent.id,
       paymentIntent.amount_received || PACKS[pack].priceCents,
-      'payment_intent'
+      'payment_intent',
+      termsAcceptanceFrom(paymentIntent.metadata)
     );
     return;
   }
