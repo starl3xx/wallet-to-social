@@ -100,7 +100,7 @@ tags:
       resolves wallets the index has not checked against live sources, which
       the synchronous lookups never do.
   - name: Reverse lookups
-    description: Identity in, addresses out. Paginated, and weighted double against your rate limit.
+    description: A one-time check of which wallets an account has linked to itself, not a way to follow a person over time. Identity in, addresses out. Paginated, and weighted double against your rate limit.
   - name: Account
     description: Index coverage and your own usage. Both are free.
 

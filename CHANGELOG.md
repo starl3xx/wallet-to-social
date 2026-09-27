@@ -2,6 +2,96 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-26 (terms of service, and a privacy policy that matches the code)
+
+- **A draft, not live until the owner approves it (STA-41).** Every open
+  choice on both pages is now decided, and no `[DECIDE: …]` marker is left.
+  Some sentences describe code from separate PRs: the retention cleanups and
+  log masking (STA-45, #398), the removal gaps (STA-46, #396, plus a
+  restore-runbook step in the ops repo), the sanctions screening (#400) and
+  the script that deletes removal emails from help@ (STA-50, #401), all
+  merged, and the “I agree to the terms” step at checkout and the USDC buy
+  (STA-47, #399), which merges with this. Email is the only contact the terms give; there is no postal
+  address.
+- **`/terms`**, new: the terms of service with an acceptable-use policy,
+  linked from the footer beside Privacy, from the sitemap and from the privacy
+  page. Every price, lifetime, limit and allowance is read from the constant
+  the code enforces, the legacy unlimited plan’s daily cap included, and the
+  definitions of a match, attested evidence and reachability are the
+  canonical sentences. The decisions it records:
+  - Business and professional use only, from age 18, with a carve-out for
+    consumer law that cannot be waived. Buying credits, by card or onchain,
+    records that you agreed and to which version.
+  - Prices exclude taxes. Promotions are described where they are offered, so
+    the tenth-purchase bonus is documented, not promised here.
+  - No refunds except where the law requires one, a duplicate charge
+    (refunded to where it came from), an account we close without a breach
+    (30 days’ notice, unused unexpired paid credits refunded) and a shutdown
+    (at least 60 days’ notice, then a pro-rata refund). A chargeback removes
+    the credits it paid for. A paid feature is removed only on 30 days’
+    notice.
+  - Outreach is to your own token, collection or community only. Security
+    research and fraud investigation may go further after writing to us
+    first; the authorities are answered only through legal process.
+    Customers are independent controllers, with no data processing
+    agreement. Agencies may use results for a client’s own community, the
+    license survives credit expiry, and a result must be deleted when we say
+    its person asked to be removed.
+  - Misuse can cost keys, connections and, for a serious breach, the
+    remaining credits; a person answers an appeal within 14 days. There is
+    still no account block, so the page does not promise one.
+  - A capitalized disclaimer, liability capped at the fees of the past 12
+    months or $100 if greater, an indemnity, Wyoming law and Wyoming courts,
+    a class-action waiver and no arbitration, 30 days to resolve a dispute
+    informally, and 30 days’ emailed notice of a change to every account,
+    including those that opted out of product email.
+- **`/privacy`**, every sentence checked against the code on main:
+  - Since #393, every list runs through one pipeline, so the exceptions for
+    lists over ten addresses are gone: a fast scan of any size sends nothing,
+    and every list uses the 30-day record of addresses that resolved to
+    nobody. Inngest is listed as having run those lists until 25 September
+    2026, and no longer.
+  - Cached raw results last `CACHE_TTL_DAYS` again, API request records
+    `API_USAGE_RETENTION_MONTHS` (13 months), API key rate-limit counters
+    `API_BUCKET_RETENTION_DAYS` (two days) past their window, and payment
+    records at least `PAYMENT_RECORD_RETENTION_YEARS` (seven years). After
+    that a record of credits spent is deleted; a purchase record is not yet,
+    because its purge is switched off, and the page reads the switch rather
+    than promising the deletion. Each period is read from the constant the
+    cleanup enforces, and an invariant fails if one is written as a number. The browser string of a
+    sign-in is no longer kept, and our own log lines mask email and wallet
+    addresses; the host keeps request logs for no longer than 30 days.
+  - A removal lasts until the person asks to undo it, with the same proof as
+    an access request (a wallet signature or a post from the account). A
+    removal amends API retry copies and clears the claim record, and a
+    restored backup keeps today’s suppression list. Customers are not told of
+    a removal, and the page says why.
+  - Removal emails in the support inbox are kept `BACKUP_RETENTION_DAYS`
+    (90 days, as long as the nightly backups) after the removal is done, then
+    deleted (decided 2026-09-26, STA-50): the thread of an emailed request,
+    which the page used to say was deleted once the removal was done, and the
+    email a withdrawal on the claim page sends help@, which the claim
+    paragraph now describes. The retention table has a row for them. Every
+    backup period on the page reads `BACKUP_RETENTION_DAYS`
+    (`lib/backup-retention.ts`, checked against `retention-days` in
+    `db-backup.yml`), and an invariant fails if one is written as a number.
+  - The sanctions screening from #400: each onchain payment's address is
+    checked against the SDN list and the check is kept
+    `SANCTIONS_SCREENING_RETENTION_YEARS` (five years), a later listing
+    suspends the account the payment was for, and checkout reads the
+    connection's country and region without storing it. The terms say the
+    same, and say where to write about a suspension.
+  - Named: Google Workspace hosts the support mailbox (Cloudflare serves
+    the domain and no longer forwards mail), the entity is a Wyoming LLC,
+    PayAI is the facilitator, each
+    processor’s own terms govern it, legitimate interest is the basis for the
+    welcome and check-in emails and for the index, the rule for the home
+    page’s recent-lookups strip, and the age is 18.
+- The single-address lookup page says a removal lasts until you ask to undo
+  it. The reverse-lookup docs, the OpenAPI tag and the product-marketing notes
+  describe reverse lookup as a one-time check of which wallets an account
+  linked to itself, and the notes drop competitor-holder outreach.
+
 ### 2026-09-26 (A claim-page withdrawal leaves an email in help@)
 
 - **A withdrawal on the claim page now has a record outside the database.**
