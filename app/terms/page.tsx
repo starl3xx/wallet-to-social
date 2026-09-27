@@ -55,6 +55,7 @@ import { ANON_MATCHES_PER_JOB, ANON_MATCHES_PER_DAY } from '@/lib/match-gate';
 import { IP_RATE_LIMITS } from '@/lib/ip-rate-limiter';
 import { TIER_LIMITS } from '@/lib/access';
 import { QUARANTINE_RETENTION_DAYS } from '@/lib/removal-admin';
+import { TERMS_UPDATED } from '@/lib/terms';
 
 export const metadata: Metadata = {
   title: 'Terms of service',
@@ -63,7 +64,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/terms' },
 };
 
-const UPDATED = '25 September 2026';
+const UPDATED = TERMS_UPDATED;
 
 const n = (x: number) => x.toLocaleString('en-US');
 

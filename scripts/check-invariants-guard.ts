@@ -5805,6 +5805,24 @@ const MUTATIONS: Mutation[] = [
     to: "  if ((parsedBody as { acceptTerms?: unknown } | undefined)?.acceptTerms !== true) {\n    return NextResponse.json({ error: 'Agree to the terms.', code: 'TERMS_NOT_ACCEPTED' }, { status: 400 });\n  }\n  const totalCents = PACK.priceCents * quantity;",
   },
   {
+    name: 'terms: the agent pack docs show an old terms version',
+    file: 'docs-site/agent-pack.mdx',
+    from: '      "version": "2026-09-26",',
+    to: '      "version": "2026-09-25",',
+  },
+  {
+    name: 'terms: the terms page types its own date again',
+    file: 'app/terms/page.tsx',
+    from: 'const UPDATED = TERMS_UPDATED;',
+    to: "const UPDATED = '26 September 2026';",
+  },
+  {
+    name: 'terms: the privacy page types the terms date outside its own last-updated line',
+    file: 'app/privacy/page.tsx',
+    from: "const UPDATED = '26 September 2026';\n",
+    to: "const UPDATED = '26 September 2026';\nconst TERMS_SHOWN = '2026-09-26';\n",
+  },
+  {
     name: 'terms: a route keeps its own copy of the terms version',
     file: 'app/api/x402/buy/route.ts',
     from: "import { TERMS_URL, TERMS_VERSION } from '@/lib/terms';",

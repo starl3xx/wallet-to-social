@@ -20848,9 +20848,43 @@ async function main() {
         .filter((f) => /\.tsx?$/.test(f))
         .map((f) => `${dir}/${f}`)
     );
+    /**
+     * The public docs show the 402 challenge's terms block. Its version is an
+     * example a client may copy, so it has to be the version in force.
+     */
+    {
+      const pack = readFileSync('docs-site/agent-pack.mdx', 'utf8');
+      const shown = [...pack.matchAll(/"version": "(\d{4}-\d{2}-\d{2})"/g)].map(
+        (m) => m[1]
+      );
+      const noted = [
+        ...pack.matchAll(/terms\/?, version (\d{4}-\d{2}-\d{2})/g),
+      ].map((m) => m[1]);
+      ok(
+        'the agent pack docs show the terms version in force',
+        shown.length > 0 &&
+          noted.length > 0 &&
+          [...shown, ...noted].every((v) => v === terms.TERMS_VERSION)
+      );
+    }
+
+    /**
+     * Two dates that only happen to share the terms version's day: the
+     * privacy page's own "last updated" and the day the security contact was
+     * last verified. Each exact statement is stripped, nothing else in the
+     * file, so a real copy of the terms date there is still caught.
+     */
+    const OWN_DATES: Record<string, RegExp> = {
+      'app/privacy/page.tsx': /\bconst UPDATED = '[^']*';/,
+      'lib/security-contact.ts':
+        /\bexport const SECURITY_CONTACT_VERIFIED = '[^']*';/,
+    };
     const copies = termsSources.filter((f) => {
       if (f === 'lib/terms.ts') return false;
-      const code = withoutComments(readFileSync(f, 'utf8'));
+      const code = withoutComments(readFileSync(f, 'utf8')).replace(
+        OWN_DATES[f] ?? /$^/,
+        ''
+      );
       return (
         /\bTERMS_(VERSION|UPDATED)\s*=/.test(code) ||
         code.includes(`'${terms.TERMS_VERSION}'`) ||

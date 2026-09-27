@@ -2,7 +2,7 @@
 
 All notable changes to walletlink.social. Newest first.
 
-### 2026-09-26 (buying credits records your agreement to the terms)
+### 2026-09-27 (buying credits records your agreement to the terms)
 
 - **Checkout asks you to agree to the Terms of Service.** The buy-credits
   window has an unticked “I agree to the Terms of Service” box between your
@@ -47,7 +47,7 @@ All notable changes to walletlink.social. Newest first.
   session with no agreement and one with a broken version were granted with
   both columns NULL, and an onchain grant recorded the version in force.
 
-### 2026-09-26 (terms of service, and a privacy policy that matches the code)
+### 2026-09-27 (terms of service, and a privacy policy that matches the code)
 
 - **A draft, not live until the owner approves it (STA-41).** Every open
   choice on both pages is now decided, and no `[DECIDE: …]` marker is left.

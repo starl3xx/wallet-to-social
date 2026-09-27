@@ -42,7 +42,7 @@ import { PRODUCTION_URL } from '@/lib/site-url';
  * browser still showing the old version is refused at checkout and asked to
  * reload, so nobody is recorded as agreeing to terms their page never showed.
  */
-export const TERMS_VERSION = '2026-09-25';
+export const TERMS_VERSION = '2026-09-26';
 
 export const TERMS_PATH = '/terms';
 
