@@ -21,7 +21,7 @@ Each row is labeled with which class of evidence it came from, so you can set yo
 
 Having an account and reaching a person are different claims, and most tools conflate them.
 
-Of 473,215 distinct X handles resolved against X itself: **70.1% are live, 20.1% are suspended, and 9.8% were never claimed**. Close to a third of the handles on a typical holder list reach nobody at all. Where the check has been run, each row carries an `x_reachability` value of `live`, `suspended`, `unclaimed` or `reassigned`, so you can drop the dead ones before you spend anything on reach.
+Of 482,968 distinct X handles resolved against X itself: **70.1% are live, 19.7% are suspended, and 10.2% were never claimed**. Close to a third of the handles on a typical holder list reach nobody at all. Where the check has been run, each row carries an `x_reachability` value of `live`, `suspended`, `unclaimed` or `reassigned`, so you can drop the dead ones before you spend anything on reach.
 
 An empty `x_reachability` means the handle was not checked. It never means nobody is behind it.
 

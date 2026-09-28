@@ -481,7 +481,10 @@ export const CLAIMS: Claim[] = [
     // holds" are the three phrasings in use. Matching the figure and a nearby
     // keyword is more durable than trying to enumerate the prose.
     pattern:
-      /X_UNCLAIMED_PCT = '([0-9]\.[0-9])'|([0-9]\.[0-9])% (?:are )?(?:unclaimed|no longer|names nobody)|\| Name no longer in use\s+\| ([0-9]\.[0-9])%\s+\|/,
+      // One or two digits before the point. The share was 9.8% when this was
+      // written as one digit, and at 10.2% (2026-09-28) the pattern read the
+      // tail, "0.2", and reported drift against a correct page.
+      /X_UNCLAIMED_PCT = '([0-9]{1,2}\.[0-9])'|\b([0-9]{1,2}\.[0-9])% (?:are )?(?:unclaimed|no longer|names nobody)|\| Name no longer in use\s+\| ([0-9]{1,2}\.[0-9])%\s+\|/,
     actual: async () => {
       const n = await one(
         sql`SELECT count(*)::int FROM x_accounts WHERE status = 'not_found'`

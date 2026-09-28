@@ -2,6 +2,23 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-28 (X handle figures refreshed)
+
+- **The published X handle figures are current again.** The weekly figures
+  check failed on 2026-09-28: the count of distinct X handles resolved was
+  published as 473,215 and the database held 482,968, 2.0% behind, which is
+  where the check stops accepting an old count. Refreshed from one
+  measurement: 482,968 handles resolved, 480,015 distinct handles held, and
+  the split 70.1% live, 19.7% suspended, 10.2% no longer held. Roughly a third
+  still reach nobody (29.9%, unchanged). Day 1 of the social queue, posted
+  on 2026-09-10, carries the new figures too, because the queue check holds
+  every day's text to the current constants.
+- **The figures check reads a two-digit unclaimed share.** Its pattern was
+  written when the share was 9.8% and read "10.2%" as "0.2", so the refresh
+  itself reported drift against correct pages. It now reads one or two digits,
+  and an invariant tries the pattern on every phrasing, with a guard mutation
+  that restores the old one.
+
 ### 2026-09-27 (buying credits records your agreement to the terms)
 
 - **Checkout asks you to agree to the Terms of Service.** The buy-credits

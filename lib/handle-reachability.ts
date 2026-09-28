@@ -9,10 +9,10 @@
  * renames or gets suspended.
  *
  * A daily cron resolves these: `/api/cron/x-reachability`, scheduled on
- * 2026-08-18. It has checked 473,215 distinct handles, which is every handle in
+ * 2026-08-18. It has checked 482,968 distinct handles, which is every handle in
  * `x_accounts`.
  *
- * That is slightly MORE than the 472,319 distinct handles the index holds, and
+ * That is slightly MORE than the 480,015 distinct handles the index holds, and
  * it is not an error: the table keeps every handle it has ever seen a state
  * for, including ones the conflict resolver has since replaced, so it is a
  * superset rather than a subset. Treating one as the other's denominator gives
@@ -43,11 +43,11 @@
  * The first pass, on 2026-08-17, did 417,872 in a single run. Not "all" of
  * them: the sweep leaves transport failures unrecorded so they retry, so its
  * result was never going to equal its target. The percentages below are shares
- * of the 473,215 that returned a state:
+ * of the 482,968 that returned a state (measured 2026-09-28):
  *
- *     live          322,889   70.1%
- *     suspended      92,832   20.1%
- *     unclaimed      45,168    9.8%
+ *     live          338,505   70.1%
+ *     suspended      95,346   19.7%
+ *     unclaimed      49,117   10.2%
  *
  * **Roughly a third of every attested X handle in the Farcaster protocol reaches
  * nobody.** Anyone reselling Farcaster verifications is shipping that blind,
