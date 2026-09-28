@@ -49,7 +49,7 @@ The number most tools quote is the one that flatters them. Two numbers matter he
 
 The chain decides this more than the collection does: Base sits at the top of that range because Base is where Farcaster lives, Ethereum near the bottom. The measured per-chain table lives in the [coverage docs](https://docs.walletlink.social/concepts/coverage). Use your chain’s figure, not an average.
 
-Having an account and reaching it are different claims. Of 473,215 X handles resolved, 70.1% are live, 20.1% suspended and 9.8% are names nobody holds. Matches carry that answer wherever the handle has been resolved.
+Having an account and reaching it are different claims. Of 482,968 X handles resolved, 70.1% are live, 19.7% suspended and 10.2% are names nobody holds. Matches carry that answer wherever the handle has been resolved.
 
 | Network       | Nature of the match                                                                                                                                                                                                                                                                                                                                                                            |
 | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

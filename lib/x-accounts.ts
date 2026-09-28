@@ -3,13 +3,13 @@
  *
  * Every X handle in the graph is a string somebody chose, and they can change it
  * whenever they like without telling anyone. Measured across the whole index:
- * of 473,215 handles resolved, X_UNREACHABLE_PCT reach nobody (see
+ * of 482,968 handles resolved, X_UNREACHABLE_PCT reach nobody (see
  * lib/public-figures.ts; the share is derived from suspended + unclaimed).
  *
  * ## Why this is a table about handles, not a column on wallets
  *
- * 1,150,285 rows carry a handle, but there are only 472,319 distinct handles we
- * hold: 2.58 rows per handle. Resolving per row would pay 2.58 times over for
+ * 1,197,753 rows carry a handle, but there are only 480,015 distinct handles we
+ * hold: 2.50 rows per handle. Resolving per row would pay 2.50 times over for
  * the same answer. More importantly, "does this string reach anyone" is a fact about the
  * string, and storing a fact about a string on a row about a wallet is how a
  * column comes to mean two things.

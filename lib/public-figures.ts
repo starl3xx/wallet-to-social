@@ -77,7 +77,7 @@ export const FARCASTER_WALLETS = '4.7 million';
  * safe. Safe is not the same as true, so the check now also fails when a
  * ceiling claim falls too far behind, and the literal lives here.
  */
-export const X_HANDLES_RESOLVED = '473,215';
+export const X_HANDLES_RESOLVED = '482,968';
 
 /**
  * Distinct X handles the index holds. The denominator for the figure above.
@@ -85,7 +85,7 @@ export const X_HANDLES_RESOLVED = '473,215';
  * Also previously duplicated and also already divergent: 446,070 in one module
  * header, 446,043 in the docs, 446,329 in the database.
  */
-export const X_HANDLES_HELD = '472,319';
+export const X_HANDLES_HELD = '480,015';
 
 /**
  * Share of the distinct held X handles that carry a reachability state.
@@ -126,8 +126,8 @@ export const X_REACHABILITY_COVERAGE_PCT = '99.9';
  * constant. Those are exactly the ones the guard exists for.
  */
 export const X_LIVE_PCT = '70.1';
-export const X_SUSPENDED_PCT = '20.1';
-export const X_UNCLAIMED_PCT = '9.8';
+export const X_SUSPENDED_PCT = '19.7';
+export const X_UNCLAIMED_PCT = '10.2';
 
 /**
  * The share that reaches nobody, derived rather than typed.

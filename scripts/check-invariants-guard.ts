@@ -5922,6 +5922,12 @@ const MUTATIONS: Mutation[] = [
     from: "OAuth consent screen's own form. The notice records no agreement; acceptance\n",
     to: "OAuth consent screen's own form. It records nothing; acceptance\n",
   },
+  {
+    name: 'the figures check reads a two-digit unclaimed share as its last digit again',
+    file: 'scripts/check-published-figures.ts',
+    from: '|\\b([0-9]{1,2}\\.[0-9])% (?:are )?(?:unclaimed',
+    to: '|([0-9]\\.[0-9])% (?:are )?(?:unclaimed',
+  },
 ];
 
 function invariantsPass(): boolean {

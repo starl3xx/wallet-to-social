@@ -6561,6 +6561,36 @@ async function main() {
     );
   }
 
+  // ---------------------------- the figures check reads two-digit shares
+  // The unclaimed share passed 10% on 2026-09-28, and the check's pattern,
+  // written when it was 9.8%, read "10.2%" as "0.2" and reported drift
+  // against correct pages. Read the pattern out of the script and try it on
+  // each phrasing it has to understand.
+  {
+    const figures = readFileSync('scripts/check-published-figures.ts', 'utf8');
+    const entry = figures.slice(
+      figures.indexOf(
+        "what: 'share of resolved handles whose name nobody holds'"
+      )
+    );
+    const literal =
+      entry.match(/\n\s*\/(X_UNCLAIMED_PCT = .+)\/,\n/)?.[1] ?? '';
+    const pattern = literal ? new RegExp(literal) : null;
+    const read = (text: string) => {
+      const m = pattern?.exec(text);
+      return m ? m.slice(1).find((g) => g !== undefined) : undefined;
+    };
+    ok(
+      'the figures check reads a two-digit unclaimed share whole, in every phrasing',
+      read("export const X_UNCLAIMED_PCT = '10.2';") === '10.2' &&
+        read(
+          '70.1% are live, 19.7% suspended and 10.2% are names nobody holds'
+        ) === '10.2' &&
+        read('| Name no longer in use | 10.2% |') === '10.2' &&
+        read('and 9.8% no longer in use') === '9.8'
+    );
+  }
+
   // ------------------------------------------------- OAuth: the grant cap
   // Two Approve clicks: only one can issue a code, and the loser's grant has
   // to go with it. Left behind it holds a slot in the per-account cap and
