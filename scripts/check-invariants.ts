@@ -12853,8 +12853,8 @@ async function main() {
       sameSet(withoutRoot(specOps.keys()), indexOps)
     );
     ok(
-      'the OpenAPI description documents the index itself, as needing no key',
-      /^ {6}security: \[\]$/m.test(specBlocks.get('GET /') ?? '')
+      'the OpenAPI description leaves the index to the reference prose: a `/` operation would resolve to a redirecting URL',
+      !specBlocks.has('GET /') && !specOps.has('GET /')
     );
     for (const e of index.data?.endpoints ?? []) {
       ok(
@@ -22728,6 +22728,58 @@ async function main() {
       'the holder hub page links each report by its searchable name',
       /\{holderDisplayName\(c\)\}\s*<\/Link>/.test(hubSrc) &&
         !/\{c\.name\}/.test(hubSrc)
+    );
+  }
+
+  // ------------------------------- STA-54 review: the index, catalog, names
+  {
+    // OpenAPI appends a path to the server URL, so a `/` operation resolves to
+    // `/api/v1/`, which redirects without CORS headers. The index is described
+    // in the reference's prose instead.
+    const spec = readFileSync('docs-site/openapi.yaml', 'utf8');
+    ok(
+      'no OpenAPI operation sits at `/`, whose URL would end in a slash that redirects',
+      !/\n  \/:\n/.test(spec) &&
+        /A `GET` on the base URL itself/.test(
+          readFileSync('docs-site/api-reference/introduction.mdx', 'utf8')
+        )
+    );
+
+    // Mintlify's API catalog lists only the specs docs.json names.
+    const docsJson = JSON.parse(readFileSync('docs-site/docs.json', 'utf8'));
+    ok(
+      'docs.json names the OpenAPI spec, so the docs API catalog has one to list',
+      docsJson?.api?.openapi === 'openapi.yaml' &&
+        existsSync('docs-site/openapi.yaml')
+    );
+
+    // A cut by UTF-16 unit can leave half an emoji in the description.
+    const { holderReportDescription } = await import('@/lib/holder-pages');
+    const loneSurrogate =
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    const emojiName = '🐸'.repeat(90);
+    const cut = [0, 1].map((pad) =>
+      holderReportDescription({
+        chain: 'base',
+        address: '0x0000000000000000000000000000000000000001',
+        name: 'x'.repeat(pad) + emojiName,
+      })
+    );
+    ok(
+      'a truncated holder description never splits an emoji',
+      cut.every(
+        (d) => d.length <= 160 && d.includes('…') && !loneSurrogate.test(d)
+      )
+    );
+
+    // The run flow labels a starter or linked collection with the same name
+    // its report shows.
+    const starters = withoutComments(
+      readFileSync('lib/starter-collections.ts', 'utf8')
+    );
+    ok(
+      'starter and linked collections carry the report’s display name',
+      (starters.match(/name: holderDisplayName\(/g) ?? []).length === 2
     );
   }
 

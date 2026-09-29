@@ -666,7 +666,16 @@ export function holderReportDescription(collection: {
   );
   if (fits) return fits;
   const room = HOLDER_DESCRIPTION_MAX - short('').length;
-  return short(`${name.slice(0, Math.max(room - 1, 1)).trimEnd()}…`);
+  // Whole code points only, so a cut never splits an emoji into a lone
+  // surrogate, while the budget stays in UTF-16 units, which is what the cap
+  // above measures (an emoji counts two).
+  const budget = Math.max(room - 1, 1);
+  let cut = '';
+  for (const ch of name) {
+    if (cut.length + ch.length > budget) break;
+    cut += ch;
+  }
+  return short(`${cut.trimEnd()}…`);
 }
 
 /**

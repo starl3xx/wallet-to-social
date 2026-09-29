@@ -3626,14 +3626,6 @@ const MUTATIONS: Mutation[] = [
     from: "    docsPage: 'reverse-twitter',\n",
     to: "    docsPage: 'reverse-x',\n",
   },
-  {
-    // Without it the spec says the index needs a key, which it does not,
-    // and an SDK generated from the spec would send one for nothing.
-    name: 'api index: the OpenAPI description says the index needs a key',
-    file: 'docs-site/openapi.yaml',
-    from: '        asked.\n      security: []\n',
-    to: '        asked.\n',
-  },
   // ------------------------------- search-result titles and descriptions
   {
     // The 88-character title the 2026-09-27 audit measured.
@@ -6364,7 +6356,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-54: an overlong name is published whole and breaks the description cap',
     file: 'lib/holder-pages.ts',
-    from: '  return short(`${name.slice(0, Math.max(room - 1, 1)).trimEnd()}…`);',
+    from: '  return short(`${cut.trimEnd()}…`);',
     to: '  return short(name);',
   },
   {
@@ -6604,6 +6596,31 @@ const MUTATIONS: Mutation[] = [
     file: 'app/vs/nansen/page.tsx',
     from: '{ATTESTED_X_SHARE_PCT}% of the X matches we return are links the',
     to: '{ATTESTED_X_SHARE_PCT}% of the X handles we return are links the',
+  },
+  // --- STA-54 review: the index, catalog, names -----------------------------
+  {
+    name: 'STA-54: an OpenAPI operation at / resolves to a redirecting trailing-slash URL',
+    file: 'docs-site/openapi.yaml',
+    from: '  /wallet/{address}:\n',
+    to: '  /:\n    get:\n      operationId: getApiIndex\n  /wallet/{address}:\n',
+  },
+  {
+    name: 'STA-54: docs.json stops naming the OpenAPI spec',
+    file: 'docs-site/docs.json',
+    from: '  "api": {\n    "openapi": "openapi.yaml"\n  },\n',
+    to: '',
+  },
+  {
+    name: 'STA-54: the holder description cut splits an emoji again',
+    file: 'lib/holder-pages.ts',
+    from: "  let cut = '';\n  for (const ch of name) {\n    if (cut.length + ch.length > budget) break;\n    cut += ch;\n  }\n",
+    to: '  let cut = name.slice(0, budget);\n',
+  },
+  {
+    name: 'STA-54: the linked collection keeps its contract-style name in the run flow',
+    file: 'lib/starter-collections.ts',
+    from: '    name: holderDisplayName(c),\n',
+    to: '    name: c.name,\n',
   },
 ];
 

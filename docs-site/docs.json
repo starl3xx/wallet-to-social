@@ -89,6 +89,9 @@
       "href": "https://walletlink.social"
     }
   },
+  "api": {
+    "openapi": "openapi.yaml"
+  },
   "contextual": {
     "options": ["download-spec"]
   },

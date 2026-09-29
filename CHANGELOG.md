@@ -108,9 +108,11 @@ All notable changes to walletlink.social. Newest first.
   which llms.txt and the API reference give as the base URL, returned the
   site’s HTML 404 page. It now returns a JSON index, with no key and no cost:
   every endpoint with its method, path, summary and reference page, and links
-  to the OpenAPI description, the API reference and the API catalog. The
-  OpenAPI description documents it as `GET /`, and the API reference says so
-  under “Base URL”.
+  to the OpenAPI description, the API reference and the API catalog. The API
+  reference says so under “Base URL”. It is not an operation in the OpenAPI
+  description: OpenAPI appends a path to the server URL, so `GET /` would
+  resolve to `/api/v1/`, which redirects without CORS headers and would break
+  a client generated from the spec.
 - **The docs read better in search results.** The docs home was titled
   `walletlink.social - walletlink.social`, because Mintlify appends the site
   name to a page titled with the site name. It is now “Wallet to X and
@@ -121,10 +123,15 @@ All notable changes to walletlink.social. Newest first.
 - **The docs site serves the API catalog it advertises.** Mintlify’s `Link`
   header on every docs response points at `/.well-known/api-catalog`, which
   returned 404 on docs.walletlink.social. Mintlify serves that catalog only
-  when its “Download API spec” option is on, so `docs-site/docs.json` turns it
-  on. Not verifiable before the docs deploy; check it then with
+  for the OpenAPI documents `docs-site/docs.json` names, so it now names
+  `openapi.yaml` and turns on the “Download API spec” option. Not verifiable
+  before the docs deploy; check it then with
   `curl -sI https://docs.walletlink.social/.well-known/api-catalog`. The
   option may also show a “Download API spec” item on API reference pages.
+- A holder description cut to fit its 160 characters now cuts between whole
+  characters, so a long name ending in an emoji never leaves half of one, and
+  the homepage’s starter cards and the run a report links to use the same
+  display name as the report.
 - No MCP server card at `/.well-known/mcp/server-card.json`: its
   specification (SEP-2127) is still in review and its schema is not settled.
 
