@@ -2,53 +2,52 @@
 
 All notable changes to walletlink.social. Newest first.
 
-### 2026-09-29 (the free lookup is linked, and holder reports use the names people search)
+### 2026-09-29 (the free lookup is linked, holder reports use searchable titles, listing copy is true, and caches are warm after a deploy)
 
-- **The free lookup page has links to it.** `/find-twitter-account-from-wallet-address`
-  shipped on 2026-09-17 with no link from any page, and Google had not
-  indexed it. The homepage now links it under the lookup box as “Find the X
-  (Twitter) account behind a wallet”, the footer links it from every page as
-  “Wallet to X lookup”, and `/check` and the guide “How to find the X account
-  behind an Ethereum wallet” link it too. `/llms.txt` lists it under Product,
-  and `/llms-full.txt` names it in its opening lines.
+**The free lookup page has links to it.**
+
+- `/find-twitter-account-from-wallet-address` shipped on 2026-09-17 with no
+  link from any page, and Google had not indexed it. The homepage now links it
+  under the lookup box as “Find the X (Twitter) account behind a wallet”, the
+  footer links it from every page as “Wallet to X lookup”, and `/check` and
+  the guide “How to find the X account behind an Ethereum wallet” link it too.
+  `/llms.txt` lists it under Product, and `/llms-full.txt` names it in its
+  opening lines.
 - **The footer links the comparison hub.** No page linked to `/vs`, which put
   the comparisons for retired services four clicks from the homepage. “All
   comparisons” now closes the footer’s Compare column.
-- **Holder reports use the names people search.** A collection on the
-  curated list in `lib/recognized-contracts.ts` now appears under that name,
-  for example “Pudgy Penguins” instead of the contract’s own “PudgyPenguins”.
-  That changes 16 of the 216 listed reports (measured 2026-09-29). Every other
-  report keeps the name its contract publishes, unchanged: a rule that splits
-  or re-cases names would also break the brands that spell themselves that
-  way on purpose.
-- **Holder report titles carry the search words.** “Pudgy Penguins holders on
-  Ethereum: X (Twitter) and Farcaster” replaces “PudgyPenguins holders on
-  Ethereum: the reachable people”. The title keeps the chain, so one token on
-  two chains still has two titles, and it stays within 65 characters: 174 of
-  the 216 listed reports get the full title, 38 get “X and Farcaster”, and 4
-  with long names keep only the name and the chain. The h1, the social cards,
-  the Article and Dataset structured data, the breadcrumb, the holder hub, the
-  overlap links and the markdown version use the same name and title.
-- **Holder report descriptions name the chain and fit in 160 characters.**
-  Every description was longer than 160 characters and none named the chain,
-  so USD₮0 on HyperEVM and USD₮0 on Optimism had the same description. The
+
+**Holder reports use the names and words people search.**
+
+- **Names.** A collection on the curated list in
+  `lib/recognized-contracts.ts` now appears under that name, for example
+  “Pudgy Penguins” instead of the contract’s own “PudgyPenguins”. That changes
+  16 of the 216 listed reports (measured 2026-09-29). Every other report keeps
+  the name its contract publishes, unchanged: a rule that splits or re-cases
+  names would also break the brands that spell themselves that way on purpose.
+- **Titles.** “Pudgy Penguins holders on Ethereum: X (Twitter) and Farcaster”
+  replaces “PudgyPenguins holders on Ethereum: the reachable people”. The
+  title keeps the chain, so one token on two chains still has two titles, and
+  it stays within 65 characters: 174 of the 216 listed reports get the full
+  title, 38 get “X and Farcaster”, and 4 with long names keep only the name
+  and the chain. The h1, the social cards, the Article and Dataset structured
+  data, the breadcrumb, the holder hub, the overlap links and the markdown
+  version use the same name and title.
+- **Descriptions name the chain and fit in 160 characters.** Every
+  description was longer than 160 characters and none named the chain, so
+  USD₮0 on HyperEVM and USD₮0 on Optimism had the same description. The
   longest is now 156 characters, and no two of the 216 listed reports share a
   title or a description.
-- **Checks.** 19 new invariants hold the links (in the words of the search,
-  and in the server-rendered part of the homepage), the curated names, the
-  title pattern, the 65 and 160 character limits, and distinct titles and
-  descriptions for one name on every chain. 25 new guard mutations each break
-  one of them. Part of STA-54.
 
-### 2026-09-29 (one attested share, current figures, tagged listings)
+**Listing copy says what is true, and the figures check reads it.**
 
 - **The owner-attested share says one thing everywhere: over 99.8%.** The
-  homepage FAQ said "over 99.9%" in one answer and "over 99.8%" two answers
-  further down, and the Apify Actor's README said "over 99.9%" too. The share
+  homepage FAQ said “over 99.9%” in one answer and “over 99.8%” two answers
+  further down, and the Apify Actor’s README said “over 99.9%” too. The share
   measured on 2026-09-23 was 99.8975%, so 99.9 over-claimed. The figure is now
   `ATTESTED_X_SHARE_PCT` in `lib/public-figures.ts`, and the FAQ, llms.txt, the
   welcome email and the six comparison pages read it. The figures check reads
-  the constant as a floor, and its pattern now also reads "over N% come from",
+  the constant as a floor, and its pattern now also reads “over N% come from”,
   the phrasing it had missed.
 - **The Apify README is checked like every other published page.** The
   figures check declares it for every figure it states (index size, handles
@@ -63,14 +62,14 @@ All notable changes to walletlink.social. Newest first.
   (4,864,915 measured today; it said 4.85M). The agent-flag figure the stats
   endpoint falls back to is 122 (it said 92), and it is now declared in the
   figures check, which it never was. The find-twitter guide now says 4.86
-  million and 1.20 million, and the "nine things" guide carries the current
+  million and 1.20 million, and the “nine things” guide carries the current
   split (70.1% live, 19.7% suspended, 10.2% names nobody holds): both state
   these as current running totals, not as dated history. The March post on
   Farcaster verified addresses keeps its 1.4 million, which it dates in the
-  text ("as of early 2026").
+  text (“as of early 2026”).
 - **Listings carry `?ref=dir-<surface>`.** The Apify README, input form and run
   messages use `dir-apify`, the repo README uses `dir-github`, and the MCP
-  registry's website link is now `walletlink.social/mcp?ref=dir-registry`
+  registry’s website link is now `walletlink.social/mcp?ref=dir-registry`
   rather than the docs host, which tells ChatGPT and Perplexity search not to
   index its Markdown pages. A tagged arrival with no referrer is a `campaign`
   under its own name; with a referrer, the host decides, as for any tag.
@@ -80,15 +79,14 @@ All notable changes to walletlink.social. Newest first.
   to add it to Claude, Claude Code, Cursor or any other client. The header
   links the MCP page and llms.txt beside the docs.
 
-### 2026-09-29 (titles that fit a search result, and the API base URL answers)
+**Titles and descriptions fit a search result, and the API base URL answers.**
 
-- **Titles and descriptions fit a search result.** The homepage title is now
-  “Wallet to Twitter (X) and Farcaster lookup | walletlink.social”, 62
-  characters where it was 88, and its description is 146 characters where it
-  was 214. The /mcp description is 147 characters (it was 291), and the
-  /pricing, /holders and four comparison page descriptions are 160 or fewer.
-  The Airstack and Blaze comparison titles were over 70 characters and now
-  fit.
+- **Site pages.** The homepage title is now “Wallet to Twitter (X) and
+  Farcaster lookup | walletlink.social”, 62 characters where it was 88, and its
+  description is 146 characters where it was 214. The /mcp description is 147
+  characters (it was 291), and the /pricing, /holders and four comparison page
+  descriptions are 160 or fewer. The Airstack and Blaze comparison titles were
+  over 70 characters and now fit.
 - **A GET on the API’s base URL answers.** `https://walletlink.social/api/v1`,
   which llms.txt and the API reference give as the base URL, returned the
   site’s HTML 404 page. It now returns a JSON index, with no key and no cost:
@@ -109,18 +107,10 @@ All notable changes to walletlink.social. Newest first.
   on. Not verifiable before the docs deploy; check it then with
   `curl -sI https://docs.walletlink.social/.well-known/api-catalog`. The
   option may also show a “Download API spec” item on API reference pages.
-- Operator: invariants hold every indexable static page to a title of 65
-  characters and a description of 160, found by walking `app/` rather than
-  listed (the homepage’s two strings moved to `lib/home-metadata.ts`, because
-  the root layout cannot be imported outside Next); every docs page to a real
-  description and a title that fits once Mintlify appends the site name; the
-  `/api/v1` index to the route tree and to `docs-site/openapi.yaml` in both
-  directions; and `download-spec` to the docs config. 136 new assertions and
-  17 new guard mutations. No MCP server card at
-  `/.well-known/mcp/server-card.json`: its specification (SEP-2127) is still
-  in review and its schema is not settled. Part of STA-54.
+- No MCP server card at `/.well-known/mcp/server-card.json`: its
+  specification (SEP-2127) is still in review and its schema is not settled.
 
-### 2026-09-29 (holder reports are cached before crawlers arrive)
+**Holder reports are cached before crawlers arrive.**
 
 - **Each production deploy now fills the holder-report cache itself.** Every
   deploy starts with an empty cache, so the first crawler to fetch several
@@ -138,11 +128,28 @@ All notable changes to walletlink.social. Newest first.
   the sitemap gets 3 tries, and `timeout-minutes: 30` is the backstop. It
   logs counts, cache tallies and the slowest paths, never a body. A newer
   deploy cancels the older warm. A failed page is a warning, not an outage.
-  Runbook: docs/OPERATIONS.md, "Cache warm after a production deploy".
-  `revalidate` stays 3600, and the runbook says why. Twenty-four new
-  invariants and twenty-three guard mutations; `check-invariants.ts` now also
-  fails when an await never settles, which used to end it with status 0 and
-  no output. Linear STA-54.
+  Runbook: docs/OPERATIONS.md, “Cache warm after a production deploy”.
+  `revalidate` stays 3600, and the runbook says why.
+
+**Checks.**
+
+- Invariants hold the links (in the words of the search, and in the
+  server-rendered part of the homepage), the curated names, the holder title
+  pattern, the 65 and 160 character limits, and distinct titles and
+  descriptions for one name on every chain; every indexable static page to a
+  title of 65 characters and a description of 160, found by walking `app/`
+  rather than listed (the homepage’s two strings moved to
+  `lib/home-metadata.ts`, because the root layout cannot be imported outside
+  Next); every docs page to a real description and a title that fits once
+  Mintlify appends the site name; the `/api/v1` index to the route tree and to
+  `docs-site/openapi.yaml` in both directions; `download-spec` to the docs
+  config; the listing tags; and the cache-warm job’s trigger, limits and
+  output. `check-invariants.ts` now also fails when an await never settles,
+  which used to end it with status 0 and no output.
+- 209 new assertions (2,099 in all): 19 for the links and holder titles, 30
+  for the listing copy and figures, 136 for the search-result lengths, the
+  docs and the API index, and 24 for the cache warm. 83 new guard mutations
+  (963 in all): 25, 18, 17 and 23 in the same order. Part of STA-54.
 
 ### 2026-09-28 (X handle figures refreshed)
 
