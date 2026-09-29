@@ -22783,6 +22783,109 @@ async function main() {
     );
   }
 
+  // ------------------------------------ the guard runs in shards (STA-53)
+  // CI splits the guard's mutations across parallel jobs. A split that drops
+  // a mutation, runs one twice, guesses at a malformed flag, or lets the
+  // required check pass while a shard failed would report a clean guard over
+  // defects nobody tested.
+  {
+    const { parseShard, inShard, WHOLE } = await import('./guard-shard');
+    const throws = (args: string[]) => {
+      try {
+        parseShard(args);
+        return false;
+      } catch {
+        return true;
+      }
+    };
+    ok(
+      'a guard run with no --shard runs every mutation',
+      JSON.stringify(parseShard([])) === JSON.stringify(WHOLE) &&
+        WHOLE.index === 0 &&
+        WHOLE.total === 1
+    );
+    ok(
+      '--shard=i/N parses, and a malformed or repeated flag is refused rather than guessed',
+      JSON.stringify(parseShard(['--shard=2/8'])) === '{"index":2,"total":8}' &&
+        [
+          '--shard=8/8',
+          '--shard=0/0',
+          '--shard=-1/8',
+          '--shard=a/8',
+          '--shard',
+          '--shard=1/8/2',
+          '--shard=1of8',
+        ].every((flag) => throws([flag])) &&
+        throws(['--shard=0/8', '--shard=1/8'])
+    );
+    let partitions = true;
+    for (let total = 1; total <= 12; total++) {
+      for (let position = 0; position < 1000; position++) {
+        const owners = Array.from(
+          { length: total },
+          (_, index) => index
+        ).filter((index) => inShard(position, { index, total }));
+        if (owners.length !== 1) partitions = false;
+      }
+    }
+    ok(
+      'every mutation runs in exactly one shard, whatever the shard count',
+      partitions
+    );
+
+    const guardMain = withoutComments(
+      readFileSync('scripts/check-invariants-guard.ts', 'utf8')
+    );
+    const mainSrc = guardMain.slice(guardMain.indexOf('function main()'));
+    ok(
+      'the guard checks every anchor in every shard, and applies only its own mutations',
+      /parseShard\(process\.argv\.slice\(2\)\)/.test(mainSrc) &&
+        /for \(const m of MUTATIONS\) \{\s*const occurrences =/.test(mainSrc) &&
+        /MUTATIONS\.filter\(\(_, position\) => inShard\(position, shard\)\)/.test(
+          mainSrc
+        ) &&
+        /for \(const m of mine\) \{/.test(mainSrc)
+    );
+
+    const wf = readFileSync('.github/workflows/invariants.yml', 'utf8');
+    const listed =
+      wf
+        .match(/\n {8}shard: \[([0-9, ]+)\]\n/)?.[1]
+        .split(',')
+        .map((v) => Number(v.trim())) ?? [];
+    const declared = Number(
+      wf.match(/--shard=\$\{\{ matrix\.shard \}\}\/(\d+)\n/)?.[1]
+    );
+    ok(
+      'the workflow runs every shard 0 to N-1 of the N it passes to the guard, with fail-fast off',
+      declared >= 2 &&
+        listed.length === declared &&
+        listed.every((v, i) => v === i) &&
+        /\n {6}fail-fast: false\n/.test(wf)
+    );
+    const requiredJob = wf.slice(
+      wf.indexOf('\n  guard:\n'),
+      wf.indexOf('\n  invariants:\n')
+    );
+    ok(
+      'the required `guard` check runs even when a shard failed, and passes only when every shard passed',
+      /\n {4}needs: guard-shard\n/.test(requiredJob) &&
+        /\n {4}if: \$\{\{ always\(\) \}\}\n/.test(requiredJob) &&
+        /test "\$\{\{ needs\.guard-shard\.result \}\}" = "success"\n/.test(
+          requiredJob
+        )
+    );
+    const jobs = wf
+      .slice(wf.indexOf('\njobs:\n'))
+      .split(/\n {2}(?=[a-z-]+:\n)/)
+      .slice(1);
+    ok(
+      'every job in the invariants workflow has a timeout',
+      jobs.length === 3 &&
+        jobs.every((job) => /\n {4}timeout-minutes: \d+\n/.test(job))
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

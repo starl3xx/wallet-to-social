@@ -20,9 +20,13 @@
  * is restored afterwards whatever happens.
  *
  * Run: npx tsx scripts/check-invariants-guard.ts
+ *
+ * CI runs it in parallel shards, `--shard=i/N` (scripts/guard-shard.ts). Every
+ * shard checks every anchor; each applies only its own mutations.
  */
 import { readFileSync, writeFileSync } from 'fs';
 import { execFileSync } from 'child_process';
+import { inShard, parseShard, type Shard } from './guard-shard';
 
 interface Mutation {
   name: string;
@@ -6622,6 +6626,67 @@ const MUTATIONS: Mutation[] = [
     from: '    name: holderDisplayName(c),\n',
     to: '    name: c.name,\n',
   },
+  // --- STA-53: the guard runs in shards --------------------------------------
+  {
+    name: 'STA-53: the workflow drops a shard, so a slice of the mutations never runs',
+    file: '.github/workflows/invariants.yml',
+    from: '        shard: [0, 1, 2, 3, 4, 5, 6, 7]\n',
+    to: '        shard: [0, 1, 2, 3, 4, 5, 6]\n',
+  },
+  {
+    name: 'STA-53: the required guard check is skipped, which counts as passing, when a shard fails',
+    file: '.github/workflows/invariants.yml',
+    from: '    if: ${{ always() }}\n',
+    to: '',
+  },
+  {
+    name: 'STA-53: the required guard check passes when a shard was cancelled',
+    file: '.github/workflows/invariants.yml',
+    from: 'test "${{ needs.guard-shard.result }}" = "success"',
+    to: 'test "${{ needs.guard-shard.result }}" != "failure"',
+  },
+  {
+    name: 'STA-53: one failing shard cancels the others and hides what they would have found',
+    file: '.github/workflows/invariants.yml',
+    from: '      fail-fast: false\n',
+    to: '      fail-fast: true\n',
+  },
+  {
+    name: 'STA-53: a hung guard shard runs for six hours',
+    file: '.github/workflows/invariants.yml',
+    from: '    timeout-minutes: 40\n',
+    to: '',
+  },
+  {
+    name: 'STA-53: a shard index equal to the shard count is accepted and runs nothing',
+    file: 'scripts/guard-shard.ts',
+    from: '  if (total < 1 || index >= total) {',
+    to: '  if (total < 1 || index > total) {',
+  },
+  {
+    name: 'STA-53: shards overlap, so some mutations run twice and the split is wrong',
+    file: 'scripts/guard-shard.ts',
+    from: '  return position % shard.total === shard.index;',
+    to: '  return position % shard.total <= shard.index;',
+  },
+  {
+    name: 'STA-53: a malformed --shard is guessed as the whole list instead of refused',
+    file: 'scripts/guard-shard.ts',
+    from: '  if (!m) {\n',
+    to: '  if (!m) {\n    return WHOLE;\n',
+  },
+  {
+    name: 'STA-53: a repeated --shard is accepted and the first one silently wins',
+    file: 'scripts/guard-shard.ts',
+    from: "  if (flags.length > 1) throw new Error('--shard was given more than once');\n",
+    to: '',
+  },
+  {
+    name: 'STA-53: each shard checks only its own anchors, so a drifted anchor can pass in CI',
+    file: 'scripts/check-invariants-guard.ts',
+    from: '  for (const m of MUTATIONS) {\n    const occurrences =',
+    to: '  for (const m of MUTATIONS.filter((_, position) => inShard(position, shard))) {\n    const occurrences =',
+  },
 ];
 
 function invariantsPass(): boolean {
@@ -6636,6 +6701,16 @@ function invariantsPass(): boolean {
 }
 
 function main() {
+  let shard: Shard;
+  try {
+    shard = parseShard(process.argv.slice(2));
+  } catch (error) {
+    console.error((error as Error).message);
+    process.exit(1);
+  }
+  const part =
+    shard.total === 1 ? '' : ` in shard ${shard.index}/${shard.total}`;
+
   if (!invariantsPass()) {
     console.error(
       'check-invariants.ts fails on an unmodified tree. Fix that first; this script can say nothing until it passes.'
@@ -6645,9 +6720,14 @@ function main() {
 
   const missed: string[] = [];
 
+  /**
+   * Every anchor, in every shard. Reading the files costs nothing, and a
+   * drifted anchor has to fail the run whichever shard would have applied it,
+   * not only the one that happens to hold it.
+   */
+  const anchored = new Set<Mutation>();
   for (const m of MUTATIONS) {
-    const original = readFileSync(m.file, 'utf8');
-    const occurrences = original.split(m.from).length - 1;
+    const occurrences = readFileSync(m.file, 'utf8').split(m.from).length - 1;
     if (occurrences !== 1) {
       console.error(
         `  SETUP  ${m.name}\n         its anchor appears ${occurrences} times in ${m.file}; the mutation could not be applied.`
@@ -6655,6 +6735,13 @@ function main() {
       missed.push(`${m.name} (anchor drifted)`);
       continue;
     }
+    anchored.add(m);
+  }
+
+  const mine = MUTATIONS.filter((_, position) => inShard(position, shard));
+  for (const m of mine) {
+    if (!anchored.has(m)) continue;
+    const original = readFileSync(m.file, 'utf8');
     try {
       writeFileSync(m.file, original.replace(m.from, m.to));
       const stillPasses = invariantsPass();
@@ -6669,12 +6756,12 @@ function main() {
 
   if (!missed.length) {
     console.log(
-      `\ninvariants guard ok — all ${MUTATIONS.length} reintroduced defects were caught`
+      `\ninvariants guard ok — all ${mine.length} reintroduced defects${part} were caught (${MUTATIONS.length} in all)`
     );
     process.exit(0);
   }
   console.error(
-    `\n${missed.length} of ${MUTATIONS.length} defects went undetected by check-invariants.ts:`
+    `\n${missed.length} of ${mine.length} defects${part} went undetected by check-invariants.ts:`
   );
   for (const m of missed) console.error(`  ${m}`);
   console.error(
