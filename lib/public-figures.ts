@@ -122,6 +122,15 @@ export const X_REACHABILITY_COVERAGE_PCT = '99.9';
  * keep a literal and are declared in `scripts/check-published-figures.ts`,
  * which checks this constant as a floor: the truth may sit above it, never
  * below.
+ *
+ * Two things the check cannot see, held by `scripts/check-invariants.ts`
+ * instead. The unit is the wallet: say "of X matches" or "of the wallets
+ * with an X handle", never "of the X handles". Counted by distinct handle
+ * the share was 99.78% on 2026-09-29, under this floor. And the routes: a
+ * sentence stating the share names all four, or gives Farcaster and ENS as
+ * examples. Those two carry 91.5% of the wallets with an X handle, so a
+ * sentence crediting the share to them alone is false with the right number
+ * in it.
  */
 export const ATTESTED_X_SHARE_PCT = '99.8';
 

@@ -56,8 +56,21 @@ All notable changes to walletlink.social. Newest first.
   invariant holds its prices, free allowance, credit lifetime and chain list to
   `lib/packs.ts` and `lib/chains.ts`. It now opens with the free one-address
   lookup at walletlink.social, which needs no account or key, and says the
-  handles outside the attested routes (under 0.2%) are correlated and labeled
-  so.
+  X matches outside the attested routes (under 0.2% of the wallets with an X
+  handle) are correlated and labeled so.
+- **The sentences around the attested share say what it is made of, and what
+  it counts.** The welcome email, `/vs/airstack` and the Blaze and Addressable
+  posts credited it to Farcaster verifications and onchain ENS records alone.
+  Those two carry 91.5% of the wallets with an X handle (measured 2026-09-29),
+  and attested social sign-ins carry most of the rest, so each now names all
+  four routes: a Farcaster verification, an onchain record such as ENS, an
+  attested social sign-in or a manually verified record. The `/vs/addressable`
+  table and summary give Farcaster and ENS as examples. And the share is
+  measured per wallet, while the README, the Apify README, the welcome email,
+  `/vs/absolute-labs` and `/vs/nansen` stated it per handle. Counted by
+  distinct handle it is 99.78%, under the floor, so each now says “X matches”
+  or “wallets with a linked X handle”. An invariant reads every sentence that
+  states the share and fails on either wording.
 - **Figures refreshed.** The index holds 4.86 million wallet identities
   (4,864,915 measured today; it said 4.85M). The agent-flag figure the stats
   endpoint falls back to is 122 (it said 92), and it is now declared in the
@@ -86,7 +99,11 @@ All notable changes to walletlink.social. Newest first.
   description is 146 characters where it was 214. The /mcp description is 147
   characters (it was 291), and the /pricing, /holders and four comparison page
   descriptions are 160 or fewer. The Airstack and Blaze comparison titles were
-  over 70 characters and now fit.
+  over 70 characters and now fit, and still open with “Airstack alternative”
+  and “Blaze alternative”, the words people search, as `/vs/holder` does:
+  “Airstack alternative for Farcaster lookups (Airstack is offline)” and
+  “Blaze alternative for wallet-to-X lookups (Blaze is offline)”. Their social
+  cards and Article headlines use the same titles.
 - **A GET on the API’s base URL answers.** `https://walletlink.social/api/v1`,
   which llms.txt and the API reference give as the base URL, returned the
   site’s HTML 404 page. It now returns a JSON index, with no key and no cost:
@@ -96,7 +113,8 @@ All notable changes to walletlink.social. Newest first.
   under “Base URL”.
 - **The docs read better in search results.** The docs home was titled
   `walletlink.social - walletlink.social`, because Mintlify appends the site
-  name to a page titled with the site name. It is now “Overview”. Eight API
+  name to a page titled with the site name. It is now “Wallet to X and
+  Farcaster lookup API”, and the sidebar still says “Overview”. Eight API
   reference pages had only their endpoint as a description, such as
   `GET /v1/usage`; each now has one sentence saying what the endpoint does and
   what it costs.

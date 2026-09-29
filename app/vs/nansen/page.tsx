@@ -229,12 +229,13 @@ export default function NansenComparison() {
             </p>
             <p className="text-muted-foreground">
               A match here is the opposite kind of fact. Over{' '}
-              {ATTESTED_X_SHARE_PCT}% of the X handles we return were published
-              by the wallet owner themselves, through a Farcaster verification,
-              an onchain ENS text record, an attested social sign-in or a
-              manually verified record, and every match carries the evidence
-              class that produced it. Nothing is inferred from a display name or
-              a bio. Where we only have a correlation, the row says so.
+              {ATTESTED_X_SHARE_PCT}% of the X matches we return are links the
+              wallet owner published themselves, through a Farcaster
+              verification, an onchain ENS text record, an attested social
+              sign-in or a manually verified record, and every match carries the
+              evidence class that produced it. Nothing is inferred from a
+              display name or a bio. Where we only have a correlation, the row
+              says so.
             </p>
           </section>
 

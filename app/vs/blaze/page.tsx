@@ -21,7 +21,7 @@ import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 export const metadata: Metadata = {
-  title: 'Blaze is no longer available: a wallet-to-X lookup alternative',
+  title: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',
   description:
     'Blaze is no longer available: withblaze.app stopped resolving (checked 2026-08-22). This page is kept for people comparing alternatives for wallet-to-X lookups.',
   keywords: [
@@ -32,8 +32,7 @@ export const metadata: Metadata = {
     'wallet lookup tool',
   ],
   openGraph: {
-    title:
-      'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',
+    title: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',
     description:
       'Blaze is no longer available. This page is kept for people comparing alternatives: walletlink.social has one-time pricing and X and Farcaster coverage.',
     type: 'article',
@@ -58,8 +57,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline:
-    'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',
+  headline: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',
   description:
     'Blaze is no longer available and withblaze.app no longer resolves (checked 2026-08-22). A page kept for former Blaze users comparing alternatives for wallet-to-X lookups.',
   author: {

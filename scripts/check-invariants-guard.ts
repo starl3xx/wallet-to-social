@@ -3669,9 +3669,9 @@ const MUTATIONS: Mutation[] = [
     // Not on the named list: found by the walk, which is the point of it.
     name: 'search titles: a comparison page title outgrows a search result',
     file: 'app/vs/airstack/page.tsx',
-    from: "  title: 'Airstack is no longer available: a Farcaster lookup alternative',\n",
+    from: "Metadata = {\n  title: 'Airstack alternative for Farcaster lookups (Airstack is offline)',\n",
     to:
-      '  title:\n' +
+      'Metadata = {\n  title:\n' +
       "    'Airstack alternative for Farcaster lookups (Airstack is no longer available)',\n",
   },
   {
@@ -3687,8 +3687,54 @@ const MUTATIONS: Mutation[] = [
     // Mintlify appends the site name, so this rendered twice.
     name: 'search titles: the docs home is titled with the site name again',
     file: 'docs-site/index.mdx',
-    from: "title: 'Overview'\n",
+    from: "title: 'Wallet to X and Farcaster lookup API'\n",
     to: "title: 'walletlink.social'\n",
+  },
+  {
+    // What the doubled name was first replaced with: short, and no search
+    // for the product contains it.
+    name: 'search titles: the docs home is titled with a generic label again',
+    file: 'docs-site/index.mdx',
+    from: "title: 'Wallet to X and Farcaster lookup API'\n",
+    to: "title: 'Overview'\n",
+  },
+  {
+    name: 'search titles: the docs home title drops Farcaster',
+    file: 'docs-site/index.mdx',
+    from: "title: 'Wallet to X and Farcaster lookup API'\n",
+    to: "title: 'Wallet to X lookup API'\n",
+  },
+  {
+    // The fitted title the review found: the shutdown notice first, and
+    // "alternative" as the last word.
+    name: 'search titles: a retired comparison page opens its title with the shutdown notice again',
+    file: 'app/vs/airstack/page.tsx',
+    from: "Metadata = {\n  title: 'Airstack alternative for Farcaster lookups (Airstack is offline)',\n",
+    to: "Metadata = {\n  title: 'Airstack is no longer available: a Farcaster lookup alternative',\n",
+  },
+  {
+    name: 'search titles: the Blaze title drops its head term',
+    file: 'app/vs/blaze/page.tsx',
+    from: "Metadata = {\n  title: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',\n",
+    to: "Metadata = {\n  title: 'Blaze is no longer available: a wallet-to-X lookup alternative',\n",
+  },
+  {
+    name: 'search titles: a retired page’s social card keeps a title of its own',
+    file: 'app/vs/airstack/page.tsx',
+    from: "  openGraph: {\n    title: 'Airstack alternative for Farcaster lookups (Airstack is offline)',\n",
+    to: "  openGraph: {\n    title:\n      'Airstack alternative for Farcaster lookups (Airstack is no longer available)',\n",
+  },
+  {
+    name: 'search titles: a retired page’s Article headline drifts from its title',
+    file: 'app/vs/blaze/page.tsx',
+    from: "  headline: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',\n",
+    to: "  headline:\n    'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',\n",
+  },
+  {
+    name: 'search titles: the Holder page stops leading with its head term',
+    file: 'app/vs/holder/page.tsx',
+    from: "  title: 'Holder alternative for wallet-based CRM (Holder shut down)',\n  description:",
+    to: "  title: 'Holder shut down: a wallet-based CRM alternative',\n  description:",
   },
   {
     name: 'search titles: a docs API page is described by its endpoint alone again',
@@ -6403,8 +6449,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-54: the Apify README over-claims the attested share again (live 2026-09-17 to 2026-09-29)',
     file: 'integrations/apify-actor/README.md',
-    from: 'Over 99.8% of the X handles in the index arrive by one of these four routes.',
-    to: 'Over 99.9% of the X handles in the index arrive by one of the first two routes.',
+    from: 'Over 99.8% of the wallets in the index with a linked X handle got that link by one of these four routes.',
+    to: 'Over 99.9% of the wallets in the index with a linked X handle got that link by one of the first two routes.',
   },
   {
     name: 'STA-54: the Apify README keeps the old index size after a refresh',
@@ -6477,6 +6523,87 @@ const MUTATIONS: Mutation[] = [
     file: 'lib/first-touch.ts',
     from: "    if (part.slice(0, colon) === 'ref') continue;\n",
     to: '',
+  },
+  // --- STA-54 review: the attested share's routes and unit ---
+  {
+    name: 'STA-54: the welcome email credits the attested share to Farcaster and ENS alone again',
+    file: 'lib/welcome-sequence.ts',
+    from: 'are links the owner published themselves: a Farcaster verification, an onchain record such as ENS, an attested social sign-in, or a manually verified record. Nothing is guessed',
+    to: 'are links the owner published themselves, through a Farcaster verification or an onchain ENS record. Nothing is guessed',
+  },
+  {
+    name: 'STA-54: the welcome email counts the attested share per handle again',
+    file: 'lib/welcome-sequence.ts',
+    from: 'Over ${ATTESTED_X_SHARE_PCT}% of our X matches are links the owner published themselves',
+    to: 'Over ${ATTESTED_X_SHARE_PCT}% of our X handles are links the owner published themselves',
+  },
+  {
+    name: 'STA-54: /vs/airstack says the rest of the attested share is onchain ENS records again',
+    file: 'app/vs/airstack/page.tsx',
+    from: '              the rest through an onchain record such as ENS, an attested social\n              sign-in or a manually verified record.\n',
+    to: '              the rest through onchain ENS records.\n',
+  },
+  {
+    // "such as" after the routes does not make them examples: the rest is
+    // still claimed for onchain records.
+    name: 'STA-54: /vs/airstack credits the rest to onchain records, with ENS as the example',
+    file: 'app/vs/airstack/page.tsx',
+    from: '              the rest through an onchain record such as ENS, an attested social\n              sign-in or a manually verified record.\n',
+    to: '              the rest through onchain records such as ENS.\n',
+  },
+  {
+    name: 'STA-54: the Blaze post credits the attested share to Farcaster and ENS alone again',
+    file: 'content/published/walletlink-vs-blaze.md',
+    from: 'Farcaster verified addresses, onchain records such as ENS, attested social sign-ins and manually verified records, held in a persistent social graph.',
+    to: 'Farcaster verified addresses and onchain ENS records, held in a persistent social graph.',
+  },
+  {
+    name: 'STA-54: the Addressable post credits the attested share to Farcaster and ENS alone again',
+    file: 'content/published/walletlink-vs-addressable.md',
+    from: 'cryptographic proofs (Farcaster verified addresses), explicit user-set onchain records (such as ENS text records), attested social sign-ins and manually verified records.',
+    to: 'cryptographic proofs (Farcaster verified addresses) and explicit user-set records (ENS text records).',
+  },
+  {
+    name: 'STA-54: the marketing context credits the attested share to Farcaster and ENS alone again',
+    file: '.agents/product-marketing.md',
+    from: '(a Farcaster verification, an onchain record such as ENS, an attested social sign-in, or a manually verified record)',
+    to: '(Farcaster verification or onchain ENS record)',
+  },
+  {
+    name: 'STA-54: the Addressable comparison table calls matches attested through Farcaster and ENS alone again',
+    file: 'app/vs/addressable/page.tsx',
+    from: '                      Deterministic, user-attested (such as Farcaster\n                      verifications and onchain ENS records)\n',
+    to: '                      Deterministic, user-attested (Farcaster verifications,\n                      onchain ENS records)\n',
+  },
+  {
+    name: 'STA-54: the Addressable page calls matches attested through Farcaster and ENS alone again',
+    file: 'app/vs/addressable/page.tsx',
+    from: 'Matches are deterministic and user-attested (such as Farcaster\n              verified accounts and onchain ENS records)',
+    to: 'Matches are deterministic and user-attested (Farcaster verified\n              accounts and onchain ENS records)',
+  },
+  {
+    name: 'STA-54: the README counts the attested share per handle again',
+    file: 'README.md',
+    from: 'Over 99.8% of X matches are links the wallet owner published themselves:',
+    to: 'Over 99.8% of handles were published by the wallet owner themselves:',
+  },
+  {
+    name: 'STA-54: the Apify README counts the attested share per handle again',
+    file: 'integrations/apify-actor/README.md',
+    from: 'Over 99.8% of the wallets in the index with a linked X handle got that link by one of these four routes.',
+    to: 'Over 99.8% of the X handles in the index arrive by one of these four routes.',
+  },
+  {
+    name: 'STA-54: /vs/absolute-labs counts the attested share per handle again',
+    file: 'app/vs/absolute-labs/page.tsx',
+    from: '              of X matches are links the wallet owner published themselves, and\n',
+    to: '              of the X handles were published by the wallet owner themselves, and\n',
+  },
+  {
+    name: 'STA-54: /vs/nansen counts the attested share per handle again',
+    file: 'app/vs/nansen/page.tsx',
+    from: '{ATTESTED_X_SHARE_PCT}% of the X matches we return are links the',
+    to: '{ATTESTED_X_SHARE_PCT}% of the X handles we return are links the',
   },
 ];
 

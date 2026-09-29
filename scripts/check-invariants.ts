@@ -7094,6 +7094,137 @@ async function main() {
     }
 
     /**
+     * What a share sentence says the share is made of, and what it counts.
+     *
+     * The right number in a false sentence. Farcaster verifications and
+     * onchain ENS records carry 91.5% of the wallets with an X handle
+     * (measured 2026-09-29); attested social sign-ins carry most of the rest,
+     * 7.4%. The welcome email said "Over 99.8% of our X handles were published
+     * by the account owner, through a Farcaster verification or an onchain
+     * ENS record", /vs/airstack said "the rest through onchain ENS records",
+     * and two posts said the same. The figures check passed all four, because
+     * it reads the number and the number was right. So a sentence that states
+     * the share and names both routes must name another one too, or give the
+     * two as examples ("such as") before it names them.
+     *
+     * And the unit it counts. The share is measured per wallet carrying an X
+     * handle. Counted by distinct handle, it was 99.78% on 2026-09-29, under
+     * the floor, so "over 99.8% of the X handles" states a figure nothing
+     * measures, and it is false. Four surfaces said that. "X matches" and
+     * "wallets with an X handle" are the measured unit.
+     *
+     * A parenthetical after "user-attested" is held to the same rule wherever
+     * it appears, because "user-attested (Farcaster verifications, onchain
+     * ENS records)" makes the two-route claim without stating a number.
+     */
+    const declaredFiles = [
+      ...attested.matchAll(/^\s*'([\w./-]+\.(?:md|mdx|ts|tsx))',$/gm),
+    ].map((m) => m[1]);
+    const shareFiles = [
+      ...new Set([
+        ...tsSurfaces,
+        ...declaredFiles.filter((f) => f !== 'lib/public-figures.ts'),
+        ...(readdirSync('app/vs', { recursive: true }) as string[])
+          .filter((f) => /(^|\/)page\.tsx$/.test(f))
+          .map((f) => `app/vs/${f}`),
+        '.agents/product-marketing.md',
+      ]),
+    ];
+    const flatten = (file: string) => {
+      const raw = readFileSync(file, 'utf8');
+      return (/\.tsx?$/.test(file) ? withoutComments(raw) : raw)
+        .replace(/\{' '\}/g, ' ')
+        .replace(/\s+/g, ' ');
+    };
+    /** Each sentence that states the share, from its start to its full stop. */
+    const shareSentences = (text: string) =>
+      [
+        ...text.matchAll(
+          /\{ATTESTED_X_SHARE_PCT\}%|over\s+\**[0-9]{2}\.[0-9]%/gi
+        ),
+      ].map((m) => {
+        const at = m.index ?? 0;
+        const start = text.slice(0, at).search(/[^.!?`>]*$/);
+        const end = text.slice(at).search(/[.!?](?=\s|$|[`<'"])/);
+        return text.slice(start, end === -1 ? undefined : at + end + 1).trim();
+      });
+    const namesOnlyFarcasterAndEns = (s: string) => {
+      const farcaster = s.search(/farcaster/i);
+      if (farcaster === -1 || !/\bENS\b/.test(s)) return false;
+      if (/sign-?ins?\b|signing|signature|attested[- ]social|manual/i.test(s)) {
+        return false;
+      }
+      const suchAs = s.search(/such as/i);
+      return suchAs === -1 || suchAs > farcaster;
+    };
+    const countsHandles = (s: string) =>
+      /(?:\{ATTESTED_X_SHARE_PCT\}|[0-9]{2}\.[0-9])%\**\s+of\s+(?:the\s+|our\s+)?(?:X\s+|Twitter\s+)?handles\b/i.test(
+        s
+      );
+
+    // The rule, from the direction that regresses: each sentence that shipped
+    // is caught, and the wording that replaced it passes.
+    ok(
+      'the attested-share rule catches the two-route and per-handle sentences that shipped',
+      namesOnlyFarcasterAndEns(
+        'Over {ATTESTED_X_SHARE_PCT}% of our X handles were published by the account owner, through a Farcaster verification or an onchain ENS record.'
+      ) &&
+        namesOnlyFarcasterAndEns(
+          'Over {ATTESTED_X_SHARE_PCT}% of X matches are user-attested, most through an X account verified on Farcaster and the rest through onchain ENS records.'
+        ) &&
+        namesOnlyFarcasterAndEns(
+          'Over {ATTESTED_X_SHARE_PCT}% of X matches are user-attested: most through Farcaster, the rest through onchain records such as ENS.'
+        ) &&
+        countsHandles(
+          'Over 99.8% of the X handles in the index arrive by one of these four routes.'
+        ) &&
+        countsHandles('Over 99.8% of handles were published by the owner') &&
+        countsHandles('Over {ATTESTED_X_SHARE_PCT}% of our X handles were')
+    );
+    ok(
+      'the attested-share rule passes the four-route list and routes given as examples',
+      !namesOnlyFarcasterAndEns(
+        'Over {ATTESTED_X_SHARE_PCT}% of X matches are user-attested (links the wallet owner created themselves, such as a verified Farcaster account or an onchain ENS record).'
+      ) &&
+        !namesOnlyFarcasterAndEns(
+          'Over 99.8% of X matches: a Farcaster verification, an onchain ENS record, an attested-social sign-in, or a manually verified record.'
+        ) &&
+        !countsHandles(
+          'over 99.8% of the 1.20 million wallets with a linked X handle'
+        ) &&
+        !countsHandles('Over {ATTESTED_X_SHARE_PCT}% of X matches are')
+    );
+
+    let shareSentenceCount = 0;
+    for (const file of shareFiles) {
+      const text = flatten(file);
+      const sentences = shareSentences(text);
+      shareSentenceCount += sentences.length;
+      const twoRoutes = sentences.filter(namesOnlyFarcasterAndEns);
+      ok(
+        `${file} credits the attested share to every route, not Farcaster and ENS alone${twoRoutes.length ? `: “${twoRoutes[0].slice(0, 120)}”` : ''}`,
+        twoRoutes.length === 0
+      );
+      const perHandle = sentences.filter(countsHandles);
+      ok(
+        `${file} states the attested share per X match, the unit it is measured in, not per handle${perHandle.length ? `: “${perHandle[0].slice(0, 120)}”` : ''}`,
+        perHandle.length === 0
+      );
+      const parentheticals = [
+        ...text.matchAll(/(?:user|owner)-attested\s*\(([^)]*)\)/gi),
+      ].map((m) => m[1]);
+      ok(
+        `${file} gives Farcaster and ENS as examples wherever it calls matches attested`,
+        !parentheticals.some(namesOnlyFarcasterAndEns)
+      );
+    }
+    // Sixteen today. A scan that finds none passes every file above.
+    ok(
+      `the attested-share scan reads the share sentences at all (${shareSentenceCount} found)`,
+      declaredFiles.includes('README.md') && shareSentenceCount >= 15
+    );
+
+    /**
      * The Apify README is declared for every figure it states, and each
      * declared pattern actually reads it. Listing the file proves nothing if
      * the pattern cannot match its sentence: that is how the FAQ passed.
@@ -12832,6 +12963,56 @@ async function main() {
       );
     }
 
+    /**
+     * A retired service's comparison page leads with what people search for.
+     *
+     * Fitting the Airstack and Blaze titles to 65 characters first moved the
+     * shutdown notice to the front ("Airstack is no longer available: a
+     * Farcaster lookup alternative"), which pushed "Airstack alternative", the
+     * page's first keyword, apart and "alternative" to the last word. /vs/holder
+     * already showed a title that fits and keeps it first. The social card
+     * and the Article headline say the same title, so a shared link and a
+     * search result do not disagree. Found by the `retired` flag the page
+     * passes to ReachabilityClaim, so a service retired later is held too.
+     */
+    const retired = (readdirSync('app/vs', { recursive: true }) as string[])
+      .filter((f) => /(^|\/)page\.tsx$/.test(f))
+      .map((f) => {
+        const source = readFileSync(`app/vs/${f}`, 'utf8');
+        return {
+          f,
+          source,
+          name: /<ReachabilityClaim competitor="([^"]+)" retired \/>/.exec(
+            source
+          )?.[1],
+        };
+      })
+      .filter((p) => p.name !== undefined);
+    ok(
+      'the retired comparison pages were found by their flag',
+      ['Airstack', 'Blaze', 'Holder'].every((n) =>
+        retired.some((p) => p.name === n)
+      )
+    );
+    for (const p of retired) {
+      const md = (
+        (await import(`../app/vs/${p.f}`)) as {
+          metadata: { title?: unknown; openGraph?: { title?: unknown } };
+        }
+      ).metadata;
+      const title = typeof md.title === 'string' ? md.title : '';
+      ok(
+        `/vs/${p.f.replace(/\/page\.tsx$/, '')} leads its title with “${p.name} alternative”: ${title}`,
+        title.startsWith(`${p.name} alternative for `)
+      );
+      ok(
+        `/vs/${p.f.replace(/\/page\.tsx$/, '')} gives its social card and its Article headline the page title`,
+        title !== '' &&
+          md.openGraph?.title === title &&
+          /headline:\s*'([^']+)'/.exec(p.source)?.[1] === title
+      );
+    }
+
     // ---------------------------------------------- the docs site, likewise
     // Mintlify renders a page's <title> as "{title} - {docs.json name}", so
     // a page titled with the site name read "walletlink.social -
@@ -12874,6 +13055,23 @@ async function main() {
           description.length <= DESCRIPTION_MAX_CHARS &&
           !/^(GET|POST|PUT|PATCH|DELETE)\s+\//.test(description)
       );
+      /**
+       * The docs home is the page a search for the docs host lands on, and
+       * its title is its H1 as well as its search result. Fixing the doubled
+       * site name first titled it “Overview”, which no search for the product
+       * contains. The sidebar keeps that label through `sidebarTitle`.
+       */
+      if (f === 'index.mdx') {
+        ok(
+          `the docs home is titled with the words a search uses, not a generic label: ${title}`,
+          /\bwallet\b/i.test(title) &&
+            /\bfarcaster\b/i.test(title) &&
+            /\b(?:x|twitter)\b/i.test(title) &&
+            !/^(?:overview|introduction|home|welcome|getting started)$/i.test(
+              title
+            )
+        );
+      }
     }
 
     /**

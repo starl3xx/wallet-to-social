@@ -250,8 +250,8 @@ export default function AddressableComparison() {
                   <tr className="border-b">
                     <td className="py-4 pr-4 font-medium">Match method</td>
                     <td className="py-4 px-4 bg-accent-brand-tint">
-                      Deterministic, user-attested (Farcaster verifications,
-                      onchain ENS records)
+                      Deterministic, user-attested (such as Farcaster
+                      verifications and onchain ENS records)
                     </td>
                     <td className="py-4 pl-4">
                       Probabilistic &ldquo;fingerprinting&rdquo;
@@ -550,8 +550,9 @@ export default function AddressableComparison() {
               <li>Save lookups, and grow them with new addresses</li>
             </ol>
             <p className="text-muted-foreground">
-              Matches are deterministic and user-attested (Farcaster verified
-              accounts and onchain ENS records), backed by a {INDEXED_WALLETS}
+              Matches are deterministic and user-attested (such as Farcaster
+              verified accounts and onchain ENS records), backed by a{' '}
+              {INDEXED_WALLETS}
               -wallet index covering the complete Farcaster protocol.
               Addressable advertises 23M+ matched wallet owners on
               addressable.io, read 7 September 2026, built with probabilistic

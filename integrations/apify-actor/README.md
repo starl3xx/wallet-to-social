@@ -17,7 +17,7 @@ This Actor reads the opposite direction. Every match comes from something the ow
 - an attested social sign-in
 - a manually verified record
 
-Each row is labeled with which class of evidence it came from, so you can set your own confidence bar instead of trusting a score somebody else assigned. Over 99.8% of the X handles in the index arrive by one of these four routes. The rest are correlated from identity indexes, and their rows say so.
+Each row is labeled with which class of evidence it came from, so you can set your own confidence bar instead of trusting a score somebody else assigned. Over 99.8% of the wallets in the index with a linked X handle got that link by one of these four routes. The rest are correlated from identity indexes, and their rows say so.
 
 ## Handles that no longer reach anybody
 
