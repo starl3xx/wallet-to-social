@@ -134,6 +134,12 @@ export function SiteFooter() {
                 handle-to-wallet flow *on* that page, not a separate destination, and
                 naming the link after it hands people the wrong model of the product. */}
             <FooterLink href="/">Wallet lookup</FooterLink>
+            {/* The free single-address tool, on every page. It shipped with
+                no inbound link at all, so the crawl never found it; the label
+                is the tool's own heading, shortened to fit this column. */}
+            <FooterLink href="/find-twitter-account-from-wallet-address">
+              Wallet to X lookup
+            </FooterLink>
             <FooterLink href="/pricing">Pricing</FooterLink>
             <FooterLink href="/holders">Holder reports</FooterLink>
             <FooterLink href="/blog">Blog</FooterLink>
@@ -146,7 +152,12 @@ export function SiteFooter() {
               published for the searches that still land on them, but neither
               service takes customers any more (decided 2026-08-22), and a
               footer that offers a comparison with a dead product tells a
-              visitor we have not looked lately. */}
+              visitor we have not looked lately.
+
+              The hub at /vs closes the column. It lists every comparison,
+              the retired ones included under their own heading, and until it
+              was here no page linked to it, which left /vs/airstack four
+              clicks from the homepage. */}
           <FooterColumn title="Compare">
             <FooterLink href="/vs/absolute-labs">vs Absolute Labs</FooterLink>
             <FooterLink href="/vs/addressable">vs Addressable</FooterLink>
@@ -154,6 +165,7 @@ export function SiteFooter() {
             <FooterLink href="/vs/cookie3">vs Cookie3</FooterLink>
             <FooterLink href="/vs/formo">vs Formo</FooterLink>
             <FooterLink href="/vs/nansen">vs Nansen</FooterLink>
+            <FooterLink href="/vs">All comparisons</FooterLink>
           </FooterColumn>
 
           {/* The MCP link is first and internal, ahead of the three that leave

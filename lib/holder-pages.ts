@@ -1,6 +1,7 @@
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { CHAIN_LABELS, type SupportedChain } from '@/lib/chains';
+import { RECOGNIZED_CONTRACTS } from '@/lib/recognized-contracts';
 
 /**
  * Data for the per-collection holder reachability pages (/holders).
@@ -557,6 +558,115 @@ export async function getHolderOverlap(
 
 export function chainLabel(chain: string): string {
   return CHAIN_LABELS[chain as SupportedChain] ?? chain;
+}
+
+/**
+ * The curated searchable names, keyed by `chain:address`.
+ *
+ * `seeded_contracts.name` is whatever the contract's own `name()` returned,
+ * so the reports were titled "PudgyPenguins", "BoredApeYachtClub",
+ * "LilPudgys" and "mfer": strings nobody types into a search box. The
+ * `label` in lib/recognized-contracts.ts is the opposite by definition ("the
+ * name a person would search, not the ticker and not the contract name"),
+ * every one of its addresses was read twice, and it is keyed by the same
+ * chain and address a report is. So it is the source, and the only one.
+ *
+ * Deliberately NOT a string heuristic over the onchain name. Splitting
+ * camel case or re-casing capitals would make "PudgyPenguins" right and
+ * garble every brand that spells itself that way on purpose ("aixbt",
+ * "OK COMPUTERS", "GRiBBiTS"), and nothing could say which was which. A
+ * contract outside the curated list keeps the name its contract publishes.
+ */
+const SEARCHABLE_NAMES: ReadonlyMap<string, string> = new Map(
+  RECOGNIZED_CONTRACTS.map((c) => [
+    `${c.chain}:${c.address.toLowerCase()}`,
+    c.label,
+  ])
+);
+
+/**
+ * The name a holder report is titled and headed with: the curated label
+ * where there is one, otherwise the contract's own name.
+ *
+ * Display only. `isNamed` still reads `collection.name`, because whether a
+ * report may be indexed is a fact about what the seeder read, and a curated
+ * label must not launder a failed read into an indexable page.
+ */
+export function holderDisplayName(collection: {
+  chain: string;
+  address: string;
+  name: string;
+}): string {
+  return (
+    SEARCHABLE_NAMES.get(
+      `${collection.chain}:${collection.address.toLowerCase()}`
+    ) ?? collection.name.trim()
+  );
+}
+
+/**
+ * The longest title a report aims for, and the longest description it may
+ * publish. Search results cut a title near 60 characters and a description
+ * near 155 to 160; past those the words people searched for are the ones
+ * that fall off.
+ */
+export const HOLDER_TITLE_MAX = 65;
+export const HOLDER_DESCRIPTION_MAX = 160;
+
+/**
+ * The report's title, which the h1, the og and twitter cards and the Article
+ * headline all carry.
+ *
+ * It keeps the chain. A token deployed on two chains is two reports, and a
+ * title without the chain gave both the same one (USD₮0 on HyperEVM and on
+ * Optimism). It names X (Twitter) and Farcaster because those are the words
+ * the searches carry ("pudgy penguins holders twitter"), where the old
+ * ": the reachable people" carried none of them.
+ *
+ * Tiered rather than truncated: the first form that fits wins, and a name
+ * too long for either keeps its words and loses the suffix, since a title cut
+ * off mid-name answers nothing.
+ */
+export function holderReportTitle(collection: {
+  chain: string;
+  address: string;
+  name: string;
+}): string {
+  const lead = `${holderDisplayName(collection)} holders on ${chainLabel(collection.chain)}`;
+  return (
+    [`${lead}: X (Twitter) and Farcaster`, `${lead}: X and Farcaster`].find(
+      (title) => title.length <= HOLDER_TITLE_MAX
+    ) ?? lead
+  );
+}
+
+/**
+ * The report's meta description: at most HOLDER_DESCRIPTION_MAX characters,
+ * always naming the chain.
+ *
+ * Every report's description ran past 160 characters and none named the
+ * chain, so the same token on two chains published the same description
+ * twice. The chain is never the part given up for length: a long name is
+ * shortened with an ellipsis instead, because the name is already in the
+ * title beside it and the chain is what tells the two reports apart.
+ */
+export function holderReportDescription(collection: {
+  chain: string;
+  address: string;
+  name: string;
+}): string {
+  const name = holderDisplayName(collection);
+  const chain = chainLabel(collection.chain);
+  const long = (n: string) =>
+    `How many ${n} holders on ${chain} resolve to an X (Twitter) or Farcaster account the owner published, and how many are reachable.`;
+  const short = (n: string) =>
+    `How many ${n} holders on ${chain} resolve to an X (Twitter) or Farcaster account the owner published.`;
+  const fits = [long(name), short(name)].find(
+    (d) => d.length <= HOLDER_DESCRIPTION_MAX
+  );
+  if (fits) return fits;
+  const room = HOLDER_DESCRIPTION_MAX - short('').length;
+  return short(`${name.slice(0, Math.max(room - 1, 1)).trimEnd()}…`);
 }
 
 /**

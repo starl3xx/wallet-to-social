@@ -25,6 +25,9 @@ import {
   holderBasis,
   holderBasisPhrase,
   holderBasisCaveat,
+  holderDisplayName,
+  holderReportTitle,
+  holderReportDescription,
 } from '@/lib/holder-pages';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -78,8 +81,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const collection = await getHolderCollection(chain, address);
   if (!collection) return {};
   const canonical = `https://walletlink.social/holders/${collection.chain}/${collection.address}`;
-  const title = `${collection.name} holders on ${chainLabel(collection.chain)}: the reachable people`;
-  const description = `How many ${collection.name} holders resolve to an X or Farcaster account the owner published, with reachability checked. Measured against the walletlink.social identity index, refreshed daily.`;
+  // One title for the tab, both cards and the Article headline, and one
+  // description, each from the pure builders in lib/holder-pages.ts that
+  // scripts/check-invariants.ts tries on the same name across two chains.
+  const title = holderReportTitle(collection);
+  const description = holderReportDescription(collection);
   return {
     title,
     description,
@@ -171,6 +177,11 @@ export default async function HolderPage({ params }: Props) {
   ]);
   if (!stats) notFound();
 
+  // The curated searchable name where there is one ("Pudgy Penguins", not the
+  // contract's "PudgyPenguins"), used everywhere the page names the
+  // collection so the h1, the cards and the structured data agree.
+  const name = holderDisplayName(collection);
+
   // What the measured set is, decided once in lib/holder-pages.ts and used
   // by both the visible sentence and the Dataset node. They computed it
   // separately before and disagreed on the six contracts whose reported
@@ -212,7 +223,7 @@ export default async function HolderPage({ params }: Props) {
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'Article',
-    headline: `${collection.name} holders on ${chainLabel(collection.chain)}: the reachable people`,
+    headline: holderReportTitle(collection),
     author: {
       '@type': 'Organization',
       name: 'walletlink.social',
@@ -251,12 +262,12 @@ export default async function HolderPage({ params }: Props) {
   const measuredHolders = stats.holderCount.toLocaleString();
   const population = holderBasisPhrase(basis, {
     measuredNoun: 'addresses',
-    ofCollection: ` holding ${collection.name}`,
+    ofCollection: ` holding ${name}`,
   });
   const datasetLd = {
     '@context': 'https://schema.org',
     '@type': 'Dataset',
-    name: `${collection.name} holder reachability on ${chainLabel(collection.chain)}`,
+    name: `${name} holder reachability on ${chainLabel(collection.chain)}`,
     description: [
       `Reachability measured over ${population} on ${chainLabel(collection.chain)}: how many resolve to an X handle or a Farcaster account their owner published, and how many of those still reach somebody.`,
       // The same sentence the visible copy carries, from the same predicate,
@@ -330,7 +341,7 @@ export default async function HolderPage({ params }: Props) {
   const breadcrumbJson = breadcrumbJsonLd([
     { name: 'Holder reports', path: '/holders' },
     {
-      name: `${collection.name} on ${chainLabel(collection.chain)}`,
+      name: `${name} on ${chainLabel(collection.chain)}`,
       path: `/holders/${collection.chain}/${collection.address}`,
     },
   ]);
@@ -384,7 +395,7 @@ export default async function HolderPage({ params }: Props) {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <ChainMark chain={collection.chain} className="h-6 w-6 flex-none" />
             <h1 className="text-3xl font-semibold leading-[1.2] tracking-[var(--tracking-title)]">
-              {collection.name} holders
+              {name} holders
             </h1>
             <span className="text-2xl font-normal tracking-[var(--tracking-title)] text-muted-foreground">
               {standardLabel(
@@ -461,13 +472,13 @@ export default async function HolderPage({ params }: Props) {
                 className="h-6 w-6 flex-none"
               />
               <span className="text-base font-semibold tracking-[var(--tracking-lead)]">
-                {collection.name}
+                {name}
               </span>
             </div>
             <p className="mt-3 text-sm text-muted-foreground">
-              Runs {collection.name} itself, on up to {STARTER_WALLET_CAP} of
-              the holders measured here: we hold the list, so there is nothing
-              to upload. A wallet we cannot resolve costs nothing.
+              Runs {name} itself, on up to {STARTER_WALLET_CAP} of the holders
+              measured here: we hold the list, so there is nothing to upload. A
+              wallet we cannot resolve costs nothing.
             </p>
             <p className="mb-4 mt-2 text-xs text-muted-foreground">
               Free covers {FREE_MATCHES_PER_WINDOW} matches in a rolling{' '}
@@ -576,7 +587,7 @@ export default async function HolderPage({ params }: Props) {
                 query, and every row it can name already cleared the overlap
                 floor in lib/holder-pages.ts. */}
               <p className="mb-4 text-muted-foreground">
-                The strongest overlap is {overlap[0].name}, which{' '}
+                The strongest overlap is {holderDisplayName(overlap[0])}, which{' '}
                 {overlap[0].sharedHolders.toLocaleString()} of these holders
                 also hold.
               </p>
@@ -596,7 +607,7 @@ export default async function HolderPage({ params }: Props) {
                       href={`/holders/${o.chain}/${o.address}`}
                       title={`${o.sharedHolders.toLocaleString()} shared holders on ${chainLabel(o.chain)}`}
                     >
-                      {o.name}
+                      {holderDisplayName(o)}
                       <span className="font-normal tabular-nums text-muted-foreground">
                         {o.sharedHolders.toLocaleString()}
                       </span>

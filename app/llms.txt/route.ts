@@ -228,6 +228,7 @@ The key is shown once. If it is lost, sign a challenge with the wallet that paid
 ## Product
 
 - [Wallet lookup](https://walletlink.social/): the app. Upload a holder list or a contract address, get the reachable people behind it, ranked, with the evidence on every row.
+- [Find the X (Twitter) account behind a wallet](https://walletlink.social/find-twitter-account-from-wallet-address): free, no account. Paste one EVM wallet address and see the X handle and Farcaster account its owner published, labeled attested or correlated. For a list, use the app above.
 - [Handle check](https://walletlink.social/check): free, no account. Check whether an X handle verified on Farcaster still reaches anyone. Returns how many wallets in the index carry it, never which ones.
 - [Pricing](https://walletlink.social/pricing): the packs, the free allowance, what counts as a match, and the questions people ask before buying.
 - [Holder reports](https://walletlink.social/holders): per-collection reachability reports on named token and NFT contracts, grouped by chain. Aggregates only, never wallet or handle lists.
