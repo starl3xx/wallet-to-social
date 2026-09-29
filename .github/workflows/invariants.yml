@@ -18,8 +18,19 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  guard:
+  # The guard runs the whole invariants file once per mutation, so it took 50
+  # to 95 minutes as one job by September 2026 (Linear STA-53). Eight shards
+  # split the mutations round-robin (scripts/guard-shard.ts); every shard
+  # checks every anchor. `fail-fast` is off so one failing shard does not hide
+  # what the others would have found.
+  guard-shard:
+    name: guard shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -31,10 +42,23 @@ jobs:
       # runner's tree is thrown away, and the script restores in a `finally`
       # regardless.
       - name: The invariants guard catches what it claims
-        run: npx tsx scripts/check-invariants-guard.ts
+        run: npx tsx scripts/check-invariants-guard.ts --shard=${{ matrix.shard }}/8
+
+  # The check branch protection requires, by this name. It passes only when
+  # every shard passed. `always()` is load-bearing: without it a failed shard
+  # skips this job, and a skipped required check counts as passing.
+  guard:
+    needs: guard-shard
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every shard of the guard passed
+        run: test "${{ needs.guard-shard.result }}" = "success"
 
   invariants:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
