@@ -2,6 +2,30 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-29 (holder reports are cached before crawlers arrive)
+
+- **Each production deploy now fills the holder-report cache itself.** Every
+  deploy starts with an empty cache, so the first crawler to fetch several
+  reports at once waited 4 to 31 s for each (median about 16 s) where a
+  cached report takes 0.16 s. A new job requests every holder report in the
+  sitemap, plus the home page, `/pricing`, `/mcp`, `/vs`, `/blog` and the
+  `/holders` hub, as soon as each production deploy is live, two pages at a
+  time.
+- Operator: `.github/workflows/cache-warm.yml` runs `scripts/warm-cache.mjs`
+  on `deployment_status`, only for a successful `Production` deployment
+  (Vercel leaves `production_environment` false, so the job keys on the
+  name). It waits up to 5 minutes for the domain to serve the new deployment,
+  matching the `dpl=` id in the page's asset URLs to the commit's `Vercel`
+  status. Each request is cut off at 60 s, no page starts after 15 minutes,
+  the sitemap gets 3 tries, and `timeout-minutes: 30` is the backstop. It
+  logs counts, cache tallies and the slowest paths, never a body. A newer
+  deploy cancels the older warm. A failed page is a warning, not an outage.
+  Runbook: docs/OPERATIONS.md, "Cache warm after a production deploy".
+  `revalidate` stays 3600, and the runbook says why. Twenty-four new
+  invariants and twenty-three guard mutations; `check-invariants.ts` now also
+  fails when an await never settles, which used to end it with status 0 and
+  no output. Linear STA-54.
+
 ### 2026-09-28 (X handle figures refreshed)
 
 - **The published X handle figures are current again.** The weekly figures

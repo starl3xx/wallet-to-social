@@ -68,6 +68,13 @@ interface Props {
  * This also stops the build getting slower every day the seed cron runs, which
  * is the property that turned a working build into a broken one with no commit
  * to blame.
+ *
+ * The first request after a deploy is not left to a crawler. Each deployment
+ * starts with an empty cache, and a crawler fetching several cold reports at
+ * once waited up to 31 s for each, so `.github/workflows/cache-warm.yml`
+ * requests every report in the sitemap, two at a time, as soon as a
+ * production deployment is live (docs/OPERATIONS.md, "Cache warm after a
+ * production deploy").
  */
 export async function generateStaticParams() {
   return [];
