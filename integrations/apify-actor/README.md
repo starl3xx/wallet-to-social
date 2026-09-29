@@ -1,8 +1,10 @@
 # Wallet to Twitter and Farcaster lookup
 
-Turn a list of Ethereum or EVM **wallet addresses** into the **X (Twitter) handles** and **Farcaster accounts** their owners published, and run it in reverse to find every wallet attested to a handle. Backed by a 4.85 million wallet identity index across eight onchain networks.
+**One address? Look it up free at walletlink.social, in one step.** Paste it at [walletlink.social/find-twitter-account-from-wallet-address](https://walletlink.social/find-twitter-account-from-wallet-address?ref=dir-apify) and see the X handle and Farcaster account its owner published. No account, no API key and no run.
 
-This Actor returns only identities a wallet owner published themselves. It does not guess, and when it has nothing it says so.
+This Actor is for lists, and for the reverse direction. It turns Ethereum or EVM **wallet addresses** into the **X (Twitter) handles** and **Farcaster accounts** their owners published, and finds every wallet attested to a handle. It runs on the walletlink.social index of 4.86 million wallet identities across eight onchain networks.
+
+This Actor returns the identities a wallet owner published themselves, and labels any it could only correlate. It does not guess, and when it has nothing it says so.
 
 ## Why this is different from scraping posts
 
@@ -15,13 +17,13 @@ This Actor reads the opposite direction. Every match comes from something the ow
 - an attested social sign-in
 - a manually verified record
 
-Each row is labeled with which class of evidence it came from, so you can set your own confidence bar instead of trusting a score somebody else assigned. Over 99.9% of the X handles in the index arrive by one of the first two routes.
+Each row is labeled with which class of evidence it came from, so you can set your own confidence bar instead of trusting a score somebody else assigned. Over 99.8% of the X handles in the index arrive by one of these four routes. The rest are correlated from identity indexes, and their rows say so.
 
 ## Handles that no longer reach anybody
 
 Having an account and reaching a person are different claims, and most tools conflate them.
 
-Of 482,968 distinct X handles resolved against X itself: **70.1% are live, 19.7% are suspended, and 10.2% were never claimed**. Close to a third of the handles on a typical holder list reach nobody at all. Where the check has been run, each row carries an `x_reachability` value of `live`, `suspended`, `unclaimed` or `reassigned`, so you can drop the dead ones before you spend anything on reach.
+Of 482,968 distinct X handles resolved against X itself: **70.1% are live, 19.7% are suspended, and 10.2% are names nobody holds**. Close to a third of the handles on a typical holder list reach nobody at all. Where the check has been run, each row carries an `x_reachability` value of `live`, `suspended`, `unclaimed` or `reassigned`, so you can drop the dead ones before you spend anything on reach.
 
 An empty `x_reachability` means the handle was not checked. It never means nobody is behind it.
 
@@ -35,7 +37,7 @@ Going the other way is one field: set `lookupMode` to `x_handle`, put the handle
 
 ## How to use it
 
-1. Get a free API key at [walletlink.social](https://walletlink.social). Sign in and take one from the account menu: no card, and no pack needed. The free allowance is 100 matches every 30 days.
+1. Get a free API key at [walletlink.social](https://walletlink.social/?ref=dir-apify). Sign in and take one from the account menu: no card, and no pack needed. The free allowance is 100 matches every 30 days.
 2. Choose a lookup mode: wallets to social accounts, or a handle back to its wallets.
 3. Paste your addresses, or a whole CSV column. Anything shaped like an EVM address is picked out.
 4. Run it, then export the dataset as CSV, JSON or Excel.
@@ -101,4 +103,4 @@ Match rates depend far more on which chain a list comes from than on anything el
 
 **What if someone asked to be removed?** Suppressed wallets and handles are filtered at read time and return the same shape as a wallet that was never indexed.
 
-**Is there an API or an MCP server?** Both. See [walletlink.social/mcp](https://walletlink.social/mcp) and [docs.walletlink.social](https://docs.walletlink.social).
+**Is there an API or an MCP server?** Both. See [walletlink.social/mcp](https://walletlink.social/mcp?ref=dir-apify) and [docs.walletlink.social](https://docs.walletlink.social).

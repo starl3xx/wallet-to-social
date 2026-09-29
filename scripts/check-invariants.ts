@@ -6591,6 +6591,379 @@ async function main() {
     );
   }
 
+  // -------------- the attested share is one constant, read on every surface
+  // The owner-attested share was typed by hand in fifteen places. By
+  // 2026-09-27 the homepage FAQ said "Over 99.9% come from owner-attested
+  // routes" two answers above "Over 99.8% of Twitter matches", and the Apify
+  // README said 99.9% as well, against a measured 99.8975%. The figures check
+  // missed both: it read only "over N% of", and it did not declare the Apify
+  // README at all. Each half of the fix is asserted from the direction that
+  // regresses.
+  {
+    const figures = readFileSync('scripts/check-published-figures.ts', 'utf8');
+    const { ATTESTED_X_SHARE_PCT } = await import('@/lib/public-figures');
+
+    /**
+     * One claim entry of the registry, by its `what`, and the regex it reads
+     * published copy with, compiled from the script's own source. Reading the
+     * pattern out of the file rather than restating it here is the point: a
+     * copy in this file would pass while the script's own pattern regressed.
+     */
+    const entryOf = (what: string) => {
+      const at = figures.indexOf(`what: '${what}'`);
+      if (at === -1) return '';
+      const end = figures.indexOf('\n  {\n', at);
+      return figures.slice(at, end === -1 ? undefined : end);
+    };
+    const patternOf = (entry: string) => {
+      const after = entry.slice(entry.indexOf('pattern:') + 'pattern:'.length);
+      const m = /^\s*\/(?!\/)(.+)\/([a-z]*),$/m.exec(after);
+      return m ? new RegExp(m[1], m[2]) : null;
+    };
+    const readAll = (re: RegExp | null, text: string) =>
+      re
+        ? [
+            ...text.matchAll(
+              new RegExp(re.source, re.flags.replace('g', '') + 'g')
+            ),
+          ].map((m) => m.slice(1).find((g) => g !== undefined))
+        : [];
+
+    const attested = entryOf('share of X matches that are owner-attested');
+    const attestedRe = patternOf(attested);
+    const read = (text: string) => readAll(attestedRe, text)[0];
+    ok(
+      'the figures check reads the attested share in every phrasing the copy uses',
+      read(`export const ATTESTED_X_SHARE_PCT = '99.8';`) === '99.8' &&
+        read('Over 99.9% come from owner-attested routes') === '99.9' &&
+        read('Over 99.8% of the X handles in the index') === '99.8' &&
+        read('over 99.8%\nof X matches are owner-attested') === '99.8' &&
+        read('Over 99.8% of it comes from deterministic sources') === '99.8'
+    );
+    /**
+     * A floor, including where the hit cannot say "over". The constant's
+     * declaration carries no "over", so without `kind: 'floor'` it is read as
+     * a rounded figure with this claim's tolerance of 1, and passes at any
+     * value: 99.9 against 99.8975 would have been green.
+     */
+    ok(
+      'the attested share is checked as a floor, the constant included',
+      /\n\s*kind: 'floor',\n/.test(attested) &&
+        /const isFloor = claim\.kind === 'floor' \|\|/.test(
+          withoutComments(figures)
+        )
+    );
+
+    /**
+     * The TypeScript surfaces interpolate the constant. A typed share is the
+     * shape that drifted, and the figures check cannot see one any more,
+     * because these files are no longer declared for it.
+     */
+    const tsSurfaces = [
+      'lib/faq.ts',
+      'app/llms.txt/route.ts',
+      'lib/welcome-sequence.ts',
+      'app/vs/absolute-labs/page.tsx',
+      'app/vs/addressable/page.tsx',
+      'app/vs/airstack/page.tsx',
+      'app/vs/blaze/page.tsx',
+      'app/vs/holder/page.tsx',
+      'app/vs/nansen/page.tsx',
+    ];
+    for (const file of tsSurfaces) {
+      const code = withoutComments(readFileSync(file, 'utf8'));
+      ok(
+        `${file} takes the attested share from ATTESTED_X_SHARE_PCT and types none`,
+        code.includes('ATTESTED_X_SHARE_PCT') &&
+          !/over\s+[0-9]{2}\.[0-9]\s*%/i.test(code)
+      );
+    }
+
+    /**
+     * The Apify README is declared for every figure it states, and each
+     * declared pattern actually reads it. Listing the file proves nothing if
+     * the pattern cannot match its sentence: that is how the FAQ passed.
+     * Each figure must also equal the constant it is a copy of, so a refresh
+     * of `lib/public-figures.ts` cannot leave this page a week behind again.
+     */
+    const apify = 'integrations/apify-actor/README.md';
+    const apifyText = readFileSync(apify, 'utf8');
+    const pf = await import('@/lib/public-figures');
+    const stated: Array<[string, string]> = [
+      ['index size, in millions', pf.INDEXED_WALLETS.replace(/M$/, '')],
+      ['distinct X handles resolved', pf.X_HANDLES_RESOLVED],
+      ['share of resolved handles that are live', pf.X_LIVE_PCT],
+      ['share of resolved handles that are suspended', pf.X_SUSPENDED_PCT],
+      ['share of resolved handles whose name nobody holds', pf.X_UNCLAIMED_PCT],
+      ['share of X matches that are owner-attested', ATTESTED_X_SHARE_PCT],
+    ];
+    for (const [what, value] of stated) {
+      const entry = entryOf(what);
+      const values = readAll(patternOf(entry), apifyText);
+      ok(
+        `the figures check declares the Apify README for "${what}", reads it, and it says ${value}`,
+        entry.includes(`'${apify}'`) &&
+          values.length > 0 &&
+          values.every((v) => v === value)
+      );
+    }
+    const chainRows = [
+      ...figures.matchAll(
+        /file: 'integrations\/apify-actor\/README\.md',\s*pattern: \/(.+)\/([a-z]*),\s*rate: '(\w+)'/g
+      ),
+    ].map((m) => ({
+      value: new RegExp(m[1], m[2]).exec(apifyText)?.[1],
+      rate: m[3],
+    }));
+    ok(
+      'the figures check reads the Apify README’s per-chain rates, and they are the measured ones',
+      chainRows.some(
+        (r) =>
+          r.rate === 'baseEither' &&
+          r.value === String(pf.CHAIN_MATCH_RATES.base.either_pct)
+      ) &&
+        chainRows.some(
+          (r) =>
+            r.rate === 'ethereumEither' &&
+            r.value === String(pf.CHAIN_MATCH_RATES.ethereum.either_pct)
+        )
+    );
+    ok(
+      'the figures sweep reads the Apify README for figures nobody declared',
+      /const COPY_SURFACES = \[[^\]]*'integrations\/apify-actor\/README\.md'/.test(
+        withoutComments(figures)
+      )
+    );
+
+    /**
+     * The figures on that page no query can check: prices, the allowance,
+     * credit lifetime and chains, which live in `lib/packs.ts` and
+     * `lib/chains.ts`. Every one of them the page states must be the one
+     * those files hold, the input schema's allowance included.
+     */
+    const packs = await import('@/lib/packs');
+    const { CHAIN_LABELS: labels, SUPPORTED_CHAINS: chains } =
+      await import('@/lib/chains');
+    const schemaText = readFileSync(
+      'integrations/apify-actor/.actor/input_schema.json',
+      'utf8'
+    );
+    const allowances = [
+      ...`${apifyText}\n${schemaText}`.matchAll(
+        /([0-9,]+) matches every ([0-9]+) days/g
+      ),
+    ];
+    const prices = [
+      ...apifyText.matchAll(/\$([0-9,]+) for ([0-9,]+) matches/g),
+    ];
+    const coverage = /^([A-Z][a-z]+) onchain networks: (.+)\.$/m.exec(
+      apifyText
+    );
+    const counts = [
+      ...apifyText.matchAll(/\b([a-z]+) onchain networks\b/gi),
+    ].map((m) => m[1].toLowerCase());
+    const cheapest = Math.min(
+      ...packs.PACK_IDS.map((id) => packs.PACKS[id].priceCents)
+    );
+    const startsAt = /start at \$([0-9,]+) for ([0-9,]+) matches/.exec(
+      apifyText
+    );
+    ok(
+      'the Apify README states the allowance, price, lifetime and chains the product has',
+      allowances.length >= 3 &&
+        allowances.every(
+          (m) =>
+            Number(m[1].replace(/,/g, '')) === packs.FREE_MATCHES_PER_WINDOW &&
+            Number(m[2]) === packs.FREE_WINDOW_DAYS
+        ) &&
+        prices.length > 0 &&
+        prices.every((m) =>
+          packs.PACK_IDS.some(
+            (id) =>
+              packs.PACKS[id].priceCents / 100 ===
+                Number(m[1].replace(/,/g, '')) &&
+              packs.PACKS[id].matches === Number(m[2].replace(/,/g, ''))
+          )
+        ) &&
+        startsAt !== null &&
+        Number(startsAt[1].replace(/,/g, '')) * 100 === cheapest &&
+        apifyText.includes(`last ${packs.CREDIT_LIFETIME_MONTHS} months`) &&
+        counts.length >= 2 &&
+        counts.every((w) => w === pf.CHAIN_COUNT_WORD) &&
+        coverage !== null &&
+        coverage[2]
+          .split(/, | and /)
+          .sort()
+          .join('|') ===
+          chains
+            .map((c) => labels[c])
+            .sort()
+            .join('|')
+    );
+  }
+
+  // ------------------------------- every listing link carries its dir- tag
+  // docs/GROWTH.md: "Every listing carries ?ref=dir-<surface>". Until
+  // 2026-09-29 no listing did, so a directory that sent people was
+  // indistinguishable from one nobody clicked. Only page links are held to
+  // it: a plain file (/llms.txt, security.txt) runs nothing that records a
+  // first touch, and the API is not a page.
+  {
+    const pageLinks = (text: string) =>
+      [
+        ...text.matchAll(
+          /(?:\]\(|href=")(https:\/\/walletlink\.social[^)"\s]*)/g
+        ),
+      ]
+        .map((m) => m[1])
+        .filter(
+          (u) =>
+            !/^https:\/\/walletlink\.social\/(?:api\/|\.well-known\/)/.test(
+              u
+            ) && !/\.(?:txt|md|json|xml)(?:$|\?)/.test(u)
+        );
+    const apifyLinks = pageLinks(
+      readFileSync('integrations/apify-actor/README.md', 'utf8')
+    );
+    ok(
+      'every page link in the Apify README carries ?ref=dir-apify',
+      apifyLinks.length >= 3 &&
+        apifyLinks.every((u) => /[?&]ref=dir-apify(?:&|$)/.test(u))
+    );
+    const readmeLinks = pageLinks(readFileSync('README.md', 'utf8'));
+    ok(
+      'every page link in the GitHub README carries ?ref=dir-github',
+      readmeLinks.length >= 3 &&
+        readmeLinks.every((u) => /[?&]ref=dir-github(?:&|$)/.test(u))
+    );
+    const schema = readFileSync(
+      'integrations/apify-actor/.actor/input_schema.json',
+      'utf8'
+    );
+    const actorCode = withoutComments(
+      readFileSync('integrations/apify-actor/src/main.js', 'utf8')
+    );
+    ok(
+      'the Actor’s input form and run messages link to the site with the same tag',
+      [...schema.matchAll(/https:\/\/walletlink\.social[^\s:"]*/g)].every((m) =>
+        m[0].includes('?ref=dir-apify')
+      ) &&
+        /const tagged = \(path = '\/'\) => `\$\{SITE\}\$\{path\}\?ref=dir-apify`;/.test(
+          actorCode
+        ) &&
+        /const SIGNUP = tagged\(/.test(actorCode) &&
+        !/\$\{SIGNUP\}\//.test(actorCode)
+    );
+    /**
+     * The registry listing links the site, not the docs host. The docs host
+     * answers the ChatGPT and Perplexity search crawlers with
+     * `x-robots-tag: noindex` on its Markdown variant (open since 2026-09-07),
+     * and the registry is what Glama and every other MCP directory copy.
+     */
+    const manifest = JSON.parse(readFileSync('server.json', 'utf8')) as {
+      websiteUrl?: string;
+      remotes?: Array<{ url?: string }>;
+    };
+    ok(
+      'the registry’s website link is the tagged /mcp page on the apex',
+      manifest.websiteUrl === 'https://walletlink.social/mcp?ref=dir-registry'
+    );
+
+    /**
+     * The README opens with a way to connect, and its URL is the one the
+     * registry publishes. A Connect block quoting a URL the server does not
+     * answer on is worse than none: scrapers copy it into their listings.
+     */
+    const readme = readFileSync('README.md', 'utf8');
+    const connect = readme.slice(
+      readme.indexOf('\n## Connect\n'),
+      readme.indexOf('\n---', readme.indexOf('\n## Connect\n'))
+    );
+    const remote = manifest.remotes?.[0]?.url ?? '';
+    ok(
+      'the README’s Connect block comes first and gives the registry’s remote URL',
+      remote !== '' &&
+        readme.indexOf('\n## Connect\n') !== -1 &&
+        readme.indexOf('\n## Connect\n') <
+          readme.indexOf('\n## How it works\n') &&
+        connect.includes('```\n' + remote + '\n```') &&
+        connect.includes(
+          `claude mcp add --transport http walletlink ${remote} `
+        )
+    );
+
+    /**
+     * How a directory tag is classified. Not promoted to a channel of its
+     * own: a tag never manufactures a channel, the rule that keeps
+     * `ref:google-ads` out of search. With no referrer it is a campaign
+     * under its own name, with one the host decides, and a surface named
+     * after an assistant is never read as an arrival from it.
+     */
+    const {
+      channelFrom,
+      aiAssistantFrom,
+      summariseOrigin: summarise,
+    } = await import('@/lib/first-touch');
+    const bare = channelFrom(summarise({ ref: 'dir-apify' }));
+    ok(
+      'a directory tag with no referrer is a campaign under its own name',
+      bare.channel === 'campaign' && bare.name === 'dir-apify'
+    );
+    const hosted = channelFrom(
+      summarise({ ref: 'dir-github', referrer: 'github.com' })
+    );
+    ok(
+      'a directory tag with a referrer is a referral from that host',
+      hosted.channel === 'referral' && hosted.name === 'github.com'
+    );
+    ok(
+      'a directory named after an assistant is not an arrival from it',
+      channelFrom(summarise({ ref: 'dir-claude' })).channel === 'campaign' &&
+        aiAssistantFrom(summarise({ ref: 'dir-claude' })) === null
+    );
+    /**
+     * And the reason it holds is the skip, not luck in the spelling. The
+     * rosters match whole tokens, so `claude-launch` and `dir-claude` would
+     * miss them anyway; a tag that IS a token (`ref:claude`, `ref:twitter`)
+     * is the case only `evidenceValues` skipping every `ref:` part protects,
+     * and no assertion exercised it before 2026-09-29.
+     */
+    ok(
+      'a tag spelled exactly like an assistant or a platform is still only a campaign',
+      channelFrom(summarise({ ref: 'claude' })).channel === 'campaign' &&
+        channelFrom(summarise({ ref: 'twitter' })).channel === 'campaign' &&
+        channelFrom(summarise({ ref: 'google' })).channel === 'campaign' &&
+        aiAssistantFrom(summarise({ ref: 'chatgpt' })) === null
+    );
+  }
+
+  // ------------------------- the agent-flag figure is declared and checked
+  // AGENT_WALLETS_FLAGGED sat at 92 from 2026-09-19 while the index moved to
+  // 116 and then 122. `scripts/backfill-agent-claims.ts` told its operator
+  // the figures check compared it against `count(*) WHERE is_agent`; no entry
+  // did. Asserted as the query, so the 13,622 agent catalog cannot come back
+  // under this label by way of the check itself.
+  {
+    const figures = readFileSync('scripts/check-published-figures.ts', 'utf8');
+    const at = figures.indexOf(
+      "what: 'wallets in the index carrying the agent flag'"
+    );
+    const entry =
+      at === -1 ? '' : figures.slice(at, figures.indexOf('\n  },', at));
+    const { AGENT_WALLETS_FLAGGED } = await import('@/lib/public-figures');
+    const literal = /pattern: \/(.+)\/,/.exec(entry)?.[1];
+    ok(
+      'the figures check declares the agent-flag figure against the index’s own flag',
+      entry.includes("files: ['lib/public-figures.ts']") &&
+        /FROM social_graph WHERE is_agent IS TRUE/.test(entry) &&
+        !/known_agents/.test(withoutComments(entry)) &&
+        literal !== undefined &&
+        new RegExp(literal).exec(
+          readFileSync('lib/public-figures.ts', 'utf8')
+        )?.[1] === AGENT_WALLETS_FLAGGED
+    );
+  }
+
   // ------------------------------------------------- OAuth: the grant cap
   // Two Approve clicks: only one can issue a code, and the loser's grant has
   // to go with it. Left behind it holds a slot in the per-account cap and

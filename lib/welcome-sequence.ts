@@ -8,6 +8,7 @@ import {
   X_SUSPENDED_PCT,
   X_UNCLAIMED_PCT,
   CHAIN_COUNT_WORD,
+  ATTESTED_X_SHARE_PCT,
 } from '@/lib/public-figures';
 import {
   PACKS,
@@ -269,7 +270,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
       paragraphs: [
         `Of ${X_HANDLES_RESOLVED} X handles we resolved, ${X_LIVE_PCT}% are live. ${X_SUSPENDED_PCT}% are suspended, and ${X_UNCLAIMED_PCT}% are names nobody holds any more.`,
         'A single coverage number counts all three groups. We label every match with its **reachability**, because a campaign sent to dead handles is obviously worse than a smaller campaign sent to real ones.',
-        'The same rule applies to how a match is made. Over 99.8% of our X handles were published by the account owner, through a Farcaster verification or an onchain ENS record. Nothing is guessed from display names or bios.',
+        `The same rule applies to how a match is made. Over ${ATTESTED_X_SHARE_PCT}% of our X handles were published by the account owner, through a Farcaster verification or an onchain ENS record. Nothing is guessed from display names or bios.`,
       ],
       button: { label: 'See it on your list', url: SITE },
       footnote:

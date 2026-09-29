@@ -12,7 +12,11 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
+import {
+  INDEXED_WALLETS,
+  CHAIN_COUNT_WORD,
+  ATTESTED_X_SHARE_PCT,
+} from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -551,9 +555,10 @@ export default function AddressableComparison() {
               -wallet index covering the complete Farcaster protocol.
               Addressable advertises 23M+ matched wallet owners on
               addressable.io, read 7 September 2026, built with probabilistic
-              &ldquo;fingerprinting&rdquo;; we never fingerprint. Over 99.8% of
-              our X matches are links the wallet owner created themselves, and
-              every match is labeled with the evidence behind it.
+              &ldquo;fingerprinting&rdquo;; we never fingerprint. Over{' '}
+              {ATTESTED_X_SHARE_PCT}% of our X matches are links the wallet
+              owner created themselves, and every match is labeled with the
+              evidence behind it.
             </p>
           </section>
 

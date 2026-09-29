@@ -12,7 +12,7 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { INDEXED_WALLETS, ATTESTED_X_SHARE_PCT } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -364,9 +364,9 @@ export default function AirstackComparison() {
               over a simple REST API. Our index covers {INDEXED_WALLETS} wallets
               with complete Farcaster protocol coverage: every account’s
               verified and custody addresses, usernames, and follower counts,
-              refreshed daily. Over 99.8% of X matches are user-attested, most
-              through an X account verified on Farcaster and the rest through
-              onchain ENS records.
+              refreshed daily. Over {ATTESTED_X_SHARE_PCT}% of X matches are
+              user-attested, most through an X account verified on Farcaster and
+              the rest through onchain ENS records.
             </p>
             <p className="text-muted-foreground">
               If you used Airstack for Farcaster identity resolution, the API

@@ -26,7 +26,16 @@ const ADDRESS_RE = /0x[a-fA-F0-9]{40}/g;
 /** Start at the smallest documented plan ceiling and shrink only if told to. */
 const START_BATCH = 50;
 
-const SIGNUP = 'https://walletlink.social';
+/**
+ * Every walletlink.social link a user of the Actor is shown carries the
+ * listing's tag, `?ref=dir-apify` (docs/GROWTH.md, "Every listing carries
+ * ?ref=dir-<surface>"). A URL copied out of a run log arrives with no
+ * referrer at all, so the tag is the only evidence it came from here.
+ */
+const SITE = 'https://walletlink.social';
+const tagged = (path = '/') => `${SITE}${path}?ref=dir-apify`;
+const SIGNUP = tagged('/');
+const PRICING = tagged('/pricing');
 
 /**
  * One HTTP call with retries.
@@ -272,7 +281,7 @@ async function run() {
         }
         if (error.code === 'NO_CREDITS') {
           log.warning(
-            `Match balance is exhausted after ${matched} matches. Stopping with ${emitted} rows already saved. Top up at ${SIGNUP}/pricing`
+            `Match balance is exhausted after ${matched} matches. Stopping with ${emitted} rows already saved. Top up at ${PRICING}`
           );
           break;
         }
@@ -344,7 +353,7 @@ async function run() {
       } catch (error) {
         if (error.code === 'NO_CREDITS') {
           log.warning(
-            `Match balance exhausted after ${total} wallets. Top up at ${SIGNUP}/pricing`
+            `Match balance exhausted after ${total} wallets. Top up at ${PRICING}`
           );
           break;
         }

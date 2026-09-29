@@ -1205,6 +1205,13 @@ The classifier reads only the parts that say where a browser came from, never
 `ref:`, so a campaign named after an assistant cannot manufacture arrivals
 from it.
 
+**Listing links carry `?ref=dir-<surface>`** since 2026-09-29: `dir-apify` on
+the Apify Actor's README, input form and run messages, `dir-registry` on the
+MCP registry's `websiteUrl` in `server.json`, `dir-github` on the repo README.
+There is no directory channel. With no referrer a tagged arrival is a
+`campaign` named `dir-<surface>`, and with one the host decides, as for any
+tag; `channelFrom` explains why and the invariants hold both cases.
+
 **The reverse endpoints are the differentiated part.** `handle → wallets` is a question
 the accumulated graph can answer and a CSV export cannot. It draws match credits like
 every other call, one per wallet returned.

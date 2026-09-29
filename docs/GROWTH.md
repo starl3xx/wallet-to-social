@@ -326,9 +326,28 @@ PulseMCP or mcp.so.
 
 **Every listing carries `?ref=dir-<surface>`.** A directory link arrives with a
 referrer we do not control and often with none at all, so without the tag a
-listing that works is indistinguishable from one nobody clicked. Tagged, it
-lands in the `campaign` channel under its own name and the weekly report shows
-one row per surface. That is what makes this a pipeline rather than a checklist.
+listing that works is indistinguishable from one nobody clicked. Tagged and
+arriving with no referrer, it lands in the `campaign` channel under its own
+name, `dir-<surface>`, and the weekly report shows one row per surface. When
+the listing does send a referrer, the host decides the channel as it does for
+every tag: `ref:dir-github/via:github.com` is a referral from `github.com`, and
+the stored summary keeps the tag beside it. `lib/first-touch.ts` records why a
+directory tag is not promoted to a referral on its own, and the invariants hold
+both cases. That is what makes this a pipeline rather than a checklist.
+
+Applied since 2026-09-29:
+
+| Surface               | Tag            | Where it lives in this repo                                        |
+| --------------------- | -------------- | ------------------------------------------------------------------ |
+| Apify Actor           | `dir-apify`    | `integrations/apify-actor/` (README, input schema, run messages)   |
+| Official MCP registry | `dir-registry` | `server.json` `websiteUrl`, now `/mcp` rather than the docs host   |
+| GitHub README         | `dir-github`   | `README.md` links to the site                                      |
+| Grok plugin           | not yet        | a separate repo, pinned in an open PR (see CLAUDE.md, house style) |
+
+Links to `/llms.txt` and other plain files stay untagged: nothing runs on them
+to record a first touch, so a tag there would only make the URL longer. Links
+to the docs host stay untagged for the same reason. The registry and Apify
+copies only change on their next publish (`mcp-publisher publish`, `apify push`).
 
 ### Agent and MCP directories
 

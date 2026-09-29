@@ -45,9 +45,15 @@ interface Claim {
   tolerance: number;
   /**
    * 'rounded' for a headline that is deliberately imprecise, 'ceiling' for a
-   * count that only grows and must never be overstated.
+   * count that only grows and must never be overstated, 'floor' for an
+   * "over N%" claim, which is false the moment the truth drops below it.
+   *
+   * A hit whose own text says "over" is a floor regardless. 'floor' exists for
+   * the hits that cannot say so: a constant declaration such as
+   * `ATTESTED_X_SHARE_PCT = '99.8'` carries no "over", and read as 'rounded'
+   * with this claim's tolerance of 1 it would pass at any value at all.
    */
-  kind?: 'rounded' | 'ceiling';
+  kind?: 'rounded' | 'ceiling' | 'floor';
   /**
    * How far a ceiling claim may fall BEHIND the truth before it is stale.
    *
@@ -102,6 +108,11 @@ export const CLAIMS: Claim[] = [
       // checked here instead. It uses the "N million wallet identities"
       // phrasing precisely so the existing pattern catches it.
       'content/published/find-twitter-account-from-wallet.md',
+      // The Apify Actor's README is the page apify.com renders, and it ranks
+      // for the head query above anything on our own domain. It was declared
+      // nowhere in this file until 2026-09-29, so its figures could only be
+      // right by luck, and one was not (the attested share, below).
+      'integrations/apify-actor/README.md',
     ],
     /**
      * Anchored on the index context. The first version matched any
@@ -213,6 +224,7 @@ export const CLAIMS: Claim[] = [
        * anything; it has just moved where the next wrong number will come from.
        */
       'lib/x-accounts.ts',
+      'integrations/apify-actor/README.md',
     ],
     /**
      * Matched by neighbourhood, not by sentence.
@@ -403,6 +415,7 @@ export const CLAIMS: Claim[] = [
        */
       'lib/public-figures.ts',
       'content/published/nine-things-to-build.md',
+      'integrations/apify-actor/README.md',
     ],
     // Table cells match padded or single-space, because prettier pads mdx
     // tables and a reformat must not read as a vanished figure.
@@ -444,6 +457,7 @@ export const CLAIMS: Claim[] = [
        */
       'lib/public-figures.ts',
       'content/published/nine-things-to-build.md',
+      'integrations/apify-actor/README.md',
     ],
     // "are suspended" joined the phrasings with the welcome sequence, whose
     // approved copy writes the split as a sentence.
@@ -476,6 +490,7 @@ export const CLAIMS: Claim[] = [
        */
       'lib/public-figures.ts',
       'content/published/nine-things-to-build.md',
+      'integrations/apify-actor/README.md',
     ],
     // "9.7% unclaimed", "9.7% names nobody holds" and "9.7% are names nobody
     // holds" are the three phrasings in use. Matching the figure and a nearby
@@ -556,31 +571,43 @@ export const CLAIMS: Claim[] = [
     what: 'share of X matches that are owner-attested',
     files: [
       'docs-site/concepts/coverage.mdx',
-      // Was app/layout.tsx until the FAQ answers were extracted so the visible
-      // prose and the FAQPage JSON-LD read one source. The sentence moved with
-      // them; a no-match here is a hard error, so this had to move too.
-      'lib/faq.ts',
-      'app/llms.txt/route.ts',
-      'lib/welcome-sequence.ts',
+      /**
+       * `lib/public-figures.ts` is where this figure lives since 2026-09-29.
+       *
+       * lib/faq.ts, app/llms.txt/route.ts, lib/welcome-sequence.ts and the six
+       * comparison pages each typed it by hand and were declared here one by
+       * one. They interpolate `ATTESTED_X_SHARE_PCT` now, so there is no
+       * literal left in them to read, and the constant is the one place to
+       * check. The FAQ still said 99.9% by then, in a sentence this pattern
+       * could not read ("Over 99.9% come from"), two answers above a sentence
+       * it could read that said 99.8%.
+       */
+      'lib/public-figures.ts',
+      // The Apify README said "Over 99.9% of the X handles" from 2026-09-17,
+      // an over-claim once the share was measured at 99.8975% on 2026-09-23,
+      // and nothing read it.
+      'integrations/apify-actor/README.md',
       // The README stated this figure unregistered from the start; it was
       // invisible to the sweep only because "of handles" is not one of the
       // sweep's shapes. Declared the day its sentence was rewritten to the
       // canonical route enumeration.
       'README.md',
-      // The comparison pages carry the same claim in their own words; they
-      // were outside the list when the 2026-08-22 Sybil import moved the
-      // measured share, and drifted unguarded.
-      'app/vs/absolute-labs/page.tsx',
-      'app/vs/addressable/page.tsx',
-      'app/vs/airstack/page.tsx',
-      'app/vs/blaze/page.tsx',
-      'app/vs/holder/page.tsx',
-      'app/vs/nansen/page.tsx',
       'content/published/walletlink-vs-addressable.md',
       'content/published/walletlink-vs-blaze.md',
     ],
-    // \s+ rather than a space: JSX wraps "99.9%" and "of" across lines.
-    pattern: /over ([0-9]{2}\.[0-9])%\s+of/i,
+    /**
+     * The constant, or "over N%" followed by the verb or preposition the
+     * sentence continues with. `\s+` rather than a space, because Markdown
+     * wraps too.
+     *
+     * The prose half read only "over N% of" until 2026-09-29, and the homepage
+     * FAQ said "Over 99.9% come from owner-attested routes": a sentence this
+     * claim declared its file for and never read, so an over-claim sat on the
+     * homepage while the check passed on the other sentence in the same file.
+     */
+    pattern:
+      /ATTESTED_X_SHARE_PCT = '([0-9]{2}\.[0-9])'|over ([0-9]{2}\.[0-9])%\s+(?:of|comes?|are|were)\b/i,
+    kind: 'floor',
     actual: async () => {
       // This list is the OWNER-PUBLISHED set: the ids whose public evidence
       // class is in ATTESTED_SOURCES (everything except 'aggregated'). The
@@ -610,8 +637,37 @@ export const CLAIMS: Claim[] = [
       );
       return total === 0 ? 0 : (attested / total) * 100;
     },
-    // A floor claim: being ABOVE it is fine, below it is not. Checked in code.
+    // A floor claim: being ABOVE it is fine, below it is not. Checked in code,
+    // and by `kind: 'floor'` above for the constant, whose hit has no "over".
     tolerance: 1,
+  },
+  {
+    /**
+     * Wallets in our own index carrying the agent flag, which is what
+     * `/api/public-stats` answers under `agents` and falls back to on a
+     * preview deployment.
+     *
+     * Undeclared until 2026-09-29, although `scripts/backfill-agent-claims.ts`
+     * told its operator that this file compared the constant against exactly
+     * this query. Nothing did. The constant said 92 from 2026-09-19 while the
+     * index moved to 116 and then 122, and the only thing that noticed was an
+     * audit.
+     *
+     * Rounded, at a quarter. The count moves with usage in both directions: it
+     * rises as agent lists are run and fell from 260 to 92 when the agent
+     * claim rule withdrew the label. A band tight enough to fail on a week of
+     * ordinary growth (92 to 116 took eight days) would be a weekly chore on
+     * a figure only a preview build serves. A quarter still fails on the
+     * errors that matter: a withdrawal the size of 2026-09-19's, and the
+     * 13,622 agent catalog written under this label, which is the 56-fold
+     * confusion `lib/public-figures.ts` records.
+     */
+    what: 'wallets in the index carrying the agent flag',
+    files: ['lib/public-figures.ts'],
+    pattern: /AGENT_WALLETS_FLAGGED = '([0-9]{1,3}(?:,[0-9]{3})*)'/,
+    actual: () =>
+      one(sql`SELECT count(*)::int FROM social_graph WHERE is_agent IS TRUE`),
+    tolerance: 0.25,
   },
 ];
 
@@ -820,6 +876,21 @@ const MEASUREMENTS: Measurement[] = [
        * MDX cannot import, so the literals are declared, the same trade the
        * markdown surfaces above make.
        */
+      /**
+       * The Apify README quotes the Base and Ethereum rows in a sentence. A
+       * Markdown page cannot import the constants either, and this one is
+       * read on apify.com by more people than read the docs.
+       */
+      {
+        file: 'integrations/apify-actor/README.md',
+        pattern: /Base ([0-9]+\.[0-9])% of holders reachable/,
+        rate: 'baseEither',
+      },
+      {
+        file: 'integrations/apify-actor/README.md',
+        pattern: /of holders reachable, Ethereum ([0-9]+\.[0-9])%/,
+        rate: 'ethereumEither',
+      },
       {
         file: 'docs-site/api-reference/stats.mdx',
         pattern: /"base": \{[\s\S]*?"either_pct": ([0-9]+\.[0-9])/,
@@ -1113,10 +1184,13 @@ async function main() {
         continue;
       }
 
+      // Two decimals, not one. At one, a floor of 99.9 against a true 99.8975
+      // printed "published as 99.9, actual 99.9" beside the word DRIFT, which
+      // reads as a broken check rather than as the over-claim it is.
       const fmt = (v: number) =>
         claim.scale
           ? (v / claim.scale).toFixed(2)
-          : v.toLocaleString(undefined, { maximumFractionDigits: 1 });
+          : v.toLocaleString(undefined, { maximumFractionDigits: 2 });
 
       // Already filtered above, so every hit here is a live claim.
       for (const hit of all) {
@@ -1136,7 +1210,7 @@ async function main() {
          * on 417,872 is 8,357 handles.
          * `rounded` is a headline like "4.8M", where slack is the point.
          */
-        const isFloor = /over /i.test(hit[0]);
+        const isFloor = claim.kind === 'floor' || /over /i.test(hit[0]);
         const kind = isFloor ? 'floor' : (claim.kind ?? 'rounded');
         const overstated = published > truth;
         // A ceiling that has fallen further behind than its own bound allows.
@@ -1268,6 +1342,9 @@ if (isEntryPoint)
  */
 const COPY_SURFACES = [
   'README.md',
+  // Swept as well as declared: a figure written into the Actor's page
+  // tomorrow is as unseen as the ones declared above were until 2026-09-29.
+  'integrations/apify-actor/README.md',
   'docs/AI-SEARCH.md',
   'lib/public-figures.ts',
   'components/ReachabilityClaim.tsx',
