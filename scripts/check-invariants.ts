@@ -2360,6 +2360,420 @@ async function main() {
     );
   }
 
+  // ------------------------------------------- the post-deploy cache warm
+  /**
+   * `.github/workflows/cache-warm.yml` GETs every holder report in the sitemap
+   * right after a production deploy, so crawlers find them cached instead of
+   * waiting 4 to 31 s each on an empty cache. It points at production, so
+   * four promises make it safe, and each is checked here: it runs only for a
+   * successful Production deployment (Vercel starts a run for every preview
+   * too, and Mintlify for its own), it asks for two pages at a time and no
+   * more, a run ends on its own well inside timeout-minutes, and nothing in
+   * it retries without limit.
+   *
+   * No YAML parser is a dependency, so the workflow is read line by line with
+   * its comments dropped, strictly enough that a second trigger, a looser
+   * condition or a missing key cannot pass. The script's functions are run,
+   * not read, against stand-in fetches: a real request is not allowed here.
+   */
+  {
+    const WORKFLOW = '.github/workflows/cache-warm.yml';
+    const yml = existsSync(WORKFLOW) ? readFileSync(WORKFLOW, 'utf8') : '';
+    ok('the cache-warm workflow exists', yml.length > 0);
+
+    const lines = yml
+      .split('\n')
+      .map((l) => l.replace(/\s+$/, ''))
+      .filter((l) => l.trim() !== '' && !/^\s*#/.test(l));
+    const indentOf = (l: string) => l.length - l.trimStart().length;
+    /** Every `key:` at exactly `indent`, with its value and the lines under it. */
+    const sections = (from: string[], indent: number, key: string) =>
+      from.flatMap((l, at) => {
+        if (indentOf(l) !== indent) return [];
+        const m = l.trimStart().match(/^(?:- )?([\w-]+):(?:\s+(.*))?$/);
+        if (!m || m[1] !== key) return [];
+        const body: string[] = [];
+        for (const next of from.slice(at + 1)) {
+          if (indentOf(next) <= indent) break;
+          body.push(next);
+        }
+        return [{ value: m[2] ?? '', body }];
+      });
+    const one = (from: string[], indent: number, key: string) => {
+      const found = sections(from, indent, key);
+      return found.length === 1 ? found[0] : null;
+    };
+
+    const on = one(lines, 0, 'on');
+    ok(
+      'cache-warm runs on deployment_status and on nothing else',
+      on !== null &&
+        on.value === '' &&
+        on.body.map((l) => l.trim()).join('|') === 'deployment_status:'
+    );
+
+    const EXPECTED_IF =
+      "github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'";
+    const jobsBlock = one(lines, 0, 'jobs');
+    const jobIds = (jobsBlock?.body ?? [])
+      .filter((l) => indentOf(l) === 2)
+      .map((l) => l.trim().match(/^([\w-]+):$/)?.[1] ?? '');
+    const jobs = jobIds.map((id) => ({
+      id,
+      body: jobsBlock ? (one(jobsBlock.body, 2, id)?.body ?? []) : [],
+    }));
+    const conditionOf = (body: string[]) => {
+      const cond = one(body, 4, 'if');
+      if (!cond) return '';
+      const text = /^[>|]-?$/.test(cond.value)
+        ? cond.body.map((l) => l.trim()).join(' ')
+        : cond.value;
+      return text.replace(/\s+/g, ' ').trim();
+    };
+    ok(
+      'every cache-warm job runs only for a successful Production deployment, never a preview or a failed one',
+      jobs.length > 0 &&
+        jobs.every((j) => j.id !== '' && conditionOf(j.body) === EXPECTED_IF)
+    );
+
+    const timeoutOf = (body: string[]) =>
+      Number(one(body, 4, 'timeout-minutes')?.value ?? NaN);
+    ok(
+      'every cache-warm job sets timeout-minutes, and no more than 30',
+      jobs.length > 0 &&
+        jobs.every((j) => {
+          const t = timeoutOf(j.body);
+          return Number.isInteger(t) && t >= 1 && t <= 30;
+        })
+    );
+
+    const runs = lines
+      .map((l) => l.trim().match(/^(?:- )?run:\s*(.*)$/)?.[1])
+      .filter((r): r is string => r !== undefined);
+    ok(
+      'cache-warm runs scripts/warm-cache.mjs and nothing else, and hands it the deployed commit',
+      runs.length === 1 &&
+        runs[0] === 'node scripts/warm-cache.mjs' &&
+        lines.some(
+          (l) => l.trim() === 'DEPLOY_SHA: ${{ github.event.deployment.sha }}'
+        )
+    );
+
+    // Production warms share one group, so one runs at a time and a newer
+    // deploy cancels the older warm. Every deployment_status event starts a
+    // run, skipped or not, so every other run must be alone in its group: in
+    // a shared one a preview's run cancels a production warm, or another
+    // preview's run, and a cancelled check on a pull request's head reads as
+    // not green.
+    const group = one(lines, 0, 'concurrency');
+    const groupBody = (group?.body ?? []).map((l) => l.trim());
+    const groupKey =
+      groupBody
+        .find((l) => l.startsWith('group:'))
+        ?.slice(6)
+        .trim() ?? '';
+    ok(
+      'production warms run one at a time and a newer deploy cancels the older warm, while every other run has a group of its own',
+      group !== null &&
+        group.value === '' &&
+        groupKey ===
+          `\${{ ${EXPECTED_IF} && 'cache-warm-production' || format('cache-warm-{0}', github.run_id) }}` &&
+        groupBody.includes('cancel-in-progress: true')
+    );
+
+    const permissions = one(lines, 0, 'permissions');
+    ok(
+      'cache-warm reads the repository and the commit statuses, and can write nothing',
+      permissions !== null &&
+        permissions.body
+          .map((l) => l.trim())
+          .sort()
+          .join('|') === 'contents: read|statuses: read' &&
+        !lines.some((l) => /\bwrite\b/.test(l.replace(/#.*$/, '')))
+    );
+
+    const warm = await import('./warm-cache.mjs');
+    const { PRODUCTION_URL } = await import('@/lib/site-url');
+    const script = readFileSync('scripts/warm-cache.mjs', 'utf8');
+    const code = withoutComments(script).replace(/\s+/g, '');
+    /**
+     * The promise's value, or 'hung' after `ms`. The timer is deliberately
+     * NOT unref'd: AbortSignal.timeout's timer is, so a request stuck on it
+     * with nothing else pending would let Node exit mid-check with status 0
+     * and no output, which a caller reads as a pass. This timer keeps the
+     * process alive until the race is decided.
+     */
+    const settle = <T>(p: Promise<T>, ms = 2000) =>
+      new Promise<T | 'hung'>((resolve, reject) => {
+        const timer = setTimeout(() => resolve('hung'), ms);
+        p.then(
+          (value) => {
+            clearTimeout(timer);
+            resolve(value);
+          },
+          (error: unknown) => {
+            clearTimeout(timer);
+            reject(error);
+          }
+        );
+      });
+    type Init = { signal?: AbortSignal };
+    const html = (body: string, cache = 'MISS') =>
+      new Response(body, {
+        status: 200,
+        headers: { 'x-vercel-cache': cache, 'content-type': 'text/html' },
+      });
+
+    ok(
+      'the warm script warms the production origin and no other',
+      warm.ORIGIN === PRODUCTION_URL
+    );
+
+    // What gets warmed: the fixed pages, the hub, then the sitemap's holder
+    // reports by priority. Never a URL on another host, never a page the
+    // sitemap lists that is not a report.
+    {
+      const sitemap = [
+        ['https://walletlink.social', '1'],
+        ['https://walletlink.social/check', '0.9'],
+        ['https://walletlink.social/holders/base/0xaaa', '0.6'],
+        ['https://walletlink.social/blog/some-post', '0.7'],
+        ['https://elsewhere.example/holders/base/0xevil', '1'],
+        ['https://walletlink.social/holders/ethereum/0xbbb', '0.8'],
+        ['https://walletlink.social/holders', '0.8'],
+        ['https://walletlink.social/holders/base/0xccc/extra', '0.9'],
+      ]
+        .map(
+          ([loc, priority]) =>
+            `<url>\n<loc>${loc}</loc>\n<priority>${priority}</priority>\n</url>`
+        )
+        .join('\n');
+      ok(
+        'the warm list is the fixed pages, the hub, then only the sitemap’s holder reports on the origin, by priority',
+        JSON.stringify(warm.warmTargets(sitemap)) ===
+          JSON.stringify([
+            '/',
+            '/pricing',
+            '/mcp',
+            '/vs',
+            '/blog',
+            '/holders',
+            '/holders/ethereum/0xbbb',
+            '/holders/base/0xaaa',
+          ])
+      );
+      ok(
+        'an unreadable sitemap still warms the fixed pages and the hub',
+        JSON.stringify(warm.warmTargets('')) ===
+          JSON.stringify(['/', '/pricing', '/mcp', '/vs', '/blog', '/holders'])
+      );
+    }
+
+    // Two at a time, measured on the real pool rather than read off a
+    // constant, and nothing started once the budget is spent.
+    {
+      ok(
+        'the warm asks for at most two pages at a time',
+        warm.CONCURRENCY >= 1 && warm.CONCURRENCY <= 2
+      );
+      let inFlight = 0;
+      let most = 0;
+      const items = Array.from({ length: 9 }, (_, i) => i);
+      const results = await settle(
+        warm.runPool(items, warm.CONCURRENCY, async (i: number) => {
+          inFlight++;
+          most = Math.max(most, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          inFlight--;
+          return i * 2;
+        })
+      );
+      ok(
+        'the pool never has more than CONCURRENCY requests in flight, and runs every item',
+        results !== 'hung' &&
+          most === warm.CONCURRENCY &&
+          JSON.stringify(results) === JSON.stringify(items.map((i) => i * 2))
+      );
+      let started = 0;
+      const late = await settle(
+        warm.runPool(
+          items,
+          warm.CONCURRENCY,
+          async () => {
+            started++;
+          },
+          Date.now() - 1
+        )
+      );
+      ok(
+        'the pool starts nothing once its deadline has passed',
+        late !== 'hung' && started === 0
+      );
+      ok(
+        'the run hands the pool CONCURRENCY and its warm budget, once',
+        code.split('runPool(').length === 3 &&
+          code.includes(
+            'runPool(targets,CONCURRENCY,(path)=>warmPaced(path),started+WARM_BUDGET_MS)'
+          )
+      );
+    }
+
+    // A request that never answers is cut off, body included.
+    {
+      const hang = ((_url: string, init?: Init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(init.signal?.reason)
+          );
+        })) as unknown as typeof fetch;
+      const cut = await settle(
+        warm.warmOne('/holders/base/0xaaa', { fetchImpl: hang, timeoutMs: 20 })
+      );
+      ok(
+        'a page that never answers is abandoned at its timeout and reported, not waited on',
+        cut !== 'hung' && cut.error === 'timeout' && cut.status === 0
+      );
+      ok(
+        'the per-request timeout is a minute or less',
+        warm.REQUEST_TIMEOUT_MS > 0 &&
+          warm.REQUEST_TIMEOUT_MS <= 60_000 &&
+          code.includes('timeoutMs=REQUEST_TIMEOUT_MS')
+      );
+    }
+
+    // A stale answer re-renders in the background, so its lane waits about a
+    // render before asking again; a miss already waited for its render.
+    {
+      const answer = (cache: string) =>
+        (async () => html('<p>x</p>', cache)) as unknown as typeof fetch;
+      const t0 = Date.now();
+      await warm.warmPaced('/p', { fetchImpl: answer('STALE'), pauseMs: 120 });
+      const stale = Date.now() - t0;
+      const t1 = Date.now();
+      await warm.warmPaced('/p', { fetchImpl: answer('MISS'), pauseMs: 120 });
+      const miss = Date.now() - t1;
+      ok(
+        'a lane pauses after a STALE answer and not after a MISS',
+        stale >= 110 && miss < 110 && warm.STALE_PAUSE_MS >= 1000
+      );
+    }
+
+    // Nothing retries forever: the wait for the new deployment and the
+    // sitemap each give up on their own.
+    {
+      const other = (async () =>
+        html(
+          '<img srcset="/_next/image?url=%2Ficon.png&amp;w=48&amp;q=75&amp;dpl=dpl_Older 1x">'
+        )) as unknown as typeof fetch;
+      const gaveUp = await settle(
+        warm.waitForDeployment('dpl_Newer', {
+          fetchImpl: other,
+          waitMs: 60,
+          pollMs: 10,
+        })
+      );
+      ok(
+        'the wait for the new deployment gives up at its limit and says what it saw',
+        gaveUp !== 'hung' &&
+          gaveUp.live === false &&
+          gaveUp.seen === 'dpl_Older'
+      );
+      const found = await settle(
+        warm.waitForDeployment('dpl_Older', {
+          fetchImpl: other,
+          waitMs: 60,
+          pollMs: 10,
+        })
+      );
+      ok(
+        'the deployment id is read from an asset URL as HTML writes it (&amp;dpl=)',
+        found !== 'hung' && found.live === true
+      );
+      const unnamed = await settle(
+        warm.waitForDeployment('dpl_Newer', {
+          fetchImpl: (async () =>
+            html('<p>no ids</p>')) as unknown as typeof fetch,
+          waitMs: 60_000,
+          pollMs: 10,
+        })
+      );
+      ok(
+        'a page that names no deployment ends the wait at once, since waiting cannot change it',
+        unnamed !== 'hung' && unnamed.live === null
+      );
+
+      let calls = 0;
+      // Fails on a timer, not at once: a loop over a fetch that rejects
+      // synchronously never yields, and `settle` could not call it hung.
+      const down = (() => {
+        calls++;
+        return new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error('down')), 0)
+        );
+      }) as unknown as typeof fetch;
+      const sitemap = await settle(
+        warm.fetchSitemap({ fetchImpl: down, backoffMs: 1 })
+      );
+      ok(
+        'the sitemap is tried SITEMAP_ATTEMPTS times, at most five, then given up',
+        sitemap === null &&
+          calls === warm.SITEMAP_ATTEMPTS &&
+          warm.SITEMAP_ATTEMPTS >= 1 &&
+          warm.SITEMAP_ATTEMPTS <= 5
+      );
+
+      ok(
+        'the deployment to wait for is the newest successful Vercel status, never a pending one or another app’s',
+        warm.deploymentIdFromStatuses([
+          {
+            context: 'Mintlify',
+            state: 'success',
+            target_url: 'https://example.com/Docs',
+          },
+          {
+            context: 'Vercel',
+            state: 'pending',
+            target_url: 'https://vercel.com/team/project/Pending',
+          },
+          {
+            context: 'Vercel',
+            state: 'success',
+            target_url: 'https://vercel.com/team/project/Live',
+          },
+        ]) === 'dpl_Live' && warm.deploymentIdFromStatuses([]) === null
+      );
+    }
+
+    // The script's own bounds end it before the backstop does, with two
+    // minutes left for checkout and setup. timeout-minutes killing the job
+    // would turn a best-effort warm into a red run.
+    {
+      const worstMs =
+        warm.STATUS_TIMEOUT_MS +
+        warm.ALIAS_WAIT_MS +
+        warm.REQUEST_TIMEOUT_MS +
+        warm.SITEMAP_ATTEMPTS *
+          (warm.REQUEST_TIMEOUT_MS + warm.SITEMAP_BACKOFF_MS) +
+        warm.WARM_BUDGET_MS +
+        warm.REQUEST_TIMEOUT_MS +
+        warm.STALE_PAUSE_MS;
+      const backstop = Math.min(...jobs.map((j) => timeoutOf(j.body)));
+      ok(
+        `the warm script’s worst case (${Math.ceil(worstMs / 60_000)} min) ends two minutes before timeout-minutes (${backstop})`,
+        Number.isFinite(backstop) && worstMs + 2 * 60_000 <= backstop * 60_000
+      );
+    }
+
+    // The workflow's header sends a reader to the runbook, so it must exist.
+    const runbook = readFileSync('docs/OPERATIONS.md', 'utf8');
+    ok(
+      'OPERATIONS.md carries the cache-warm runbook the workflow points to',
+      /^## Cache warm after a production deploy$/m.test(runbook) &&
+        runbook.includes('.github/workflows/cache-warm.yml') &&
+        yml.includes('docs/OPERATIONS.md, "Cache warm after a')
+    );
+  }
+
   // ------------------------------------------------- the one recoverable secret
   /**
    * `lib/secret-box.ts` is the first thing in this repository that stores a
@@ -22130,6 +22544,23 @@ async function main() {
   console.error(`\n${failures.length} of ${checked} failed.`);
   process.exit(1);
 }
+
+/**
+ * main() always ends in process.exit, which never emits `beforeExit`, so
+ * reaching this means the checks stopped part way.
+ *
+ * An await that never settles, with nothing left to keep Node running, ends
+ * the process with status 0 and no output, and CI and the guard both read
+ * status 0 as a pass. Seen on 2026-09-29: a check awaiting a request cut off
+ * by AbortSignal.timeout, whose timer does not hold the process open, exited
+ * 0 part way through, and nothing after it was checked.
+ */
+process.on('beforeExit', () => {
+  console.error(
+    'check-invariants.ts stopped before it finished: an awaited promise never settled, and nothing after it was checked.'
+  );
+  process.exit(1);
+});
 
 main().catch((e) => {
   console.error(e);

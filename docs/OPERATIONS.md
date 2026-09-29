@@ -636,6 +636,69 @@ the policy page says "No security policy detected". Local repro:
 Never move the date without the test. An expired file is ignored silently, and
 RFC 9116 prefers no file to one whose contacts no longer work.
 
+## Cache warm after a production deploy
+
+Holder reports (`app/holders/[chain]/[address]/page.tsx`) prerender nothing
+at build time and cache each render for an hour (`revalidate = 3600`), and
+every deployment starts with an empty cache. Measured on 2026-09-29: one
+uncached report takes 2.3 to 3.8 s, eight fetched at once take 4.5 to 31.3 s
+each (median about 16 s), and a cached one takes 0.16 s. Reports were 194 of
+the 242 sitemap URLs that day.
+
+`.github/workflows/cache-warm.yml` runs `scripts/warm-cache.mjs` after every
+successful production deployment, so the reports are rendered before
+crawlers ask for them:
+
+- **When.** On `deployment_status`, with the job condition
+  `state == 'success' && environment == 'Production'`. Vercel names the
+  environment `Production` for main and `Preview` for everything else, and
+  leaves `production_environment` false on both, so the name is the test.
+  Every preview, and every Mintlify `staging - docs-site` deployment, starts
+  a run whose `warm` job is skipped. That is the condition working.
+- **Which deployment.** Vercel reports a deployment done when it is built.
+  The script reads the commit's `Vercel` status, whose link ends in the
+  Vercel deployment id, and polls `/` until its asset URLs carry the same
+  `dpl=` id (skew protection puts it there). It waits up to 5 minutes, then
+  warms whatever is live with a warning. A page that carries no id at all
+  (skew protection off) ends the wait at once.
+- **What.** `/`, `/pricing`, `/mcp`, `/vs`, `/blog` and the `/holders` hub,
+  then every `/holders/<chain>/<address>` in the live sitemap, highest
+  sitemap priority first. A sitemap URL on another host is skipped.
+- **How hard.** Two requests at a time, each cut off at 60 s including the
+  body, and none started after 15 minutes. After a `STALE` answer the lane
+  pauses 3 s, because Vercel renders a stale page again in the background.
+  The sitemap gets 3 tries. `timeout-minutes: 30` is only the backstop:
+  `scripts/check-invariants.ts` adds up the script's own bounds and requires
+  them to end two minutes before it.
+- **One at a time.** Production warms share one concurrency group, and a
+  newer production deploy cancels the warm of the one it replaced
+  (`cancel-in-progress`), so the older main commit shows a cancelled
+  `warm`. Every other run gets a group of its own, so a preview's run never
+  cancels a production warm, or another preview's run, whose cancelled check
+  on a pull request's head would read as not green.
+- **Output.** Counts, the `x-vercel-cache` tallies, the median and p90, the
+  five slowest paths and a warning for each failed page (the first ten), also
+  written to the run summary. Never a page body. On a fresh deploy expect
+  `MISS` for the reports; `HIT` or `STALE` means something rendered them
+  first.
+
+A red run, or a green one with warnings, is not an outage. The deploy is live
+before the job starts, and a page the warm missed is rendered by its first
+visitor, as before. To warm again, re-run the job from the Actions tab; a
+re-run hours later reads mostly `STALE` and paces itself. Locally,
+`node scripts/warm-cache.mjs` does the same GETs against production and skips
+the deployment check.
+
+**`revalidate` stays 3600** (reviewed 2026-09-29). A report reads
+`social_graph` and `x_accounts`, which lookups, harvests and the
+reachability cron write throughout the day, as well as the holder set the
+daily seed cron replaces, so its numbers are not one daily snapshot. And
+every deploy empties the cache, about five times a day (36 production
+deploys in the seven days to 2026-09-29), so a longer window could only
+stretch an entry to the next deploy. It would save few renders and would
+leave a report's numbers behind the hub and the sitemap, which also
+revalidate hourly.
+
 ## Standing constraints
 
 Short form only; `CLAUDE.md` is the authority on each.

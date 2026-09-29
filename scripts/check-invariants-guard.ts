@@ -80,6 +80,151 @@ const MUTATIONS: Mutation[] = [
     to: 'const WAVE_BUDGET_MS = 40000;',
   },
 
+  // The post-deploy cache warm GETs production after every deploy, so each
+  // promise that makes it safe to run is broken here once: when it runs, how
+  // many requests it has in flight, and that every wait and retry ends.
+  {
+    name: 'cache warm: the workflow also runs on every push',
+    file: '.github/workflows/cache-warm.yml',
+    from: 'on:\n  deployment_status:\n',
+    to: 'on:\n  deployment_status:\n  push:\n',
+  },
+  {
+    name: 'cache warm: the job runs for a failed or pending deployment too',
+    file: '.github/workflows/cache-warm.yml',
+    from: "      github.event.deployment_status.state == 'success' &&\n",
+    to: '',
+  },
+  {
+    name: 'cache warm: the job runs for preview deployments too',
+    file: '.github/workflows/cache-warm.yml',
+    from: " &&\n      github.event.deployment.environment == 'Production'",
+    to: '',
+  },
+  {
+    name: 'cache warm: either half of the condition is enough',
+    file: '.github/workflows/cache-warm.yml',
+    from: "'success' &&\n      github.event.deployment.environment",
+    to: "'success' ||\n      github.event.deployment.environment",
+  },
+  {
+    name: 'cache warm: the job loses its timeout-minutes',
+    file: '.github/workflows/cache-warm.yml',
+    from: '    timeout-minutes: 30\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: a newer deploy no longer cancels the older warm',
+    file: '.github/workflows/cache-warm.yml',
+    from: '  cancel-in-progress: true\n',
+    to: '  cancel-in-progress: false\n',
+  },
+  {
+    name: 'cache warm: every run shares the production group, so a preview’s run cancels a production warm',
+    file: '.github/workflows/cache-warm.yml',
+    from: "format('cache-warm-{0}', github.run_id)",
+    to: "'cache-warm-production'",
+  },
+  {
+    name: 'cache warm: each production warm gets a group of its own, so two can run at once',
+    file: '.github/workflows/cache-warm.yml',
+    from: "&& 'cache-warm-production' ||",
+    to: "&& format('cache-warm-p{0}', github.run_id) ||",
+  },
+  {
+    name: 'cache warm: the workflow can write',
+    file: '.github/workflows/cache-warm.yml',
+    from: '  statuses: read\n',
+    to: '  statuses: write\n',
+  },
+  {
+    name: 'cache warm: the script never learns the deployed commit, so it never checks which deployment is live',
+    file: '.github/workflows/cache-warm.yml',
+    from: '          DEPLOY_SHA: ${{ github.event.deployment.sha }}\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: eight requests at a time, the load that took 16 s a page',
+    file: 'scripts/warm-cache.mjs',
+    from: 'export const CONCURRENCY = 2;',
+    to: 'export const CONCURRENCY = 8;',
+  },
+  {
+    name: 'cache warm: the pool starts every page at once',
+    file: 'scripts/warm-cache.mjs',
+    from: 'Array.from({ length: Math.min(limit, items.length) }, lane)',
+    to: 'Array.from({ length: items.length }, lane)',
+  },
+  {
+    name: 'cache warm: the pool keeps starting pages after its budget',
+    file: 'scripts/warm-cache.mjs',
+    from: '      if (Date.now() >= deadline) return;\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: the run hands the pool no budget',
+    file: 'scripts/warm-cache.mjs',
+    from: '    started + WARM_BUDGET_MS\n',
+    to: '    Infinity\n',
+  },
+  {
+    name: 'cache warm: a request that never answers is waited on forever',
+    file: 'scripts/warm-cache.mjs',
+    from: '      signal: AbortSignal.timeout(timeoutMs),\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: the wait for the new deployment never gives up',
+    file: 'scripts/warm-cache.mjs',
+    from: '    if (waitedMs + pollMs > waitMs) return { live: false, seen, waitedMs };\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: the sitemap is retried without limit',
+    file: 'scripts/warm-cache.mjs',
+    from: 'for (let attempt = 1; attempt <= attempts; attempt++)',
+    to: 'for (let attempt = 1; ; attempt++)',
+  },
+  {
+    name: 'cache warm: a sitemap URL on another host is warmed too',
+    file: 'scripts/warm-cache.mjs',
+    from: '    if (url.origin !== origin) continue;\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: a stale answer no longer pauses its lane',
+    file: 'scripts/warm-cache.mjs',
+    from: "  if (result.cache === 'STALE') await sleep(pauseMs);\n",
+    to: '',
+  },
+  {
+    // The defect this was written with: HTML writes the separator `&amp;`,
+    // so an id read only after `?` or `&` is never found and every run
+    // waited out its five minutes.
+    name: 'cache warm: the deployment id is read only after ? or &, and misses &amp;dpl=',
+    file: 'scripts/warm-cache.mjs',
+    from: '/\\bdpl=(dpl_',
+    to: '/[?&]dpl=(dpl_',
+  },
+  {
+    name: 'cache warm: a pending Vercel status names the deployment to wait for',
+    file: 'scripts/warm-cache.mjs',
+    from: "(s) => s?.context === 'Vercel' && s?.state === 'success'",
+    to: "(s) => s?.context === 'Vercel'",
+  },
+  {
+    name: 'cache warm: the warm budget outgrows the job’s timeout-minutes',
+    file: 'scripts/warm-cache.mjs',
+    from: 'export const WARM_BUDGET_MS = 15 * 60_000;',
+    to: 'export const WARM_BUDGET_MS = 25 * 60_000;',
+  },
+  {
+    name: 'cache warm: the runbook the workflow points to is gone',
+    file: 'docs/OPERATIONS.md',
+    from: '## Cache warm after a production deploy\n',
+    to: '## Cache warming\n',
+  },
+
   {
     name: 'lookup_started loses its session, so the funnel cannot join a visit',
     file: 'app/api/jobs/route.ts',
