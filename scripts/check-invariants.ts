@@ -21104,6 +21104,338 @@ async function main() {
     }
   }
 
+  // ------------------------------------- the free tool page is linked (STA-54)
+  /**
+   * /find-twitter-account-from-wallet-address is the page built for the main
+   * search query, and for ten days after it shipped nothing linked to it: the
+   * path was in the sitemap and nowhere else, and Google had not indexed it.
+   * A page reachable only from a sitemap is one a crawler may never spend a
+   * fetch on. So the links are asserted where they were added: the homepage
+   * body and footer, /check, the blog post aimed at the same query, and the
+   * two plain-text files answer engines read.
+   *
+   * The link text is part of the claim. A link reading "try it" moves a
+   * crawler and says nothing about the page, so each one must carry the
+   * words the query does ("Twitter" and "wallet").
+   */
+  {
+    const TOOL = '/find-twitter-account-from-wallet-address';
+    const TOOL_URL = `https://walletlink.social${TOOL}`;
+    const carriesQueryWords = (text: string | undefined) =>
+      Boolean(text && /\bTwitter\b/.test(text) && /\bwallet\b/i.test(text));
+
+    ok(
+      'the free tool page the links point at is a real route in the sitemap',
+      existsSync(`app${TOOL}/page.tsx`) &&
+        readFileSync('app/sitemap.ts', 'utf8').includes(TOOL)
+    );
+
+    // The homepage link must be in the upload state, which is the server
+    // render and so the HTML a crawler reads. A link in any other state
+    // exists only after a visitor has done something.
+    const home = withoutComments(readFileSync('app/page.tsx', 'utf8'));
+    const uploadStart = home.indexOf("{state === 'upload' && (");
+    const uploadEnd = home.indexOf("{state === 'ready' && (");
+    const uploadState =
+      uploadStart >= 0 && uploadEnd > uploadStart
+        ? home.slice(uploadStart, uploadEnd)
+        : '';
+    const homeLink = uploadState.match(
+      new RegExp(`<Link href="${TOOL}">\\s*([^<{]+?)\\s*</Link>`)
+    );
+    ok(
+      'the homepage links the free tool page in its server-rendered upload state, in the query’s words',
+      carriesQueryWords(homeLink?.[1])
+    );
+
+    // The footer is on every page, so this is the link that makes the tool
+    // one hop from all of them.
+    const footerSrc = withoutComments(
+      readFileSync('components/ui/site-footer.tsx', 'utf8')
+    );
+    ok(
+      'the site footer links the free tool page',
+      new RegExp(`<FooterLink href="${TOOL}">\\s*[^<]+</FooterLink>`).test(
+        footerSrc
+      )
+    );
+
+    const checkSrc = withoutComments(
+      readFileSync('app/check/page.tsx', 'utf8')
+    );
+    const checkLink = checkSrc.match(
+      new RegExp(`<Link href="${TOOL}">\\s*([^<{]+?)\\s*</Link>`)
+    );
+    ok(
+      '/check links the free tool page, in the query’s words',
+      carriesQueryWords(checkLink?.[1])
+    );
+
+    // Through the renderer, because the post is published as HTML and a
+    // markdown link that fails to parse would pass a regex over the source.
+    const { getPostBySlug } = await import('@/lib/blog');
+    const guide = getPostBySlug('find-twitter-account-from-wallet');
+    const guideLink = guide?.html.match(
+      new RegExp(`<a href="${TOOL_URL}">([^<]+)</a>`)
+    );
+    ok(
+      'the guide aimed at the same query links the free tool page, in the query’s words',
+      carriesQueryWords(guideLink?.[1])
+    );
+
+    // Through the handlers: the bytes an answer engine fetches.
+    const llmsTxt = await (await import('@/app/llms.txt/route')).GET().text();
+    const productSection = llmsTxt.slice(
+      llmsTxt.indexOf('## Product'),
+      llmsTxt.indexOf('\n## ', llmsTxt.indexOf('## Product') + 1)
+    );
+    const llmsEntry = productSection.match(
+      new RegExp(`^- \\[([^\\]]+)\\]\\(${TOOL_URL}\\): \\S`, 'm')
+    );
+    ok(
+      '/llms.txt names the free tool page in its Product list, in the query’s words',
+      carriesQueryWords(llmsEntry?.[1])
+    );
+    const llmsFull = await (
+      await import('@/app/llms-full.txt/route')
+    )
+      .GET()
+      .text();
+    const fullPreamble = llmsFull.slice(0, llmsFull.indexOf('\n---\n'));
+    ok(
+      '/llms-full.txt names the free tool page in its preamble, not only inside a post',
+      fullPreamble.includes(TOOL_URL) && carriesQueryWords(fullPreamble)
+    );
+
+    // The comparison hub had no inbound link either, which left the retired
+    // comparisons four clicks from the homepage.
+    ok(
+      'the site footer links the /vs comparison hub',
+      /<FooterLink href="\/vs">\s*[^<]+<\/FooterLink>/.test(footerSrc)
+    );
+  }
+
+  // ------------------------------------ holder report titles (STA-54)
+  /**
+   * Holder reports were titled "<contract name> holders on <chain>: the
+   * reachable people". The contract name is whatever `name()` returned
+   * ("PudgyPenguins"), and the suffix carried none of the words the searches
+   * do ("pudgy penguins holders twitter"). The descriptions ran past 160
+   * characters and left out the chain, so USD₮0 on HyperEVM and on Optimism
+   * published the same one.
+   *
+   * Asserted through the pure builders the page and its markdown twin both
+   * call, with no database: the curated name, the title pattern, the length
+   * cap, and that one name on two chains gives two titles and two
+   * descriptions.
+   */
+  {
+    const {
+      chainLabel,
+      holderDisplayName,
+      holderReportTitle,
+      holderReportDescription,
+      HOLDER_TITLE_MAX,
+      HOLDER_DESCRIPTION_MAX,
+    } = await import('@/lib/holder-pages');
+    const { RECOGNIZED_CONTRACTS } = await import('@/lib/recognized-contracts');
+
+    const pudgy = RECOGNIZED_CONTRACTS.find(
+      (c) => c.label === 'Pudgy Penguins'
+    );
+    // The address as a checksummed caller might pass it: the lookup must not
+    // depend on the case a row happens to carry.
+    const pudgyRow = pudgy
+      ? {
+          chain: pudgy.chain,
+          address: pudgy.address.toUpperCase().replace(/^0X/, '0x'),
+          name: 'PudgyPenguins',
+        }
+      : null;
+    ok(
+      'a curated contract is titled with its searchable name, not its contract name',
+      pudgyRow !== null &&
+        holderDisplayName(pudgyRow) === 'Pudgy Penguins' &&
+        holderReportTitle(pudgyRow) ===
+          'Pudgy Penguins holders on Ethereum: X (Twitter) and Farcaster'
+    );
+
+    // Assert the refusal: outside the curated list the contract's own name
+    // is kept exactly, because any re-casing or word-splitting rule garbles
+    // brands that spell themselves that way on purpose.
+    const unlisted = (name: string, chain = 'base') => ({
+      chain,
+      address: `0x${'e'.repeat(40)}`,
+      name,
+    });
+    ok(
+      'a contract outside the curated list keeps its own name, unaltered by any heuristic',
+      ['GRiBBiTS', 'TheGloobs', 'aixbt by Virtuals', 'OK COMPUTERS'].every(
+        (name) => holderDisplayName(unlisted(name)) === name
+      )
+    );
+
+    const names = [
+      'Toshi',
+      'USD₮0',
+      'Human Resources by Tabor Robak',
+      'Galaktic Gang Embodied',
+      // No contract publishes a name this long today; nothing stops one.
+      'A'.repeat(200),
+    ];
+    const cases = SUPPORTED_CHAINS.flatMap((chain) =>
+      names.map((name) => ({ chain, name, row: unlisted(name, chain) }))
+    );
+
+    ok(
+      'every holder title leads with the name, the word holders and the chain, and drops the old suffix',
+      cases.every(({ chain, name, row }) => {
+        const title = holderReportTitle(row);
+        return (
+          title.startsWith(`${name} holders on ${chainLabel(chain)}`) &&
+          !title.includes('the reachable people')
+        );
+      })
+    );
+    ok(
+      'a holder title carries X (Twitter) and Farcaster whenever that fits the cap, and never exceeds the cap unless the bare name does',
+      cases.every(({ chain, name, row }) => {
+        const title = holderReportTitle(row);
+        const lead = `${name} holders on ${chainLabel(chain)}`;
+        const full = `${lead}: X (Twitter) and Farcaster`;
+        if (full.length <= HOLDER_TITLE_MAX) return title === full;
+        return title.length <= HOLDER_TITLE_MAX || title === lead;
+      }) && HOLDER_TITLE_MAX <= 65
+    );
+    ok(
+      'every holder description is at most 160 characters and names the chain',
+      HOLDER_DESCRIPTION_MAX <= 160 &&
+        cases.every(({ chain, row }) => {
+          const description = holderReportDescription(row);
+          return (
+            description.length <= HOLDER_DESCRIPTION_MAX &&
+            description.includes(` on ${chainLabel(chain)} `) &&
+            description.includes('X (Twitter)') &&
+            description.includes('Farcaster')
+          );
+        })
+    );
+    // The duplicate found live: one token, one name, two chains.
+    const usdt0 = ['hyperevm', 'optimism'].map((chain) =>
+      unlisted('USD₮0', chain)
+    );
+    ok(
+      'the same name on two chains gets two titles and two descriptions',
+      holderReportTitle(usdt0[0]) !== holderReportTitle(usdt0[1]) &&
+        holderReportDescription(usdt0[0]) !==
+          holderReportDescription(usdt0[1]) &&
+        names.every((name) => {
+          const rows = SUPPORTED_CHAINS.map((chain) => unlisted(name, chain));
+          return (
+            new Set(rows.map(holderReportTitle)).size === rows.length &&
+            new Set(rows.map(holderReportDescription)).size === rows.length
+          );
+        })
+    );
+
+    // The page and its markdown twin take the title from the builders, so
+    // the tab, both cards, the Article headline and the h1 cannot disagree.
+    const reportSrc = withoutComments(
+      readFileSync('app/holders/[chain]/[address]/page.tsx', 'utf8')
+    );
+    ok(
+      'the holder report’s title, cards and Article headline come from the builders',
+      /const title = holderReportTitle\(collection\);/.test(reportSrc) &&
+        /const description = holderReportDescription\(collection\);/.test(
+          reportSrc
+        ) &&
+        /openGraph: \{\s*title,\s*description,/.test(reportSrc) &&
+        /twitter: \{\s*card: 'summary_large_image',\s*title,\s*description,/.test(
+          reportSrc
+        ) &&
+        /headline: holderReportTitle\(collection\),/.test(reportSrc) &&
+        !/the reachable people/.test(reportSrc)
+    );
+    ok(
+      'the holder report’s h1 carries the searchable name the title does',
+      /const name = holderDisplayName\(collection\);/.test(reportSrc) &&
+        /<h1[^>]*>\s*\{name\} holders\s*<\/h1>/.test(reportSrc)
+    );
+    const { holderReportMarkdown } =
+      await import('@/app/api/markdown/documents');
+    const twin = pudgyRow
+      ? holderReportMarkdown(
+          {
+            ...pudgyRow,
+            chain: 'ethereum',
+            symbol: 'PPG',
+            contractType: 'ERC-721',
+            totalHolders: 2000,
+            holdersImported: 2000,
+            lastSeenAt: '2026-09-28 12:00:00',
+          },
+          {
+            holderCount: 2000,
+            checked: 2000,
+            withTwitter: 300,
+            twitterVerified: 200,
+            withFarcaster: 250,
+            xLive: 250,
+            xUnclaimed: 20,
+            xSuspended: 30,
+            reachableAny: 400,
+            avgFcFollowers: null,
+            medianFcFollowers: null,
+          },
+          []
+        )
+      : '';
+    ok(
+      'the markdown twin publishes the same title and description as the page',
+      pudgyRow !== null &&
+        twin.includes(
+          `title: ${JSON.stringify(holderReportTitle(pudgyRow))}`
+        ) &&
+        twin.includes(
+          `description: ${JSON.stringify(holderReportDescription(pudgyRow))}`
+        ) &&
+        twin.includes(`\n# ${holderReportTitle(pudgyRow)}\n`)
+    );
+
+    // The hub is where a crawler meets the names first. A report titled
+    // "Pudgy Penguins" linked as "PudgyPenguins" is the same page named
+    // twice, so both hubs read the name through the same function.
+    const { holdersIndexMarkdown } =
+      await import('@/app/api/markdown/documents');
+    const hubTwin = pudgyRow
+      ? holdersIndexMarkdown([
+          {
+            ...pudgyRow,
+            chain: 'ethereum',
+            symbol: 'PPG',
+            contractType: 'ERC-721',
+            totalHolders: 2000,
+            holdersImported: 2000,
+            lastSeenAt: '2026-09-28 12:00:00',
+            reachableAny: 400,
+          },
+        ])
+      : '';
+    ok(
+      'the markdown holder hub links each report by its searchable name',
+      hubTwin.includes('| [Pudgy Penguins](') &&
+        !hubTwin.includes('[PudgyPenguins]')
+    );
+    const hubSrc = withoutComments(
+      readFileSync('app/holders/page.tsx', 'utf8')
+    );
+    ok(
+      'the holder hub page links each report by its searchable name',
+      /\{holderDisplayName\(c\)\}\s*<\/Link>/.test(hubSrc) &&
+        !/\{c\.name\}/.test(hubSrc)
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

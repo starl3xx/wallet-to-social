@@ -117,7 +117,7 @@ No tool gets to 100%, and any vendor quoting a number near it is measuring somet
 
 ## Where to start
 
-If you have one wallet, do it by hand. The four steps above take four minutes and cost nothing.
+If you have one wallet, do it by hand. The four steps above take four minutes and cost nothing. Or [find the X (Twitter) account behind a wallet](https://walletlink.social/find-twitter-account-from-wallet-address) with the free lookup, which needs no account.
 
 If you have a list, the thing to test first is not the tool. It is your own list: run a few hundred addresses and look at what comes back before you plan anything around the result. A list of exchange deposit addresses and a list of NFT holders return very different answer rates, and you want to know which one you have before you write the campaign.
 

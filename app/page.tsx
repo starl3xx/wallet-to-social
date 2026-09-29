@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useCredits } from '@/lib/use-credits';
 import { countResults } from '@/lib/result-counts';
 import dynamic from 'next/dynamic';
+import Link from 'next/link';
 import { ProgressBar } from '@/components/ProgressBar';
 import { ResultsTable } from '@/components/ResultsTable';
 import { ExportButton } from '@/components/ExportButton';
@@ -2338,6 +2339,24 @@ export default function Home() {
                 </div>
               )}
             </Card>
+
+            {/* The single-address answer, one line under the list tool. The
+                free tool page is the one built for the main search query
+                ("find twitter account from wallet address"), and it shipped
+                with no link to it from anywhere, so the crawl never reached
+                it.
+                Rendered in the upload state, which is the server render, so
+                it is in the HTML a crawler reads. The link text carries the
+                search words; scripts/check-invariants.ts holds it here. */}
+            <p className="text-center text-sm text-muted-foreground">
+              One address rather than a list?{' '}
+              <Button asChild variant="link" size="inline">
+                <Link href="/find-twitter-account-from-wallet-address">
+                  Find the X (Twitter) account behind a wallet
+                </Link>
+              </Button>
+              , free and without an account.
+            </p>
 
             {/* The fourth way in, and the only one that asks for nothing.
                   It sits with the three input methods rather than lower down

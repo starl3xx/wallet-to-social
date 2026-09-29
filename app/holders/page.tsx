@@ -4,6 +4,7 @@ import { PageShell } from '@/components/ui/page-shell';
 import {
   listHolderCollections,
   chainLabel,
+  holderDisplayName,
   type ListedHolderCollection,
 } from '@/lib/holder-pages';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
@@ -94,7 +95,7 @@ export default async function HoldersHubPage() {
                     href={`/holders/${c.chain}/${c.address}`}
                     className="text-accent-brand"
                   >
-                    {c.name}
+                    {holderDisplayName(c)}
                   </Link>{' '}
                   <span className="tabular-nums">
                     ({c.reachableAny.toLocaleString()} reachable people)

@@ -2,6 +2,44 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-29 (the free lookup is linked, and holder reports use the names people search)
+
+- **The free lookup page has links to it.** `/find-twitter-account-from-wallet-address`
+  shipped on 2026-09-17 with no link from any page, and Google had not
+  indexed it. The homepage now links it under the lookup box as “Find the X
+  (Twitter) account behind a wallet”, the footer links it from every page as
+  “Wallet to X lookup”, and `/check` and the guide “How to find the X account
+  behind an Ethereum wallet” link it too. `/llms.txt` lists it under Product,
+  and `/llms-full.txt` names it in its opening lines.
+- **The footer links the comparison hub.** No page linked to `/vs`, which put
+  the comparisons for retired services four clicks from the homepage. “All
+  comparisons” now closes the footer’s Compare column.
+- **Holder reports use the names people search.** A collection on the
+  curated list in `lib/recognized-contracts.ts` now appears under that name,
+  for example “Pudgy Penguins” instead of the contract’s own “PudgyPenguins”.
+  That changes 16 of the 216 listed reports (measured 2026-09-29). Every other
+  report keeps the name its contract publishes, unchanged: a rule that splits
+  or re-cases names would also break the brands that spell themselves that
+  way on purpose.
+- **Holder report titles carry the search words.** “Pudgy Penguins holders on
+  Ethereum: X (Twitter) and Farcaster” replaces “PudgyPenguins holders on
+  Ethereum: the reachable people”. The title keeps the chain, so one token on
+  two chains still has two titles, and it stays within 65 characters: 174 of
+  the 216 listed reports get the full title, 38 get “X and Farcaster”, and 4
+  with long names keep only the name and the chain. The h1, the social cards,
+  the Article and Dataset structured data, the breadcrumb, the holder hub, the
+  overlap links and the markdown version use the same name and title.
+- **Holder report descriptions name the chain and fit in 160 characters.**
+  Every description was longer than 160 characters and none named the chain,
+  so USD₮0 on HyperEVM and USD₮0 on Optimism had the same description. The
+  longest is now 156 characters, and no two of the 216 listed reports share a
+  title or a description.
+- **Checks.** 19 new invariants hold the links (in the words of the search,
+  and in the server-rendered part of the homepage), the curated names, the
+  title pattern, the 65 and 160 character limits, and distinct titles and
+  descriptions for one name on every chain. 25 new guard mutations each break
+  one of them. Part of STA-54.
+
 ### 2026-09-28 (X handle figures refreshed)
 
 - **The published X handle figures are current again.** The weekly figures
