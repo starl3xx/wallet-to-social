@@ -2,7 +2,11 @@ import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { SUPPORTED_CHAINS, type SupportedChain } from '@/lib/chains';
 import { FREE_MATCHES_PER_WINDOW } from '@/lib/packs';
-import { getHolderCollection, listHolderCollections } from '@/lib/holder-pages';
+import {
+  getHolderCollection,
+  holderDisplayName,
+  listHolderCollections,
+} from '@/lib/holder-pages';
 
 /**
  * A first action that needs nothing from the visitor.
@@ -166,7 +170,7 @@ export async function listStarterCollections(
   return (featured ? [featured, ...rest] : rest).slice(0, limit).map((c) => ({
     chain: c.chain,
     address: c.address,
-    name: c.name,
+    name: holderDisplayName(c),
     symbol: c.symbol,
     holders: c.holdersImported,
     reachableAny: c.reachableAny,
@@ -229,7 +233,11 @@ export async function getStarterWallets(
     address: link.address,
     // A seeded row can carry no name; the symbol, then the address, keep the
     // history label from being blank rather than falling back to a noun.
-    name: collection.name || collection.symbol || collection.address,
+    name: holderDisplayName({
+      chain: link.chain,
+      address: link.address,
+      name: collection.name || collection.symbol || collection.address,
+    }),
     wallets: result.rows.map((r) => r.wallet),
   };
 }

@@ -2,6 +2,180 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-29 (the free lookup is linked, holder reports use searchable titles, listing copy is true, and caches are warm after a deploy)
+
+**The free lookup page has links to it.**
+
+- `/find-twitter-account-from-wallet-address` shipped on 2026-09-17 with no
+  link from any page, and Google had not indexed it. The homepage now links it
+  under the lookup box as “Find the X (Twitter) account behind a wallet”, the
+  footer links it from every page as “Wallet to X lookup”, and `/check` and
+  the guide “How to find the X account behind an Ethereum wallet” link it too.
+  `/llms.txt` lists it under Product, and `/llms-full.txt` names it in its
+  opening lines.
+- **The footer links the comparison hub.** No page linked to `/vs`, which put
+  the comparisons for retired services four clicks from the homepage. “All
+  comparisons” now closes the footer’s Compare column.
+
+**Holder reports use the names and words people search.**
+
+- **Names.** A collection on the curated list in
+  `lib/recognized-contracts.ts` now appears under that name, for example
+  “Pudgy Penguins” instead of the contract’s own “PudgyPenguins”. That changes
+  16 of the 216 listed reports (measured 2026-09-29). Every other report keeps
+  the name its contract publishes, unchanged: a rule that splits or re-cases
+  names would also break the brands that spell themselves that way on purpose.
+- **Titles.** “Pudgy Penguins holders on Ethereum: X (Twitter) and Farcaster”
+  replaces “PudgyPenguins holders on Ethereum: the reachable people”. The
+  title keeps the chain, so one token on two chains still has two titles, and
+  it stays within 65 characters: 174 of the 216 listed reports get the full
+  title, 38 get “X and Farcaster”, and 4 with long names keep only the name
+  and the chain. The h1, the social cards, the Article and Dataset structured
+  data, the breadcrumb, the holder hub, the overlap links and the markdown
+  version use the same name and title.
+- **Descriptions name the chain and fit in 160 characters.** Every
+  description was longer than 160 characters and none named the chain, so
+  USD₮0 on HyperEVM and USD₮0 on Optimism had the same description. The
+  longest is now 156 characters, and no two of the 216 listed reports share a
+  title or a description.
+
+**Listing copy says what is true, and the figures check reads it.**
+
+- **The owner-attested share says one thing everywhere: over 99.8%.** The
+  homepage FAQ said “over 99.9%” in one answer and “over 99.8%” two answers
+  further down, and the Apify Actor’s README said “over 99.9%” too. The share
+  measured on 2026-09-23 was 99.8975%, so 99.9 over-claimed. The figure is now
+  `ATTESTED_X_SHARE_PCT` in `lib/public-figures.ts`, and the FAQ, llms.txt, the
+  welcome email and the six comparison pages read it. The figures check reads
+  the constant as a floor, and its pattern now also reads “over N% come from”,
+  the phrasing it had missed.
+- **The Apify README is checked like every other published page.** The
+  figures check declares it for every figure it states (index size, handles
+  resolved, the live, suspended and unclaimed shares, the attested share and
+  the Base and Ethereum rates) and sweeps it for undeclared ones, and an
+  invariant holds its prices, free allowance, credit lifetime and chain list to
+  `lib/packs.ts` and `lib/chains.ts`. It now opens with the free one-address
+  lookup at walletlink.social, which needs no account or key, and says the
+  X matches outside the attested routes (under 0.2% of the wallets with an X
+  handle) are correlated and labeled so.
+- **The sentences around the attested share say what it is made of, and what
+  it counts.** The welcome email, `/vs/airstack` and the Blaze and Addressable
+  posts credited it to Farcaster verifications and onchain ENS records alone.
+  Those two carry 91.5% of the wallets with an X handle (measured 2026-09-29),
+  and attested social sign-ins carry most of the rest, so each now names all
+  four routes: a Farcaster verification, an onchain record such as ENS, an
+  attested social sign-in or a manually verified record. The `/vs/addressable`
+  table and summary give Farcaster and ENS as examples. And the share is
+  measured per wallet, while the README, the Apify README, the welcome email,
+  `/vs/absolute-labs` and `/vs/nansen` stated it per handle. Counted by
+  distinct handle it is 99.78%, under the floor, so each now says “X matches”
+  or “wallets with a linked X handle”. An invariant reads every sentence that
+  states the share and fails on either wording.
+- **Figures refreshed.** The index holds 4.86 million wallet identities
+  (4,864,915 measured today; it said 4.85M). The agent-flag figure the stats
+  endpoint falls back to is 122 (it said 92), and it is now declared in the
+  figures check, which it never was. The find-twitter guide now says 4.86
+  million and 1.20 million, and the “nine things” guide carries the current
+  split (70.1% live, 19.7% suspended, 10.2% names nobody holds): both state
+  these as current running totals, not as dated history. The March post on
+  Farcaster verified addresses keeps its 1.4 million, which it dates in the
+  text (“as of early 2026”).
+- **Listings carry `?ref=dir-<surface>`.** The Apify README, input form and run
+  messages use `dir-apify`, the repo README uses `dir-github`, and the MCP
+  registry’s website link is now `walletlink.social/mcp?ref=dir-registry`
+  rather than the docs host, which tells ChatGPT and Perplexity search not to
+  index its Markdown pages. A tagged arrival with no referrer is a `campaign`
+  under its own name; with a referrer, the host decides, as for any tag.
+  `server.json` is 1.4.1 and needs a registry publish; the Actor needs an
+  `apify push`.
+- **The repo README opens with a Connect block**: the remote MCP URL, and how
+  to add it to Claude, Claude Code, Cursor or any other client. The header
+  links the MCP page and llms.txt beside the docs.
+
+**Titles and descriptions fit a search result, and the API base URL answers.**
+
+- **Site pages.** The homepage title is now “Wallet to Twitter (X) and
+  Farcaster lookup | walletlink.social”, 62 characters where it was 88, and its
+  description is 146 characters where it was 214. The /mcp description is 147
+  characters (it was 291), and the /pricing, /holders and four comparison page
+  descriptions are 160 or fewer. The Airstack and Blaze comparison titles were
+  over 70 characters and now fit, and still open with “Airstack alternative”
+  and “Blaze alternative”, the words people search, as `/vs/holder` does:
+  “Airstack alternative for Farcaster lookups (Airstack is offline)” and
+  “Blaze alternative for wallet-to-X lookups (Blaze is offline)”. Their social
+  cards and Article headlines use the same titles.
+- **A GET on the API’s base URL answers.** `https://walletlink.social/api/v1`,
+  which llms.txt and the API reference give as the base URL, returned the
+  site’s HTML 404 page. It now returns a JSON index, with no key and no cost:
+  every endpoint with its method, path, summary and reference page, and links
+  to the OpenAPI description, the API reference and the API catalog. The API
+  reference says so under “Base URL”, and the OpenAPI description says so in
+  its introduction. It is not an operation there: OpenAPI appends a path to
+  the server URL, so `GET /` would resolve to `/api/v1/`, which redirects
+  without CORS headers and would break a client generated from the spec.
+- **The docs read better in search results.** The docs home was titled
+  `walletlink.social - walletlink.social`, because Mintlify appends the site
+  name to a page titled with the site name. It is now “Wallet to X and
+  Farcaster lookup API”, and the sidebar still says “Overview”. Eight API
+  reference pages had only their endpoint as a description, such as
+  `GET /v1/usage`; each now has one sentence saying what the endpoint does and
+  what it costs.
+- **The docs site serves the API catalog it advertises.** Mintlify’s `Link`
+  header on every docs response points at `/.well-known/api-catalog`, which
+  returned 404 on docs.walletlink.social. Mintlify serves that catalog only
+  for the OpenAPI documents `docs-site/docs.json` names, so it now names
+  `openapi.yaml` and turns on the “Download API spec” option. Not verifiable
+  before the docs deploy; check it then with
+  `curl -sI https://docs.walletlink.social/.well-known/api-catalog`. The
+  option may also show a “Download API spec” item on API reference pages.
+- A holder description cut to fit its 160 characters now cuts between whole
+  characters, so a long name ending in an emoji never leaves half of one, and
+  the homepage’s starter cards and the run a report links to use the same
+  display name as the report.
+- No MCP server card at `/.well-known/mcp/server-card.json`: its
+  specification (SEP-2127) is still in review and its schema is not settled.
+
+**Holder reports are cached before crawlers arrive.**
+
+- **Each production deploy now fills the holder-report cache itself.** Every
+  deploy starts with an empty cache, so the first crawler to fetch several
+  reports at once waited 4 to 31 s for each (median about 16 s) where a
+  cached report takes 0.16 s. A new job requests every holder report in the
+  sitemap, plus the home page, `/pricing`, `/mcp`, `/vs`, `/blog` and the
+  `/holders` hub, as soon as each production deploy is live, two pages at a
+  time.
+- Operator: `.github/workflows/cache-warm.yml` runs `scripts/warm-cache.mjs`
+  on `deployment_status`, only for a successful `Production` deployment
+  (Vercel leaves `production_environment` false, so the job keys on the
+  name). It waits up to 5 minutes for the domain to serve the new deployment,
+  matching the `dpl=` id in the page's asset URLs to the commit's `Vercel`
+  status. Each request is cut off at 60 s, no page starts after 15 minutes,
+  the sitemap gets 3 tries, and `timeout-minutes: 30` is the backstop. It
+  logs counts, cache tallies and the slowest paths, never a body. A newer
+  deploy cancels the older warm. A failed page is a warning, not an outage.
+  Runbook: docs/OPERATIONS.md, “Cache warm after a production deploy”.
+  `revalidate` stays 3600, and the runbook says why.
+
+**Checks.**
+
+- Invariants hold the links (in the words of the search, and in the
+  server-rendered part of the homepage), the curated names, the holder title
+  pattern, the 65 and 160 character limits, and distinct titles and
+  descriptions for one name on every chain; every indexable static page to a
+  title of 65 characters and a description of 160, found by walking `app/`
+  rather than listed (the homepage’s two strings moved to
+  `lib/home-metadata.ts`, because the root layout cannot be imported outside
+  Next); every docs page to a real description and a title that fits once
+  Mintlify appends the site name; the `/api/v1` index to the route tree and to
+  `docs-site/openapi.yaml` in both directions; `download-spec` to the docs
+  config; the listing tags; and the cache-warm job’s trigger, limits and
+  output. `check-invariants.ts` now also fails when an await never settles,
+  which used to end it with status 0 and no output.
+- 209 new assertions (2,099 in all): 19 for the links and holder titles, 30
+  for the listing copy and figures, 136 for the search-result lengths, the
+  docs and the API index, and 24 for the cache warm. 83 new guard mutations
+  (963 in all): 25, 18, 17 and 23 in the same order. Part of STA-54.
+
 ### 2026-09-29 (the CI guard runs in eight parallel shards)
 
 - **The `guard` check takes about 12 minutes instead of 50 to 95.** It runs

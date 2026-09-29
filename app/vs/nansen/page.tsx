@@ -12,7 +12,11 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
+import {
+  INDEXED_WALLETS,
+  CHAIN_COUNT_WORD,
+  ATTESTED_X_SHARE_PCT,
+} from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -47,7 +51,7 @@ import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 export const metadata: Metadata = {
   title: 'Nansen alternative for wallet to social lookup',
   description:
-    'Nansen tells you what a wallet does. walletlink.social tells you who published it and whether you can still reach them on X or Farcaster. What each one actually returns, checked September 2026.',
+    'Nansen tells you what a wallet does. walletlink.social tells you who published it and whether you can still reach them on X or Farcaster.',
   keywords: [
     'nansen alternative',
     'nansen wallet labels',
@@ -224,13 +228,14 @@ export default function NansenComparison() {
               somewhere to send a message.
             </p>
             <p className="text-muted-foreground">
-              A match here is the opposite kind of fact. Over 99.8% of the X
-              handles we return were published by the wallet owner themselves,
-              through a Farcaster verification, an onchain ENS text record, an
-              attested social sign-in or a manually verified record, and every
-              match carries the evidence class that produced it. Nothing is
-              inferred from a display name or a bio. Where we only have a
-              correlation, the row says so.
+              A match here is the opposite kind of fact. Over{' '}
+              {ATTESTED_X_SHARE_PCT}% of the X matches we return are links the
+              wallet owner published themselves, through a Farcaster
+              verification, an onchain ENS text record, an attested social
+              sign-in or a manually verified record, and every match carries the
+              evidence class that produced it. Nothing is inferred from a
+              display name or a bio. Where we only have a correlation, the row
+              says so.
             </p>
           </section>
 

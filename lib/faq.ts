@@ -12,6 +12,7 @@ import {
   CHAIN_COUNT_WORD,
   CHAIN_MATCH_RATES,
   CHAIN_MATCH_RATES_MEASURED_ON,
+  ATTESTED_X_SHARE_PCT,
 } from '@/lib/public-figures';
 import { SUPPORTED_CHAINS, CHAIN_LABELS } from '@/lib/chains';
 import { PRODUCTION_URL } from '@/lib/site-url';
@@ -44,9 +45,10 @@ import { PRODUCTION_URL } from '@/lib/site-url';
  * This is published copy, so house style is not optional: no em dashes,
  * "onchain" is one word, curly apostrophes, and no data provider is ever
  * named. Every figure is interpolated from `lib/packs.ts`,
- * `lib/public-figures.ts` and `lib/chains.ts` rather than typed, which is why
- * the only numeral written by hand in this file is the attested share, and
- * that one is declared in `scripts/check-published-figures.ts`.
+ * `lib/public-figures.ts` and `lib/chains.ts` rather than typed. The attested
+ * share was the one exception, typed by hand twice, and by 2026-09-27 the two
+ * copies said 99.9% and 99.8% on the same page; it is `ATTESTED_X_SHARE_PCT`
+ * now, like everything else.
  */
 
 /**
@@ -159,7 +161,7 @@ export const FAQ: readonly FaqEntry[] = [
       },
       {
         kind: 'p',
-        text: 'Twitter matches are resolved through several independent routes and every match is labeled with the evidence behind it. Over 99.9% come from owner-attested routes: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X. The remainder is correlated from identity indexes and labeled as such. Nothing is inferred from display names, bios or timing.',
+        text: `Twitter matches are resolved through several independent routes and every match is labeled with the evidence behind it. Over ${ATTESTED_X_SHARE_PCT}% come from owner-attested routes: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X. The remainder is correlated from identity indexes and labeled as such. Nothing is inferred from display names, bios or timing.`,
       },
     ],
   },
@@ -184,7 +186,7 @@ export const FAQ: readonly FaqEntry[] = [
     answer: [
       {
         kind: 'p',
-        text: `Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social never fingerprints. Over 99.8% of Twitter matches are owner-attested (Farcaster verifications, onchain ENS records, and accounts proven by wallet signature), the rest are correlated from identity indexes and labeled as such, and every match carries the class of evidence behind it so you can set your own threshold. The index covers ${INDEXED_WALLETS} wallets with complete Farcaster coverage.`,
+        text: `Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social never fingerprints. Over ${ATTESTED_X_SHARE_PCT}% of Twitter matches are owner-attested (Farcaster verifications, onchain ENS records, and accounts proven by wallet signature), the rest are correlated from identity indexes and labeled as such, and every match carries the class of evidence behind it so you can set your own threshold. The index covers ${INDEXED_WALLETS} wallets with complete Farcaster coverage.`,
       },
     ],
   },

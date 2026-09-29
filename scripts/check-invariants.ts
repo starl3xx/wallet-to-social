@@ -2360,6 +2360,420 @@ async function main() {
     );
   }
 
+  // ------------------------------------------- the post-deploy cache warm
+  /**
+   * `.github/workflows/cache-warm.yml` GETs every holder report in the sitemap
+   * right after a production deploy, so crawlers find them cached instead of
+   * waiting 4 to 31 s each on an empty cache. It points at production, so
+   * four promises make it safe, and each is checked here: it runs only for a
+   * successful Production deployment (Vercel starts a run for every preview
+   * too, and Mintlify for its own), it asks for two pages at a time and no
+   * more, a run ends on its own well inside timeout-minutes, and nothing in
+   * it retries without limit.
+   *
+   * No YAML parser is a dependency, so the workflow is read line by line with
+   * its comments dropped, strictly enough that a second trigger, a looser
+   * condition or a missing key cannot pass. The script's functions are run,
+   * not read, against stand-in fetches: a real request is not allowed here.
+   */
+  {
+    const WORKFLOW = '.github/workflows/cache-warm.yml';
+    const yml = existsSync(WORKFLOW) ? readFileSync(WORKFLOW, 'utf8') : '';
+    ok('the cache-warm workflow exists', yml.length > 0);
+
+    const lines = yml
+      .split('\n')
+      .map((l) => l.replace(/\s+$/, ''))
+      .filter((l) => l.trim() !== '' && !/^\s*#/.test(l));
+    const indentOf = (l: string) => l.length - l.trimStart().length;
+    /** Every `key:` at exactly `indent`, with its value and the lines under it. */
+    const sections = (from: string[], indent: number, key: string) =>
+      from.flatMap((l, at) => {
+        if (indentOf(l) !== indent) return [];
+        const m = l.trimStart().match(/^(?:- )?([\w-]+):(?:\s+(.*))?$/);
+        if (!m || m[1] !== key) return [];
+        const body: string[] = [];
+        for (const next of from.slice(at + 1)) {
+          if (indentOf(next) <= indent) break;
+          body.push(next);
+        }
+        return [{ value: m[2] ?? '', body }];
+      });
+    const one = (from: string[], indent: number, key: string) => {
+      const found = sections(from, indent, key);
+      return found.length === 1 ? found[0] : null;
+    };
+
+    const on = one(lines, 0, 'on');
+    ok(
+      'cache-warm runs on deployment_status and on nothing else',
+      on !== null &&
+        on.value === '' &&
+        on.body.map((l) => l.trim()).join('|') === 'deployment_status:'
+    );
+
+    const EXPECTED_IF =
+      "github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production'";
+    const jobsBlock = one(lines, 0, 'jobs');
+    const jobIds = (jobsBlock?.body ?? [])
+      .filter((l) => indentOf(l) === 2)
+      .map((l) => l.trim().match(/^([\w-]+):$/)?.[1] ?? '');
+    const jobs = jobIds.map((id) => ({
+      id,
+      body: jobsBlock ? (one(jobsBlock.body, 2, id)?.body ?? []) : [],
+    }));
+    const conditionOf = (body: string[]) => {
+      const cond = one(body, 4, 'if');
+      if (!cond) return '';
+      const text = /^[>|]-?$/.test(cond.value)
+        ? cond.body.map((l) => l.trim()).join(' ')
+        : cond.value;
+      return text.replace(/\s+/g, ' ').trim();
+    };
+    ok(
+      'every cache-warm job runs only for a successful Production deployment, never a preview or a failed one',
+      jobs.length > 0 &&
+        jobs.every((j) => j.id !== '' && conditionOf(j.body) === EXPECTED_IF)
+    );
+
+    const timeoutOf = (body: string[]) =>
+      Number(one(body, 4, 'timeout-minutes')?.value ?? NaN);
+    ok(
+      'every cache-warm job sets timeout-minutes, and no more than 30',
+      jobs.length > 0 &&
+        jobs.every((j) => {
+          const t = timeoutOf(j.body);
+          return Number.isInteger(t) && t >= 1 && t <= 30;
+        })
+    );
+
+    const runs = lines
+      .map((l) => l.trim().match(/^(?:- )?run:\s*(.*)$/)?.[1])
+      .filter((r): r is string => r !== undefined);
+    ok(
+      'cache-warm runs scripts/warm-cache.mjs and nothing else, and hands it the deployed commit',
+      runs.length === 1 &&
+        runs[0] === 'node scripts/warm-cache.mjs' &&
+        lines.some(
+          (l) => l.trim() === 'DEPLOY_SHA: ${{ github.event.deployment.sha }}'
+        )
+    );
+
+    // Production warms share one group, so one runs at a time and a newer
+    // deploy cancels the older warm. Every deployment_status event starts a
+    // run, skipped or not, so every other run must be alone in its group: in
+    // a shared one a preview's run cancels a production warm, or another
+    // preview's run, and a cancelled check on a pull request's head reads as
+    // not green.
+    const group = one(lines, 0, 'concurrency');
+    const groupBody = (group?.body ?? []).map((l) => l.trim());
+    const groupKey =
+      groupBody
+        .find((l) => l.startsWith('group:'))
+        ?.slice(6)
+        .trim() ?? '';
+    ok(
+      'production warms run one at a time and a newer deploy cancels the older warm, while every other run has a group of its own',
+      group !== null &&
+        group.value === '' &&
+        groupKey ===
+          `\${{ ${EXPECTED_IF} && 'cache-warm-production' || format('cache-warm-{0}', github.run_id) }}` &&
+        groupBody.includes('cancel-in-progress: true')
+    );
+
+    const permissions = one(lines, 0, 'permissions');
+    ok(
+      'cache-warm reads the repository and the commit statuses, and can write nothing',
+      permissions !== null &&
+        permissions.body
+          .map((l) => l.trim())
+          .sort()
+          .join('|') === 'contents: read|statuses: read' &&
+        !lines.some((l) => /\bwrite\b/.test(l.replace(/#.*$/, '')))
+    );
+
+    const warm = await import('./warm-cache.mjs');
+    const { PRODUCTION_URL } = await import('@/lib/site-url');
+    const script = readFileSync('scripts/warm-cache.mjs', 'utf8');
+    const code = withoutComments(script).replace(/\s+/g, '');
+    /**
+     * The promise's value, or 'hung' after `ms`. The timer is deliberately
+     * NOT unref'd: AbortSignal.timeout's timer is, so a request stuck on it
+     * with nothing else pending would let Node exit mid-check with status 0
+     * and no output, which a caller reads as a pass. This timer keeps the
+     * process alive until the race is decided.
+     */
+    const settle = <T>(p: Promise<T>, ms = 2000) =>
+      new Promise<T | 'hung'>((resolve, reject) => {
+        const timer = setTimeout(() => resolve('hung'), ms);
+        p.then(
+          (value) => {
+            clearTimeout(timer);
+            resolve(value);
+          },
+          (error: unknown) => {
+            clearTimeout(timer);
+            reject(error);
+          }
+        );
+      });
+    type Init = { signal?: AbortSignal };
+    const html = (body: string, cache = 'MISS') =>
+      new Response(body, {
+        status: 200,
+        headers: { 'x-vercel-cache': cache, 'content-type': 'text/html' },
+      });
+
+    ok(
+      'the warm script warms the production origin and no other',
+      warm.ORIGIN === PRODUCTION_URL
+    );
+
+    // What gets warmed: the fixed pages, the hub, then the sitemap's holder
+    // reports by priority. Never a URL on another host, never a page the
+    // sitemap lists that is not a report.
+    {
+      const sitemap = [
+        ['https://walletlink.social', '1'],
+        ['https://walletlink.social/check', '0.9'],
+        ['https://walletlink.social/holders/base/0xaaa', '0.6'],
+        ['https://walletlink.social/blog/some-post', '0.7'],
+        ['https://elsewhere.example/holders/base/0xevil', '1'],
+        ['https://walletlink.social/holders/ethereum/0xbbb', '0.8'],
+        ['https://walletlink.social/holders', '0.8'],
+        ['https://walletlink.social/holders/base/0xccc/extra', '0.9'],
+      ]
+        .map(
+          ([loc, priority]) =>
+            `<url>\n<loc>${loc}</loc>\n<priority>${priority}</priority>\n</url>`
+        )
+        .join('\n');
+      ok(
+        'the warm list is the fixed pages, the hub, then only the sitemap’s holder reports on the origin, by priority',
+        JSON.stringify(warm.warmTargets(sitemap)) ===
+          JSON.stringify([
+            '/',
+            '/pricing',
+            '/mcp',
+            '/vs',
+            '/blog',
+            '/holders',
+            '/holders/ethereum/0xbbb',
+            '/holders/base/0xaaa',
+          ])
+      );
+      ok(
+        'an unreadable sitemap still warms the fixed pages and the hub',
+        JSON.stringify(warm.warmTargets('')) ===
+          JSON.stringify(['/', '/pricing', '/mcp', '/vs', '/blog', '/holders'])
+      );
+    }
+
+    // Two at a time, measured on the real pool rather than read off a
+    // constant, and nothing started once the budget is spent.
+    {
+      ok(
+        'the warm asks for at most two pages at a time',
+        warm.CONCURRENCY >= 1 && warm.CONCURRENCY <= 2
+      );
+      let inFlight = 0;
+      let most = 0;
+      const items = Array.from({ length: 9 }, (_, i) => i);
+      const results = await settle(
+        warm.runPool(items, warm.CONCURRENCY, async (i: number) => {
+          inFlight++;
+          most = Math.max(most, inFlight);
+          await new Promise((resolve) => setTimeout(resolve, 5));
+          inFlight--;
+          return i * 2;
+        })
+      );
+      ok(
+        'the pool never has more than CONCURRENCY requests in flight, and runs every item',
+        results !== 'hung' &&
+          most === warm.CONCURRENCY &&
+          JSON.stringify(results) === JSON.stringify(items.map((i) => i * 2))
+      );
+      let started = 0;
+      const late = await settle(
+        warm.runPool(
+          items,
+          warm.CONCURRENCY,
+          async () => {
+            started++;
+          },
+          Date.now() - 1
+        )
+      );
+      ok(
+        'the pool starts nothing once its deadline has passed',
+        late !== 'hung' && started === 0
+      );
+      ok(
+        'the run hands the pool CONCURRENCY and its warm budget, once',
+        code.split('runPool(').length === 3 &&
+          code.includes(
+            'runPool(targets,CONCURRENCY,(path)=>warmPaced(path),started+WARM_BUDGET_MS)'
+          )
+      );
+    }
+
+    // A request that never answers is cut off, body included.
+    {
+      const hang = ((_url: string, init?: Init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(init.signal?.reason)
+          );
+        })) as unknown as typeof fetch;
+      const cut = await settle(
+        warm.warmOne('/holders/base/0xaaa', { fetchImpl: hang, timeoutMs: 20 })
+      );
+      ok(
+        'a page that never answers is abandoned at its timeout and reported, not waited on',
+        cut !== 'hung' && cut.error === 'timeout' && cut.status === 0
+      );
+      ok(
+        'the per-request timeout is a minute or less',
+        warm.REQUEST_TIMEOUT_MS > 0 &&
+          warm.REQUEST_TIMEOUT_MS <= 60_000 &&
+          code.includes('timeoutMs=REQUEST_TIMEOUT_MS')
+      );
+    }
+
+    // A stale answer re-renders in the background, so its lane waits about a
+    // render before asking again; a miss already waited for its render.
+    {
+      const answer = (cache: string) =>
+        (async () => html('<p>x</p>', cache)) as unknown as typeof fetch;
+      const t0 = Date.now();
+      await warm.warmPaced('/p', { fetchImpl: answer('STALE'), pauseMs: 120 });
+      const stale = Date.now() - t0;
+      const t1 = Date.now();
+      await warm.warmPaced('/p', { fetchImpl: answer('MISS'), pauseMs: 120 });
+      const miss = Date.now() - t1;
+      ok(
+        'a lane pauses after a STALE answer and not after a MISS',
+        stale >= 110 && miss < 110 && warm.STALE_PAUSE_MS >= 1000
+      );
+    }
+
+    // Nothing retries forever: the wait for the new deployment and the
+    // sitemap each give up on their own.
+    {
+      const other = (async () =>
+        html(
+          '<img srcset="/_next/image?url=%2Ficon.png&amp;w=48&amp;q=75&amp;dpl=dpl_Older 1x">'
+        )) as unknown as typeof fetch;
+      const gaveUp = await settle(
+        warm.waitForDeployment('dpl_Newer', {
+          fetchImpl: other,
+          waitMs: 60,
+          pollMs: 10,
+        })
+      );
+      ok(
+        'the wait for the new deployment gives up at its limit and says what it saw',
+        gaveUp !== 'hung' &&
+          gaveUp.live === false &&
+          gaveUp.seen === 'dpl_Older'
+      );
+      const found = await settle(
+        warm.waitForDeployment('dpl_Older', {
+          fetchImpl: other,
+          waitMs: 60,
+          pollMs: 10,
+        })
+      );
+      ok(
+        'the deployment id is read from an asset URL as HTML writes it (&amp;dpl=)',
+        found !== 'hung' && found.live === true
+      );
+      const unnamed = await settle(
+        warm.waitForDeployment('dpl_Newer', {
+          fetchImpl: (async () =>
+            html('<p>no ids</p>')) as unknown as typeof fetch,
+          waitMs: 60_000,
+          pollMs: 10,
+        })
+      );
+      ok(
+        'a page that names no deployment ends the wait at once, since waiting cannot change it',
+        unnamed !== 'hung' && unnamed.live === null
+      );
+
+      let calls = 0;
+      // Fails on a timer, not at once: a loop over a fetch that rejects
+      // synchronously never yields, and `settle` could not call it hung.
+      const down = (() => {
+        calls++;
+        return new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error('down')), 0)
+        );
+      }) as unknown as typeof fetch;
+      const sitemap = await settle(
+        warm.fetchSitemap({ fetchImpl: down, backoffMs: 1 })
+      );
+      ok(
+        'the sitemap is tried SITEMAP_ATTEMPTS times, at most five, then given up',
+        sitemap === null &&
+          calls === warm.SITEMAP_ATTEMPTS &&
+          warm.SITEMAP_ATTEMPTS >= 1 &&
+          warm.SITEMAP_ATTEMPTS <= 5
+      );
+
+      ok(
+        'the deployment to wait for is the newest successful Vercel status, never a pending one or another app’s',
+        warm.deploymentIdFromStatuses([
+          {
+            context: 'Mintlify',
+            state: 'success',
+            target_url: 'https://example.com/Docs',
+          },
+          {
+            context: 'Vercel',
+            state: 'pending',
+            target_url: 'https://vercel.com/team/project/Pending',
+          },
+          {
+            context: 'Vercel',
+            state: 'success',
+            target_url: 'https://vercel.com/team/project/Live',
+          },
+        ]) === 'dpl_Live' && warm.deploymentIdFromStatuses([]) === null
+      );
+    }
+
+    // The script's own bounds end it before the backstop does, with two
+    // minutes left for checkout and setup. timeout-minutes killing the job
+    // would turn a best-effort warm into a red run.
+    {
+      const worstMs =
+        warm.STATUS_TIMEOUT_MS +
+        warm.ALIAS_WAIT_MS +
+        warm.REQUEST_TIMEOUT_MS +
+        warm.SITEMAP_ATTEMPTS *
+          (warm.REQUEST_TIMEOUT_MS + warm.SITEMAP_BACKOFF_MS) +
+        warm.WARM_BUDGET_MS +
+        warm.REQUEST_TIMEOUT_MS +
+        warm.STALE_PAUSE_MS;
+      const backstop = Math.min(...jobs.map((j) => timeoutOf(j.body)));
+      ok(
+        `the warm script’s worst case (${Math.ceil(worstMs / 60_000)} min) ends two minutes before timeout-minutes (${backstop})`,
+        Number.isFinite(backstop) && worstMs + 2 * 60_000 <= backstop * 60_000
+      );
+    }
+
+    // The workflow's header sends a reader to the runbook, so it must exist.
+    const runbook = readFileSync('docs/OPERATIONS.md', 'utf8');
+    ok(
+      'OPERATIONS.md carries the cache-warm runbook the workflow points to',
+      /^## Cache warm after a production deploy$/m.test(runbook) &&
+        runbook.includes('.github/workflows/cache-warm.yml') &&
+        yml.includes('docs/OPERATIONS.md, "Cache warm after a')
+    );
+  }
+
   // ------------------------------------------------- the one recoverable secret
   /**
    * `lib/secret-box.ts` is the first thing in this repository that stores a
@@ -6588,6 +7002,510 @@ async function main() {
         ) === '10.2' &&
         read('| Name no longer in use | 10.2% |') === '10.2' &&
         read('and 9.8% no longer in use') === '9.8'
+    );
+  }
+
+  // -------------- the attested share is one constant, read on every surface
+  // The owner-attested share was typed by hand in fifteen places. By
+  // 2026-09-27 the homepage FAQ said "Over 99.9% come from owner-attested
+  // routes" two answers above "Over 99.8% of Twitter matches", and the Apify
+  // README said 99.9% as well, against a measured 99.8975%. The figures check
+  // missed both: it read only "over N% of", and it did not declare the Apify
+  // README at all. Each half of the fix is asserted from the direction that
+  // regresses.
+  {
+    const figures = readFileSync('scripts/check-published-figures.ts', 'utf8');
+    const { ATTESTED_X_SHARE_PCT } = await import('@/lib/public-figures');
+
+    /**
+     * One claim entry of the registry, by its `what`, and the regex it reads
+     * published copy with, compiled from the script's own source. Reading the
+     * pattern out of the file rather than restating it here is the point: a
+     * copy in this file would pass while the script's own pattern regressed.
+     */
+    const entryOf = (what: string) => {
+      const at = figures.indexOf(`what: '${what}'`);
+      if (at === -1) return '';
+      const end = figures.indexOf('\n  {\n', at);
+      return figures.slice(at, end === -1 ? undefined : end);
+    };
+    const patternOf = (entry: string) => {
+      const after = entry.slice(entry.indexOf('pattern:') + 'pattern:'.length);
+      const m = /^\s*\/(?!\/)(.+)\/([a-z]*),$/m.exec(after);
+      return m ? new RegExp(m[1], m[2]) : null;
+    };
+    const readAll = (re: RegExp | null, text: string) =>
+      re
+        ? [
+            ...text.matchAll(
+              new RegExp(re.source, re.flags.replace('g', '') + 'g')
+            ),
+          ].map((m) => m.slice(1).find((g) => g !== undefined))
+        : [];
+
+    const attested = entryOf('share of X matches that are owner-attested');
+    const attestedRe = patternOf(attested);
+    const read = (text: string) => readAll(attestedRe, text)[0];
+    ok(
+      'the figures check reads the attested share in every phrasing the copy uses',
+      read(`export const ATTESTED_X_SHARE_PCT = '99.8';`) === '99.8' &&
+        read('Over 99.9% come from owner-attested routes') === '99.9' &&
+        read('Over 99.8% of the X handles in the index') === '99.8' &&
+        read('over 99.8%\nof X matches are owner-attested') === '99.8' &&
+        read('Over 99.8% of it comes from deterministic sources') === '99.8'
+    );
+    /**
+     * A floor, including where the hit cannot say "over". The constant's
+     * declaration carries no "over", so without `kind: 'floor'` it is read as
+     * a rounded figure with this claim's tolerance of 1, and passes at any
+     * value: 99.9 against 99.8975 would have been green.
+     */
+    ok(
+      'the attested share is checked as a floor, the constant included',
+      /\n\s*kind: 'floor',\n/.test(attested) &&
+        /const isFloor = claim\.kind === 'floor' \|\|/.test(
+          withoutComments(figures)
+        )
+    );
+
+    /**
+     * The TypeScript surfaces interpolate the constant. A typed share is the
+     * shape that drifted, and the figures check cannot see one any more,
+     * because these files are no longer declared for it.
+     */
+    const tsSurfaces = [
+      'lib/faq.ts',
+      'app/llms.txt/route.ts',
+      'lib/welcome-sequence.ts',
+      'app/vs/absolute-labs/page.tsx',
+      'app/vs/addressable/page.tsx',
+      'app/vs/airstack/page.tsx',
+      'app/vs/blaze/page.tsx',
+      'app/vs/holder/page.tsx',
+      'app/vs/nansen/page.tsx',
+    ];
+    for (const file of tsSurfaces) {
+      const code = withoutComments(readFileSync(file, 'utf8'));
+      ok(
+        `${file} takes the attested share from ATTESTED_X_SHARE_PCT and types none`,
+        code.includes('ATTESTED_X_SHARE_PCT') &&
+          !/over\s+[0-9]{2}\.[0-9]\s*%/i.test(code)
+      );
+    }
+
+    /**
+     * What a share sentence says the share is made of, and what it counts.
+     *
+     * The right number in a false sentence. Farcaster verifications and
+     * onchain ENS records carry 91.5% of the wallets with an X handle
+     * (measured 2026-09-29); attested social sign-ins carry most of the rest,
+     * 7.4%. The welcome email said "Over 99.8% of our X handles were published
+     * by the account owner, through a Farcaster verification or an onchain
+     * ENS record", /vs/airstack said "the rest through onchain ENS records",
+     * and two posts said the same. The figures check passed all four, because
+     * it reads the number and the number was right. So a sentence that states
+     * the share and names both routes must name another one too, or give the
+     * two as examples ("such as") before it names them.
+     *
+     * And the unit it counts. The share is measured per wallet carrying an X
+     * handle. Counted by distinct handle, it was 99.78% on 2026-09-29, under
+     * the floor, so "over 99.8% of the X handles" states a figure nothing
+     * measures, and it is false. Four surfaces said that. "X matches" and
+     * "wallets with an X handle" are the measured unit.
+     *
+     * A parenthetical after "user-attested" is held to the same rule wherever
+     * it appears, because "user-attested (Farcaster verifications, onchain
+     * ENS records)" makes the two-route claim without stating a number.
+     */
+    const declaredFiles = [
+      ...attested.matchAll(/^\s*'([\w./-]+\.(?:md|mdx|ts|tsx))',$/gm),
+    ].map((m) => m[1]);
+    const shareFiles = [
+      ...new Set([
+        ...tsSurfaces,
+        ...declaredFiles.filter((f) => f !== 'lib/public-figures.ts'),
+        ...(readdirSync('app/vs', { recursive: true }) as string[])
+          .filter((f) => /(^|\/)page\.tsx$/.test(f))
+          .map((f) => `app/vs/${f}`),
+        '.agents/product-marketing.md',
+      ]),
+    ];
+    const flatten = (file: string) => {
+      const raw = readFileSync(file, 'utf8');
+      return (/\.tsx?$/.test(file) ? withoutComments(raw) : raw)
+        .replace(/\{' '\}/g, ' ')
+        .replace(/\s+/g, ' ');
+    };
+    /** Each sentence that states the share, from its start to its full stop. */
+    const shareSentences = (text: string) =>
+      [
+        ...text.matchAll(
+          /\{ATTESTED_X_SHARE_PCT\}%|over\s+\**[0-9]{2}\.[0-9]%/gi
+        ),
+      ].map((m) => {
+        const at = m.index ?? 0;
+        const start = text.slice(0, at).search(/[^.!?`>]*$/);
+        const end = text.slice(at).search(/[.!?](?=\s|$|[`<'"])/);
+        return text.slice(start, end === -1 ? undefined : at + end + 1).trim();
+      });
+    const namesOnlyFarcasterAndEns = (s: string) => {
+      const farcaster = s.search(/farcaster/i);
+      if (farcaster === -1 || !/\bENS\b/.test(s)) return false;
+      if (/sign-?ins?\b|signing|signature|attested[- ]social|manual/i.test(s)) {
+        return false;
+      }
+      const suchAs = s.search(/such as/i);
+      return suchAs === -1 || suchAs > farcaster;
+    };
+    const countsHandles = (s: string) =>
+      /(?:\{ATTESTED_X_SHARE_PCT\}|[0-9]{2}\.[0-9])%\**\s+of\s+(?:the\s+|our\s+)?(?:X\s+|Twitter\s+)?handles\b/i.test(
+        s
+      );
+
+    // The rule, from the direction that regresses: each sentence that shipped
+    // is caught, and the wording that replaced it passes.
+    ok(
+      'the attested-share rule catches the two-route and per-handle sentences that shipped',
+      namesOnlyFarcasterAndEns(
+        'Over {ATTESTED_X_SHARE_PCT}% of our X handles were published by the account owner, through a Farcaster verification or an onchain ENS record.'
+      ) &&
+        namesOnlyFarcasterAndEns(
+          'Over {ATTESTED_X_SHARE_PCT}% of X matches are user-attested, most through an X account verified on Farcaster and the rest through onchain ENS records.'
+        ) &&
+        namesOnlyFarcasterAndEns(
+          'Over {ATTESTED_X_SHARE_PCT}% of X matches are user-attested: most through Farcaster, the rest through onchain records such as ENS.'
+        ) &&
+        countsHandles(
+          'Over 99.8% of the X handles in the index arrive by one of these four routes.'
+        ) &&
+        countsHandles('Over 99.8% of handles were published by the owner') &&
+        countsHandles('Over {ATTESTED_X_SHARE_PCT}% of our X handles were')
+    );
+    ok(
+      'the attested-share rule passes the four-route list and routes given as examples',
+      !namesOnlyFarcasterAndEns(
+        'Over {ATTESTED_X_SHARE_PCT}% of X matches are user-attested (links the wallet owner created themselves, such as a verified Farcaster account or an onchain ENS record).'
+      ) &&
+        !namesOnlyFarcasterAndEns(
+          'Over 99.8% of X matches: a Farcaster verification, an onchain ENS record, an attested-social sign-in, or a manually verified record.'
+        ) &&
+        !countsHandles(
+          'over 99.8% of the 1.20 million wallets with a linked X handle'
+        ) &&
+        !countsHandles('Over {ATTESTED_X_SHARE_PCT}% of X matches are')
+    );
+
+    let shareSentenceCount = 0;
+    for (const file of shareFiles) {
+      const text = flatten(file);
+      const sentences = shareSentences(text);
+      shareSentenceCount += sentences.length;
+      const twoRoutes = sentences.filter(namesOnlyFarcasterAndEns);
+      ok(
+        `${file} credits the attested share to every route, not Farcaster and ENS alone${twoRoutes.length ? `: “${twoRoutes[0].slice(0, 120)}”` : ''}`,
+        twoRoutes.length === 0
+      );
+      const perHandle = sentences.filter(countsHandles);
+      ok(
+        `${file} states the attested share per X match, the unit it is measured in, not per handle${perHandle.length ? `: “${perHandle[0].slice(0, 120)}”` : ''}`,
+        perHandle.length === 0
+      );
+      const parentheticals = [
+        ...text.matchAll(/(?:user|owner)-attested\s*\(([^)]*)\)/gi),
+      ].map((m) => m[1]);
+      ok(
+        `${file} gives Farcaster and ENS as examples wherever it calls matches attested`,
+        !parentheticals.some(namesOnlyFarcasterAndEns)
+      );
+    }
+    // Sixteen today. A scan that finds none passes every file above.
+    ok(
+      `the attested-share scan reads the share sentences at all (${shareSentenceCount} found)`,
+      declaredFiles.includes('README.md') && shareSentenceCount >= 15
+    );
+
+    /**
+     * The Apify README is declared for every figure it states, and each
+     * declared pattern actually reads it. Listing the file proves nothing if
+     * the pattern cannot match its sentence: that is how the FAQ passed.
+     * Each figure must also equal the constant it is a copy of, so a refresh
+     * of `lib/public-figures.ts` cannot leave this page a week behind again.
+     */
+    const apify = 'integrations/apify-actor/README.md';
+    const apifyText = readFileSync(apify, 'utf8');
+    const pf = await import('@/lib/public-figures');
+    const stated: Array<[string, string]> = [
+      ['index size, in millions', pf.INDEXED_WALLETS.replace(/M$/, '')],
+      ['distinct X handles resolved', pf.X_HANDLES_RESOLVED],
+      ['share of resolved handles that are live', pf.X_LIVE_PCT],
+      ['share of resolved handles that are suspended', pf.X_SUSPENDED_PCT],
+      ['share of resolved handles whose name nobody holds', pf.X_UNCLAIMED_PCT],
+      ['share of X matches that are owner-attested', ATTESTED_X_SHARE_PCT],
+    ];
+    for (const [what, value] of stated) {
+      const entry = entryOf(what);
+      const values = readAll(patternOf(entry), apifyText);
+      ok(
+        `the figures check declares the Apify README for "${what}", reads it, and it says ${value}`,
+        entry.includes(`'${apify}'`) &&
+          values.length > 0 &&
+          values.every((v) => v === value)
+      );
+    }
+    const chainRows = [
+      ...figures.matchAll(
+        /file: 'integrations\/apify-actor\/README\.md',\s*pattern: \/(.+)\/([a-z]*),\s*rate: '(\w+)'/g
+      ),
+    ].map((m) => ({
+      value: new RegExp(m[1], m[2]).exec(apifyText)?.[1],
+      rate: m[3],
+    }));
+    ok(
+      'the figures check reads the Apify README’s per-chain rates, and they are the measured ones',
+      chainRows.some(
+        (r) =>
+          r.rate === 'baseEither' &&
+          r.value === String(pf.CHAIN_MATCH_RATES.base.either_pct)
+      ) &&
+        chainRows.some(
+          (r) =>
+            r.rate === 'ethereumEither' &&
+            r.value === String(pf.CHAIN_MATCH_RATES.ethereum.either_pct)
+        )
+    );
+    ok(
+      'the figures sweep reads the Apify README for figures nobody declared',
+      /const COPY_SURFACES = \[[^\]]*'integrations\/apify-actor\/README\.md'/.test(
+        withoutComments(figures)
+      )
+    );
+
+    /**
+     * The figures on that page no query can check: prices, the allowance,
+     * credit lifetime and chains, which live in `lib/packs.ts` and
+     * `lib/chains.ts`. Every one of them the page states must be the one
+     * those files hold, the input schema's allowance included.
+     */
+    const packs = await import('@/lib/packs');
+    const { CHAIN_LABELS: labels, SUPPORTED_CHAINS: chains } =
+      await import('@/lib/chains');
+    const schemaText = readFileSync(
+      'integrations/apify-actor/.actor/input_schema.json',
+      'utf8'
+    );
+    const allowances = [
+      ...`${apifyText}\n${schemaText}`.matchAll(
+        /([0-9,]+) matches every ([0-9]+) days/g
+      ),
+    ];
+    const prices = [
+      ...apifyText.matchAll(/\$([0-9,]+) for ([0-9,]+) matches/g),
+    ];
+    const coverage = /^([A-Z][a-z]+) onchain networks: (.+)\.$/m.exec(
+      apifyText
+    );
+    const counts = [
+      ...apifyText.matchAll(/\b([a-z]+) onchain networks\b/gi),
+    ].map((m) => m[1].toLowerCase());
+    const cheapest = Math.min(
+      ...packs.PACK_IDS.map((id) => packs.PACKS[id].priceCents)
+    );
+    const startsAt = /start at \$([0-9,]+) for ([0-9,]+) matches/.exec(
+      apifyText
+    );
+    ok(
+      'the Apify README states the allowance, price, lifetime and chains the product has',
+      allowances.length >= 3 &&
+        allowances.every(
+          (m) =>
+            Number(m[1].replace(/,/g, '')) === packs.FREE_MATCHES_PER_WINDOW &&
+            Number(m[2]) === packs.FREE_WINDOW_DAYS
+        ) &&
+        prices.length > 0 &&
+        prices.every((m) =>
+          packs.PACK_IDS.some(
+            (id) =>
+              packs.PACKS[id].priceCents / 100 ===
+                Number(m[1].replace(/,/g, '')) &&
+              packs.PACKS[id].matches === Number(m[2].replace(/,/g, ''))
+          )
+        ) &&
+        startsAt !== null &&
+        Number(startsAt[1].replace(/,/g, '')) * 100 === cheapest &&
+        apifyText.includes(`last ${packs.CREDIT_LIFETIME_MONTHS} months`) &&
+        counts.length >= 2 &&
+        counts.every((w) => w === pf.CHAIN_COUNT_WORD) &&
+        coverage !== null &&
+        coverage[2]
+          .split(/, | and /)
+          .sort()
+          .join('|') ===
+          chains
+            .map((c) => labels[c])
+            .sort()
+            .join('|')
+    );
+  }
+
+  // ------------------------------- every listing link carries its dir- tag
+  // docs/GROWTH.md: "Every listing carries ?ref=dir-<surface>". Until
+  // 2026-09-29 no listing did, so a directory that sent people was
+  // indistinguishable from one nobody clicked. Only page links are held to
+  // it: a plain file (/llms.txt, security.txt) runs nothing that records a
+  // first touch, and the API is not a page.
+  {
+    const pageLinks = (text: string) =>
+      [
+        ...text.matchAll(
+          /(?:\]\(|href=")(https:\/\/walletlink\.social[^)"\s]*)/g
+        ),
+      ]
+        .map((m) => m[1])
+        .filter(
+          (u) =>
+            !/^https:\/\/walletlink\.social\/(?:api\/|\.well-known\/)/.test(
+              u
+            ) && !/\.(?:txt|md|json|xml)(?:$|\?)/.test(u)
+        );
+    const apifyLinks = pageLinks(
+      readFileSync('integrations/apify-actor/README.md', 'utf8')
+    );
+    ok(
+      'every page link in the Apify README carries ?ref=dir-apify',
+      apifyLinks.length >= 3 &&
+        apifyLinks.every((u) => /[?&]ref=dir-apify(?:&|$)/.test(u))
+    );
+    const readmeLinks = pageLinks(readFileSync('README.md', 'utf8'));
+    ok(
+      'every page link in the GitHub README carries ?ref=dir-github',
+      readmeLinks.length >= 3 &&
+        readmeLinks.every((u) => /[?&]ref=dir-github(?:&|$)/.test(u))
+    );
+    const schema = readFileSync(
+      'integrations/apify-actor/.actor/input_schema.json',
+      'utf8'
+    );
+    const actorCode = withoutComments(
+      readFileSync('integrations/apify-actor/src/main.js', 'utf8')
+    );
+    ok(
+      'the Actor’s input form and run messages link to the site with the same tag',
+      [...schema.matchAll(/https:\/\/walletlink\.social[^\s:"]*/g)].every((m) =>
+        m[0].includes('?ref=dir-apify')
+      ) &&
+        /const tagged = \(path = '\/'\) => `\$\{SITE\}\$\{path\}\?ref=dir-apify`;/.test(
+          actorCode
+        ) &&
+        /const SIGNUP = tagged\(/.test(actorCode) &&
+        !/\$\{SIGNUP\}\//.test(actorCode)
+    );
+    /**
+     * The registry listing links the site, not the docs host. The docs host
+     * answers the ChatGPT and Perplexity search crawlers with
+     * `x-robots-tag: noindex` on its Markdown variant (open since 2026-09-07),
+     * and the registry is what Glama and every other MCP directory copy.
+     */
+    const manifest = JSON.parse(readFileSync('server.json', 'utf8')) as {
+      websiteUrl?: string;
+      remotes?: Array<{ url?: string }>;
+    };
+    ok(
+      'the registry’s website link is the tagged /mcp page on the apex',
+      manifest.websiteUrl === 'https://walletlink.social/mcp?ref=dir-registry'
+    );
+
+    /**
+     * The README opens with a way to connect, and its URL is the one the
+     * registry publishes. A Connect block quoting a URL the server does not
+     * answer on is worse than none: scrapers copy it into their listings.
+     */
+    const readme = readFileSync('README.md', 'utf8');
+    const connect = readme.slice(
+      readme.indexOf('\n## Connect\n'),
+      readme.indexOf('\n---', readme.indexOf('\n## Connect\n'))
+    );
+    const remote = manifest.remotes?.[0]?.url ?? '';
+    ok(
+      'the README’s Connect block comes first and gives the registry’s remote URL',
+      remote !== '' &&
+        readme.indexOf('\n## Connect\n') !== -1 &&
+        readme.indexOf('\n## Connect\n') <
+          readme.indexOf('\n## How it works\n') &&
+        connect.includes('```\n' + remote + '\n```') &&
+        connect.includes(
+          `claude mcp add --transport http walletlink ${remote} `
+        )
+    );
+
+    /**
+     * How a directory tag is classified. Not promoted to a channel of its
+     * own: a tag never manufactures a channel, the rule that keeps
+     * `ref:google-ads` out of search. With no referrer it is a campaign
+     * under its own name, with one the host decides, and a surface named
+     * after an assistant is never read as an arrival from it.
+     */
+    const {
+      channelFrom,
+      aiAssistantFrom,
+      summariseOrigin: summarise,
+    } = await import('@/lib/first-touch');
+    const bare = channelFrom(summarise({ ref: 'dir-apify' }));
+    ok(
+      'a directory tag with no referrer is a campaign under its own name',
+      bare.channel === 'campaign' && bare.name === 'dir-apify'
+    );
+    const hosted = channelFrom(
+      summarise({ ref: 'dir-github', referrer: 'github.com' })
+    );
+    ok(
+      'a directory tag with a referrer is a referral from that host',
+      hosted.channel === 'referral' && hosted.name === 'github.com'
+    );
+    ok(
+      'a directory named after an assistant is not an arrival from it',
+      channelFrom(summarise({ ref: 'dir-claude' })).channel === 'campaign' &&
+        aiAssistantFrom(summarise({ ref: 'dir-claude' })) === null
+    );
+    /**
+     * And the reason it holds is the skip, not luck in the spelling. The
+     * rosters match whole tokens, so `claude-launch` and `dir-claude` would
+     * miss them anyway; a tag that IS a token (`ref:claude`, `ref:twitter`)
+     * is the case only `evidenceValues` skipping every `ref:` part protects,
+     * and no assertion exercised it before 2026-09-29.
+     */
+    ok(
+      'a tag spelled exactly like an assistant or a platform is still only a campaign',
+      channelFrom(summarise({ ref: 'claude' })).channel === 'campaign' &&
+        channelFrom(summarise({ ref: 'twitter' })).channel === 'campaign' &&
+        channelFrom(summarise({ ref: 'google' })).channel === 'campaign' &&
+        aiAssistantFrom(summarise({ ref: 'chatgpt' })) === null
+    );
+  }
+
+  // ------------------------- the agent-flag figure is declared and checked
+  // AGENT_WALLETS_FLAGGED sat at 92 from 2026-09-19 while the index moved to
+  // 116 and then 122. `scripts/backfill-agent-claims.ts` told its operator
+  // the figures check compared it against `count(*) WHERE is_agent`; no entry
+  // did. Asserted as the query, so the 13,622 agent catalog cannot come back
+  // under this label by way of the check itself.
+  {
+    const figures = readFileSync('scripts/check-published-figures.ts', 'utf8');
+    const at = figures.indexOf(
+      "what: 'wallets in the index carrying the agent flag'"
+    );
+    const entry =
+      at === -1 ? '' : figures.slice(at, figures.indexOf('\n  },', at));
+    const { AGENT_WALLETS_FLAGGED } = await import('@/lib/public-figures');
+    const literal = /pattern: \/(.+)\/,/.exec(entry)?.[1];
+    ok(
+      'the figures check declares the agent-flag figure against the index’s own flag',
+      entry.includes("files: ['lib/public-figures.ts']") &&
+        /FROM social_graph WHERE is_agent IS TRUE/.test(entry) &&
+        !/known_agents/.test(withoutComments(entry)) &&
+        literal !== undefined &&
+        new RegExp(literal).exec(
+          readFileSync('lib/public-figures.ts', 'utf8')
+        )?.[1] === AGENT_WALLETS_FLAGGED
     );
   }
 
@@ -11792,6 +12710,383 @@ async function main() {
       'the docs links are absolute, since a relative one would resolve to this origin',
       new RegExp(`<${DOCS_URL}/[^>]+>; rel="service-desc"`).test(linkValue) &&
         new RegExp(`<${DOCS_URL}/[^>]+>; rel="service-doc"`).test(linkValue)
+    );
+  }
+
+  // ------------------------------------------- the API index at the base URL
+  // llms.txt, the API reference, the OpenAPI `servers` block and the catalog
+  // anchor above all name /api/v1, and until 2026-09-29 a GET on it returned
+  // the site's HTML 404. Through the handler, like the catalog: GET is called
+  // and its body parsed. Then the list it serves is held to the route tree and
+  // to the OpenAPI description in both directions, because an index that
+  // drifts from either is a second, wrong copy of the first.
+  {
+    const { GET, OPTIONS } = await import('@/app/api/v1/route');
+    const { PRODUCTION_URL, DOCS_URL } = await import('@/lib/site-url');
+    const res = GET();
+    const index = (await res.json()) as {
+      data?: {
+        base_url?: string;
+        endpoints?: {
+          method: string;
+          path: string;
+          url: string;
+          summary: string;
+          documentation: string;
+        }[];
+        [key: string]: unknown;
+      };
+      meta?: { generated_at?: unknown };
+    };
+
+    ok(
+      'the base URL answers with JSON, not the HTML 404 it used to',
+      res.status === 200 &&
+        (res.headers.get('content-type') ?? '').startsWith('application/json')
+    );
+    ok(
+      'the index is in the data and meta envelope the OpenAPI description promises of every success',
+      !!index.data && typeof index.meta?.generated_at === 'string'
+    );
+    ok(
+      'the index answers cross-origin, like every path under /api/v1',
+      res.headers.get('access-control-allow-origin') === '*'
+    );
+    ok(
+      'OPTIONS on the index answers 204, as the OpenAPI description promises on every path',
+      typeof OPTIONS === 'function' && OPTIONS().status === 204
+    );
+
+    const spec = readFileSync('docs-site/openapi.yaml', 'utf8');
+    ok(
+      'the index names the same base URL the OpenAPI servers block declares',
+      index.data?.base_url === `${PRODUCTION_URL}/api/v1` &&
+        spec.includes(`\n  - url: ${PRODUCTION_URL}/api/v1\n`)
+    );
+
+    /**
+     * Every URL in the document, found by walking it rather than by naming
+     * fields, so a link added later is held to the same rule: absolute, and
+     * on an origin this site controls. The endpoint `url` templates carry
+     * `{param}`, which is why they are checked by prefix and not parsed.
+     */
+    const urls: string[] = [];
+    const walk = (value: unknown) => {
+      if (typeof value === 'string' && /^[a-z]+:\/\//i.test(value)) {
+        urls.push(value);
+      } else if (value && typeof value === 'object') {
+        for (const v of Object.values(value)) walk(v);
+      }
+    };
+    walk(index.data);
+    ok(
+      'every URL in the index is absolute and on this site or its docs',
+      urls.length > 0 &&
+        urls.every(
+          (u) =>
+            u.startsWith(`${PRODUCTION_URL}/`) || u.startsWith(`${DOCS_URL}/`)
+        )
+    );
+
+    // The operations the route tree actually serves.
+    const routeOps = new Set<string>();
+    for (const f of readdirSync('app/api/v1', {
+      recursive: true,
+    }) as string[]) {
+      if (!/(^|\/)route\.ts$/.test(f)) continue;
+      const dir = f.replace(/(^|\/)route\.ts$/, '');
+      const path = `/${dir.replace(/\[([^\]]+)\]/g, '{$1}')}`;
+      const source = withoutComments(readFileSync(`app/api/v1/${f}`, 'utf8'));
+      for (const m of source.matchAll(
+        /export (?:async )?function (GET|POST|PUT|PATCH|DELETE)\b/g
+      )) {
+        routeOps.add(`${m[1]} ${path}`);
+      }
+    }
+
+    // The operations the OpenAPI description declares, with their summaries.
+    const specOps = new Map<string, string>();
+    const specBlocks = new Map<string, string>();
+    let specPath: string | null = null;
+    let specOp: string | null = null;
+    for (const line of spec.split('\n')) {
+      const pathLine = line.match(/^ {2}(\/[^:\s]*):\s*$/);
+      if (pathLine) {
+        specPath = pathLine[1];
+        specOp = null;
+        continue;
+      }
+      if (/^\S/.test(line)) specPath = specOp = null;
+      const opLine = line.match(/^ {4}(get|post|put|patch|delete):\s*$/);
+      if (opLine && specPath) {
+        specOp = `${opLine[1].toUpperCase()} ${specPath}`;
+        specOps.set(specOp, '');
+        specBlocks.set(specOp, '');
+        continue;
+      }
+      if (!specOp) continue;
+      specBlocks.set(specOp, `${specBlocks.get(specOp)}${line}\n`);
+      const summary = line.match(/^ {6}summary: (.+)$/);
+      if (summary && specOps.get(specOp) === '') {
+        specOps.set(specOp, summary[1].trim().replace(/^'(.*)'$/, '$1'));
+      }
+    }
+
+    const indexOps = new Set(
+      (index.data?.endpoints ?? []).map((e) => `${e.method} ${e.path}`)
+    );
+    const sameSet = (a: Set<string>, b: Set<string>) =>
+      a.size === b.size && [...a].every((x) => b.has(x));
+    const withoutRoot = (ops: Iterable<string>) =>
+      new Set([...ops].filter((op) => op !== 'GET /'));
+
+    ok(
+      'the route tree and the OpenAPI description were both read at all',
+      routeOps.size >= 9 && specOps.size >= 9
+    );
+    ok(
+      `every route under app/api/v1 is in the index and nothing else is (routes: ${[...withoutRoot(routeOps)].filter((op) => !indexOps.has(op)).join(', ') || 'none'} missing)`,
+      routeOps.has('GET /') && sameSet(withoutRoot(routeOps), indexOps)
+    );
+    ok(
+      'the index and the OpenAPI description list the same operations',
+      sameSet(withoutRoot(specOps.keys()), indexOps)
+    );
+    ok(
+      'the OpenAPI description leaves the index to the reference prose: a `/` operation would resolve to a redirecting URL',
+      !specBlocks.has('GET /') && !specOps.has('GET /')
+    );
+    for (const e of index.data?.endpoints ?? []) {
+      ok(
+        `${e.method} ${e.path} carries its OpenAPI summary word for word`,
+        specOps.get(`${e.method} ${e.path}`) === e.summary
+      );
+      ok(
+        `${e.method} ${e.path} has the base URL plus its path as its url`,
+        e.url === `${index.data?.base_url}${e.path}`
+      );
+      const page = e.documentation.startsWith(`${DOCS_URL}/`)
+        ? e.documentation.slice(DOCS_URL.length + 1)
+        : '';
+      ok(
+        `${e.method} ${e.path} links a reference page that exists`,
+        page !== '' && existsSync(`docs-site/${page}.mdx`)
+      );
+    }
+  }
+
+  // ------------------------------------ search-result titles and descriptions
+  // The homepage title was 88 characters and the /mcp description 291 on
+  // 2026-09-27, so a search result showed neither whole. Every static page is
+  // held here, found by walking app/ rather than listed, so a new page is
+  // measured the day it ships. Through the evaluated `metadata` export, not
+  // the source: the descriptions interpolate figures, and a regex over a
+  // template literal measures the placeholder, not what a crawler reads.
+  {
+    const {
+      HOME_TITLE,
+      HOME_DESCRIPTION,
+      TITLE_MAX_CHARS,
+      DESCRIPTION_MAX_CHARS,
+    } = await import('@/lib/home-metadata');
+
+    /**
+     * The root layout cannot be imported outside Next (`next/font` runs at
+     * module load), so its two strings live in lib/home-metadata.ts. This is
+     * what stops a literal from being written back into the layout, where
+     * nothing would measure it.
+     */
+    const layout = withoutComments(readFileSync('app/layout.tsx', 'utf8'));
+    ok(
+      'the homepage takes its title and description from the measured constants',
+      /export const metadata: Metadata = \{\s*metadataBase: [^\n]+\n\s*title: HOME_TITLE,\s*description: HOME_DESCRIPTION,/.test(
+        layout
+      )
+    );
+
+    const measured = [
+      { route: '/', title: HOME_TITLE, description: HOME_DESCRIPTION },
+    ];
+    for (const f of readdirSync('app', { recursive: true }) as string[]) {
+      if (!/(^|\/)page\.tsx$/.test(f) || f.includes('[')) continue;
+      /**
+       * A client page cannot export `metadata` (Next refuses it), and
+       * importing one here would pull in a CSS module that Node cannot load.
+       * The homepage is one, which is why it is measured above.
+       */
+      if (/^\s*['"]use client['"]/.test(readFileSync(`app/${f}`, 'utf8'))) {
+        continue;
+      }
+      const mod = (await import(`../app/${f}`)) as {
+        metadata?: {
+          title?: unknown;
+          description?: string | null;
+          robots?: unknown;
+        };
+      };
+      const md = mod.metadata;
+      if (!md) continue;
+      // A page kept out of the index has no search result to fit.
+      const robots = md.robots as { index?: boolean } | undefined;
+      if (robots && robots.index === false) continue;
+      const title =
+        typeof md.title === 'string'
+          ? md.title
+          : ((md.title as { absolute?: string } | undefined)?.absolute ?? '');
+      measured.push({
+        route: `/${f.replace(/(^|\/)page\.tsx$/, '')}`,
+        title,
+        description: md.description ?? '',
+      });
+    }
+
+    ok(
+      'the static pages were found and measured at all',
+      ['/', '/mcp', '/pricing', '/check', '/holders', '/vs', '/blog'].every(
+        (route) => measured.some((m) => m.route === route)
+      )
+    );
+    for (const m of measured) {
+      ok(
+        `${m.route} has a title that fits a search result (${m.title.length} of ${TITLE_MAX_CHARS} characters)`,
+        m.title.length > 0 && m.title.length <= TITLE_MAX_CHARS
+      );
+      /**
+       * Present as well as short. A page that sets none inherits the root
+       * layout's, which is the homepage description on a page that is not
+       * the homepage, and a duplicate description across URLs.
+       */
+      ok(
+        `${m.route} states its own description and it fits (${m.description.length} of ${DESCRIPTION_MAX_CHARS} characters)`,
+        m.description.length > 0 &&
+          m.description.length <= DESCRIPTION_MAX_CHARS
+      );
+    }
+
+    /**
+     * A retired service's comparison page leads with what people search for.
+     *
+     * Fitting the Airstack and Blaze titles to 65 characters first moved the
+     * shutdown notice to the front ("Airstack is no longer available: a
+     * Farcaster lookup alternative"), which pushed "Airstack alternative", the
+     * page's first keyword, apart and "alternative" to the last word. /vs/holder
+     * already showed a title that fits and keeps it first. The social card
+     * and the Article headline say the same title, so a shared link and a
+     * search result do not disagree. Found by the `retired` flag the page
+     * passes to ReachabilityClaim, so a service retired later is held too.
+     */
+    const retired = (readdirSync('app/vs', { recursive: true }) as string[])
+      .filter((f) => /(^|\/)page\.tsx$/.test(f))
+      .map((f) => {
+        const source = readFileSync(`app/vs/${f}`, 'utf8');
+        return {
+          f,
+          source,
+          name: /<ReachabilityClaim competitor="([^"]+)" retired \/>/.exec(
+            source
+          )?.[1],
+        };
+      })
+      .filter((p) => p.name !== undefined);
+    ok(
+      'the retired comparison pages were found by their flag',
+      ['Airstack', 'Blaze', 'Holder'].every((n) =>
+        retired.some((p) => p.name === n)
+      )
+    );
+    for (const p of retired) {
+      const md = (
+        (await import(`../app/vs/${p.f}`)) as {
+          metadata: { title?: unknown; openGraph?: { title?: unknown } };
+        }
+      ).metadata;
+      const title = typeof md.title === 'string' ? md.title : '';
+      ok(
+        `/vs/${p.f.replace(/\/page\.tsx$/, '')} leads its title with “${p.name} alternative”: ${title}`,
+        title.startsWith(`${p.name} alternative for `)
+      );
+      ok(
+        `/vs/${p.f.replace(/\/page\.tsx$/, '')} gives its social card and its Article headline the page title`,
+        title !== '' &&
+          md.openGraph?.title === title &&
+          /headline:\s*'([^']+)'/.exec(p.source)?.[1] === title
+      );
+    }
+
+    // ---------------------------------------------- the docs site, likewise
+    // Mintlify renders a page's <title> as "{title} - {docs.json name}", so
+    // a page titled with the site name read "walletlink.social -
+    // walletlink.social", and eight API pages had only their endpoint as a
+    // description, which says nothing a searcher can use.
+    const docsConfig = JSON.parse(
+      readFileSync('docs-site/docs.json', 'utf8')
+    ) as { name: string; contextual?: { options?: unknown[] } };
+    const docPages = (
+      readdirSync('docs-site', { recursive: true }) as string[]
+    ).filter((f) => f.endsWith('.mdx'));
+    ok(
+      'the docs pages were found and read at all',
+      docPages.includes('index.mdx') &&
+        docPages.includes('api-reference/wallet.mdx')
+    );
+    for (const f of docPages) {
+      const frontmatter =
+        readFileSync(`docs-site/${f}`, 'utf8').match(
+          /^---\n([\s\S]*?)\n---/
+        )?.[1] ?? '';
+      const field = (name: string) =>
+        frontmatter.match(
+          new RegExp(`^${name}:\\s*(['"]?)(.*)\\1\\s*$`, 'm')
+        )?.[2] ?? '';
+      const title = field('title');
+      const description = field('description');
+      ok(
+        `docs-site/${f} has a title that does not repeat the name Mintlify appends`,
+        title.length > 0 &&
+          title.toLowerCase() !== docsConfig.name.toLowerCase()
+      );
+      ok(
+        `docs-site/${f} fits a search result once Mintlify appends the site name`,
+        `${title} - ${docsConfig.name}`.length <= TITLE_MAX_CHARS
+      );
+      ok(
+        `docs-site/${f} describes the page rather than naming its endpoint`,
+        description.length > 0 &&
+          description.length <= DESCRIPTION_MAX_CHARS &&
+          !/^(GET|POST|PUT|PATCH|DELETE)\s+\//.test(description)
+      );
+      /**
+       * The docs home is the page a search for the docs host lands on, and
+       * its title is its H1 as well as its search result. Fixing the doubled
+       * site name first titled it “Overview”, which no search for the product
+       * contains. The sidebar keeps that label through `sidebarTitle`.
+       */
+      if (f === 'index.mdx') {
+        ok(
+          `the docs home is titled with the words a search uses, not a generic label: ${title}`,
+          /\bwallet\b/i.test(title) &&
+            /\bfarcaster\b/i.test(title) &&
+            /\b(?:x|twitter)\b/i.test(title) &&
+            !/^(?:overview|introduction|home|welcome|getting started)$/i.test(
+              title
+            )
+        );
+      }
+    }
+
+    /**
+     * The docs host's catalog link. Mintlify's `Link` header advertises
+     * `</.well-known/api-catalog>` on every docs response whether or not the
+     * site serves one, and Mintlify serves one only when `download-spec` is
+     * in `contextual.options` (mintlify/docs PR #7559). Without it the docs
+     * host advertises a link that 404s, which is what the 2026-09-27 audit
+     * measured. The product's own catalog on walletlink.social is unaffected
+     * either way; this is the docs host's half.
+     */
+    ok(
+      'the docs site serves the API catalog its own Link header advertises',
+      Array.isArray(docsConfig.contextual?.options) &&
+        docsConfig.contextual.options.includes('download-spec')
     );
   }
 
@@ -21104,6 +22399,393 @@ async function main() {
     }
   }
 
+  // ------------------------------------- the free tool page is linked (STA-54)
+  /**
+   * /find-twitter-account-from-wallet-address is the page built for the main
+   * search query, and for ten days after it shipped nothing linked to it: the
+   * path was in the sitemap and nowhere else, and Google had not indexed it.
+   * A page reachable only from a sitemap is one a crawler may never spend a
+   * fetch on. So the links are asserted where they were added: the homepage
+   * body and footer, /check, the blog post aimed at the same query, and the
+   * two plain-text files answer engines read.
+   *
+   * The link text is part of the claim. A link reading "try it" moves a
+   * crawler and says nothing about the page, so each one must carry the
+   * words the query does ("Twitter" and "wallet").
+   */
+  {
+    const TOOL = '/find-twitter-account-from-wallet-address';
+    const TOOL_URL = `https://walletlink.social${TOOL}`;
+    const carriesQueryWords = (text: string | undefined) =>
+      Boolean(text && /\bTwitter\b/.test(text) && /\bwallet\b/i.test(text));
+
+    ok(
+      'the free tool page the links point at is a real route in the sitemap',
+      existsSync(`app${TOOL}/page.tsx`) &&
+        readFileSync('app/sitemap.ts', 'utf8').includes(TOOL)
+    );
+
+    // The homepage link must be in the upload state, which is the server
+    // render and so the HTML a crawler reads. A link in any other state
+    // exists only after a visitor has done something.
+    const home = withoutComments(readFileSync('app/page.tsx', 'utf8'));
+    const uploadStart = home.indexOf("{state === 'upload' && (");
+    const uploadEnd = home.indexOf("{state === 'ready' && (");
+    const uploadState =
+      uploadStart >= 0 && uploadEnd > uploadStart
+        ? home.slice(uploadStart, uploadEnd)
+        : '';
+    const homeLink = uploadState.match(
+      new RegExp(`<Link href="${TOOL}">\\s*([^<{]+?)\\s*</Link>`)
+    );
+    ok(
+      'the homepage links the free tool page in its server-rendered upload state, in the query’s words',
+      carriesQueryWords(homeLink?.[1])
+    );
+
+    // The footer is on every page, so this is the link that makes the tool
+    // one hop from all of them.
+    const footerSrc = withoutComments(
+      readFileSync('components/ui/site-footer.tsx', 'utf8')
+    );
+    ok(
+      'the site footer links the free tool page',
+      new RegExp(`<FooterLink href="${TOOL}">\\s*[^<]+</FooterLink>`).test(
+        footerSrc
+      )
+    );
+
+    const checkSrc = withoutComments(
+      readFileSync('app/check/page.tsx', 'utf8')
+    );
+    const checkLink = checkSrc.match(
+      new RegExp(`<Link href="${TOOL}">\\s*([^<{]+?)\\s*</Link>`)
+    );
+    ok(
+      '/check links the free tool page, in the query’s words',
+      carriesQueryWords(checkLink?.[1])
+    );
+
+    // Through the renderer, because the post is published as HTML and a
+    // markdown link that fails to parse would pass a regex over the source.
+    const { getPostBySlug } = await import('@/lib/blog');
+    const guide = getPostBySlug('find-twitter-account-from-wallet');
+    const guideLink = guide?.html.match(
+      new RegExp(`<a href="${TOOL_URL}">([^<]+)</a>`)
+    );
+    ok(
+      'the guide aimed at the same query links the free tool page, in the query’s words',
+      carriesQueryWords(guideLink?.[1])
+    );
+
+    // Through the handlers: the bytes an answer engine fetches.
+    const llmsTxt = await (await import('@/app/llms.txt/route')).GET().text();
+    const productSection = llmsTxt.slice(
+      llmsTxt.indexOf('## Product'),
+      llmsTxt.indexOf('\n## ', llmsTxt.indexOf('## Product') + 1)
+    );
+    const llmsEntry = productSection.match(
+      new RegExp(`^- \\[([^\\]]+)\\]\\(${TOOL_URL}\\): \\S`, 'm')
+    );
+    ok(
+      '/llms.txt names the free tool page in its Product list, in the query’s words',
+      carriesQueryWords(llmsEntry?.[1])
+    );
+    const llmsFull = await (
+      await import('@/app/llms-full.txt/route')
+    )
+      .GET()
+      .text();
+    const fullPreamble = llmsFull.slice(0, llmsFull.indexOf('\n---\n'));
+    ok(
+      '/llms-full.txt names the free tool page in its preamble, not only inside a post',
+      fullPreamble.includes(TOOL_URL) && carriesQueryWords(fullPreamble)
+    );
+
+    // The comparison hub had no inbound link either, which left the retired
+    // comparisons four clicks from the homepage.
+    ok(
+      'the site footer links the /vs comparison hub',
+      /<FooterLink href="\/vs">\s*[^<]+<\/FooterLink>/.test(footerSrc)
+    );
+  }
+
+  // ------------------------------------ holder report titles (STA-54)
+  /**
+   * Holder reports were titled "<contract name> holders on <chain>: the
+   * reachable people". The contract name is whatever `name()` returned
+   * ("PudgyPenguins"), and the suffix carried none of the words the searches
+   * do ("pudgy penguins holders twitter"). The descriptions ran past 160
+   * characters and left out the chain, so USD₮0 on HyperEVM and on Optimism
+   * published the same one.
+   *
+   * Asserted through the pure builders the page and its markdown twin both
+   * call, with no database: the curated name, the title pattern, the length
+   * cap, and that one name on two chains gives two titles and two
+   * descriptions.
+   */
+  {
+    const {
+      chainLabel,
+      holderDisplayName,
+      holderReportTitle,
+      holderReportDescription,
+      HOLDER_TITLE_MAX,
+      HOLDER_DESCRIPTION_MAX,
+    } = await import('@/lib/holder-pages');
+    const { RECOGNIZED_CONTRACTS } = await import('@/lib/recognized-contracts');
+
+    const pudgy = RECOGNIZED_CONTRACTS.find(
+      (c) => c.label === 'Pudgy Penguins'
+    );
+    // The address as a checksummed caller might pass it: the lookup must not
+    // depend on the case a row happens to carry.
+    const pudgyRow = pudgy
+      ? {
+          chain: pudgy.chain,
+          address: pudgy.address.toUpperCase().replace(/^0X/, '0x'),
+          name: 'PudgyPenguins',
+        }
+      : null;
+    ok(
+      'a curated contract is titled with its searchable name, not its contract name',
+      pudgyRow !== null &&
+        holderDisplayName(pudgyRow) === 'Pudgy Penguins' &&
+        holderReportTitle(pudgyRow) ===
+          'Pudgy Penguins holders on Ethereum: X (Twitter) and Farcaster'
+    );
+
+    // Assert the refusal: outside the curated list the contract's own name
+    // is kept exactly, because any re-casing or word-splitting rule garbles
+    // brands that spell themselves that way on purpose.
+    const unlisted = (name: string, chain = 'base') => ({
+      chain,
+      address: `0x${'e'.repeat(40)}`,
+      name,
+    });
+    ok(
+      'a contract outside the curated list keeps its own name, unaltered by any heuristic',
+      ['GRiBBiTS', 'TheGloobs', 'aixbt by Virtuals', 'OK COMPUTERS'].every(
+        (name) => holderDisplayName(unlisted(name)) === name
+      )
+    );
+
+    const names = [
+      'Toshi',
+      'USD₮0',
+      'Human Resources by Tabor Robak',
+      'Galaktic Gang Embodied',
+      // No contract publishes a name this long today; nothing stops one.
+      'A'.repeat(200),
+    ];
+    const cases = SUPPORTED_CHAINS.flatMap((chain) =>
+      names.map((name) => ({ chain, name, row: unlisted(name, chain) }))
+    );
+
+    ok(
+      'every holder title leads with the name, the word holders and the chain, and drops the old suffix',
+      cases.every(({ chain, name, row }) => {
+        const title = holderReportTitle(row);
+        return (
+          title.startsWith(`${name} holders on ${chainLabel(chain)}`) &&
+          !title.includes('the reachable people')
+        );
+      })
+    );
+    ok(
+      'a holder title carries X (Twitter) and Farcaster whenever that fits the cap, and never exceeds the cap unless the bare name does',
+      cases.every(({ chain, name, row }) => {
+        const title = holderReportTitle(row);
+        const lead = `${name} holders on ${chainLabel(chain)}`;
+        const full = `${lead}: X (Twitter) and Farcaster`;
+        if (full.length <= HOLDER_TITLE_MAX) return title === full;
+        return title.length <= HOLDER_TITLE_MAX || title === lead;
+      }) && HOLDER_TITLE_MAX <= 65
+    );
+    ok(
+      'every holder description is at most 160 characters and names the chain',
+      HOLDER_DESCRIPTION_MAX <= 160 &&
+        cases.every(({ chain, row }) => {
+          const description = holderReportDescription(row);
+          return (
+            description.length <= HOLDER_DESCRIPTION_MAX &&
+            description.includes(` on ${chainLabel(chain)} `) &&
+            description.includes('X (Twitter)') &&
+            description.includes('Farcaster')
+          );
+        })
+    );
+    // The duplicate found live: one token, one name, two chains.
+    const usdt0 = ['hyperevm', 'optimism'].map((chain) =>
+      unlisted('USD₮0', chain)
+    );
+    ok(
+      'the same name on two chains gets two titles and two descriptions',
+      holderReportTitle(usdt0[0]) !== holderReportTitle(usdt0[1]) &&
+        holderReportDescription(usdt0[0]) !==
+          holderReportDescription(usdt0[1]) &&
+        names.every((name) => {
+          const rows = SUPPORTED_CHAINS.map((chain) => unlisted(name, chain));
+          return (
+            new Set(rows.map(holderReportTitle)).size === rows.length &&
+            new Set(rows.map(holderReportDescription)).size === rows.length
+          );
+        })
+    );
+
+    // The page and its markdown twin take the title from the builders, so
+    // the tab, both cards, the Article headline and the h1 cannot disagree.
+    const reportSrc = withoutComments(
+      readFileSync('app/holders/[chain]/[address]/page.tsx', 'utf8')
+    );
+    ok(
+      'the holder report’s title, cards and Article headline come from the builders',
+      /const title = holderReportTitle\(collection\);/.test(reportSrc) &&
+        /const description = holderReportDescription\(collection\);/.test(
+          reportSrc
+        ) &&
+        /openGraph: \{\s*title,\s*description,/.test(reportSrc) &&
+        /twitter: \{\s*card: 'summary_large_image',\s*title,\s*description,/.test(
+          reportSrc
+        ) &&
+        /headline: holderReportTitle\(collection\),/.test(reportSrc) &&
+        !/the reachable people/.test(reportSrc)
+    );
+    ok(
+      'the holder report’s h1 carries the searchable name the title does',
+      /const name = holderDisplayName\(collection\);/.test(reportSrc) &&
+        /<h1[^>]*>\s*\{name\} holders\s*<\/h1>/.test(reportSrc)
+    );
+    const { holderReportMarkdown } =
+      await import('@/app/api/markdown/documents');
+    const twin = pudgyRow
+      ? holderReportMarkdown(
+          {
+            ...pudgyRow,
+            chain: 'ethereum',
+            symbol: 'PPG',
+            contractType: 'ERC-721',
+            totalHolders: 2000,
+            holdersImported: 2000,
+            lastSeenAt: '2026-09-28 12:00:00',
+          },
+          {
+            holderCount: 2000,
+            checked: 2000,
+            withTwitter: 300,
+            twitterVerified: 200,
+            withFarcaster: 250,
+            xLive: 250,
+            xUnclaimed: 20,
+            xSuspended: 30,
+            reachableAny: 400,
+            avgFcFollowers: null,
+            medianFcFollowers: null,
+          },
+          []
+        )
+      : '';
+    ok(
+      'the markdown twin publishes the same title and description as the page',
+      pudgyRow !== null &&
+        twin.includes(
+          `title: ${JSON.stringify(holderReportTitle(pudgyRow))}`
+        ) &&
+        twin.includes(
+          `description: ${JSON.stringify(holderReportDescription(pudgyRow))}`
+        ) &&
+        twin.includes(`\n# ${holderReportTitle(pudgyRow)}\n`)
+    );
+
+    // The hub is where a crawler meets the names first. A report titled
+    // "Pudgy Penguins" linked as "PudgyPenguins" is the same page named
+    // twice, so both hubs read the name through the same function.
+    const { holdersIndexMarkdown } =
+      await import('@/app/api/markdown/documents');
+    const hubTwin = pudgyRow
+      ? holdersIndexMarkdown([
+          {
+            ...pudgyRow,
+            chain: 'ethereum',
+            symbol: 'PPG',
+            contractType: 'ERC-721',
+            totalHolders: 2000,
+            holdersImported: 2000,
+            lastSeenAt: '2026-09-28 12:00:00',
+            reachableAny: 400,
+          },
+        ])
+      : '';
+    ok(
+      'the markdown holder hub links each report by its searchable name',
+      hubTwin.includes('| [Pudgy Penguins](') &&
+        !hubTwin.includes('[PudgyPenguins]')
+    );
+    const hubSrc = withoutComments(
+      readFileSync('app/holders/page.tsx', 'utf8')
+    );
+    ok(
+      'the holder hub page links each report by its searchable name',
+      /\{holderDisplayName\(c\)\}\s*<\/Link>/.test(hubSrc) &&
+        !/\{c\.name\}/.test(hubSrc)
+    );
+  }
+
+  // ------------------------------- STA-54 review: the index, catalog, names
+  {
+    // OpenAPI appends a path to the server URL, so a `/` operation resolves to
+    // `/api/v1/`, which redirects without CORS headers. The index is described
+    // in the reference's prose instead.
+    const spec = readFileSync('docs-site/openapi.yaml', 'utf8');
+    ok(
+      'no OpenAPI operation sits at `/`, whose URL would end in a slash that redirects',
+      !/\n  \/:\n/.test(spec) &&
+        /A `GET` on the base URL itself, `https:\/\/walletlink\.social\/api\/v1` with no\n\s+trailing slash, returns a JSON index/.test(
+          spec
+        ) &&
+        /A `GET` on the base URL itself/.test(
+          readFileSync('docs-site/api-reference/introduction.mdx', 'utf8')
+        )
+    );
+
+    // Mintlify's API catalog lists only the specs docs.json names.
+    const docsJson = JSON.parse(readFileSync('docs-site/docs.json', 'utf8'));
+    ok(
+      'docs.json names the OpenAPI spec, so the docs API catalog has one to list',
+      docsJson?.api?.openapi === 'openapi.yaml' &&
+        existsSync('docs-site/openapi.yaml')
+    );
+
+    // A cut by UTF-16 unit can leave half an emoji in the description.
+    const { holderReportDescription } = await import('@/lib/holder-pages');
+    const loneSurrogate =
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    const emojiName = '🐸'.repeat(90);
+    const cut = [0, 1].map((pad) =>
+      holderReportDescription({
+        chain: 'base',
+        address: '0x0000000000000000000000000000000000000001',
+        name: 'x'.repeat(pad) + emojiName,
+      })
+    );
+    ok(
+      'a truncated holder description never splits an emoji',
+      cut.every(
+        (d) => d.length <= 160 && d.includes('…') && !loneSurrogate.test(d)
+      )
+    );
+
+    // The run flow labels a starter or linked collection with the same name
+    // its report shows.
+    const starters = withoutComments(
+      readFileSync('lib/starter-collections.ts', 'utf8')
+    );
+    ok(
+      'starter and linked collections carry the report’s display name',
+      (starters.match(/name: holderDisplayName\(/g) ?? []).length === 2
+    );
+  }
+
   // ------------------------------------ the guard runs in shards (STA-53)
   // CI splits the guard's mutations across parallel jobs. A split that drops
   // a mutation, runs one twice, guesses at a malformed flag, or lets the
@@ -21218,6 +22900,23 @@ async function main() {
   console.error(`\n${failures.length} of ${checked} failed.`);
   process.exit(1);
 }
+
+/**
+ * main() always ends in process.exit, which never emits `beforeExit`, so
+ * reaching this means the checks stopped part way.
+ *
+ * An await that never settles, with nothing left to keep Node running, ends
+ * the process with status 0 and no output, and CI and the guard both read
+ * status 0 as a pass. Seen on 2026-09-29: a check awaiting a request cut off
+ * by AbortSignal.timeout, whose timer does not hold the process open, exited
+ * 0 part way through, and nothing after it was checked.
+ */
+process.on('beforeExit', () => {
+  console.error(
+    'check-invariants.ts stopped before it finished: an awaited promise never settled, and nothing after it was checked.'
+  );
+  process.exit(1);
+});
 
 main().catch((e) => {
   console.error(e);

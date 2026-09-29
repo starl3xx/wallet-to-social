@@ -12,15 +12,14 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { INDEXED_WALLETS, ATTESTED_X_SHARE_PCT } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 export const metadata: Metadata = {
-  title:
-    'Airstack alternative for Farcaster lookups (Airstack is no longer available)',
+  title: 'Airstack alternative for Farcaster lookups (Airstack is offline)',
   description:
-    'Airstack is no longer available: its Farcaster APIs were deprecated on 2025-03-05 and airstack.xyz now redirects to senpi.ai. This page is kept for people comparing alternatives.',
+    'Airstack’s Farcaster APIs were deprecated on 2025-03-05 and airstack.xyz now redirects to senpi.ai. Where to take your Farcaster identity lookups instead.',
   keywords: [
     'airstack alternative',
     'airstack api deprecated',
@@ -29,8 +28,7 @@ export const metadata: Metadata = {
     'reverse farcaster lookup',
   ],
   openGraph: {
-    title:
-      'Airstack alternative for Farcaster lookups (Airstack is no longer available)',
+    title: 'Airstack alternative for Farcaster lookups (Airstack is offline)',
     description:
       'Airstack is no longer available. This page is kept for people comparing alternatives: walletlink.social’s API covers the complete Farcaster protocol, including reverse handle-to-wallet lookups.',
     type: 'article',
@@ -55,8 +53,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline:
-    'Airstack alternative for Farcaster lookups (Airstack is no longer available)',
+  headline: 'Airstack alternative for Farcaster lookups (Airstack is offline)',
   description:
     'Airstack is no longer available: its Farcaster APIs were deprecated on 2025-03-05 and airstack.xyz now redirects to senpi.ai (checked 2026-08-22). A page kept for teams comparing alternatives for wallet and Farcaster identity lookups.',
   author: {
@@ -364,9 +361,10 @@ export default function AirstackComparison() {
               over a simple REST API. Our index covers {INDEXED_WALLETS} wallets
               with complete Farcaster protocol coverage: every account’s
               verified and custody addresses, usernames, and follower counts,
-              refreshed daily. Over 99.8% of X matches are user-attested, most
-              through an X account verified on Farcaster and the rest through
-              onchain ENS records.
+              refreshed daily. Over {ATTESTED_X_SHARE_PCT}% of X matches are
+              user-attested: most through an X account verified on Farcaster,
+              the rest through an onchain record such as ENS, an attested social
+              sign-in or a manually verified record.
             </p>
             <p className="text-muted-foreground">
               If you used Airstack for Farcaster identity resolution, the API

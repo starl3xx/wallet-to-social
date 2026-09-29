@@ -12,7 +12,11 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
+import {
+  INDEXED_WALLETS,
+  CHAIN_COUNT_WORD,
+  ATTESTED_X_SHARE_PCT,
+} from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -46,7 +50,7 @@ import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 export const metadata: Metadata = {
   title: 'Absolute Labs alternative for wallet to social lookup',
   description:
-    'Absolute Labs sells a web3 CRM with wallet identity inside it. walletlink.social sells the lookup on its own, priced per match, with no demo call. What each one is, checked September 2026.',
+    'Absolute Labs sells a web3 CRM with wallet identity inside it. walletlink.social sells the lookup on its own, priced per match, with no demo call.',
   keywords: [
     'absolute labs alternative',
     'wallet relationship management',
@@ -461,10 +465,10 @@ export default function AbsoluteLabsComparison() {
             </ol>
             <p className="text-muted-foreground">
               The index holds {INDEXED_WALLETS} wallets with complete Farcaster
-              protocol coverage, refreshed daily. Over 99.8% of the X handles
-              were published by the wallet owner themselves, and every match
-              carries the evidence class behind it. Where we only have a
-              correlation, the row says so.
+              protocol coverage, refreshed daily. Over {ATTESTED_X_SHARE_PCT}%
+              of X matches are links the wallet owner published themselves, and
+              every match carries the evidence class behind it. Where we only
+              have a correlation, the row says so.
             </p>
           </section>
 

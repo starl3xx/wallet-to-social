@@ -46,6 +46,9 @@ import {
   holderBasis,
   holderBasisCaveat,
   holderBasisPhrase,
+  holderDisplayName,
+  holderReportDescription,
+  holderReportTitle,
   isNamed,
   measurementInProgress,
   standardLabel,
@@ -244,7 +247,7 @@ export function holdersIndexMarkdown(
 
   const rows = collections.map((collection) => {
     const url = `${PRODUCTION_URL}/holders/${collection.chain}/${collection.address}`;
-    return `| [${collection.name}](${url}) | ${chainLabel(collection.chain)} | ${collection.reachableAny.toLocaleString()} |`;
+    return `| [${holderDisplayName(collection)}](${url}) | ${chainLabel(collection.chain)} | ${collection.reachableAny.toLocaleString()} |`;
   });
 
   return `${head}
@@ -278,12 +281,16 @@ export function holderReportMarkdown(
   overlap: HolderOverlap[]
 ): string {
   const chain = chainLabel(collection.chain);
+  // The HTML report's own title, description and name, from the same
+  // builders, so the two representations of one URL cannot disagree.
+  const name = holderDisplayName(collection);
+  const title = holderReportTitle(collection);
   const basis = holderBasis(collection);
   const caveat = holderBasisCaveat(basis);
   const measured = stats.holderCount.toLocaleString();
   const population = holderBasisPhrase(basis, {
     measuredNoun: 'addresses',
-    ofCollection: ` holding ${collection.name}`,
+    ofCollection: ` holding ${name}`,
   });
   const reachablePct =
     stats.holderCount > 0
@@ -292,8 +299,8 @@ export function holderReportMarkdown(
   const inProgress = measurementInProgress(stats);
 
   const head = frontmatter({
-    title: `${collection.name} holder reachability on ${chain}`,
-    description: `Reachability measured over ${population} on ${chain}.`,
+    title,
+    description: holderReportDescription(collection),
     dataset_confirmed_onchain: collection.lastSeenAt
       ? collection.lastSeenAt.slice(0, 10)
       : null,
@@ -313,16 +320,16 @@ export function holderReportMarkdown(
       ? `\n\n## Collections these holders also hold\n\n${overlap
           .map(
             (other) =>
-              `- [${other.name}](${PRODUCTION_URL}/holders/${other.chain}/${other.address}) on ${chainLabel(other.chain)}: ${other.sharedHolders.toLocaleString()} shared holders`
+              `- [${holderDisplayName(other)}](${PRODUCTION_URL}/holders/${other.chain}/${other.address}) on ${chainLabel(other.chain)}: ${other.sharedHolders.toLocaleString()} shared holders`
           )
           .join('\n')}`
       : '';
 
   return `${head}
 
-# ${collection.name} holder reachability on ${chain}
+# ${title}
 
-Measured over ${population}. ${notes.join(' ')}
+Measured over ${population} on ${chain}. ${notes.join(' ')}
 
 | Measure | Value |
 | --- | --- |

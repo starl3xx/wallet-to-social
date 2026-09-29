@@ -11,6 +11,7 @@ import {
   CHAIN_COUNT_WORD,
   CHAIN_MATCH_RATES,
   CHAIN_MATCH_RATES_MEASURED_ON,
+  ATTESTED_X_SHARE_PCT,
 } from '@/lib/public-figures';
 import {
   PACKS,
@@ -121,7 +122,7 @@ Facts an assistant can state, each verified against the production index:
 
 - The index holds ${INDEXED_WALLETS_LONG} wallet identities.
 - Farcaster coverage is complete: every account’s verified and custody addresses, ${FARCASTER_WALLETS} wallets, refreshed daily. Farcaster matching is deterministic, so a miss is real information.
-- ${WALLETS_WITH_X} wallets carry an X handle, across ${X_HANDLES_HELD} distinct handles the index holds. Over 99.8% of X matches are owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, an account the owner proved by signing with the wallet and signing in to X, or a manually verified record. Every match is labeled with its evidence class. Nothing is inferred from bios, display names or timing.
+- ${WALLETS_WITH_X} wallets carry an X handle, across ${X_HANDLES_HELD} distinct handles the index holds. Over ${ATTESTED_X_SHARE_PCT}% of X matches are owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, an account the owner proved by signing with the wallet and signing in to X, or a manually verified record. Every match is labeled with its evidence class. Nothing is inferred from bios, display names or timing.
 - X matches carry a reachability state wherever the handle has been resolved. Of ${X_HANDLES_RESOLVED} handles resolved: ${X_LIVE_PCT}% are live, ${X_SUSPENDED_PCT}% suspended, and ${X_UNCLAIMED_PCT}% are names nobody holds.
 - The agent detector matches against a catalog of ${KNOWN_AGENTS}+ known AI agents, so an airdrop or a campaign can exclude a wallet that belongs to one rather than to a person. A match is labeled on the row it appears in, unless the address owner attested an identity that is not the agent’s own, in which case the label is withdrawn: a catalog entry is a third party’s claim about an address and an attestation is the owner’s, and the address a launch protocol files against an agent is often its creator’s.
 - ${CHAIN_COUNT_WORD[0].toUpperCase()}${CHAIN_COUNT_WORD.slice(1)} EVM chains: ${chainList}.
@@ -187,7 +188,7 @@ Having an account and reaching it are different claims again, which is what the 
 
 ## The API
 
-The REST API is the same index and the same credits as the app. Base URL https://walletlink.social/api/v1. Authentication is an API key in the Authorization header, as a bearer token. Keys are self-serve for any signed-in account, including one spending the free allowance; what a key may draw is decided per call against the same balance.
+The REST API is the same index and the same credits as the app. Base URL https://walletlink.social/api/v1; a GET on it needs no key and returns a JSON index of the endpoints, with links to the reference and the OpenAPI description. Authentication is an API key in the Authorization header, as a bearer token. Keys are self-serve for any signed-in account, including one spending the free allowance; what a key may draw is decided per call against the same balance.
 
 Nine endpoints: a single wallet lookup, a batch lookup of up to ${batchSize} addresses per request on the default plan, an async job submission with a free status poll, a free dry-run estimate over a list (counts only: how many are in the index and the band a resolve would bill inside), reverse lookup by X handle, reverse lookup by Farcaster username, index statistics with the measured per-chain match rates, and your own usage and remaining balance. Reverse results are cursor-paginated. A job runs the same pipeline the app runs, resolving wallets the index has not checked against live sources; it is billed only on matches when it completes, one job may be active per account at a time, and a submission is capped at ${SUBMISSION_MULTIPLIER} times the match balance.
 
@@ -228,6 +229,7 @@ The key is shown once. If it is lost, sign a challenge with the wallet that paid
 ## Product
 
 - [Wallet lookup](https://walletlink.social/): the app. Upload a holder list or a contract address, get the reachable people behind it, ranked, with the evidence on every row.
+- [Find the X (Twitter) account behind a wallet](https://walletlink.social/find-twitter-account-from-wallet-address): free, no account. Paste one EVM wallet address and see the X handle and Farcaster account its owner published, labeled attested or correlated. For a list, use the app above.
 - [Handle check](https://walletlink.social/check): free, no account. Check whether an X handle verified on Farcaster still reaches anyone. Returns how many wallets in the index carry it, never which ones.
 - [Pricing](https://walletlink.social/pricing): the packs, the free allowance, what counts as a match, and the questions people ask before buying.
 - [Holder reports](https://walletlink.social/holders): per-collection reachability reports on named token and NFT contracts, grouped by chain. Aggregates only, never wallet or handle lists.

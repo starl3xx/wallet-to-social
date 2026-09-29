@@ -109,6 +109,18 @@ export default function CheckPage() {
             a curiosity, and the same handle on two hundred is a campaign
             sending into nothing.
           </p>
+          {/* The forward direction, named with the words it is searched by.
+              The free tool page had no inbound link from anywhere; this is
+              the page most like it. Held by scripts/check-invariants.ts. */}
+          <p className="text-sm text-muted-foreground">
+            The forward direction is free, one address at a time:{' '}
+            <Button asChild variant="link" size="inline">
+              <Link href="/find-twitter-account-from-wallet-address">
+                find the X (Twitter) account behind a wallet
+              </Link>
+            </Button>
+            .
+          </p>
           <p className="text-sm text-muted-foreground">
             A handle we have not resolved yet says so. It is never assumed live,
             which is the whole point: guessing here is the thing this page

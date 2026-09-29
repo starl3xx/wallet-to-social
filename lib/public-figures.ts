@@ -41,10 +41,10 @@ import { SUPPORTED_CHAINS } from '@/lib/chains';
  * a twitter handle, farcaster name, ENS name, lens handle or github. Never
  * `count(*)` on the table.
  */
-export const INDEXED_WALLETS = '4.85M';
+export const INDEXED_WALLETS = '4.86M';
 
 /** The same figure written out, for prose that cannot use an abbreviation. */
-export const INDEXED_WALLETS_LONG = '4.85 million';
+export const INDEXED_WALLETS_LONG = '4.86 million';
 
 /**
  * Wallets carrying an X handle, rounded.
@@ -103,6 +103,36 @@ export const X_HANDLES_HELD = '480,015';
  * pipeline never has on any given day.
  */
 export const X_REACHABILITY_COVERAGE_PCT = '99.9';
+
+/**
+ * Share of the wallets carrying an X handle whose handle the owner published,
+ * as an "over N%" floor.
+ *
+ * The owner-attested routes: an X account verified on Farcaster, a handle set
+ * in an onchain ENS record, an attested social sign-in, or a manually verified
+ * record. Everything else is correlated and labeled so.
+ *
+ * It was a literal in fifteen places, and by 2026-09-27 they disagreed: the
+ * homepage FAQ said "over 99.9%" in one answer and "over 99.8%" two answers
+ * further down, and the Apify README said 99.9% as well. The share measured
+ * on 2026-09-23 was 99.8975%, so 99.9 over-claimed. The FAQ sentence said
+ * "come from" rather than "of", a phrasing the figures check could not read,
+ * and the Apify README was not declared at all, which is how both survived.
+ * The ten TypeScript surfaces interpolate this now; the five Markdown ones
+ * keep a literal and are declared in `scripts/check-published-figures.ts`,
+ * which checks this constant as a floor: the truth may sit above it, never
+ * below.
+ *
+ * Two things the check cannot see, held by `scripts/check-invariants.ts`
+ * instead. The unit is the wallet: say "of X matches" or "of the wallets
+ * with an X handle", never "of the X handles". Counted by distinct handle
+ * the share was 99.78% on 2026-09-29, under this floor. And the routes: a
+ * sentence stating the share names all four, or gives Farcaster and ENS as
+ * examples. Those two carry 91.5% of the wallets with an X handle, so a
+ * sentence crediting the share to them alone is false with the right number
+ * in it.
+ */
+export const ATTESTED_X_SHARE_PCT = '99.8';
 
 /**
  * The reachability split: what happened to the X handles we resolved.
@@ -205,8 +235,14 @@ export const KNOWN_AGENTS = '13,622';
  *
  * Note the constant said 242 while the live count was 260, so it had already
  * drifted before any of this. The checker's tolerance was absorbing it.
+ *
+ * 122 as of 2026-09-29. It had sat at 92 for ten days while the live count
+ * moved to 116 and then 122, and nothing noticed, because the figures check
+ * never declared it: `scripts/backfill-agent-claims.ts` said the check
+ * compared it against `count(*) WHERE is_agent`, and no entry did. One does
+ * now.
  */
-export const AGENT_WALLETS_FLAGGED = '92';
+export const AGENT_WALLETS_FLAGGED = '122';
 /** The same fact at display size, for stat tiles. */
 export const KNOWN_AGENTS_SHORT = '13K+';
 

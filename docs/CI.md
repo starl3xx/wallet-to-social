@@ -37,6 +37,13 @@ row above can stay deterministic: the invariants check Expires against
 `SECURITY_CONTACT_VERIFIED` and never against the clock. A red is not an
 outage; renew as `docs/OPERATIONS.md` describes ("The security contact").
 Local repro: `GITHUB_TOKEN=$(gh auth token) node scripts/check-security-contact.mjs`.
+After each production deploy, not a PR gate: `cache-warm.yml` requests every
+holder report in the sitemap so crawlers find them cached. Every preview (and
+every Mintlify deployment) starts a run whose `warm` job is skipped; that is
+its condition working. A red run, or warnings on a green one, is not an
+outage; see
+`docs/OPERATIONS.md`, "Cache warm after a production deploy". Local repro,
+production GETs only: `node scripts/warm-cache.mjs`.
 `published-figures.yml` runs both ways: Mondays as the drift catcher, plus a
 path-filtered PR trigger when published copy, `lib/public-figures.ts` or the
 checker changes; `holder-fallback.yml` likewise lands on PRs touching its own

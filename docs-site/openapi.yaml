@@ -23,6 +23,14 @@ info:
     Resolve an Ethereum address to the social identities attached to it, or go
     the other way and find every wallet behind a handle.
 
+    ## The base URL
+
+    A `GET` on the base URL itself, `https://walletlink.social/api/v1` with no
+    trailing slash, returns a JSON index of every operation below with its
+    method, path, summary and reference page. It needs no key and costs
+    nothing. It is not listed as an operation because OpenAPI appends a path to
+    the server URL, so it would resolve to `/api/v1/`, which redirects.
+
     ## Authentication
 
     Pass your key in the `Authorization` header. Both forms are accepted:

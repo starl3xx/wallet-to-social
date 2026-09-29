@@ -14,7 +14,9 @@
   </p>
 
   <p>
-    <a href="https://walletlink.social">App</a> &middot;
+    <a href="https://walletlink.social/?ref=dir-github">App</a> &middot;
+    <a href="https://walletlink.social/mcp?ref=dir-github">MCP server</a> &middot;
+    <a href="https://walletlink.social/llms.txt">llms.txt</a> &middot;
     <a href="https://docs.walletlink.social">Docs</a> &middot;
     <a href="https://docs.walletlink.social/api-reference/introduction">API</a> &middot;
     <a href="https://x.com/walletlinkETH">@walletlinkETH</a>
@@ -23,11 +25,28 @@
 
 ---
 
+## Connect
+
+A remote MCP server with eight tools, drawing the same credits as the REST API. There is nothing to install:
+
+```
+https://walletlink.social/api/mcp
+```
+
+- **Claude, or any client that supports MCP OAuth:** add the URL as a connector. The first tool call asks you to sign in, and there is no key to copy.
+- **Claude Code:** `claude mcp add --transport http walletlink https://walletlink.social/api/mcp --header "Authorization: Bearer wts_live_YOUR_KEY"`
+- **Cursor:** create a key from the account menu at [walletlink.social](https://walletlink.social/?ref=dir-github) and choose **Add to Cursor**.
+- **Any other client:** the same URL, with a key in an `Authorization: Bearer` header. Keys are free for any signed-in account.
+
+Listing the tools needs no credential. The [MCP page](https://walletlink.social/mcp?ref=dir-github) has the config block and what a connection can reach, and the [docs](https://docs.walletlink.social/mcp-server) have a config for each client.
+
+---
+
 ## How it works
 
 ```
 Wallet list in (CSV · contract address · paste)
-  ├─ Resolve against a 4.85M-wallet identity index
+  ├─ Resolve against a 4.86M-wallet identity index
   ├─ Farcaster: complete protocol coverage, refreshed daily
   ├─ X handles: attested first, labeled always, never inferred
   ├─ Rank by holdings × follower reach
@@ -51,10 +70,10 @@ The chain decides this more than the collection does: Base sits at the top of th
 
 Having an account and reaching it are different claims. Of 482,968 X handles resolved, 70.1% are live, 19.7% suspended and 10.2% are names nobody holds. Matches carry that answer wherever the handle has been resolved.
 
-| Network       | Nature of the match                                                                                                                                                                                                                                                                                                                                                                            |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Farcaster** | Complete. Every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information rather than missing information.                                                                                                                                                                                                                                          |
-| **X**         | Attested first, labeled always. Over 99.8% of handles were published by the wallet owner themselves: a Farcaster verification, an onchain ENS record, an attested-social sign-in, or a manually verified record. Anything else is correlated and labeled so in its evidence class, so a match always tells you how it was established. Nothing is inferred from display names, bios or timing. |
+| Network       | Nature of the match                                                                                                                                                                                                                                                                                                                                                                                |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Farcaster** | Complete. Every account and its addresses, refreshed daily. Matching is deterministic, so a miss is real information rather than missing information.                                                                                                                                                                                                                                              |
+| **X**         | Attested first, labeled always. Over 99.8% of X matches are links the wallet owner published themselves: a Farcaster verification, an onchain ENS record, an attested-social sign-in, or a manually verified record. Anything else is correlated and labeled so in its evidence class, so a match always tells you how it was established. Nothing is inferred from display names, bios or timing. |
 
 Coverage would be higher if we guessed. Contacting the wrong person is worse than contacting fewer people.
 

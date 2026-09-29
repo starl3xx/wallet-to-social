@@ -12,13 +12,16 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
+import {
+  INDEXED_WALLETS,
+  CHAIN_COUNT_WORD,
+  ATTESTED_X_SHARE_PCT,
+} from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 export const metadata: Metadata = {
-  title:
-    'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',
+  title: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',
   description:
     'Blaze is no longer available: withblaze.app stopped resolving (checked 2026-08-22). This page is kept for people comparing alternatives for wallet-to-X lookups.',
   keywords: [
@@ -29,8 +32,7 @@ export const metadata: Metadata = {
     'wallet lookup tool',
   ],
   openGraph: {
-    title:
-      'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',
+    title: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',
     description:
       'Blaze is no longer available. This page is kept for people comparing alternatives: walletlink.social has one-time pricing and X and Farcaster coverage.',
     type: 'article',
@@ -55,8 +57,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline:
-    'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',
+  headline: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',
   description:
     'Blaze is no longer available and withblaze.app no longer resolves (checked 2026-08-22). A page kept for former Blaze users comparing alternatives for wallet-to-X lookups.',
   author: {
@@ -416,11 +417,12 @@ export default function BlazeComparison() {
             </ol>
             <p className="text-muted-foreground">
               Lookups are backed by an index of {INDEXED_WALLETS} wallets with
-              complete Farcaster protocol coverage, refreshed daily. Over 99.8%
-              of X matches are user-attested (links the wallet owner created
-              themselves, such as a verified Farcaster account or an onchain ENS
-              record), and every match carries the evidence behind it, so there
-              is no guesswork in your outreach list.
+              complete Farcaster protocol coverage, refreshed daily. Over{' '}
+              {ATTESTED_X_SHARE_PCT}% of X matches are user-attested (links the
+              wallet owner created themselves, such as a verified Farcaster
+              account or an onchain ENS record), and every match carries the
+              evidence behind it, so there is no guesswork in your outreach
+              list.
             </p>
           </section>
 

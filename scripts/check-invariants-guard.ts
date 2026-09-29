@@ -84,6 +84,151 @@ const MUTATIONS: Mutation[] = [
     to: 'const WAVE_BUDGET_MS = 40000;',
   },
 
+  // The post-deploy cache warm GETs production after every deploy, so each
+  // promise that makes it safe to run is broken here once: when it runs, how
+  // many requests it has in flight, and that every wait and retry ends.
+  {
+    name: 'cache warm: the workflow also runs on every push',
+    file: '.github/workflows/cache-warm.yml',
+    from: 'on:\n  deployment_status:\n',
+    to: 'on:\n  deployment_status:\n  push:\n',
+  },
+  {
+    name: 'cache warm: the job runs for a failed or pending deployment too',
+    file: '.github/workflows/cache-warm.yml',
+    from: "      github.event.deployment_status.state == 'success' &&\n",
+    to: '',
+  },
+  {
+    name: 'cache warm: the job runs for preview deployments too',
+    file: '.github/workflows/cache-warm.yml',
+    from: " &&\n      github.event.deployment.environment == 'Production'",
+    to: '',
+  },
+  {
+    name: 'cache warm: either half of the condition is enough',
+    file: '.github/workflows/cache-warm.yml',
+    from: "'success' &&\n      github.event.deployment.environment",
+    to: "'success' ||\n      github.event.deployment.environment",
+  },
+  {
+    name: 'cache warm: the job loses its timeout-minutes',
+    file: '.github/workflows/cache-warm.yml',
+    from: '    timeout-minutes: 30\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: a newer deploy no longer cancels the older warm',
+    file: '.github/workflows/cache-warm.yml',
+    from: '  cancel-in-progress: true\n',
+    to: '  cancel-in-progress: false\n',
+  },
+  {
+    name: 'cache warm: every run shares the production group, so a preview’s run cancels a production warm',
+    file: '.github/workflows/cache-warm.yml',
+    from: "format('cache-warm-{0}', github.run_id)",
+    to: "'cache-warm-production'",
+  },
+  {
+    name: 'cache warm: each production warm gets a group of its own, so two can run at once',
+    file: '.github/workflows/cache-warm.yml',
+    from: "&& 'cache-warm-production' ||",
+    to: "&& format('cache-warm-p{0}', github.run_id) ||",
+  },
+  {
+    name: 'cache warm: the workflow can write',
+    file: '.github/workflows/cache-warm.yml',
+    from: '  statuses: read\n',
+    to: '  statuses: write\n',
+  },
+  {
+    name: 'cache warm: the script never learns the deployed commit, so it never checks which deployment is live',
+    file: '.github/workflows/cache-warm.yml',
+    from: '          DEPLOY_SHA: ${{ github.event.deployment.sha }}\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: eight requests at a time, the load that took 16 s a page',
+    file: 'scripts/warm-cache.mjs',
+    from: 'export const CONCURRENCY = 2;',
+    to: 'export const CONCURRENCY = 8;',
+  },
+  {
+    name: 'cache warm: the pool starts every page at once',
+    file: 'scripts/warm-cache.mjs',
+    from: 'Array.from({ length: Math.min(limit, items.length) }, lane)',
+    to: 'Array.from({ length: items.length }, lane)',
+  },
+  {
+    name: 'cache warm: the pool keeps starting pages after its budget',
+    file: 'scripts/warm-cache.mjs',
+    from: '      if (Date.now() >= deadline) return;\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: the run hands the pool no budget',
+    file: 'scripts/warm-cache.mjs',
+    from: '    started + WARM_BUDGET_MS\n',
+    to: '    Infinity\n',
+  },
+  {
+    name: 'cache warm: a request that never answers is waited on forever',
+    file: 'scripts/warm-cache.mjs',
+    from: '      signal: AbortSignal.timeout(timeoutMs),\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: the wait for the new deployment never gives up',
+    file: 'scripts/warm-cache.mjs',
+    from: '    if (waitedMs + pollMs > waitMs) return { live: false, seen, waitedMs };\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: the sitemap is retried without limit',
+    file: 'scripts/warm-cache.mjs',
+    from: 'for (let attempt = 1; attempt <= attempts; attempt++)',
+    to: 'for (let attempt = 1; ; attempt++)',
+  },
+  {
+    name: 'cache warm: a sitemap URL on another host is warmed too',
+    file: 'scripts/warm-cache.mjs',
+    from: '    if (url.origin !== origin) continue;\n',
+    to: '',
+  },
+  {
+    name: 'cache warm: a stale answer no longer pauses its lane',
+    file: 'scripts/warm-cache.mjs',
+    from: "  if (result.cache === 'STALE') await sleep(pauseMs);\n",
+    to: '',
+  },
+  {
+    // The defect this was written with: HTML writes the separator `&amp;`,
+    // so an id read only after `?` or `&` is never found and every run
+    // waited out its five minutes.
+    name: 'cache warm: the deployment id is read only after ? or &, and misses &amp;dpl=',
+    file: 'scripts/warm-cache.mjs',
+    from: '/\\bdpl=(dpl_',
+    to: '/[?&]dpl=(dpl_',
+  },
+  {
+    name: 'cache warm: a pending Vercel status names the deployment to wait for',
+    file: 'scripts/warm-cache.mjs',
+    from: "(s) => s?.context === 'Vercel' && s?.state === 'success'",
+    to: "(s) => s?.context === 'Vercel'",
+  },
+  {
+    name: 'cache warm: the warm budget outgrows the job’s timeout-minutes',
+    file: 'scripts/warm-cache.mjs',
+    from: 'export const WARM_BUDGET_MS = 15 * 60_000;',
+    to: 'export const WARM_BUDGET_MS = 25 * 60_000;',
+  },
+  {
+    name: 'cache warm: the runbook the workflow points to is gone',
+    file: 'docs/OPERATIONS.md',
+    from: '## Cache warm after a production deploy\n',
+    to: '## Cache warming\n',
+  },
+
   {
     name: 'lookup_started loses its session, so the funnel cannot join a visit',
     file: 'app/api/jobs/route.ts',
@@ -3418,6 +3563,189 @@ const MUTATIONS: Mutation[] = [
     from: '          href: `${PRODUCTION_URL}/skill.md`,',
     to: "          href: '/skill.md',",
   },
+  // ---------------------------------------- the API index at the base URL
+  {
+    // The state the 2026-09-27 audit measured: the URL every reference
+    // gives as the base answered with the site's HTML 404.
+    name: 'api index: the base URL goes back to answering 404',
+    file: 'app/api/v1/route.ts',
+    from: '  return NextResponse.json(apiIndexDocument(new Date().toISOString()), {\n',
+    to:
+      "  return NextResponse.json({ error: 'Not found' }, { status: 404 });\n" +
+      '  return NextResponse.json(apiIndexDocument(new Date().toISOString()), {\n',
+  },
+  {
+    // The OpenAPI description promises OPTIONS on every path.
+    name: 'api index: the preflight stops answering 204',
+    file: 'app/api/v1/route.ts',
+    from: '  return new NextResponse(null, { status: 204, headers: corsHeaders });\n',
+    to: '  return new NextResponse(null, { status: 405 });\n',
+  },
+  {
+    name: 'api index: the index drops the open CORS every path under /api/v1 has',
+    file: 'app/api/v1/route.ts',
+    from: '      ...corsHeaders,\n      Link: LINKS,\n',
+    to: '      Link: LINKS,\n',
+  },
+  {
+    // An endpoint that exists and that the index no longer names.
+    name: 'api index: an endpoint drops out of the index',
+    file: 'lib/api-index.ts',
+    from:
+      '  {\n' +
+      "    method: 'GET',\n" +
+      "    path: '/usage',\n" +
+      "    summary: 'Your key, balance and usage',\n" +
+      "    docsPage: 'usage',\n" +
+      '  },\n',
+    to: '',
+  },
+  {
+    // The other direction: a real new operation, shipped in a route file,
+    // with neither the index nor the OpenAPI description told.
+    name: 'api index: a new operation ships without the index or the spec naming it',
+    file: 'app/api/v1/stats/route.ts',
+    from:
+      'export async function OPTIONS() {\n' +
+      '  return new NextResponse(null, { status: 204, headers: corsHeaders });\n' +
+      '}\n',
+    to:
+      'export async function OPTIONS() {\n' +
+      '  return new NextResponse(null, { status: 204, headers: corsHeaders });\n' +
+      '}\n' +
+      '\n' +
+      'export async function POST() {\n' +
+      '  return new NextResponse(null, { status: 204 });\n' +
+      '}\n',
+  },
+  {
+    name: 'api index: a summary drifts from the OpenAPI description',
+    file: 'lib/api-index.ts',
+    from: "    summary: 'Index coverage',\n",
+    to: "    summary: 'Index statistics',\n",
+  },
+  {
+    name: 'api index: an endpoint links a reference page that does not exist',
+    file: 'lib/api-index.ts',
+    from: "    docsPage: 'reverse-twitter',\n",
+    to: "    docsPage: 'reverse-x',\n",
+  },
+  // ------------------------------- search-result titles and descriptions
+  {
+    // The 88-character title the 2026-09-27 audit measured.
+    name: 'search titles: the homepage title grows past a search result again',
+    file: 'lib/home-metadata.ts',
+    from: "  'Wallet to Twitter (X) and Farcaster lookup | walletlink.social';\n",
+    to: "  'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster';\n",
+  },
+  {
+    name: 'search titles: the homepage description grows past 160 characters again',
+    file: 'lib/home-metadata.ts',
+    from: ' No sales calls.`;\n',
+    to: ' With complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.`;\n',
+  },
+  {
+    // A literal in the layout is a title nothing measures.
+    name: 'search titles: the layout writes its title back as a literal',
+    file: 'app/layout.tsx',
+    from: '  title: HOME_TITLE,\n  description: HOME_DESCRIPTION,\n',
+    to:
+      '  title:\n' +
+      "    'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',\n" +
+      '  description: HOME_DESCRIPTION,\n',
+  },
+  {
+    // The 291-character description the audit measured.
+    name: 'search titles: the /mcp description grows back to 291 characters',
+    file: 'app/mcp/page.tsx',
+    from: '  description: `A remote MCP server at ${MCP_URL}: ${TOOLS.length} tools that resolve wallets to X and Farcaster accounts, over OAuth, an API key or USDC.`,\n',
+    to: '  description: `A remote MCP server at ${MCP_URL}. ${TOOLS.length} tools that resolve wallets to the X and Farcaster accounts their owners published, over OAuth or an API key, on the same credits as the REST API. An agent holding a wallet can buy its own access with USDC and never make an account.`,\n',
+  },
+  {
+    // Not on the named list: found by the walk, which is the point of it.
+    name: 'search titles: a comparison page title outgrows a search result',
+    file: 'app/vs/airstack/page.tsx',
+    from: "Metadata = {\n  title: 'Airstack alternative for Farcaster lookups (Airstack is offline)',\n",
+    to:
+      'Metadata = {\n  title:\n' +
+      "    'Airstack alternative for Farcaster lookups (Airstack is no longer available)',\n",
+  },
+  {
+    // It would inherit the homepage description: a duplicate across URLs.
+    name: 'search titles: a static page drops its own description',
+    file: 'app/holders/page.tsx',
+    from:
+      '  description:\n' +
+      "    'Per-collection reports on the people behind the wallets: how many holders resolve to an X or Farcaster account, and how many are still reachable.',\n",
+    to: '',
+  },
+  {
+    // Mintlify appends the site name, so this rendered twice.
+    name: 'search titles: the docs home is titled with the site name again',
+    file: 'docs-site/index.mdx',
+    from: "title: 'Wallet to X and Farcaster lookup API'\n",
+    to: "title: 'walletlink.social'\n",
+  },
+  {
+    // What the doubled name was first replaced with: short, and no search
+    // for the product contains it.
+    name: 'search titles: the docs home is titled with a generic label again',
+    file: 'docs-site/index.mdx',
+    from: "title: 'Wallet to X and Farcaster lookup API'\n",
+    to: "title: 'Overview'\n",
+  },
+  {
+    name: 'search titles: the docs home title drops Farcaster',
+    file: 'docs-site/index.mdx',
+    from: "title: 'Wallet to X and Farcaster lookup API'\n",
+    to: "title: 'Wallet to X lookup API'\n",
+  },
+  {
+    // The fitted title the review found: the shutdown notice first, and
+    // "alternative" as the last word.
+    name: 'search titles: a retired comparison page opens its title with the shutdown notice again',
+    file: 'app/vs/airstack/page.tsx',
+    from: "Metadata = {\n  title: 'Airstack alternative for Farcaster lookups (Airstack is offline)',\n",
+    to: "Metadata = {\n  title: 'Airstack is no longer available: a Farcaster lookup alternative',\n",
+  },
+  {
+    name: 'search titles: the Blaze title drops its head term',
+    file: 'app/vs/blaze/page.tsx',
+    from: "Metadata = {\n  title: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',\n",
+    to: "Metadata = {\n  title: 'Blaze is no longer available: a wallet-to-X lookup alternative',\n",
+  },
+  {
+    name: 'search titles: a retired page’s social card keeps a title of its own',
+    file: 'app/vs/airstack/page.tsx',
+    from: "  openGraph: {\n    title: 'Airstack alternative for Farcaster lookups (Airstack is offline)',\n",
+    to: "  openGraph: {\n    title:\n      'Airstack alternative for Farcaster lookups (Airstack is no longer available)',\n",
+  },
+  {
+    name: 'search titles: a retired page’s Article headline drifts from its title',
+    file: 'app/vs/blaze/page.tsx',
+    from: "  headline: 'Blaze alternative for wallet-to-X lookups (Blaze is offline)',\n",
+    to: "  headline:\n    'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',\n",
+  },
+  {
+    name: 'search titles: the Holder page stops leading with its head term',
+    file: 'app/vs/holder/page.tsx',
+    from: "  title: 'Holder alternative for wallet-based CRM (Holder shut down)',\n  description:",
+    to: "  title: 'Holder shut down: a wallet-based CRM alternative',\n  description:",
+  },
+  {
+    name: 'search titles: a docs API page is described by its endpoint alone again',
+    file: 'docs-site/api-reference/usage.mdx',
+    from: "description: 'Your key’s plan, rate limit windows, consumption history and remaining match credits; it costs no credits and answers even at a zero balance.'\n",
+    to: "description: 'GET /v1/usage'\n",
+  },
+  {
+    // Mintlify serves the docs host's catalog only with download-spec on,
+    // and advertises the link either way.
+    name: 'search titles: the docs drop the option that serves their advertised API catalog',
+    file: 'docs-site/docs.json',
+    from: '    "options": ["download-spec"]\n',
+    to: '    "options": ["copy"]\n',
+  },
   {
     // RFC 9116 section 3 requires the utf-8 charset. Without it the file
     // still reads fine in a browser, and a strict consumer may refuse it.
@@ -5932,6 +6260,372 @@ const MUTATIONS: Mutation[] = [
     from: '|\\b([0-9]{1,2}\\.[0-9])% (?:are )?(?:unclaimed',
     to: '|([0-9]\\.[0-9])% (?:are )?(?:unclaimed',
   },
+  // --- STA-54: the free tool page is linked, and holder titles carry the search words ---
+  {
+    name: 'STA-54: the homepage drops its link to the free tool page',
+    file: 'app/page.tsx',
+    from: '            <p className="text-center text-sm text-muted-foreground">\n              One address rather than a list?{\' \'}\n              <Button asChild variant="link" size="inline">\n                <Link href="/find-twitter-account-from-wallet-address">\n                  Find the X (Twitter) account behind a wallet\n                </Link>\n              </Button>\n              , free and without an account.\n            </p>\n',
+    to: '',
+  },
+  {
+    name: 'STA-54: the homepage link to the free tool loses the query words',
+    file: 'app/page.tsx',
+    from: '                  Find the X (Twitter) account behind a wallet\n',
+    to: '                  Try the free lookup\n',
+  },
+  {
+    name: 'STA-54: the footer drops the free tool page',
+    file: 'components/ui/site-footer.tsx',
+    from: '            <FooterLink href="/find-twitter-account-from-wallet-address">\n              Wallet to X lookup\n            </FooterLink>\n',
+    to: '',
+  },
+  {
+    name: 'STA-54: /check drops its link to the free tool page',
+    file: 'app/check/page.tsx',
+    from: '              <Link href="/find-twitter-account-from-wallet-address">\n                find the X (Twitter) account behind a wallet\n              </Link>',
+    to: '              <Link href="/">find the X (Twitter) account behind a wallet</Link>',
+  },
+  {
+    name: 'STA-54: the guide drops its link to the free tool page',
+    file: 'content/published/find-twitter-account-from-wallet.md',
+    from: ' Or [find the X (Twitter) account behind a wallet](https://walletlink.social/find-twitter-account-from-wallet-address) with the free lookup, which needs no account.',
+    to: '',
+  },
+  {
+    name: 'STA-54: llms.txt drops the free tool page from its Product list',
+    file: 'app/llms.txt/route.ts',
+    from: '- [Find the X (Twitter) account behind a wallet](https://walletlink.social/find-twitter-account-from-wallet-address): free, no account.',
+    to: '- Find the X (Twitter) account behind a wallet: free, no account.',
+  },
+  {
+    name: 'STA-54: llms-full.txt drops the free tool page from its preamble',
+    file: 'app/llms-full.txt/route.ts',
+    from: 'To find the X (Twitter) account behind one wallet, the free lookup is at ${PRODUCTION_URL}/find-twitter-account-from-wallet-address: no account, one address at a time. ',
+    to: '',
+  },
+  {
+    name: 'STA-54: the footer drops the /vs comparison hub',
+    file: 'components/ui/site-footer.tsx',
+    from: '            <FooterLink href="/vs">All comparisons</FooterLink>\n',
+    to: '',
+  },
+  {
+    name: 'STA-54: the curated searchable name is ignored and the contract name titles the report',
+    file: 'lib/holder-pages.ts',
+    from: '    SEARCHABLE_NAMES.get(\n      `${collection.chain}:${collection.address.toLowerCase()}`\n    ) ?? collection.name.trim()',
+    to: '    collection.name.trim()',
+  },
+  {
+    name: 'STA-54: the curated name lookup depends on the address case',
+    file: 'lib/holder-pages.ts',
+    from: '      `${collection.chain}:${collection.address.toLowerCase()}`\n    ) ?? collection.name.trim()',
+    to: '      `${collection.chain}:${collection.address}`\n    ) ?? collection.name.trim()',
+  },
+  {
+    name: 'STA-54: a heuristic re-cases contract names outside the curated list',
+    file: 'lib/holder-pages.ts',
+    from: '    ) ?? collection.name.trim()',
+    to: "    ) ?? collection.name.trim().replace(/([a-z])([A-Z])/g, '$1 $2')",
+  },
+  {
+    name: 'STA-54: the holder title drops the chain, so one name on two chains collides',
+    file: 'lib/holder-pages.ts',
+    from: '  const lead = `${holderDisplayName(collection)} holders on ${chainLabel(collection.chain)}`;',
+    to: '  const lead = `${holderDisplayName(collection)} holders`;',
+  },
+  {
+    name: 'STA-54: the holder title drops the search words',
+    file: 'lib/holder-pages.ts',
+    from: '    [`${lead}: X (Twitter) and Farcaster`, `${lead}: X and Farcaster`].find(',
+    to: '    [`${lead}: the reachable people`].find(',
+  },
+  {
+    name: 'STA-54: the holder title ignores its length cap',
+    file: 'lib/holder-pages.ts',
+    from: '      (title) => title.length <= HOLDER_TITLE_MAX\n    ) ?? lead',
+    to: '      () => true\n    ) ?? lead',
+  },
+  {
+    name: 'STA-54: the holder description drops the chain',
+    file: 'lib/holder-pages.ts',
+    from: '  const chain = chainLabel(collection.chain);\n  const long = (n: string) =>',
+    to: "  const chain = 'the chain';\n  const long = (n: string) =>",
+  },
+  {
+    name: 'STA-54: the holder description ignores its length cap',
+    file: 'lib/holder-pages.ts',
+    from: '    (d) => d.length <= HOLDER_DESCRIPTION_MAX\n  );\n  if (fits) return fits;',
+    to: '    () => true\n  );\n  if (fits) return fits;',
+  },
+  {
+    name: 'STA-54: an overlong name is published whole and breaks the description cap',
+    file: 'lib/holder-pages.ts',
+    from: '  return short(`${cut.trimEnd()}…`);',
+    to: '  return short(name);',
+  },
+  {
+    name: 'STA-54: the holder report goes back to the reachable-people title',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: '  const title = holderReportTitle(collection);',
+    to: '  const title = `${collection.name} holders on ${chainLabel(collection.chain)}: the reachable people`;',
+  },
+  {
+    name: 'STA-54: the holder report description goes back to omitting the chain',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: '  const description = holderReportDescription(collection);',
+    to: '  const description = `How many ${collection.name} holders resolve to an X or Farcaster account the owner published.`;',
+  },
+  {
+    name: 'STA-54: the holder og card carries its own title',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: '    openGraph: {\n      title,\n      description,',
+    to: '    openGraph: {\n      title: collection.name,\n      description,',
+  },
+  {
+    name: 'STA-54: the Article headline drifts from the page title',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: '    headline: holderReportTitle(collection),',
+    to: '    headline: `${collection.name} holders`,',
+  },
+  {
+    name: 'STA-54: the holder h1 shows the contract name, not the searchable one',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: '              {name} holders\n            </h1>',
+    to: '              {collection.name} holders\n            </h1>',
+  },
+  {
+    name: 'STA-54: the markdown twin keeps a title of its own',
+    file: 'app/api/markdown/documents.ts',
+    from: '    title,\n    description: holderReportDescription(collection),',
+    to: '    title: `${name} holder reachability on ${chain}`,\n    description: holderReportDescription(collection),',
+  },
+  {
+    name: 'STA-54: the holder hub links reports by contract name again',
+    file: 'app/holders/page.tsx',
+    from: "                    {holderDisplayName(c)}\n                  </Link>{' '}",
+    to: "                    {c.name}\n                  </Link>{' '}",
+  },
+  {
+    name: 'STA-54: the markdown holder hub links reports by contract name again',
+    file: 'app/api/markdown/documents.ts',
+    from: '    return `| [${holderDisplayName(collection)}](${url}) |',
+    to: '    return `| [${collection.name}](${url}) |',
+  },
+  // --- STA-54: one attested share, current figures, and tagged listing links ---
+  {
+    name: 'STA-54: the FAQ types the attested share by hand again, as 99.9%',
+    file: 'lib/faq.ts',
+    from: 'Over ${ATTESTED_X_SHARE_PCT}% come from owner-attested routes',
+    to: 'Over 99.9% come from owner-attested routes',
+  },
+  {
+    name: 'STA-54: the figures check reads only "over N% of" again, and misses "come from"',
+    file: 'scripts/check-published-figures.ts',
+    from: '|over ([0-9]{2}\\.[0-9])%\\s+(?:of|comes?|are|were)\\b/i,',
+    to: '|over ([0-9]{2}\\.[0-9])%\\s+of/i,',
+  },
+  {
+    name: 'STA-54: the attested constant is read as a rounded figure, which passes at any value',
+    file: 'scripts/check-published-figures.ts',
+    from: "    kind: 'floor',\n",
+    to: '',
+  },
+  {
+    name: 'STA-54: the floor kind is ignored and only the word "over" makes a floor',
+    file: 'scripts/check-published-figures.ts',
+    from: "const isFloor = claim.kind === 'floor' || /over /i.test(hit[0]);",
+    to: 'const isFloor = /over /i.test(hit[0]);',
+  },
+  {
+    name: 'STA-54: the Apify README is dropped from the attested-share claim',
+    file: 'scripts/check-published-figures.ts',
+    from: "      // and nothing read it.\n      'integrations/apify-actor/README.md',\n",
+    to: '      // and nothing read it.\n',
+  },
+  {
+    name: 'STA-54: the Apify README over-claims the attested share again (live 2026-09-17 to 2026-09-29)',
+    file: 'integrations/apify-actor/README.md',
+    from: 'Over 99.8% of the wallets in the index with a linked X handle got that link by one of these four routes.',
+    to: 'Over 99.9% of the wallets in the index with a linked X handle got that link by one of the first two routes.',
+  },
+  {
+    name: 'STA-54: the Apify README keeps the old index size after a refresh',
+    file: 'integrations/apify-actor/README.md',
+    from: 'index of 4.86 million wallet identities',
+    to: 'index of 4.85 million wallet identities',
+  },
+  {
+    name: 'STA-54: the Apify README quotes a price no pack has',
+    file: 'integrations/apify-actor/README.md',
+    from: 'Credit packs start at $29 for 250 matches',
+    to: 'Credit packs start at $19 for 250 matches',
+  },
+  {
+    name: 'STA-54: the Apify README leaves the figures sweep',
+    file: 'scripts/check-published-figures.ts',
+    from: "  'integrations/apify-actor/README.md',\n  'docs/AI-SEARCH.md',",
+    to: "  'docs/AI-SEARCH.md',",
+  },
+  {
+    name: 'STA-54: the figures check stops reading the Apify README’s Ethereum rate',
+    file: 'scripts/check-published-figures.ts',
+    from: "      {\n        file: 'integrations/apify-actor/README.md',\n        pattern: /of holders reachable, Ethereum ([0-9]+\\.[0-9])%/,\n        rate: 'ethereumEither',\n      },\n",
+    to: '',
+  },
+  {
+    name: 'STA-54: the agent-flag figure is checked against the agent catalog instead of the flag',
+    file: 'scripts/check-published-figures.ts',
+    from: 'one(sql`SELECT count(*)::int FROM social_graph WHERE is_agent IS TRUE`)',
+    to: 'one(sql`SELECT count(*)::int FROM known_agents`)',
+  },
+  {
+    name: 'STA-54: a link in the Apify README loses its dir-apify tag',
+    file: 'integrations/apify-actor/README.md',
+    from: '[walletlink.social](https://walletlink.social/?ref=dir-apify)',
+    to: '[walletlink.social](https://walletlink.social)',
+  },
+  {
+    name: 'STA-54: the Actor’s run messages link to the site untagged',
+    file: 'integrations/apify-actor/src/main.js',
+    from: "const SIGNUP = tagged('/');",
+    to: 'const SIGNUP = SITE;',
+  },
+  {
+    name: 'STA-54: the GitHub README’s App link loses its dir-github tag',
+    file: 'README.md',
+    from: '<a href="https://walletlink.social/?ref=dir-github">App</a>',
+    to: '<a href="https://walletlink.social">App</a>',
+  },
+  {
+    name: 'STA-54: the registry’s website link goes back to the docs host',
+    file: 'server.json',
+    from: '"websiteUrl": "https://walletlink.social/mcp?ref=dir-registry",',
+    to: '"websiteUrl": "https://docs.walletlink.social/mcp-server",',
+  },
+  {
+    name: 'STA-54: the README’s Connect block quotes a URL the server does not answer on',
+    file: 'README.md',
+    from: '```\nhttps://walletlink.social/api/mcp\n```\n\n- **Claude, or any client',
+    to: '```\nhttps://walletlink.social/mcp\n```\n\n- **Claude, or any client',
+  },
+  {
+    name: 'STA-54: a directory tag is promoted to a referral channel of its own',
+    file: 'lib/first-touch.ts',
+    from: "  const tag = partsOfKind(acquisition, 'ref')[0];\n  if (tag) return { channel: 'campaign', name: tag };",
+    to: "  const tag = partsOfKind(acquisition, 'ref')[0];\n  if (tag?.startsWith('dir-')) return { channel: 'referral', name: tag };\n  if (tag) return { channel: 'campaign', name: tag };",
+  },
+  {
+    name: 'STA-54: a campaign tag is read as evidence of where the browser came from',
+    file: 'lib/first-touch.ts',
+    from: "    if (part.slice(0, colon) === 'ref') continue;\n",
+    to: '',
+  },
+  // --- STA-54 review: the attested share's routes and unit ---
+  {
+    name: 'STA-54: the welcome email credits the attested share to Farcaster and ENS alone again',
+    file: 'lib/welcome-sequence.ts',
+    from: 'are links the owner published themselves: a Farcaster verification, an onchain record such as ENS, an attested social sign-in, or a manually verified record. Nothing is guessed',
+    to: 'are links the owner published themselves, through a Farcaster verification or an onchain ENS record. Nothing is guessed',
+  },
+  {
+    name: 'STA-54: the welcome email counts the attested share per handle again',
+    file: 'lib/welcome-sequence.ts',
+    from: 'Over ${ATTESTED_X_SHARE_PCT}% of our X matches are links the owner published themselves',
+    to: 'Over ${ATTESTED_X_SHARE_PCT}% of our X handles are links the owner published themselves',
+  },
+  {
+    name: 'STA-54: /vs/airstack says the rest of the attested share is onchain ENS records again',
+    file: 'app/vs/airstack/page.tsx',
+    from: '              the rest through an onchain record such as ENS, an attested social\n              sign-in or a manually verified record.\n',
+    to: '              the rest through onchain ENS records.\n',
+  },
+  {
+    // "such as" after the routes does not make them examples: the rest is
+    // still claimed for onchain records.
+    name: 'STA-54: /vs/airstack credits the rest to onchain records, with ENS as the example',
+    file: 'app/vs/airstack/page.tsx',
+    from: '              the rest through an onchain record such as ENS, an attested social\n              sign-in or a manually verified record.\n',
+    to: '              the rest through onchain records such as ENS.\n',
+  },
+  {
+    name: 'STA-54: the Blaze post credits the attested share to Farcaster and ENS alone again',
+    file: 'content/published/walletlink-vs-blaze.md',
+    from: 'Farcaster verified addresses, onchain records such as ENS, attested social sign-ins and manually verified records, held in a persistent social graph.',
+    to: 'Farcaster verified addresses and onchain ENS records, held in a persistent social graph.',
+  },
+  {
+    name: 'STA-54: the Addressable post credits the attested share to Farcaster and ENS alone again',
+    file: 'content/published/walletlink-vs-addressable.md',
+    from: 'cryptographic proofs (Farcaster verified addresses), explicit user-set onchain records (such as ENS text records), attested social sign-ins and manually verified records.',
+    to: 'cryptographic proofs (Farcaster verified addresses) and explicit user-set records (ENS text records).',
+  },
+  {
+    name: 'STA-54: the marketing context credits the attested share to Farcaster and ENS alone again',
+    file: '.agents/product-marketing.md',
+    from: '(a Farcaster verification, an onchain record such as ENS, an attested social sign-in, or a manually verified record)',
+    to: '(Farcaster verification or onchain ENS record)',
+  },
+  {
+    name: 'STA-54: the Addressable comparison table calls matches attested through Farcaster and ENS alone again',
+    file: 'app/vs/addressable/page.tsx',
+    from: '                      Deterministic, user-attested (such as Farcaster\n                      verifications and onchain ENS records)\n',
+    to: '                      Deterministic, user-attested (Farcaster verifications,\n                      onchain ENS records)\n',
+  },
+  {
+    name: 'STA-54: the Addressable page calls matches attested through Farcaster and ENS alone again',
+    file: 'app/vs/addressable/page.tsx',
+    from: 'Matches are deterministic and user-attested (such as Farcaster\n              verified accounts and onchain ENS records)',
+    to: 'Matches are deterministic and user-attested (Farcaster verified\n              accounts and onchain ENS records)',
+  },
+  {
+    name: 'STA-54: the README counts the attested share per handle again',
+    file: 'README.md',
+    from: 'Over 99.8% of X matches are links the wallet owner published themselves:',
+    to: 'Over 99.8% of handles were published by the wallet owner themselves:',
+  },
+  {
+    name: 'STA-54: the Apify README counts the attested share per handle again',
+    file: 'integrations/apify-actor/README.md',
+    from: 'Over 99.8% of the wallets in the index with a linked X handle got that link by one of these four routes.',
+    to: 'Over 99.8% of the X handles in the index arrive by one of these four routes.',
+  },
+  {
+    name: 'STA-54: /vs/absolute-labs counts the attested share per handle again',
+    file: 'app/vs/absolute-labs/page.tsx',
+    from: '              of X matches are links the wallet owner published themselves, and\n',
+    to: '              of the X handles were published by the wallet owner themselves, and\n',
+  },
+  {
+    name: 'STA-54: /vs/nansen counts the attested share per handle again',
+    file: 'app/vs/nansen/page.tsx',
+    from: '{ATTESTED_X_SHARE_PCT}% of the X matches we return are links the',
+    to: '{ATTESTED_X_SHARE_PCT}% of the X handles we return are links the',
+  },
+  // --- STA-54 review: the index, catalog, names -----------------------------
+  {
+    name: 'STA-54: an OpenAPI operation at / resolves to a redirecting trailing-slash URL',
+    file: 'docs-site/openapi.yaml',
+    from: '  /wallet/{address}:\n',
+    to: '  /:\n    get:\n      operationId: getApiIndex\n  /wallet/{address}:\n',
+  },
+  {
+    name: 'STA-54: docs.json stops naming the OpenAPI spec',
+    file: 'docs-site/docs.json',
+    from: '  "api": {\n    "openapi": "openapi.yaml"\n  },\n',
+    to: '',
+  },
+  {
+    name: 'STA-54: the holder description cut splits an emoji again',
+    file: 'lib/holder-pages.ts',
+    from: "  let cut = '';\n  for (const ch of name) {\n    if (cut.length + ch.length > budget) break;\n    cut += ch;\n  }\n",
+    to: '  let cut = name.slice(0, budget);\n',
+  },
+  {
+    name: 'STA-54: the linked collection keeps its contract-style name in the run flow',
+    file: 'lib/starter-collections.ts',
+    from: '    name: holderDisplayName(c),\n',
+    to: '    name: c.name,\n',
+  },
   // --- STA-53: the guard runs in shards --------------------------------------
   {
     name: 'STA-53: the workflow drops a shard, so a slice of the mutations never runs',
@@ -5992,6 +6686,12 @@ const MUTATIONS: Mutation[] = [
     file: 'scripts/check-invariants-guard.ts',
     from: '  for (const m of MUTATIONS) {\n    const occurrences =',
     to: '  for (const m of MUTATIONS.filter((_, position) => inShard(position, shard))) {\n    const occurrences =',
+  },
+  {
+    name: 'STA-54: the OpenAPI description stops saying the base URL returns an index',
+    file: 'docs-site/openapi.yaml',
+    from: '    A `GET` on the base URL itself, `https://walletlink.social/api/v1` with no\n',
+    to: '    The base URL, `https://walletlink.social/api/v1` with no\n',
   },
 ];
 

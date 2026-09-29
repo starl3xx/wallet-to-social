@@ -4,6 +4,7 @@ import { PageShell } from '@/components/ui/page-shell';
 import {
   listHolderCollections,
   chainLabel,
+  holderDisplayName,
   type ListedHolderCollection,
 } from '@/lib/holder-pages';
 import { INDEXED_WALLETS } from '@/lib/public-figures';
@@ -22,7 +23,7 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: 'Holder reachability reports',
   description:
-    'Per-collection reports on the people behind the wallets: how many holders resolve to an X or Farcaster account, and how many are still reachable. Measured against the walletlink.social index.',
+    'Per-collection reports on the people behind the wallets: how many holders resolve to an X or Farcaster account, and how many are still reachable.',
   alternates: { canonical: 'https://walletlink.social/holders' },
   openGraph: {
     title: 'Holder reachability reports',
@@ -94,7 +95,7 @@ export default async function HoldersHubPage() {
                     href={`/holders/${c.chain}/${c.address}`}
                     className="text-accent-brand"
                   >
-                    {c.name}
+                    {holderDisplayName(c)}
                   </Link>{' '}
                   <span className="tabular-nums">
                     ({c.reachableAny.toLocaleString()} reachable people)

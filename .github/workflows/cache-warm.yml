@@ -1,0 +1,64 @@
+# Fills the page cache after each production deploy, before crawlers do.
+#
+# WHY. Holder reports prerender nothing at build time and cache each render
+# for an hour, and every deployment starts with an empty cache. A crawler
+# that fetches several uncached reports at once waits 4 to 31 s for each
+# (median about 16 s, measured 2026-09-29); a cached report takes 0.16 s.
+# scripts/warm-cache.mjs pays for those renders instead, two pages at a time,
+# as soon as the domain serves the new deployment.
+#
+# WHEN. Vercel creates a GitHub deployment for every deploy it makes, with
+# environment "Production" for main and "Preview" for everything else, and
+# Mintlify creates its own ("staging - docs-site"). Every one of them starts
+# a run of this workflow; the job runs only for a successful Production one.
+# It keys on the name because Vercel leaves production_environment false on
+# every deployment, production included.
+#
+# A FAILURE HERE IS NOT AN OUTAGE. The deploy is live before this starts and
+# nothing waits on it. A page that errors or times out is a warning, and its
+# first visitor renders it as before. docs/OPERATIONS.md, "Cache warm after a
+# production deploy".
+name: cache-warm
+
+on:
+  deployment_status:
+
+# Production warms share one group: a newer production deploy cancels the
+# warm of the one it replaces, whose cache is no longer served. Every other
+# run gets a group of its own. Each deployment_status event starts a run,
+# skipped or not, and in a shared group a preview's run would cancel a
+# production warm, or another preview's run, which leaves a cancelled check on
+# that pull request's head commit.
+concurrency:
+  group: ${{ github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'Production' && 'cache-warm-production' || format('cache-warm-{0}', github.run_id) }}
+  cancel-in-progress: true
+
+# statuses: the commit's Vercel status names the deployment id the script
+# waits to see live.
+permissions:
+  contents: read
+  statuses: read
+
+jobs:
+  warm:
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    # The script bounds itself (5 minutes to see the deploy live, 3 tries at
+    # the sitemap, 15 minutes of warming, 60 s a request); this is the backstop.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/warm-cache.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      # No npm ci: the script uses only Node's own fetch.
+      - name: Warm the holder reports and the main pages
+        run: node scripts/warm-cache.mjs
+        env:
+          DEPLOY_SHA: ${{ github.event.deployment.sha }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

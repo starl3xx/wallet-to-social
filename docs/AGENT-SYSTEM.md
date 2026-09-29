@@ -264,6 +264,23 @@ therefore imports the handler and parses what it returns rather than reading
 its source, because that class of defect is invisible to a regex over a
 literal that says exactly what it means to say.
 
+**The base URL index (2026-09-29) is the REST API’s own entry in the same
+layer.** `GET /api/v1` answers with the operations under it and links to the
+OpenAPI file, the reference and the catalog. It exists because every
+projection above named `/api/v1` as the base URL and a GET on it returned the
+site’s HTML 404, which an agent reads as “wrong URL”. It **points at** the
+OpenAPI file and restates one thing from it: each operation’s method, path
+and `summary`. That repetition is held to the route tree and to
+`docs-site/openapi.yaml` in both directions by `scripts/check-invariants.ts`,
+so it cannot become a second, wrong copy. The document is built in
+`lib/api-index.ts` and served by `app/api/v1/route.ts`, needs no key, and
+draws on neither meter.
+
+The docs host has a catalog link of its own, and it is not ours. Mintlify’s
+`Link` header advertises `</.well-known/api-catalog>` on every docs response,
+and Mintlify serves that path only when `download-spec` is in
+`contextual.options` in `docs-site/docs.json`; an invariant keeps it there.
+
 **security.txt (2026-09-26) is the same kind of well-known projection, for a
 different reader.** `/.well-known/security.txt` (RFC 9116) tells a researcher,
 or a scanner acting for one, where a vulnerability report goes. It **points
