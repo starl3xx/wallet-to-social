@@ -40,7 +40,7 @@ import {
  */
 export const metadata: Metadata = {
   title: 'walletlink.social pricing: what a match costs',
-  description: `Credit packs bought once, metered in matches. A match is a wallet resolved to an X or Farcaster account; misses cost nothing. Free is ${FREE_MATCHES_PER_WINDOW} matches in a rolling ${FREE_WINDOW_DAYS}-day window.`,
+  description: `Credit packs bought once, metered in matches: wallets resolved to an X or Farcaster account. Misses cost nothing. Free is ${FREE_MATCHES_PER_WINDOW} matches per rolling ${FREE_WINDOW_DAYS} days.`,
   alternates: { canonical: 'https://walletlink.social/pricing' },
   openGraph: {
     title: 'walletlink.social pricing',

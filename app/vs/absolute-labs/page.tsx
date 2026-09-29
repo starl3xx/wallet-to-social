@@ -46,7 +46,7 @@ import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 export const metadata: Metadata = {
   title: 'Absolute Labs alternative for wallet to social lookup',
   description:
-    'Absolute Labs sells a web3 CRM with wallet identity inside it. walletlink.social sells the lookup on its own, priced per match, with no demo call. What each one is, checked September 2026.',
+    'Absolute Labs sells a web3 CRM with wallet identity inside it. walletlink.social sells the lookup on its own, priced per match, with no demo call.',
   keywords: [
     'absolute labs alternative',
     'wallet relationship management',

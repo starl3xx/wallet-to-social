@@ -11795,6 +11795,316 @@ async function main() {
     );
   }
 
+  // ------------------------------------------- the API index at the base URL
+  // llms.txt, the API reference, the OpenAPI `servers` block and the catalog
+  // anchor above all name /api/v1, and until 2026-09-29 a GET on it returned
+  // the site's HTML 404. Through the handler, like the catalog: GET is called
+  // and its body parsed. Then the list it serves is held to the route tree and
+  // to the OpenAPI description in both directions, because an index that
+  // drifts from either is a second, wrong copy of the first.
+  {
+    const { GET, OPTIONS } = await import('@/app/api/v1/route');
+    const { PRODUCTION_URL, DOCS_URL } = await import('@/lib/site-url');
+    const res = GET();
+    const index = (await res.json()) as {
+      data?: {
+        base_url?: string;
+        endpoints?: {
+          method: string;
+          path: string;
+          url: string;
+          summary: string;
+          documentation: string;
+        }[];
+        [key: string]: unknown;
+      };
+      meta?: { generated_at?: unknown };
+    };
+
+    ok(
+      'the base URL answers with JSON, not the HTML 404 it used to',
+      res.status === 200 &&
+        (res.headers.get('content-type') ?? '').startsWith('application/json')
+    );
+    ok(
+      'the index is in the data and meta envelope the OpenAPI description promises of every success',
+      !!index.data && typeof index.meta?.generated_at === 'string'
+    );
+    ok(
+      'the index answers cross-origin, like every path under /api/v1',
+      res.headers.get('access-control-allow-origin') === '*'
+    );
+    ok(
+      'OPTIONS on the index answers 204, as the OpenAPI description promises on every path',
+      typeof OPTIONS === 'function' && OPTIONS().status === 204
+    );
+
+    const spec = readFileSync('docs-site/openapi.yaml', 'utf8');
+    ok(
+      'the index names the same base URL the OpenAPI servers block declares',
+      index.data?.base_url === `${PRODUCTION_URL}/api/v1` &&
+        spec.includes(`\n  - url: ${PRODUCTION_URL}/api/v1\n`)
+    );
+
+    /**
+     * Every URL in the document, found by walking it rather than by naming
+     * fields, so a link added later is held to the same rule: absolute, and
+     * on an origin this site controls. The endpoint `url` templates carry
+     * `{param}`, which is why they are checked by prefix and not parsed.
+     */
+    const urls: string[] = [];
+    const walk = (value: unknown) => {
+      if (typeof value === 'string' && /^[a-z]+:\/\//i.test(value)) {
+        urls.push(value);
+      } else if (value && typeof value === 'object') {
+        for (const v of Object.values(value)) walk(v);
+      }
+    };
+    walk(index.data);
+    ok(
+      'every URL in the index is absolute and on this site or its docs',
+      urls.length > 0 &&
+        urls.every(
+          (u) =>
+            u.startsWith(`${PRODUCTION_URL}/`) || u.startsWith(`${DOCS_URL}/`)
+        )
+    );
+
+    // The operations the route tree actually serves.
+    const routeOps = new Set<string>();
+    for (const f of readdirSync('app/api/v1', {
+      recursive: true,
+    }) as string[]) {
+      if (!/(^|\/)route\.ts$/.test(f)) continue;
+      const dir = f.replace(/(^|\/)route\.ts$/, '');
+      const path = `/${dir.replace(/\[([^\]]+)\]/g, '{$1}')}`;
+      const source = withoutComments(readFileSync(`app/api/v1/${f}`, 'utf8'));
+      for (const m of source.matchAll(
+        /export (?:async )?function (GET|POST|PUT|PATCH|DELETE)\b/g
+      )) {
+        routeOps.add(`${m[1]} ${path}`);
+      }
+    }
+
+    // The operations the OpenAPI description declares, with their summaries.
+    const specOps = new Map<string, string>();
+    const specBlocks = new Map<string, string>();
+    let specPath: string | null = null;
+    let specOp: string | null = null;
+    for (const line of spec.split('\n')) {
+      const pathLine = line.match(/^ {2}(\/[^:\s]*):\s*$/);
+      if (pathLine) {
+        specPath = pathLine[1];
+        specOp = null;
+        continue;
+      }
+      if (/^\S/.test(line)) specPath = specOp = null;
+      const opLine = line.match(/^ {4}(get|post|put|patch|delete):\s*$/);
+      if (opLine && specPath) {
+        specOp = `${opLine[1].toUpperCase()} ${specPath}`;
+        specOps.set(specOp, '');
+        specBlocks.set(specOp, '');
+        continue;
+      }
+      if (!specOp) continue;
+      specBlocks.set(specOp, `${specBlocks.get(specOp)}${line}\n`);
+      const summary = line.match(/^ {6}summary: (.+)$/);
+      if (summary && specOps.get(specOp) === '') {
+        specOps.set(specOp, summary[1].trim().replace(/^'(.*)'$/, '$1'));
+      }
+    }
+
+    const indexOps = new Set(
+      (index.data?.endpoints ?? []).map((e) => `${e.method} ${e.path}`)
+    );
+    const sameSet = (a: Set<string>, b: Set<string>) =>
+      a.size === b.size && [...a].every((x) => b.has(x));
+    const withoutRoot = (ops: Iterable<string>) =>
+      new Set([...ops].filter((op) => op !== 'GET /'));
+
+    ok(
+      'the route tree and the OpenAPI description were both read at all',
+      routeOps.size >= 9 && specOps.size >= 9
+    );
+    ok(
+      `every route under app/api/v1 is in the index and nothing else is (routes: ${[...withoutRoot(routeOps)].filter((op) => !indexOps.has(op)).join(', ') || 'none'} missing)`,
+      routeOps.has('GET /') && sameSet(withoutRoot(routeOps), indexOps)
+    );
+    ok(
+      'the index and the OpenAPI description list the same operations',
+      sameSet(withoutRoot(specOps.keys()), indexOps)
+    );
+    ok(
+      'the OpenAPI description documents the index itself, as needing no key',
+      /^ {6}security: \[\]$/m.test(specBlocks.get('GET /') ?? '')
+    );
+    for (const e of index.data?.endpoints ?? []) {
+      ok(
+        `${e.method} ${e.path} carries its OpenAPI summary word for word`,
+        specOps.get(`${e.method} ${e.path}`) === e.summary
+      );
+      ok(
+        `${e.method} ${e.path} has the base URL plus its path as its url`,
+        e.url === `${index.data?.base_url}${e.path}`
+      );
+      const page = e.documentation.startsWith(`${DOCS_URL}/`)
+        ? e.documentation.slice(DOCS_URL.length + 1)
+        : '';
+      ok(
+        `${e.method} ${e.path} links a reference page that exists`,
+        page !== '' && existsSync(`docs-site/${page}.mdx`)
+      );
+    }
+  }
+
+  // ------------------------------------ search-result titles and descriptions
+  // The homepage title was 88 characters and the /mcp description 291 on
+  // 2026-09-27, so a search result showed neither whole. Every static page is
+  // held here, found by walking app/ rather than listed, so a new page is
+  // measured the day it ships. Through the evaluated `metadata` export, not
+  // the source: the descriptions interpolate figures, and a regex over a
+  // template literal measures the placeholder, not what a crawler reads.
+  {
+    const {
+      HOME_TITLE,
+      HOME_DESCRIPTION,
+      TITLE_MAX_CHARS,
+      DESCRIPTION_MAX_CHARS,
+    } = await import('@/lib/home-metadata');
+
+    /**
+     * The root layout cannot be imported outside Next (`next/font` runs at
+     * module load), so its two strings live in lib/home-metadata.ts. This is
+     * what stops a literal from being written back into the layout, where
+     * nothing would measure it.
+     */
+    const layout = withoutComments(readFileSync('app/layout.tsx', 'utf8'));
+    ok(
+      'the homepage takes its title and description from the measured constants',
+      /export const metadata: Metadata = \{\s*metadataBase: [^\n]+\n\s*title: HOME_TITLE,\s*description: HOME_DESCRIPTION,/.test(
+        layout
+      )
+    );
+
+    const measured = [
+      { route: '/', title: HOME_TITLE, description: HOME_DESCRIPTION },
+    ];
+    for (const f of readdirSync('app', { recursive: true }) as string[]) {
+      if (!/(^|\/)page\.tsx$/.test(f) || f.includes('[')) continue;
+      /**
+       * A client page cannot export `metadata` (Next refuses it), and
+       * importing one here would pull in a CSS module that Node cannot load.
+       * The homepage is one, which is why it is measured above.
+       */
+      if (/^\s*['"]use client['"]/.test(readFileSync(`app/${f}`, 'utf8'))) {
+        continue;
+      }
+      const mod = (await import(`../app/${f}`)) as {
+        metadata?: {
+          title?: unknown;
+          description?: string | null;
+          robots?: unknown;
+        };
+      };
+      const md = mod.metadata;
+      if (!md) continue;
+      // A page kept out of the index has no search result to fit.
+      const robots = md.robots as { index?: boolean } | undefined;
+      if (robots && robots.index === false) continue;
+      const title =
+        typeof md.title === 'string'
+          ? md.title
+          : ((md.title as { absolute?: string } | undefined)?.absolute ?? '');
+      measured.push({
+        route: `/${f.replace(/(^|\/)page\.tsx$/, '')}`,
+        title,
+        description: md.description ?? '',
+      });
+    }
+
+    ok(
+      'the static pages were found and measured at all',
+      ['/', '/mcp', '/pricing', '/check', '/holders', '/vs', '/blog'].every(
+        (route) => measured.some((m) => m.route === route)
+      )
+    );
+    for (const m of measured) {
+      ok(
+        `${m.route} has a title that fits a search result (${m.title.length} of ${TITLE_MAX_CHARS} characters)`,
+        m.title.length > 0 && m.title.length <= TITLE_MAX_CHARS
+      );
+      /**
+       * Present as well as short. A page that sets none inherits the root
+       * layout's, which is the homepage description on a page that is not
+       * the homepage, and a duplicate description across URLs.
+       */
+      ok(
+        `${m.route} states its own description and it fits (${m.description.length} of ${DESCRIPTION_MAX_CHARS} characters)`,
+        m.description.length > 0 &&
+          m.description.length <= DESCRIPTION_MAX_CHARS
+      );
+    }
+
+    // ---------------------------------------------- the docs site, likewise
+    // Mintlify renders a page's <title> as "{title} - {docs.json name}", so
+    // a page titled with the site name read "walletlink.social -
+    // walletlink.social", and eight API pages had only their endpoint as a
+    // description, which says nothing a searcher can use.
+    const docsConfig = JSON.parse(
+      readFileSync('docs-site/docs.json', 'utf8')
+    ) as { name: string; contextual?: { options?: unknown[] } };
+    const docPages = (
+      readdirSync('docs-site', { recursive: true }) as string[]
+    ).filter((f) => f.endsWith('.mdx'));
+    ok(
+      'the docs pages were found and read at all',
+      docPages.includes('index.mdx') &&
+        docPages.includes('api-reference/wallet.mdx')
+    );
+    for (const f of docPages) {
+      const frontmatter =
+        readFileSync(`docs-site/${f}`, 'utf8').match(
+          /^---\n([\s\S]*?)\n---/
+        )?.[1] ?? '';
+      const field = (name: string) =>
+        frontmatter.match(
+          new RegExp(`^${name}:\\s*(['"]?)(.*)\\1\\s*$`, 'm')
+        )?.[2] ?? '';
+      const title = field('title');
+      const description = field('description');
+      ok(
+        `docs-site/${f} has a title that does not repeat the name Mintlify appends`,
+        title.length > 0 &&
+          title.toLowerCase() !== docsConfig.name.toLowerCase()
+      );
+      ok(
+        `docs-site/${f} fits a search result once Mintlify appends the site name`,
+        `${title} - ${docsConfig.name}`.length <= TITLE_MAX_CHARS
+      );
+      ok(
+        `docs-site/${f} describes the page rather than naming its endpoint`,
+        description.length > 0 &&
+          description.length <= DESCRIPTION_MAX_CHARS &&
+          !/^(GET|POST|PUT|PATCH|DELETE)\s+\//.test(description)
+      );
+    }
+
+    /**
+     * The docs host's catalog link. Mintlify's `Link` header advertises
+     * `</.well-known/api-catalog>` on every docs response whether or not the
+     * site serves one, and Mintlify serves one only when `download-spec` is
+     * in `contextual.options` (mintlify/docs PR #7559). Without it the docs
+     * host advertises a link that 404s, which is what the 2026-09-27 audit
+     * measured. The product's own catalog on walletlink.social is unaffected
+     * either way; this is the docs host's half.
+     */
+    ok(
+      'the docs site serves the API catalog its own Link header advertises',
+      Array.isArray(docsConfig.contextual?.options) &&
+        docsConfig.contextual.options.includes('download-spec')
+    );
+  }
+
   // --------------------------------------- the security contact, RFC 9116
   // Through the handler, like the catalog above: GET is called and its bytes
   // are parsed, because a consumer reads the bytes and not the source.

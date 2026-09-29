@@ -17,6 +17,7 @@ import { AuthProvider } from '@/components/AuthProvider';
 import { UpgradeModalProvider } from '@/components/UpgradeModalProvider';
 import './globals.css';
 import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
+import { HOME_DESCRIPTION, HOME_TITLE } from '@/lib/home-metadata';
 
 // Söhne is self-hosted from public/fonts and declared in globals.css, so there
 // is no Google Fonts request for the body face any more. Geist Mono stays:
@@ -28,9 +29,10 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://walletlink.social'),
-  title:
-    'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
-  description: `Turn wallet addresses into Twitter and Farcaster profiles across ${CHAIN_COUNT_WORD} EVM chains. Backed by a ${INDEXED_WALLETS}-wallet index with complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.`,
+  // Imported rather than written here: see lib/home-metadata.ts, which is
+  // what lets the invariant measure them.
+  title: HOME_TITLE,
+  description: HOME_DESCRIPTION,
   icons: {
     icon: [
       { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
@@ -65,16 +67,14 @@ export const metadata: Metadata = {
     'find nft holders across chains',
   ],
   openGraph: {
-    title:
-      'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
+    title: HOME_TITLE,
     description: `Turn wallet addresses into Twitter and Farcaster profiles across ${CHAIN_COUNT_WORD} EVM chains: ${CHAIN_LIST}. Backed by a ${INDEXED_WALLETS}-wallet index. No sales calls.`,
     type: 'website',
     siteName: 'walletlink.social',
   },
   twitter: {
     card: 'summary_large_image',
-    title:
-      'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',
+    title: HOME_TITLE,
     description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across ${CHAIN_COUNT_WORD} EVM chains.`,
     creator: '@starl3xx',
   },

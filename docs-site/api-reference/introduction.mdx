@@ -11,6 +11,8 @@ https://walletlink.social/api/v1
 
 All endpoints are HTTPS only and return JSON. CORS is open, but see the warning under [Authentication](#authentication) before you call this from a browser.
 
+A `GET` on the base URL itself needs no key and costs nothing. It returns an index of every endpoint below, with its method, path and reference page, and links to the OpenAPI description and the API catalog.
+
 ## Discovery
 
 If you are writing a client that should find this API rather than be told about

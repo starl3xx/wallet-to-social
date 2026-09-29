@@ -17,10 +17,9 @@ import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 export const metadata: Metadata = {
-  title:
-    'Airstack alternative for Farcaster lookups (Airstack is no longer available)',
+  title: 'Airstack is no longer available: a Farcaster lookup alternative',
   description:
-    'Airstack is no longer available: its Farcaster APIs were deprecated on 2025-03-05 and airstack.xyz now redirects to senpi.ai. This page is kept for people comparing alternatives.',
+    'Airstack’s Farcaster APIs were deprecated on 2025-03-05 and airstack.xyz now redirects to senpi.ai. Where to take your Farcaster identity lookups instead.',
   keywords: [
     'airstack alternative',
     'airstack api deprecated',

@@ -47,7 +47,7 @@ import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 export const metadata: Metadata = {
   title: 'Nansen alternative for wallet to social lookup',
   description:
-    'Nansen tells you what a wallet does. walletlink.social tells you who published it and whether you can still reach them on X or Farcaster. What each one actually returns, checked September 2026.',
+    'Nansen tells you what a wallet does. walletlink.social tells you who published it and whether you can still reach them on X or Farcaster.',
   keywords: [
     'nansen alternative',
     'nansen wallet labels',

@@ -47,7 +47,7 @@ import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 export const metadata: Metadata = {
   title: 'walletlink.social vs Formo: Comparison (2026)',
   description:
-    'Formo is an analytics and attribution platform for DeFi apps with wallet profiles inside it. Compare it with a dedicated wallet-to-social lookup priced once per match.',
+    'Formo is an analytics and attribution platform for DeFi apps, with wallet profiles inside. Compare a dedicated wallet-to-social lookup priced once per match.',
   keywords: [
     'Formo alternative',
     'wallet profiles',

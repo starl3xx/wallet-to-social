@@ -89,6 +89,9 @@
       "href": "https://walletlink.social"
     }
   },
+  "contextual": {
+    "options": ["download-spec"]
+  },
   "footer": {
     "socials": {
       "x": "https://x.com/walletlinkETH"

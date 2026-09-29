@@ -467,6 +467,7 @@ Main page orchestrating:
 | `/api/v1/jobs`                         | POST   | 1/match at completion via `chargeForJob`; misses free | Submit async lookup job                        |
 | `/api/v1/jobs/[id]`                    | GET    | 0                                                     | Poll job, read results                         |
 | `/api/v1/estimate`                     | POST   | 0, at any balance                                     | Dry-run counts for a list                      |
+| `/api/v1`                              | GET    | 0, no key                                             | Index of the endpoints above, with links       |
 
 Rate-limit units are a separate meter (reverse lookups weigh 2, batch weighs 1 per address submitted, an estimate weighs 1 per address like the batch it previews, a job submission weighs 1 for the whole list, a job poll weighs 0); see `docs-site/api-reference/introduction.mdx`, "Two meters".
 
@@ -1449,6 +1450,20 @@ onto the well-known URI by a rewrite for the same reason the three OAuth
 discovery documents are: the App Router will not route a dot-prefixed segment.
 Reasoning, and the two deliberate omissions (`status`, and `service-desc` on
 the rail), are in `docs/AGENT-SYSTEM.md` under L4.
+
+**The base URL answers too.** `GET /api/v1` returns a JSON index of the
+operations under it (method, path, OpenAPI summary, reference page) and links
+to the OpenAPI file, the API reference and the catalog, with no key and no
+meter. It is built in `lib/api-index.ts` and served by `app/api/v1/route.ts`,
+and an invariant holds its list to the route tree and to
+`docs-site/openapi.yaml` in both directions.
+
+**Search-result lengths are checked.** Every indexable static page’s title is
+held to 65 characters and its description to 160, by an invariant that walks
+`app/` and imports each page’s `metadata`. The homepage’s two strings live in
+`lib/home-metadata.ts`, because the root layout cannot be imported outside
+Next. Docs pages are held to a real description and a title that fits once
+Mintlify appends the site name.
 
 **Where a vulnerability report goes.** `/.well-known/security.txt` (RFC 9116)
 names two Contacts in order of preference: GitHub private vulnerability
