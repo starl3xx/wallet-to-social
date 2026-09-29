@@ -2,6 +2,27 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-29 (the CI guard runs in eight parallel shards)
+
+- **The `guard` check takes about 12 minutes instead of 50 to 95.** It runs
+  the whole invariants file once per reintroduced defect, one at a time, so its
+  time grew with every defect added: 880 of them took up to 95 minutes per
+  push by September, and every merge waited for it. CI now deals the defects
+  out round-robin to eight parallel jobs, `guard shard 0` to `guard shard 7`.
+- **The required check keeps its name and cannot pass by accident.** Branch
+  protection requires `guard`, which is now a small job that runs after the
+  shards and passes only when every shard passed. It runs even when a shard
+  failed, because a skipped required check counts as passing. One failing
+  shard does not cancel the others.
+- **Every shard checks every anchor**, so a defect whose snippet drifted fails
+  the run whichever shard holds it. A malformed or repeated `--shard` flag is
+  refused rather than guessed, so a typo can never run a silent subset.
+- Every job in the workflow has a timeout: 40 minutes per shard, 5 for the
+  gathering job, 15 for `invariants`.
+- A local run with no flag is unchanged. Seven new invariants, including a
+  partition test over shard counts 1 to 12, and ten new guard mutations, all
+  caught. Linear STA-53.
+
 ### 2026-09-28 (X handle figures refreshed)
 
 - **The published X handle figures are current again.** The weekly figures
