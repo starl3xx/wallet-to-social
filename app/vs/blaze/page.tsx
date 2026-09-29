@@ -12,7 +12,11 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
+import {
+  INDEXED_WALLETS,
+  CHAIN_COUNT_WORD,
+  ATTESTED_X_SHARE_PCT,
+} from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -416,11 +420,12 @@ export default function BlazeComparison() {
             </ol>
             <p className="text-muted-foreground">
               Lookups are backed by an index of {INDEXED_WALLETS} wallets with
-              complete Farcaster protocol coverage, refreshed daily. Over 99.8%
-              of X matches are user-attested (links the wallet owner created
-              themselves, such as a verified Farcaster account or an onchain ENS
-              record), and every match carries the evidence behind it, so there
-              is no guesswork in your outreach list.
+              complete Farcaster protocol coverage, refreshed daily. Over{' '}
+              {ATTESTED_X_SHARE_PCT}% of X matches are user-attested (links the
+              wallet owner created themselves, such as a verified Farcaster
+              account or an onchain ENS record), and every match carries the
+              evidence behind it, so there is no guesswork in your outreach
+              list.
             </p>
           </section>
 

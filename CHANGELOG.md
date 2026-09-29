@@ -2,6 +2,46 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-09-29 (one attested share, current figures, tagged listings)
+
+- **The owner-attested share says one thing everywhere: over 99.8%.** The
+  homepage FAQ said "over 99.9%" in one answer and "over 99.8%" two answers
+  further down, and the Apify Actor's README said "over 99.9%" too. The share
+  measured on 2026-09-23 was 99.8975%, so 99.9 over-claimed. The figure is now
+  `ATTESTED_X_SHARE_PCT` in `lib/public-figures.ts`, and the FAQ, llms.txt, the
+  welcome email and the six comparison pages read it. The figures check reads
+  the constant as a floor, and its pattern now also reads "over N% come from",
+  the phrasing it had missed.
+- **The Apify README is checked like every other published page.** The
+  figures check declares it for every figure it states (index size, handles
+  resolved, the live, suspended and unclaimed shares, the attested share and
+  the Base and Ethereum rates) and sweeps it for undeclared ones, and an
+  invariant holds its prices, free allowance, credit lifetime and chain list to
+  `lib/packs.ts` and `lib/chains.ts`. It now opens with the free one-address
+  lookup at walletlink.social, which needs no account or key, and says the
+  handles outside the attested routes (under 0.2%) are correlated and labeled
+  so.
+- **Figures refreshed.** The index holds 4.86 million wallet identities
+  (4,864,915 measured today; it said 4.85M). The agent-flag figure the stats
+  endpoint falls back to is 122 (it said 92), and it is now declared in the
+  figures check, which it never was. The find-twitter guide now says 4.86
+  million and 1.20 million, and the "nine things" guide carries the current
+  split (70.1% live, 19.7% suspended, 10.2% names nobody holds): both state
+  these as current running totals, not as dated history. The March post on
+  Farcaster verified addresses keeps its 1.4 million, which it dates in the
+  text ("as of early 2026").
+- **Listings carry `?ref=dir-<surface>`.** The Apify README, input form and run
+  messages use `dir-apify`, the repo README uses `dir-github`, and the MCP
+  registry's website link is now `walletlink.social/mcp?ref=dir-registry`
+  rather than the docs host, which tells ChatGPT and Perplexity search not to
+  index its Markdown pages. A tagged arrival with no referrer is a `campaign`
+  under its own name; with a referrer, the host decides, as for any tag.
+  `server.json` is 1.4.1 and needs a registry publish; the Actor needs an
+  `apify push`.
+- **The repo README opens with a Connect block**: the remote MCP URL, and how
+  to add it to Claude, Claude Code, Cursor or any other client. The header
+  links the MCP page and llms.txt beside the docs.
+
 ### 2026-09-28 (X handle figures refreshed)
 
 - **The published X handle figures are current again.** The weekly figures

@@ -12,7 +12,11 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
+import {
+  INDEXED_WALLETS,
+  CHAIN_COUNT_WORD,
+  ATTESTED_X_SHARE_PCT,
+} from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -461,10 +465,10 @@ export default function AbsoluteLabsComparison() {
             </ol>
             <p className="text-muted-foreground">
               The index holds {INDEXED_WALLETS} wallets with complete Farcaster
-              protocol coverage, refreshed daily. Over 99.8% of the X handles
-              were published by the wallet owner themselves, and every match
-              carries the evidence class behind it. Where we only have a
-              correlation, the row says so.
+              protocol coverage, refreshed daily. Over {ATTESTED_X_SHARE_PCT}%
+              of the X handles were published by the wallet owner themselves,
+              and every match carries the evidence class behind it. Where we
+              only have a correlation, the row says so.
             </p>
           </section>
 

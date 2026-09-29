@@ -410,6 +410,31 @@ export const UNATTRIBUTED = '(unattributed)';
  * channel is made of. A QR code on a poster, a link in a printed deck and a
  * link opened from a native app all arrive with no referrer, and the tag we
  * put on the URL ourselves is the only evidence that exists.
+ *
+ * ## Directory listings, `?ref=dir-<surface>`
+ *
+ * No special case, deliberately, and the choice was made with the obvious
+ * alternative in view. A listing is another site linking here, which is the
+ * definition of a referral, so reading `dir-apify` as a referral from Apify
+ * looks natural. It is still a tag we wrote, and a tag never manufactures a
+ * channel: that is the rule that keeps `ref:google-ads` out of search, and a
+ * directory is not an exception to it just because the claim would usually be
+ * true. So:
+ *
+ * - With a referring host, the host decides, like every other tag:
+ *   `ref:dir-github/via:github.com` is a referral from `github.com`. The host
+ *   is the measurement and the tag is our claim about it, and a listing copied
+ *   onto a second site is exactly the case where the two disagree.
+ * - With none, it is a campaign named `dir-<surface>`, one row per listing,
+ *   which is the row docs/GROWTH.md promises. Nothing else could report it:
+ *   without the tag, the arrival would read as direct.
+ * - A surface named after an assistant or a platform (`dir-claude` for the
+ *   Claude directory) is never read as an arrival from it: `evidenceValues`
+ *   skips every `ref:` part, so no tag is evidence of where anybody came from.
+ *
+ * The stored summary keeps the tag beside the host either way, so a question
+ * the channel cannot answer ("which listing sent this referral?") is still one
+ * `LIKE 'ref:dir-%'` away.
  */
 export function channelFrom(
   acquisition: string | null | undefined

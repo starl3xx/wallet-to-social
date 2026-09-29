@@ -14,7 +14,9 @@
   </p>
 
   <p>
-    <a href="https://walletlink.social">App</a> &middot;
+    <a href="https://walletlink.social/?ref=dir-github">App</a> &middot;
+    <a href="https://walletlink.social/mcp?ref=dir-github">MCP server</a> &middot;
+    <a href="https://walletlink.social/llms.txt">llms.txt</a> &middot;
     <a href="https://docs.walletlink.social">Docs</a> &middot;
     <a href="https://docs.walletlink.social/api-reference/introduction">API</a> &middot;
     <a href="https://x.com/walletlinkETH">@walletlinkETH</a>
@@ -23,11 +25,28 @@
 
 ---
 
+## Connect
+
+A remote MCP server with eight tools, drawing the same credits as the REST API. There is nothing to install:
+
+```
+https://walletlink.social/api/mcp
+```
+
+- **Claude, or any client that supports MCP OAuth:** add the URL as a connector. The first tool call asks you to sign in, and there is no key to copy.
+- **Claude Code:** `claude mcp add --transport http walletlink https://walletlink.social/api/mcp --header "Authorization: Bearer wts_live_YOUR_KEY"`
+- **Cursor:** create a key from the account menu at [walletlink.social](https://walletlink.social/?ref=dir-github) and choose **Add to Cursor**.
+- **Any other client:** the same URL, with a key in an `Authorization: Bearer` header. Keys are free for any signed-in account.
+
+Listing the tools needs no credential. The [MCP page](https://walletlink.social/mcp?ref=dir-github) has the config block and what a connection can reach, and the [docs](https://docs.walletlink.social/mcp-server) have a config for each client.
+
+---
+
 ## How it works
 
 ```
 Wallet list in (CSV · contract address · paste)
-  ├─ Resolve against a 4.85M-wallet identity index
+  ├─ Resolve against a 4.86M-wallet identity index
   ├─ Farcaster: complete protocol coverage, refreshed daily
   ├─ X handles: attested first, labeled always, never inferred
   ├─ Rank by holdings × follower reach
