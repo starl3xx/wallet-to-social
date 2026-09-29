@@ -22740,6 +22740,9 @@ async function main() {
     ok(
       'no OpenAPI operation sits at `/`, whose URL would end in a slash that redirects',
       !/\n  \/:\n/.test(spec) &&
+        /A `GET` on the base URL itself, `https:\/\/walletlink\.social\/api\/v1` with no\n\s+trailing slash, returns a JSON index/.test(
+          spec
+        ) &&
         /A `GET` on the base URL itself/.test(
           readFileSync('docs-site/api-reference/introduction.mdx', 'utf8')
         )

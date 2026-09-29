@@ -6687,6 +6687,12 @@ const MUTATIONS: Mutation[] = [
     from: '  for (const m of MUTATIONS) {\n    const occurrences =',
     to: '  for (const m of MUTATIONS.filter((_, position) => inShard(position, shard))) {\n    const occurrences =',
   },
+  {
+    name: 'STA-54: the OpenAPI description stops saying the base URL returns an index',
+    file: 'docs-site/openapi.yaml',
+    from: '    A `GET` on the base URL itself, `https://walletlink.social/api/v1` with no\n',
+    to: '    The base URL, `https://walletlink.social/api/v1` with no\n',
+  },
 ];
 
 function invariantsPass(): boolean {

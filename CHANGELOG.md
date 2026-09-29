@@ -109,10 +109,10 @@ All notable changes to walletlink.social. Newest first.
   site’s HTML 404 page. It now returns a JSON index, with no key and no cost:
   every endpoint with its method, path, summary and reference page, and links
   to the OpenAPI description, the API reference and the API catalog. The API
-  reference says so under “Base URL”. It is not an operation in the OpenAPI
-  description: OpenAPI appends a path to the server URL, so `GET /` would
-  resolve to `/api/v1/`, which redirects without CORS headers and would break
-  a client generated from the spec.
+  reference says so under “Base URL”, and the OpenAPI description says so in
+  its introduction. It is not an operation there: OpenAPI appends a path to
+  the server URL, so `GET /` would resolve to `/api/v1/`, which redirects
+  without CORS headers and would break a client generated from the spec.
 - **The docs read better in search results.** The docs home was titled
   `walletlink.social - walletlink.social`, because Mintlify appends the site
   name to a page titled with the site name. It is now “Wallet to X and
