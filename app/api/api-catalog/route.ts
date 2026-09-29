@@ -73,16 +73,16 @@ const CATALOG_URL = `${PRODUCTION_URL}/.well-known/api-catalog`;
  * front of it, because `lib/site-url.ts` records what a machine-to-machine URL
  * pointing at a redirect cost this product once already.
  *
- * ## Two things that look wrong and are not
- *
- * **`/api/v1` answers 404 to a GET.** An `anchor` is a link context: RFC 9264
- * section 4.2.2 requires a URI reference and says nothing about dereferencing
- * one. This is the API's base URI, the same string the OpenAPI `servers`
- * block declares, and it identifies the API precisely. The endpoints under it
- * are the OpenAPI file's job to enumerate, and it does.
+ * ## One thing that looks wrong and is not
  *
  * **The MCP and x402 anchors answer 405 to a GET.** Both are POST-only, so
  * 405 is the endpoint saying it exists and that GET is not how you use it.
+ *
+ * The REST anchor, `/api/v1`, answered 404 to a GET until 2026-09-29 and was
+ * listed here beside them: an `anchor` is a link context, and RFC 9264
+ * section 4.2.2 says nothing about dereferencing one. It now answers with a
+ * JSON index of the endpoints (`lib/api-index.ts`), because every reference
+ * gives it as the base URL and an agent tries that URL first.
  *
  * ## Two omissions, both deliberate
  *

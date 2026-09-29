@@ -179,7 +179,7 @@ const SUMMARY = `${TOOLS.length} tools, one endpoint, the same credits as the RE
 
 export const metadata: Metadata = {
   title: 'MCP server: connect an AI agent to walletlink.social',
-  description: `A remote MCP server at ${MCP_URL}. ${TOOLS.length} tools that resolve wallets to the X and Farcaster accounts their owners published, over OAuth or an API key, on the same credits as the REST API. An agent holding a wallet can buy its own access with USDC and never make an account.`,
+  description: `A remote MCP server at ${MCP_URL}: ${TOOLS.length} tools that resolve wallets to X and Farcaster accounts, over OAuth, an API key or USDC.`,
   keywords: [
     'walletlink mcp server',
     'wallet to social mcp server',

@@ -21,8 +21,7 @@ import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 export const metadata: Metadata = {
-  title:
-    'Blaze alternative for wallet-to-X lookups (Blaze is no longer available)',
+  title: 'Blaze is no longer available: a wallet-to-X lookup alternative',
   description:
     'Blaze is no longer available: withblaze.app stopped resolving (checked 2026-08-22). This page is kept for people comparing alternatives for wallet-to-X lookups.',
   keywords: [

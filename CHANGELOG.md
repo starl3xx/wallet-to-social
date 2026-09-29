@@ -80,6 +80,46 @@ All notable changes to walletlink.social. Newest first.
   to add it to Claude, Claude Code, Cursor or any other client. The header
   links the MCP page and llms.txt beside the docs.
 
+### 2026-09-29 (titles that fit a search result, and the API base URL answers)
+
+- **Titles and descriptions fit a search result.** The homepage title is now
+  “Wallet to Twitter (X) and Farcaster lookup | walletlink.social”, 62
+  characters where it was 88, and its description is 146 characters where it
+  was 214. The /mcp description is 147 characters (it was 291), and the
+  /pricing, /holders and four comparison page descriptions are 160 or fewer.
+  The Airstack and Blaze comparison titles were over 70 characters and now
+  fit.
+- **A GET on the API’s base URL answers.** `https://walletlink.social/api/v1`,
+  which llms.txt and the API reference give as the base URL, returned the
+  site’s HTML 404 page. It now returns a JSON index, with no key and no cost:
+  every endpoint with its method, path, summary and reference page, and links
+  to the OpenAPI description, the API reference and the API catalog. The
+  OpenAPI description documents it as `GET /`, and the API reference says so
+  under “Base URL”.
+- **The docs read better in search results.** The docs home was titled
+  `walletlink.social - walletlink.social`, because Mintlify appends the site
+  name to a page titled with the site name. It is now “Overview”. Eight API
+  reference pages had only their endpoint as a description, such as
+  `GET /v1/usage`; each now has one sentence saying what the endpoint does and
+  what it costs.
+- **The docs site serves the API catalog it advertises.** Mintlify’s `Link`
+  header on every docs response points at `/.well-known/api-catalog`, which
+  returned 404 on docs.walletlink.social. Mintlify serves that catalog only
+  when its “Download API spec” option is on, so `docs-site/docs.json` turns it
+  on. Not verifiable before the docs deploy; check it then with
+  `curl -sI https://docs.walletlink.social/.well-known/api-catalog`. The
+  option may also show a “Download API spec” item on API reference pages.
+- Operator: invariants hold every indexable static page to a title of 65
+  characters and a description of 160, found by walking `app/` rather than
+  listed (the homepage’s two strings moved to `lib/home-metadata.ts`, because
+  the root layout cannot be imported outside Next); every docs page to a real
+  description and a title that fits once Mintlify appends the site name; the
+  `/api/v1` index to the route tree and to `docs-site/openapi.yaml` in both
+  directions; and `download-spec` to the docs config. 136 new assertions and
+  17 new guard mutations. No MCP server card at
+  `/.well-known/mcp/server-card.json`: its specification (SEP-2127) is still
+  in review and its schema is not settled. Part of STA-54.
+
 ### 2026-09-28 (X handle figures refreshed)
 
 - **The published X handle figures are current again.** The weekly figures

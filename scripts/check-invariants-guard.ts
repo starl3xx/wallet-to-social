@@ -3414,6 +3414,151 @@ const MUTATIONS: Mutation[] = [
     from: '          href: `${PRODUCTION_URL}/skill.md`,',
     to: "          href: '/skill.md',",
   },
+  // ---------------------------------------- the API index at the base URL
+  {
+    // The state the 2026-09-27 audit measured: the URL every reference
+    // gives as the base answered with the site's HTML 404.
+    name: 'api index: the base URL goes back to answering 404',
+    file: 'app/api/v1/route.ts',
+    from: '  return NextResponse.json(apiIndexDocument(new Date().toISOString()), {\n',
+    to:
+      "  return NextResponse.json({ error: 'Not found' }, { status: 404 });\n" +
+      '  return NextResponse.json(apiIndexDocument(new Date().toISOString()), {\n',
+  },
+  {
+    // The OpenAPI description promises OPTIONS on every path.
+    name: 'api index: the preflight stops answering 204',
+    file: 'app/api/v1/route.ts',
+    from: '  return new NextResponse(null, { status: 204, headers: corsHeaders });\n',
+    to: '  return new NextResponse(null, { status: 405 });\n',
+  },
+  {
+    name: 'api index: the index drops the open CORS every path under /api/v1 has',
+    file: 'app/api/v1/route.ts',
+    from: '      ...corsHeaders,\n      Link: LINKS,\n',
+    to: '      Link: LINKS,\n',
+  },
+  {
+    // An endpoint that exists and that the index no longer names.
+    name: 'api index: an endpoint drops out of the index',
+    file: 'lib/api-index.ts',
+    from:
+      '  {\n' +
+      "    method: 'GET',\n" +
+      "    path: '/usage',\n" +
+      "    summary: 'Your key, balance and usage',\n" +
+      "    docsPage: 'usage',\n" +
+      '  },\n',
+    to: '',
+  },
+  {
+    // The other direction: a real new operation, shipped in a route file,
+    // with neither the index nor the OpenAPI description told.
+    name: 'api index: a new operation ships without the index or the spec naming it',
+    file: 'app/api/v1/stats/route.ts',
+    from:
+      'export async function OPTIONS() {\n' +
+      '  return new NextResponse(null, { status: 204, headers: corsHeaders });\n' +
+      '}\n',
+    to:
+      'export async function OPTIONS() {\n' +
+      '  return new NextResponse(null, { status: 204, headers: corsHeaders });\n' +
+      '}\n' +
+      '\n' +
+      'export async function POST() {\n' +
+      '  return new NextResponse(null, { status: 204 });\n' +
+      '}\n',
+  },
+  {
+    name: 'api index: a summary drifts from the OpenAPI description',
+    file: 'lib/api-index.ts',
+    from: "    summary: 'Index coverage',\n",
+    to: "    summary: 'Index statistics',\n",
+  },
+  {
+    name: 'api index: an endpoint links a reference page that does not exist',
+    file: 'lib/api-index.ts',
+    from: "    docsPage: 'reverse-twitter',\n",
+    to: "    docsPage: 'reverse-x',\n",
+  },
+  {
+    // Without it the spec says the index needs a key, which it does not,
+    // and an SDK generated from the spec would send one for nothing.
+    name: 'api index: the OpenAPI description says the index needs a key',
+    file: 'docs-site/openapi.yaml',
+    from: '        asked.\n      security: []\n',
+    to: '        asked.\n',
+  },
+  // ------------------------------- search-result titles and descriptions
+  {
+    // The 88-character title the 2026-09-27 audit measured.
+    name: 'search titles: the homepage title grows past a search result again',
+    file: 'lib/home-metadata.ts',
+    from: "  'Wallet to Twitter (X) and Farcaster lookup | walletlink.social';\n",
+    to: "  'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster';\n",
+  },
+  {
+    name: 'search titles: the homepage description grows past 160 characters again',
+    file: 'lib/home-metadata.ts',
+    from: ' No sales calls.`;\n',
+    to: ' With complete Farcaster coverage and owner-attested Twitter matches. No sales calls, instant access.`;\n',
+  },
+  {
+    // A literal in the layout is a title nothing measures.
+    name: 'search titles: the layout writes its title back as a literal',
+    file: 'app/layout.tsx',
+    from: '  title: HOME_TITLE,\n  description: HOME_DESCRIPTION,\n',
+    to:
+      '  title:\n' +
+      "    'walletlink.social | Find your DeFi users, NFT holders & AI agents on Twitter & Farcaster',\n" +
+      '  description: HOME_DESCRIPTION,\n',
+  },
+  {
+    // The 291-character description the audit measured.
+    name: 'search titles: the /mcp description grows back to 291 characters',
+    file: 'app/mcp/page.tsx',
+    from: '  description: `A remote MCP server at ${MCP_URL}: ${TOOLS.length} tools that resolve wallets to X and Farcaster accounts, over OAuth, an API key or USDC.`,\n',
+    to: '  description: `A remote MCP server at ${MCP_URL}. ${TOOLS.length} tools that resolve wallets to the X and Farcaster accounts their owners published, over OAuth or an API key, on the same credits as the REST API. An agent holding a wallet can buy its own access with USDC and never make an account.`,\n',
+  },
+  {
+    // Not on the named list: found by the walk, which is the point of it.
+    name: 'search titles: a comparison page title outgrows a search result',
+    file: 'app/vs/airstack/page.tsx',
+    from: "  title: 'Airstack is no longer available: a Farcaster lookup alternative',\n",
+    to:
+      '  title:\n' +
+      "    'Airstack alternative for Farcaster lookups (Airstack is no longer available)',\n",
+  },
+  {
+    // It would inherit the homepage description: a duplicate across URLs.
+    name: 'search titles: a static page drops its own description',
+    file: 'app/holders/page.tsx',
+    from:
+      '  description:\n' +
+      "    'Per-collection reports on the people behind the wallets: how many holders resolve to an X or Farcaster account, and how many are still reachable.',\n",
+    to: '',
+  },
+  {
+    // Mintlify appends the site name, so this rendered twice.
+    name: 'search titles: the docs home is titled with the site name again',
+    file: 'docs-site/index.mdx',
+    from: "title: 'Overview'\n",
+    to: "title: 'walletlink.social'\n",
+  },
+  {
+    name: 'search titles: a docs API page is described by its endpoint alone again',
+    file: 'docs-site/api-reference/usage.mdx',
+    from: "description: 'Your key’s plan, rate limit windows, consumption history and remaining match credits; it costs no credits and answers even at a zero balance.'\n",
+    to: "description: 'GET /v1/usage'\n",
+  },
+  {
+    // Mintlify serves the docs host's catalog only with download-spec on,
+    // and advertises the link either way.
+    name: 'search titles: the docs drop the option that serves their advertised API catalog',
+    file: 'docs-site/docs.json',
+    from: '    "options": ["download-spec"]\n',
+    to: '    "options": ["copy"]\n',
+  },
   {
     // RFC 9116 section 3 requires the utf-8 charset. Without it the file
     // still reads fine in a browser, and a strict consumer may refuse it.

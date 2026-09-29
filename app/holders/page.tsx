@@ -23,7 +23,7 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: 'Holder reachability reports',
   description:
-    'Per-collection reports on the people behind the wallets: how many holders resolve to an X or Farcaster account, and how many are still reachable. Measured against the walletlink.social index.',
+    'Per-collection reports on the people behind the wallets: how many holders resolve to an X or Farcaster account, and how many are still reachable.',
   alternates: { canonical: 'https://walletlink.social/holders' },
   openGraph: {
     title: 'Holder reachability reports',

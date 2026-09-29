@@ -188,7 +188,7 @@ Having an account and reaching it are different claims again, which is what the 
 
 ## The API
 
-The REST API is the same index and the same credits as the app. Base URL https://walletlink.social/api/v1. Authentication is an API key in the Authorization header, as a bearer token. Keys are self-serve for any signed-in account, including one spending the free allowance; what a key may draw is decided per call against the same balance.
+The REST API is the same index and the same credits as the app. Base URL https://walletlink.social/api/v1; a GET on it needs no key and returns a JSON index of the endpoints, with links to the reference and the OpenAPI description. Authentication is an API key in the Authorization header, as a bearer token. Keys are self-serve for any signed-in account, including one spending the free allowance; what a key may draw is decided per call against the same balance.
 
 Nine endpoints: a single wallet lookup, a batch lookup of up to ${batchSize} addresses per request on the default plan, an async job submission with a free status poll, a free dry-run estimate over a list (counts only: how many are in the index and the band a resolve would bill inside), reverse lookup by X handle, reverse lookup by Farcaster username, index statistics with the measured per-chain match rates, and your own usage and remaining balance. Reverse results are cursor-paginated. A job runs the same pipeline the app runs, resolving wallets the index has not checked against live sources; it is billed only on matches when it completes, one job may be active per account at a time, and a submission is capped at ${SUBMISSION_MULTIPLIER} times the match balance.
 

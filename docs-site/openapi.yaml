@@ -103,8 +103,120 @@ tags:
     description: A one-time check of which wallets an account has linked to itself, not a way to follow a person over time. Identity in, addresses out. Paginated, and weighted double against your rate limit.
   - name: Account
     description: Index coverage and your own usage. Both are free.
+  - name: Discovery
+    description: What lives under the base URL, for a client given nothing else. Free, and needs no key.
 
 paths:
+  /:
+    get:
+      operationId: getApiIndex
+      summary: The API index
+      tags: [Discovery]
+      description: |
+        A GET on the base URL itself. Lists every operation below with its
+        method, path, summary and reference page, and links to this
+        description, the API reference and the API catalog, so a client that
+        was given only the base URL can find the rest.
+
+        Needs no key and draws on neither meter. It is prerendered at deploy,
+        so `meta.generated_at` is when this deployment built it, not when you
+        asked.
+      security: []
+      x-match-credits: 0
+      x-rate-limit-units: 0
+      responses:
+        '200':
+          description: The index.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, meta]
+                properties:
+                  data:
+                    type: object
+                    required:
+                      [
+                        name,
+                        version,
+                        base_url,
+                        documentation,
+                        openapi,
+                        api_catalog,
+                        authentication,
+                        endpoints,
+                      ]
+                    properties:
+                      name: { type: string }
+                      version: { type: string }
+                      base_url: { type: string, format: uri }
+                      documentation:
+                        type: string
+                        format: uri
+                        description: The API reference, for a person.
+                      openapi:
+                        type: string
+                        format: uri
+                        description: This file.
+                      api_catalog:
+                        type: string
+                        format: uri
+                        description: The RFC 9727 catalog of every API this product exposes.
+                      authentication:
+                        type: object
+                        required: [scheme, header, example, get_a_key, note]
+                        properties:
+                          scheme: { type: string }
+                          header: { type: string }
+                          example: { type: string }
+                          get_a_key: { type: string, format: uri }
+                          note: { type: string }
+                      endpoints:
+                        type: array
+                        items:
+                          type: object
+                          required: [method, path, url, summary, documentation]
+                          properties:
+                            method: { type: string, enum: [GET, POST] }
+                            path:
+                              type: string
+                              description: Relative to the base URL, as this file spells it.
+                            url: { type: string }
+                            summary:
+                              type: string
+                              description: The operation’s `summary` in this file.
+                            documentation: { type: string, format: uri }
+                  meta:
+                    type: object
+                    required: [generated_at]
+                    properties:
+                      generated_at:
+                        type: string
+                        format: date-time
+                        description: When this deployment built the index.
+              example:
+                data:
+                  name: walletlink.social REST API
+                  version: v1
+                  base_url: https://walletlink.social/api/v1
+                  documentation: https://docs.walletlink.social/api-reference/introduction
+                  openapi: https://docs.walletlink.social/openapi.yaml
+                  api_catalog: https://walletlink.social/.well-known/api-catalog
+                  authentication:
+                    scheme: bearer
+                    header: Authorization
+                    example: 'Authorization: Bearer wts_live_xxxxxxxx'
+                    get_a_key: https://docs.walletlink.social/quickstart#get-a-key
+                    note: Every endpoint below needs a key, and this index does not. Keys are self-serve for any signed-in account, free allowance included.
+                  endpoints:
+                    - method: GET
+                      path: /wallet/{address}
+                      url: https://walletlink.social/api/v1/wallet/{address}
+                      summary: Look up a wallet
+                      documentation: https://docs.walletlink.social/api-reference/wallet
+                meta:
+                  generated_at: '2026-09-29T12:00:00.000Z'
+
   /wallet/{address}:
     get:
       operationId: getWallet
