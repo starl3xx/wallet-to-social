@@ -29,8 +29,8 @@ export async function POST(request: NextRequest) {
      * Every event gets `bot`, so the growth report can count a crawler's
      * session apart from a person's instead of losing it (STA-56). Tagged
      * rather than dropped: a crawler that renders the site is worth seeing,
-     * and the 28 lookups it started on 2026-09-30 were only found because its
-     * page views were there to find. The User-Agent is read and not kept.
+     * and the lookups it started on 2026-09-30 were found through the page
+     * views beside them. The User-Agent is read and not kept.
      */
     // Fire and forget - don't block the response
     trackEvent(eventType, {

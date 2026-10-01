@@ -30,6 +30,7 @@ import {
   getContentPerformance,
   getGrowthTotals,
   getSeedCoverage,
+  holdsUntaggedRows,
 } from '../lib/growth';
 import {
   CHANNEL_LABELS,
@@ -129,10 +130,15 @@ async function firstPageViewDay(): Promise<string | null> {
  * When the analytics ingest started tagging crawlers, or why that is unknown.
  *
  * `bot` is written on every event from the deploy that shipped STA-56, so the
- * first page view carrying it at all is the first day crawlers are counted
+ * first page view carrying it at all is when crawlers start being counted
  * apart from people. Rows before it are untagged, not human: a crawler among
  * them is in this report's figures as a person, and nothing here reclassifies
  * the past with a guess. The report says so in its own output instead.
+ *
+ * `since` is that page view's exact time, not its day. The windows open at
+ * the time of day the report runs, so only an instant says whether a window
+ * that opens on the deploy day holds the untagged hours before the deploy
+ * (`holdsUntaggedRows`).
  *
  * `missing` is its own answer because it is the one failure the reader can
  * fix: the view was made before the column existed, and
@@ -149,11 +155,11 @@ async function crawlerTagging(): Promise<
   if (!db) return { state: 'unknown' };
   try {
     const result = (await db.execute(sql`
-      SELECT to_char(min(created_at), 'YYYY-MM-DD') AS "day"
+      SELECT to_char(min(created_at), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "at"
       FROM growth_page_events
       WHERE event_type = 'page_view' AND bot IS NOT NULL
-    `)) as unknown as { rows: Array<{ day: string | null }> };
-    return { state: 'ok', since: result.rows?.[0]?.day ?? null };
+    `)) as unknown as { rows: Array<{ at: string | null }> };
+    return { state: 'ok', since: result.rows?.[0]?.at ?? null };
   } catch (error) {
     // 42703 is undefined_column: the view predates `bot`.
     const e = error as { code?: string; cause?: { code?: string } };
@@ -258,13 +264,16 @@ async function main() {
    * visible without being mistaken for somebody trying the product.
    */
   const since = tagging.state === 'ok' ? tagging.since : null;
+  const sinceDay = since?.slice(0, 10);
   if (since !== null) {
     say(
-      `Crawlers, counted separately and excluded from every figure in this ` +
-        `report: ${c.crawlerSessions} sessions this window, with ` +
+      `Known crawlers, counted separately and excluded from every figure in ` +
+        `this report: ${c.crawlerSessions} sessions this window, with ` +
         `${c.crawlerRuns} lookups started and ${c.crawlerRefused} refused; ` +
         `${p.crawlerSessions} sessions, ${p.crawlerRuns} started and ` +
-        `${p.crawlerRefused} refused in the previous one.`
+        `${p.crawlerRefused} refused in the previous one. A crawler that ` +
+        `sends an ordinary browser string and does not say it is automated ` +
+        `is not known, and counts as a person.`
     );
     say();
   }
@@ -275,12 +284,12 @@ async function main() {
         `session as a person’s.`
     );
     say();
-  } else if (since > p.start) {
+  } else if (holdsUntaggedRows(since, p)) {
     say(
-      `**Crawlers are counted apart only from ${since}.** Rows recorded ` +
-        `before that date carry no tag, so a crawler’s session from before ` +
-        `then is counted above as a person’s, ` +
-        `${since > c.start ? 'in both windows' : 'in the previous window'}. ` +
+      `**Crawlers are counted apart only from ${sinceDay}.** Rows recorded ` +
+        `before that carry no tag, so a crawler’s session from before then ` +
+        `is counted above as a person’s, ` +
+        `${holdsUntaggedRows(since, c) ? 'in both windows' : 'in the previous window'}. ` +
         `The report does not reclassify them with a guess.`
     );
     say();
@@ -446,8 +455,22 @@ async function main() {
     );
   }
   if (c.sessions < p.sessions) {
+    /**
+     * Not like for like while the previous window holds untagged rows: it
+     * counts a crawler's session as a person's for longer than this one does,
+     * so a fall can be crawlers leaving the count. On 2026-09-30 one crawler
+     * made about 75 sessions in an hour that usually has three or fewer
+     * (STA-56).
+     */
+    const unlike = since !== null && holdsUntaggedRows(since, p);
     say(
-      `- Sessions fell from ${p.sessions} to ${c.sessions} against the previous window.`
+      `- Sessions fell from ${p.sessions} to ${c.sessions} against the previous window.` +
+        (unlike
+          ? ` Not like for like: crawlers are counted apart only from ` +
+            `${sinceDay}, and more of the previous window comes before ` +
+            `that, so part of the fall can be crawler sessions leaving the ` +
+            `count rather than people leaving the site.`
+          : '')
     );
   }
   // The job route refuses a crawler's User-Agent, so a lookup started inside a

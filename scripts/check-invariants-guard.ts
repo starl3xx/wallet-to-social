@@ -6897,7 +6897,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-56: the report stops saying when crawler tagging began',
     file: 'scripts/growth-report.ts',
-    from: '      `**Crawlers are counted apart only from ${since}.** Rows recorded ` +\n',
+    from: '      `**Crawlers are counted apart only from ${sinceDay}.** Rows recorded ` +\n',
     to: '      `Rows recorded ` +\n',
   },
   {
@@ -6923,6 +6923,99 @@ const MUTATIONS: Mutation[] = [
     file: 'scripts/migrate-growth-views.ts',
     from: '    SELECT\n      event_type,\n      session_id,\n',
     to: '    SELECT\n      event_type,\n      user_id,\n      session_id,\n',
+  },
+  // Review of STA-56 (2026-10-01). The burst came from Meta's network, and
+  // two of the five crawlers Meta documents were missing from the list.
+  {
+    name: 'STA-56 review: Meta-WebIndexer, which crawls for Meta AI search, leaves the crawler list',
+    file: 'lib/bots.ts',
+    from: "  'meta-externalads',\n  'meta-webindexer',\n",
+    to: "  'meta-externalads',\n",
+  },
+  {
+    name: 'STA-56 review: Meta-ExternalAds leaves the crawler list',
+    file: 'lib/bots.ts',
+    from: "  'meta-externalfetcher',\n  'meta-externalads',\n",
+    to: "  'meta-externalfetcher',\n",
+  },
+  {
+    name: "STA-56 review: Meta's catalog fetcher leaves the crawler list",
+    file: 'lib/bots.ts',
+    from: "  'facebookexternalhit',\n  'facebookcatalog',\n",
+    to: "  'facebookexternalhit',\n",
+  },
+  // The privacy page described the tag as coming from the browser string
+  // alone, while the browser's automation flag also sets it and a yes stores
+  // the crawler's name.
+  {
+    name: 'STA-56 review: the privacy page drops the automation flag as a source of the crawler tag',
+    file: 'app/privacy/page.tsx',
+    from: '            from the browser string, which is not kept, and from whether your\n            browser reports that software is controlling it. When the answer is\n',
+    to: '            from the browser string, which is not kept. When the answer is\n',
+  },
+  {
+    name: "STA-56 review: the privacy page stops saying a yes records the crawler's name",
+    file: 'app/privacy/page.tsx',
+    from: '            yes, the event also records which crawler it was, or that the\n            browser was automated. Also a record',
+    to: '            yes, nothing else is recorded. Also a record',
+  },
+  // A window opens at the time of day the report runs, so whether it holds
+  // untagged rows has to be decided from instants, not days.
+  {
+    name: 'STA-56 review: untagged history is decided by comparing days',
+    file: 'lib/growth.ts',
+    from: '  return Date.parse(taggedSince) > Date.parse(window.startsAt);\n',
+    to: '  return taggedSince.slice(0, 10) > window.start;\n',
+  },
+  {
+    name: 'STA-56 review: a growth window keeps only the day it opens',
+    file: 'lib/growth.ts',
+    from: '  startsAt: start.toISOString(),\n',
+    to: '  startsAt: start.toISOString().slice(0, 10),\n',
+  },
+  {
+    name: 'STA-56 review: the report reads only the day tagging began',
+    file: 'scripts/growth-report.ts',
+    from: 'SELECT to_char(min(created_at), \'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"\') AS "at"',
+    to: 'SELECT to_char(min(created_at), \'YYYY-MM-DD\') AS "at"',
+  },
+  {
+    name: 'STA-56 review: the untagged-history caveat compares day strings again',
+    file: 'scripts/growth-report.ts',
+    from: '  } else if (holdsUntaggedRows(since, p)) {\n',
+    to: '  } else if (since.slice(0, 10) > p.start) {\n',
+  },
+  // The crawler leaving the count lowers Sessions, so a fall against an
+  // untagged previous window must not read as lost traffic.
+  {
+    name: 'STA-56 review: a fall in sessions against an untagged window prints unqualified',
+    file: 'scripts/growth-report.ts',
+    from: '    const unlike = since !== null && holdsUntaggedRows(since, p);\n',
+    to: '    const unlike = false;\n',
+  },
+  {
+    name: 'STA-56 review: the crawler line implies every crawler is taken out',
+    file: 'scripts/growth-report.ts',
+    from: '        `${p.crawlerRefused} refused in the previous one. A crawler that ` +\n        `sends an ordinary browser string and does not say it is automated ` +\n        `is not known, and counts as a person.`\n',
+    to: '        `${p.crawlerRefused} refused in the previous one.`\n',
+  },
+  {
+    name: 'STA-56 review: GROWTH.md stops expecting Sessions, Direct and holder entries to fall',
+    file: 'docs/GROWTH.md',
+    from: '- **Sessions, the Direct channel, and the holder reports’ entries and views\n  fall**',
+    to: '- **Nothing else moves**',
+  },
+  {
+    name: 'STA-56 review: GROWTH.md reads no crawler sessions as proof of people',
+    file: 'docs/GROWTH.md',
+    from: '  shows no crawler sessions and no refusals, that does not make them people:\n',
+    to: '  shows no crawler sessions and no refusals, they were people:\n',
+  },
+  {
+    name: 'STA-56 review: the incident record says all 28 run sessions recorded a page view',
+    file: 'lib/bots.ts',
+    from: ' * On 2026-09-30, between 17:27 and 17:40 UTC, 28 sessions with no referrer\n',
+    to: ' * On 2026-09-30, between 17:27 and 17:40 UTC, 28 sessions each recorded a page view\n',
   },
 ];
 

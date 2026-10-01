@@ -23064,10 +23064,26 @@ async function main() {
         'meta-externalagent',
         'meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)',
       ],
+      // The rest of Meta's documented crawlers. The 2026-09-30 runs came from
+      // Meta's network, and the User-Agent they sent was never stored, so
+      // every token Meta documents is held here in the form it documents.
+      [
+        'meta-webindexer',
+        'meta-webindexer/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/web-crawlers)',
+      ],
+      ['meta-webindexer', 'meta-webindexer/1.1'],
+      [
+        'meta-externalads',
+        'meta-externalads/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/web-crawlers)',
+      ],
+      ['meta-externalads', 'meta-externalads/1.1'],
+      ['meta-externalfetcher', 'meta-externalfetcher/1.1'],
+      ['facebookcatalog', 'facebookcatalog/1.0'],
       [
         'facebookexternalhit',
         'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
       ],
+      ['facebookexternalhit', 'facebookexternalhit/1.1'],
       ['Twitterbot', 'Twitterbot/1.0'],
       [
         'Slackbot',
@@ -23130,6 +23146,29 @@ async function main() {
         bots.crawlerFrom(ua) === name
       );
     }
+    /**
+     * The five crawlers Meta documents on its web-crawlers page. The burst
+     * came from Meta's network, and two of these were missing when the rule
+     * first shipped: Meta-WebIndexer, which crawls for Meta AI search, and
+     * Meta-ExternalAds. Held as a set, so the list cannot lose one quietly.
+     */
+    const META_CRAWLERS = [
+      'facebookexternalhit',
+      'meta-webindexer',
+      'meta-externalads',
+      'meta-externalagent',
+      'meta-externalfetcher',
+    ];
+    ok(
+      'every crawler Meta documents is on the list, and has a real string here that it names',
+      META_CRAWLERS.every(
+        (token) =>
+          (bots.CRAWLER_SIGNATURES as readonly string[]).includes(token) &&
+          CRAWLERS.some(
+            ([name, ua]) => name === token && bots.crawlerFrom(ua) === token
+          )
+      )
+    );
     ok(
       'every listed token names itself, so none is shadowed by one above it',
       bots.CRAWLER_SIGNATURES.every(
@@ -23513,6 +23552,33 @@ async function main() {
     );
 
     /**
+     * The privacy page describes the tag the ingest writes, as it writes it.
+     * The yes can come from the browser's own automation flag as well as the
+     * browser string, and a yes stores the crawler's name. A page that says
+     * only "a yes or no, from the browser string" describes the method wrongly
+     * for a person whose browser is automated (review of STA-56). Tied to the
+     * behavior, so the sentence binds exactly while the ingest does that.
+     */
+    const privacyPolicy = readFileSync('app/privacy/page.tsx', 'utf8').replace(
+      /\s+/g,
+      ' '
+    );
+    ok(
+      'the privacy page names both sources of the crawler tag while the ingest reads both',
+      driven.bot !== true ||
+        /from the browser string, which is not kept, and from whether your browser reports that software is controlling it\./.test(
+          privacyPolicy
+        )
+    );
+    ok(
+      'and says that a yes records which crawler it was, since the ingest stores the name',
+      !('crawler' in tagged) ||
+        /When the answer is yes, the event also records which crawler it was, or that the browser was automated\./.test(
+          privacyPolicy
+        )
+    );
+
+    /**
      * The growth report counts people, and counts crawlers beside them.
      *
      * Read from the source, because the predicate is SQL and nothing here
@@ -23586,7 +23652,7 @@ async function main() {
     );
     ok(
       'the report prints crawler sessions, runs and refusals on a line of their own',
-      /Crawlers, counted separately and excluded from every figure/.test(
+      /Known crawlers, counted separately and excluded from every figure/.test(
         growthReport
       ) &&
         ['c', 'p'].every((w) =>
@@ -23596,14 +23662,146 @@ async function main() {
         )
     );
     ok(
+      'the crawler line says only known crawlers are taken out, and an unrecognized one counts as a person',
+      /`sends an ordinary browser string and does not say it is automated ` \+\s*`is not known, and counts as a person\.`/.test(
+        growthReport
+      )
+    );
+    ok(
       'the report says when tagging began instead of reclassifying the past',
-      /Crawlers are counted apart only from \$\{since\}/.test(growthReport) &&
+      /Crawlers are counted apart only from \$\{sinceDay\}/.test(
+        growthReport
+      ) &&
         /Crawlers are not counted apart yet/.test(growthReport) &&
         /WHERE event_type = 'page_view' AND bot IS NOT NULL/.test(growthReport)
     );
     ok(
       'the report checks the crawler column before it reads a figure',
       before(growthReport, 'await crawlerTagging()', 'await getGrowthTotals(')
+    );
+
+    /**
+     * Untagged history is decided from instants (review of STA-56). A window
+     * opens at the time of day the report runs, so on the deploy day a
+     * comparison of days says a window opened at 06:00 holds nothing
+     * untagged when the tag began at 18:00, and the report then calls
+     * crawlers excluded from figures that still count them as people.
+     */
+    {
+      const growthLib = await import('@/lib/growth');
+      const savedDb = process.env.DATABASE_URL;
+      let totals: Awaited<ReturnType<typeof growthLib.getGrowthTotals>>;
+      try {
+        delete process.env.DATABASE_URL;
+        totals = await growthLib.getGrowthTotals(28);
+      } finally {
+        if (savedDb !== undefined) process.env.DATABASE_URL = savedDb;
+      }
+      ok(
+        'a growth window carries the instant it opens, not only its day',
+        /T\d\d:\d\d:\d\d\.\d{3}Z$/.test(totals.current.startsAt) &&
+          Math.abs(
+            Date.parse(totals.current.startsAt) - (Date.now() - 28 * 86_400_000)
+          ) < 600_000 &&
+          totals.current.start === totals.current.startsAt.slice(0, 10)
+      );
+      const opensAt = (startsAt: string) => ({
+        ...totals.current,
+        start: startsAt.slice(0, 10),
+        startsAt,
+      });
+      const TAGGED_FROM = '2026-10-01T18:00:00.000Z';
+      ok(
+        'a window opening on the day tagging began, before the first tagged row, holds untagged rows',
+        growthLib.holdsUntaggedRows(
+          TAGGED_FROM,
+          opensAt('2026-10-01T06:00:00.000Z')
+        ) === true
+      );
+      ok(
+        'and one opening after it, on the same day or later, holds none',
+        growthLib.holdsUntaggedRows(
+          TAGGED_FROM,
+          opensAt('2026-10-01T19:00:00.000Z')
+        ) === false &&
+          growthLib.holdsUntaggedRows(
+            TAGGED_FROM,
+            opensAt('2026-10-02T06:00:00.000Z')
+          ) === false
+      );
+      ok(
+        'and with nothing tagged yet, every window is untagged',
+        growthLib.holdsUntaggedRows(
+          null,
+          opensAt('2026-10-02T06:00:00.000Z')
+        ) === true
+      );
+    }
+    ok(
+      'the report reads when tagging began as an instant and compares it as one',
+      /to_char\(min\(created_at\), 'YYYY-MM-DD"T"HH24:MI:SS\.MS"Z"'\) AS "at"/.test(
+        growthReport
+      ) &&
+        /\} else if \(holdsUntaggedRows\(since, p\)\) \{/.test(growthReport) &&
+        /\$\{holdsUntaggedRows\(since, c\) \? 'in both windows' : 'in the previous window'\}/.test(
+          growthReport
+        ) &&
+        !/\bsince(Day)?(\.slice\(0, 10\))? [<>]=? [cp]\.start\b/.test(
+          growthReport
+        )
+    );
+    ok(
+      'a fall in sessions is called not like for like while the previous window holds untagged rows',
+      /const unlike = since !== null && holdsUntaggedRows\(since, p\);/.test(
+        growthReport
+      ) &&
+        /Sessions fell from \$\{p\.sessions\} to \$\{c\.sessions\} against the previous window\.` \+\s*\(unlike\s*\? ` Not like for like:/.test(
+          growthReport
+        )
+    );
+
+    /**
+     * The docs tell a reader what the change does to the numbers. The
+     * crawler's holder-report renders leave Sessions, Direct and the holder
+     * entries once it is recognized, which reads as lost traffic unless the
+     * page says it is coming. And no crawler sessions is never proof of
+     * people: a crawler with an ordinary browser string is not on the list.
+     */
+    const growthDoc = readFileSync('docs/GROWTH.md', 'utf8').replace(
+      /\s+/g,
+      ' '
+    );
+    const incidentEntry = growthDoc.slice(
+      growthDoc.indexOf(
+        '### 2026-10-01: a crawler was running the holder reports'
+      ),
+      growthDoc.indexOf('### 2026-09-21')
+    );
+    ok(
+      'GROWTH.md expects Sessions, Direct and the holder reports’ entries and views to fall with the crawler',
+      incidentEntry.length > 500 &&
+        incidentEntry.includes(
+          '**Sessions, the Direct channel, and the holder reports’ entries and views fall**'
+        )
+    );
+    ok(
+      'and never reads no crawler sessions as proof of people',
+      incidentEntry.includes('that does not make them people') &&
+        !/no crawler sessions and no refusals, they were people/.test(
+          incidentEntry
+        ) &&
+        growthDoc.includes(
+          'no crawler sessions and no refusals is never proof that a figure is people'
+        )
+    );
+    ok(
+      'no record says all 28 run sessions recorded a page view: 23 did',
+      ['CHANGELOG.md', 'docs/GROWTH.md', 'lib/bots.ts'].every(
+        (f) =>
+          !/28 sessions each recorded a page/.test(
+            readFileSync(f, 'utf8').replace(/\s*\n\s*(\*\s)?/g, ' ')
+          )
+      )
     );
 
     /**

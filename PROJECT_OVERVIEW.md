@@ -408,7 +408,7 @@ The growth ledger, read through the views above and never the base tables:
 - `getContentPerformance(days)`: per path, entries against views; an entry is a session that arrived there
 - `getGrowthTotals(days)`: this window beside the previous one of the same length
 - Every rollup groups by the raw acquisition string and folds to a channel in TypeScript through `channelFrom`, so no second copy of the roster exists in SQL. `docs/GROWTH.md` holds the loop these feed.
-- Every figure is people only (STA-56). A session any of whose events carries the `bot` tag is a crawler’s: `crawlerSession` / `humanSession` decide it with a correlated `EXISTS`, never `NOT IN`, and every page-view read names one of them. `getGrowthTotals` counts crawlers from the complement (`crawlerSessions`, `crawlerRuns`, `crawlerRefused`) so people and crawlers add up to every session. Rows recorded before tagging began carry no tag and read as people; the report says from which date.
+- Every figure is people only, as far as the tag can tell (STA-56). A session any of whose events carries the `bot` tag is a known crawler’s: `crawlerSession` / `humanSession` decide it with a correlated `EXISTS`, never `NOT IN`, and every page-view read names one of them. `getGrowthTotals` counts crawlers from the complement (`crawlerSessions`, `crawlerRuns`, `crawlerRefused`) so people and crawlers add up to every session; `crawlerRuns` is a floor, since a lookup whose session recorded no page view is in no session. Rows recorded before tagging began carry no tag and read as people; the report says from which date. `holdsUntaggedRows` decides whether a window holds such rows from the first tagged row’s exact time against `GrowthWindow.startsAt`, never from days, because a window opens at the time of day the report runs.
 
 ### `lib/access.ts`
 
@@ -1217,7 +1217,10 @@ cannot set, clear or name it. The User-Agent itself is never stored (STA-45).
 nothing (`{ status: 'skipped' }`), recorded as `crawler_lookup_refused`; the
 homepage reads a response with no `jobId` as not started. The list is product
 tokens matched as whole tokens, never a bare `bot`, which matches Cubot phones.
-The public API (`/api/v1`, `/api/mcp`) does not read it.
+It holds every crawler Meta documents, because the 2026-09-30 burst came from
+Meta’s network. A crawler that sends an ordinary browser string is recognized
+by nothing and counts as a person. The public API (`/api/v1`, `/api/mcp`) does
+not read it.
 
 **Listing links carry `?ref=dir-<surface>`** since 2026-09-29: `dir-apify` on
 the Apify Actor's README, input form and run messages, `dir-registry` on the

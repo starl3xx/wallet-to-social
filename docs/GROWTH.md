@@ -306,20 +306,35 @@ whenever it is non-zero, so nothing is hidden either.
 
 ## People and crawlers, never added together
 
-Every figure in the report is people. A session is a crawler’s when any of its
-events carries the `bot` tag, which the analytics ingest writes on every event
-it receives, from the request’s own User-Agent (`lib/bots.ts`). Those sessions are taken out
-of sessions, ran something, checkout, entries, views and channels, and printed
-on their own line under the totals with the lookups they started and the ones
-the job route refused. Signups need no filter: an account is created by a
-sign-in, which a crawler cannot complete.
+Every figure in the report is people, as far as the report can tell. A
+session is a known crawler’s when any of its events carries the `bot` tag,
+which the analytics ingest writes on every event it receives: from the
+request’s own User-Agent, matched against the vendor tokens in `lib/bots.ts`,
+or from the browser reporting `navigator.webdriver`. Those sessions are taken
+out of sessions, ran something, checkout, entries, views and channels, and
+printed on their own line under the totals with the lookups they started and
+the ones the job route refused. Signups need no filter: an account is created
+by a sign-in, which a crawler cannot complete.
+
+“Known” is the limit of it. A crawler that sends an ordinary browser string
+and does not report itself as automated is tagged as a person, and the report
+says so on the crawler line. So no crawler sessions and no refusals is never
+proof that a figure is people.
 
 Tagged, not dropped, because a crawler that renders the site is worth seeing.
 And the past is not reclassified: rows recorded before tagging began carry no
 tag and count as people, and the report names the date tagging began rather
-than guessing which of them were crawlers. A lookup started inside a crawler
-session goes on the watchlist, because the job route refuses a crawler’s
-User-Agent and one that got through means the refusal missed it.
+than guessing which of them were crawlers. Whether a window holds such rows is
+decided from the first tagged row’s exact time, not its day, because a window
+opens at the time of day the report runs. While the previous window holds
+them, the watchlist’s “Sessions fell” line says the comparison is not like for
+like.
+
+A crawler’s lookups are counted from the sessions it is recognized in, so the
+count is a floor: a lookup whose session recorded no page view is in no
+session, human or crawler. A lookup started inside a crawler session goes on
+the watchlist, because the job route refuses a crawler’s User-Agent and one
+that got through means the refusal missed it.
 
 ## Tagging a link we post ourselves
 
@@ -472,15 +487,24 @@ later reader can check whether it did.
 
 ### 2026-10-01: a crawler was running the holder reports (STA-56)
 
-On 2026-09-30 between 17:27 and 17:40 UTC, 28 sessions each recorded a page
-view on `/` and a started lookup in the same second, with no referrer and no
-acquisition. Each was a free, anonymous starter run of 25 wallets, and each ran
-a different long-tail collection from the holder reports. Every holder report
-links “Run these holders” to `/?collection=<chain>:<address>`, and the homepage
+On 2026-09-30 between 17:27 and 17:40 UTC, 28 sessions with no referrer and no
+acquisition each started a lookup. Each was a free, anonymous starter run of 25
+wallets, and each ran a different long-tail collection from the holder
+reports. 23 of those sessions recorded a page view on `/` in the same second as
+the run; the other 5 recorded nothing but the lookup. Every holder report links
+“Run these holders” to `/?collection=<chain>:<address>`, and the homepage
 starts that run on arrival, so a crawler that renders JavaScript and follows
 links runs one lookup per report it reads. Earlier days had one to eight
 starter runs each, every one a distinct session, and some of those were
 probably the same pattern.
+
+The runs were not all of it. In the same minutes 42 more sessions each viewed
+one holder report and nothing else, and 10 more viewed `/` once and ran
+nothing: that hour had 75 sessions, against three or fewer in each of the
+hours around it. At 00:33 on 2026-10-01 it came back: three holder reports
+viewed, then three runs a minute later. Every run in both bursts came from
+Meta’s network (AS32934). Which Meta crawler it was is not known, because the
+User-Agent is not stored; every one Meta documents is now on the list.
 
 It matters here because the report counted every one of them as a person who
 tried the product. In the 28 days to 2026-10-01, 110 sessions ran something and
@@ -504,13 +528,24 @@ Expected to move:
   82 starter-run sessions above are the ceiling on that fall, not the
   estimate: some were people. The baseline stops being inflated from the
   deploy on and is not corrected before it.
+- **Sessions, the Direct channel, and the holder reports’ entries and views
+  fall**, if the crawler is recognized: its holder-report renders leave every
+  one of them, and `robots.txt` still allows those pages, so the renders go
+  on. Until the previous window is fully tagged, the report compares a window
+  with crawlers taken out against one with them counted as people, and the
+  watchlist says so beside “Sessions fell”. Read the fall as the crawler
+  leaving the count before reading it as lost traffic or lost search.
 - **Starter runs from sessions with no referrer fall toward zero**, if the
-  pattern was a crawler. If they continue at the same rate while the report
-  shows no crawler sessions and no refusals, they were people, or a crawler
-  that names itself nowhere, and this diagnosis was wrong.
-- **The crawler line shows refusals** when the crawler comes back. Zero
-  refusals with zero crawler sessions for a month says it obeyed `robots.txt`
-  or stopped coming, and either is fine.
+  crawler names itself. If they continue at the same rate while the report
+  shows no crawler sessions and no refusals, that does not make them people:
+  a crawler sending an ordinary browser string is invisible to the list. Read
+  the request logs for the runs’ User-Agent and network before calling them
+  people, and check whether they keep the burst’s shape (one view each, no
+  referrer, a different collection each, in the same second as the view).
+- **The crawler line shows refusals** when a recognized crawler comes back.
+  Zero refusals with zero crawler sessions for a month says it obeyed
+  `robots.txt`, stopped coming, or is not recognized, and only the last needs
+  action.
 
 Run `scripts/migrate-growth-views.ts` before merging: the report reads the
 new column and refuses to run against the old view, with a message that names

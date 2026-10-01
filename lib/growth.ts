@@ -524,8 +524,17 @@ export async function getContentPerformance(
 }
 
 export interface GrowthWindow {
+  /** The day the window opens, `YYYY-MM-DD`, for display. */
   start: string;
   end: string;
+  /**
+   * The instant the window opens, as an ISO timestamp.
+   *
+   * A window opens at the time of day the report ran, not at midnight, so
+   * `start` alone cannot say which side of it an instant on that same day
+   * falls. `holdsUntaggedRows` compares against this one for that reason.
+   */
+  startsAt: string;
   sessions: number;
   lookupSessions: number;
   signups: number;
@@ -550,7 +559,12 @@ export interface GrowthWindow {
    * session that recorded a page view in the window.
    */
   crawlerSessions: number;
-  /** Lookups started inside those sessions. */
+  /**
+   * Lookups started inside those sessions, which makes it a floor. A crawler
+   * session is found by a tagged page view, and a lookup whose session
+   * recorded no page view at all is in neither this nor `lookupSessions`:
+   * 5 of the 28 runs on 2026-09-30 were like that.
+   */
   crawlerRuns: number;
   /** Lookups the job route refused a crawler, which start nothing. */
   crawlerRefused: number;
@@ -565,6 +579,7 @@ export interface GrowthTotals {
 const emptyWindow = (start: Date, end: Date): GrowthWindow => ({
   start: start.toISOString().slice(0, 10),
   end: end.toISOString().slice(0, 10),
+  startsAt: start.toISOString(),
   sessions: 0,
   lookupSessions: 0,
   signups: 0,
@@ -672,6 +687,26 @@ async function windowTotals(
 
   const row = result.rows?.[0];
   return { ...emptyWindow(start, end), ...(row ?? {}) };
+}
+
+/**
+ * Whether a window holds rows recorded before crawler tagging began (STA-56).
+ *
+ * `taggedSince` is the exact time of the first page view carrying the tag, as
+ * an ISO timestamp, or null when no page view carries it yet, in which case
+ * every row is untagged.
+ *
+ * Compared as instants, never as days. A window opens at the time of day the
+ * report runs, so on the day tagging began a comparison of day strings calls
+ * a window fully tagged while it still holds the untagged hours before the
+ * deploy, and the report would say crawlers are excluded where they are not.
+ */
+export function holdsUntaggedRows(
+  taggedSince: string | null,
+  window: GrowthWindow
+): boolean {
+  if (taggedSince === null) return true;
+  return Date.parse(taggedSince) > Date.parse(window.startsAt);
 }
 
 /**

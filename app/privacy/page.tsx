@@ -184,11 +184,14 @@ export default function PrivacyPage() {
             Page views and product events (an upload started, a checkout
             reached, a limit hit), each carrying a browser identifier and
             sometimes your email address, and a yes or no for whether it came
-            from a known crawler, worked out from the browser string, which is
-            not kept. Also a record of each request an API key makes: the
-            endpoint, how many addresses it carried, the response status, the
-            credits and the time, never the addresses themselves, so rate limits
-            and credits can be counted.
+            from a known crawler or an automated browser. That is worked out
+            from the browser string, which is not kept, and from whether your
+            browser reports that software is controlling it. When the answer is
+            yes, the event also records which crawler it was, or that the
+            browser was automated. Also a record of each request an API key
+            makes: the endpoint, how many addresses it carried, the response
+            status, the credits and the time, never the addresses themselves, so
+            rate limits and credits can be counted.
           </p>
           <p>
             <span className="text-foreground">Where you arrived from.</span>{' '}

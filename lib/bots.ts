@@ -3,13 +3,23 @@
  *
  * ## Why this exists
  *
- * On 2026-09-30, between 17:27 and 17:40 UTC, 28 sessions each recorded a
- * page view on `/` and a started lookup in the same second, with no referrer,
- * each one a different long-tail collection from the holder reports. Every
- * holder report links “Run these holders” to `/?collection=<chain>:<address>`,
- * and the homepage submits that collection on arrival. A crawler that renders
- * JavaScript and follows links therefore runs a lookup on every report it
- * reads, and each of those runs was counted as a person who tried the product.
+ * On 2026-09-30, between 17:27 and 17:40 UTC, 28 sessions with no referrer
+ * each started a lookup of a different long-tail collection from the holder
+ * reports. 23 of them recorded a page view on `/` in the same second; the
+ * other 5 recorded nothing but the lookup. In the same minutes about 42 more
+ * sessions each viewed one holder report and nothing else, and the pattern
+ * came back at 00:33 on 2026-10-01: three holder reports, then three runs a
+ * minute later. Every one of those runs came from Meta's network (AS32934).
+ * Every holder report links “Run these holders” to
+ * `/?collection=<chain>:<address>`, and the homepage submits that collection
+ * on arrival. A crawler that renders JavaScript and follows links therefore
+ * runs a lookup on every report it reads, and each of those runs was counted
+ * as a person who tried the product.
+ *
+ * Which of Meta's crawlers it was is not known: the User-Agent is not stored.
+ * Every crawler Meta documents is on the list below, so if it named itself,
+ * it is refused now. If it sent an ordinary browser string, nothing here can
+ * recognize it, and `robots.txt` is what keeps it off the run links.
  *
  * Two things read this module, and they must agree:
  *
@@ -103,8 +113,13 @@ export const CRAWLER_SIGNATURES = [
   'CCBot',
   'Bytespider',
   'Amazonbot',
+  // Meta's crawlers: these four and `facebookexternalhit` below are the five
+  // it documents (developers.facebook.com/docs/sharing/webmasters/
+  // web-crawlers). The 2026-09-30 runs came from Meta's network.
   'meta-externalagent',
   'meta-externalfetcher',
+  'meta-externalads',
+  'meta-webindexer',
   'FacebookBot',
   'cohere-ai',
   'MistralAI-User',
@@ -115,8 +130,9 @@ export const CRAWLER_SIGNATURES = [
   'Timpibot',
   'archive.org_bot',
   'ia_archiver',
-  // Link previews.
+  // Link previews, and Meta's product-catalog fetcher.
   'facebookexternalhit',
+  'facebookcatalog',
   'Twitterbot',
   'Slackbot',
   'Discordbot',
