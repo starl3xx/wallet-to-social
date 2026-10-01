@@ -197,7 +197,7 @@ Two rules when adding to that file:
   version of the HMAC assertion did exactly that and passed while the HMAC's
   coverage of the timestamp was deleted.
 
-`scripts/check-invariants-guard.ts` reintroduces 997 real defects and requires
+`scripts/check-invariants-guard.ts` reintroduces 1035 real defects and requires
 each to be caught, because a guard verified only against passing code proves
 nothing, and this repo has had three guards report clean over live violations.
 CI runs it in eight parallel shards (`--shard=i/8`, `scripts/guard-shard.ts`);

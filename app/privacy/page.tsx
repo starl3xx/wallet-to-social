@@ -56,7 +56,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/privacy' },
 };
 
-const UPDATED = '26 September 2026';
+const UPDATED = '1 October 2026';
 
 function Section({
   id,
@@ -183,10 +183,12 @@ export default function PrivacyPage() {
             <span className="text-foreground">How the service is used.</span>{' '}
             Page views and product events (an upload started, a checkout
             reached, a limit hit), each carrying a browser identifier and
-            sometimes your email address. Also a record of each request an API
-            key makes: the endpoint, how many addresses it carried, the response
-            status, the credits and the time, never the addresses themselves, so
-            rate limits and credits can be counted.
+            sometimes your email address, and a yes or no for whether it came
+            from a known crawler, worked out from the browser string, which is
+            not kept. Also a record of each request an API key makes: the
+            endpoint, how many addresses it carried, the response status, the
+            credits and the time, never the addresses themselves, so rate limits
+            and credits can be counted.
           </p>
           <p>
             <span className="text-foreground">Where you arrived from.</span>{' '}

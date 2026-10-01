@@ -126,6 +126,44 @@ async function firstPageViewDay(): Promise<string | null> {
 }
 
 /**
+ * When the analytics ingest started tagging crawlers, or why that is unknown.
+ *
+ * `bot` is written on every event from the deploy that shipped STA-56, so the
+ * first page view carrying it at all is the first day crawlers are counted
+ * apart from people. Rows before it are untagged, not human: a crawler among
+ * them is in this report's figures as a person, and nothing here reclassifies
+ * the past with a guess. The report says so in its own output instead.
+ *
+ * `missing` is its own answer because it is the one failure the reader can
+ * fix: the view was made before the column existed, and
+ * `scripts/migrate-growth-views.ts` adds it. Every other query here reads the
+ * column too, so without this they would all fail into "No database", which
+ * names the wrong fault.
+ */
+async function crawlerTagging(): Promise<
+  | { state: 'missing' }
+  | { state: 'unknown' }
+  | { state: 'ok'; since: string | null }
+> {
+  const db = getDb();
+  if (!db) return { state: 'unknown' };
+  try {
+    const result = (await db.execute(sql`
+      SELECT to_char(min(created_at), 'YYYY-MM-DD') AS "day"
+      FROM growth_page_events
+      WHERE event_type = 'page_view' AND bot IS NOT NULL
+    `)) as unknown as { rows: Array<{ day: string | null }> };
+    return { state: 'ok', since: result.rows?.[0]?.day ?? null };
+  } catch (error) {
+    // 42703 is undefined_column: the view predates `bot`.
+    const e = error as { code?: string; cause?: { code?: string } };
+    return (e.code ?? e.cause?.code) === '42703'
+      ? { state: 'missing' }
+      : { state: 'unknown' };
+  }
+}
+
+/**
  * Paths that exist to bring strangers in, as opposed to the app itself.
  *
  * Passed to the query as prefixes so the row cap applies to these pages only.
@@ -157,6 +195,19 @@ async function main() {
   const today = new Date().toISOString().slice(0, 10);
   say(`# Growth report, ${today}`);
   say();
+
+  const tagging = await crawlerTagging();
+  if (tagging.state === 'missing') {
+    say(
+      '**The growth views predate the crawler column.** This report ' +
+        'separates crawlers from people through `growth_page_events.bot`, ' +
+        'which this database does not have yet, so no figure ran. Run ' +
+        '`scripts/migrate-growth-views.ts` with the owner connection.'
+    );
+    console.log(out.join('\n'));
+    process.exitCode = 1;
+    return;
+  }
 
   const totals = await getGrowthTotals(28);
   if (!totals.ok) {
@@ -197,6 +248,43 @@ async function main() {
       `as bounces on the pages built for them.`
   );
   say();
+
+  /**
+   * Crawlers, beside the table and never inside it (STA-56).
+   *
+   * Every figure above is people only. A session a crawler drove is taken out
+   * of all of them and counted here instead, with the lookups it started and
+   * the ones the job route refused, so a crawler that renders the site stays
+   * visible without being mistaken for somebody trying the product.
+   */
+  const since = tagging.state === 'ok' ? tagging.since : null;
+  if (since !== null) {
+    say(
+      `Crawlers, counted separately and excluded from every figure in this ` +
+        `report: ${c.crawlerSessions} sessions this window, with ` +
+        `${c.crawlerRuns} lookups started and ${c.crawlerRefused} refused; ` +
+        `${p.crawlerSessions} sessions, ${p.crawlerRuns} started and ` +
+        `${p.crawlerRefused} refused in the previous one.`
+    );
+    say();
+  }
+  if (since === null) {
+    say(
+      `**Crawlers are not counted apart yet.** No page view carries the ` +
+        `crawler tag, so every figure in this report counts a crawler’s ` +
+        `session as a person’s.`
+    );
+    say();
+  } else if (since > p.start) {
+    say(
+      `**Crawlers are counted apart only from ${since}.** Rows recorded ` +
+        `before that date carry no tag, so a crawler’s session from before ` +
+        `then is counted above as a person’s, ` +
+        `${since > c.start ? 'in both windows' : 'in the previous window'}. ` +
+        `The report does not reclassify them with a guess.`
+    );
+    say();
+  }
 
   // The onchain rail is a different funnel with a different buyer, so it sits
   // beside this table rather than inside it. Printed whenever it is non-zero,
@@ -360,6 +448,15 @@ async function main() {
   if (c.sessions < p.sessions) {
     say(
       `- Sessions fell from ${p.sessions} to ${c.sessions} against the previous window.`
+    );
+  }
+  // The job route refuses a crawler's User-Agent, so a lookup started inside a
+  // crawler session means the refusal missed one or stopped working.
+  if (c.crawlerRuns > 0) {
+    say(
+      `- **Crawler sessions started ${c.crawlerRuns} lookups this window.** ` +
+        `The job route refuses a crawler’s User-Agent, so these came from a ` +
+        `browser that only said it was automated, or the refusal stopped working.`
     );
   }
   if (seeds.ok && seeds.failing.length > 0) {

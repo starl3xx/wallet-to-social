@@ -22889,6 +22889,750 @@ async function main() {
     );
   }
 
+  // ------------------------- STA-56: crawlers do not start lookups, and are
+  // counted apart from people. A crawler that rendered the holder reports
+  // followed "Run these holders" and started a lookup on each: 28 in thirteen
+  // minutes on 2026-09-30, every one counted as a person trying the product.
+  // Written as the crawler, and as the person this rule must never refuse.
+  {
+    const bots = await import('@/lib/bots');
+    const { statSync } = await import('fs');
+    // Files only: `app/skill.md` and `app/robots.txt` are route directories.
+    const filesUnder = (dir: string, extension: RegExp) =>
+      (readdirSync(dir, { recursive: true }) as string[])
+        .map((f) => `${dir}/${f}`)
+        .filter((f) => extension.test(f) && statSync(f).isFile());
+
+    /**
+     * Real User-Agent strings, as browsers send them. Every one must pass.
+     *
+     * The two Cubot phones are the reason a bare `/bot/i` is not allowed: it
+     * matches the brand, and refusing a person is the one failure this rule
+     * must never have. The in-app browsers carry the app's name beside a
+     * crawler's (`TwitterAndroid` against `Twitterbot`, `LinkedInApp` against
+     * `LinkedInBot`), which is what the whole-token match exists for.
+     */
+    const BROWSERS: Record<string, string> = {
+      'Chrome on macOS':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+      'Chrome on Windows':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+      'Chrome on Android':
+        'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36',
+      'Chrome on iPhone':
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/129.0.6668.69 Mobile/15E148 Safari/604.1',
+      'Safari on macOS':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15',
+      'Safari on iPhone':
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+      'Safari on iPad':
+        'Mozilla/5.0 (iPad; CPU OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1',
+      'Firefox on macOS':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:131.0) Gecko/20100101 Firefox/131.0',
+      'Firefox on Windows':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0',
+      'Firefox on Linux':
+        'Mozilla/5.0 (X11; Linux x86_64; rv:131.0) Gecko/20100101 Firefox/131.0',
+      'Firefox on Android':
+        'Mozilla/5.0 (Android 14; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0',
+      'Edge on Windows':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0',
+      'Edge on Android':
+        'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36 EdgA/129.0.0.0',
+      'Opera on Windows':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 OPR/114.0.0.0',
+      'Samsung Internet':
+        'Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/26.0 Chrome/122.0.0.0 Mobile Safari/537.36',
+      'Android WebView':
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/AP2A.240805.005; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.6668.70 Mobile Safari/537.36',
+      'Yandex Browser':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 YaBrowser/24.7.0.0 Safari/537.36',
+      'UC Browser':
+        'Mozilla/5.0 (Linux; U; Android 13; en-US; SM-A146B Build/TP1A.220624.014) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/123.0.6312.80 UCBrowser/13.6.2.1314 Mobile Safari/537.36',
+      'Huawei Browser':
+        'Mozilla/5.0 (Linux; Android 12; HarmonyOS; NOH-AN00; HMSCore 6.13.0.302) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.196 HuaweiBrowser/15.0.4.312 Mobile Safari/537.36',
+      'Chrome on a Cubot P50':
+        'Mozilla/5.0 (Linux; Android 12; CUBOT P50) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.70 Mobile Safari/537.36',
+      'WebView on a Cubot X19':
+        'Mozilla/5.0 (Linux; Android 9; CUBOT_X19 Build/PPR1.180610.011; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/128.0.6613.146 Mobile Safari/537.36',
+      'Facebook in-app on iPhone':
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [FBAN/FBIOS;FBAV/470.0.0.38.109;FBBV/641286386;FBDV/iPhone15,2;FBMD/iPhone;FBSN/iOS;FBSV/17.5;FBSS/3;FBID/phone;FBLC/en_US;FBOP/5]',
+      'Instagram in-app':
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 345.0.0.32.97 (iPhone15,2; iOS 17_5; en_US; en; scale=3.00; 1179x2556; 634108168)',
+      'X in-app on Android':
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.70 Mobile Safari/537.36 TwitterAndroid',
+      'LinkedIn in-app':
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 [LinkedInApp]/9.30.1420',
+      'Telegram in-app on Android':
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8 Build/AP2A.240805.005; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/129.0.6668.70 Mobile Safari/537.36 Telegram-Android/11.1.3 (Google Pixel 8; Android 14; SDK 34; HIGH)',
+      'Slack desktop':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Slack/4.39.95 Chrome/126.0.6478.183 Electron/31.3.1 Safari/537.36 Sonic Slack_SSB/4.39.95',
+      'Discord desktop':
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) discord/0.0.316 Chrome/128.0.6613.36 Electron/32.0.0 Safari/537.36',
+    };
+
+    /** Real crawler strings, each with the token that must name it. */
+    const CRAWLERS: Array<[string, string]> = [
+      [
+        'Googlebot',
+        'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.70 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      ],
+      [
+        'Googlebot',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Googlebot/2.1; +http://www.google.com/bot.html) Chrome/129.0.6668.70 Safari/537.36',
+      ],
+      ['Googlebot', 'Googlebot-Image/1.0'],
+      [
+        'Google-InspectionTool',
+        'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.6668.70 Mobile Safari/537.36 (compatible; Google-InspectionTool/1.0;)',
+      ],
+      [
+        'GoogleOther',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GoogleOther) Chrome/129.0.6668.70 Safari/537.36',
+      ],
+      ['AdsBot-Google', 'AdsBot-Google (+http://www.google.com/adsbot.html)'],
+      [
+        'bingbot',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/116.0.1938.76 Safari/537.36',
+      ],
+      [
+        'BingPreview',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) BingPreview/1.0b',
+      ],
+      [
+        'Applebot',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.1 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)',
+      ],
+      [
+        'DuckDuckBot',
+        'DuckDuckBot/1.1; (+http://duckduckgo.com/duckduckbot.html)',
+      ],
+      [
+        'YandexBot',
+        'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)',
+      ],
+      [
+        'Baiduspider',
+        'Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)',
+      ],
+      [
+        'Slurp',
+        'Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)',
+      ],
+      [
+        'GPTBot',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; GPTBot/1.2; +https://openai.com/gptbot',
+      ],
+      [
+        'OAI-SearchBot',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot',
+      ],
+      [
+        'ChatGPT-User',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; ChatGPT-User/1.0; +https://openai.com/bot',
+      ],
+      [
+        'ClaudeBot',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; ClaudeBot/1.0; +claudebot@anthropic.com)',
+      ],
+      [
+        'Claude-SearchBot',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-SearchBot/1.0; +Claude-SearchBot@anthropic.com)',
+      ],
+      [
+        'Claude-User',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Claude-User/1.0; +Claude-User@anthropic.com)',
+      ],
+      [
+        'PerplexityBot',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; PerplexityBot/1.0; +https://perplexity.ai/perplexitybot)',
+      ],
+      [
+        'Perplexity-User',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Perplexity-User/1.0; +https://perplexity.ai/perplexity-user)',
+      ],
+      ['CCBot', 'CCBot/2.0 (https://commoncrawl.org/faq/)'],
+      [
+        'Bytespider',
+        'Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)',
+      ],
+      [
+        'Amazonbot',
+        'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; Amazonbot/0.1; +https://developer.amazon.com/support/amazonbot) Chrome/119.0.6045.214 Safari/537.36',
+      ],
+      [
+        'meta-externalagent',
+        'meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)',
+      ],
+      [
+        'facebookexternalhit',
+        'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+      ],
+      ['Twitterbot', 'Twitterbot/1.0'],
+      [
+        'Slackbot',
+        'Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)',
+      ],
+      [
+        'Discordbot',
+        'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)',
+      ],
+      [
+        'LinkedInBot',
+        'LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)',
+      ],
+      [
+        'AhrefsBot',
+        'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)',
+      ],
+      [
+        'SemrushBot',
+        'Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)',
+      ],
+      [
+        'MJ12bot',
+        'Mozilla/5.0 (compatible; MJ12bot/v1.4.8; http://mj12bot.com/)',
+      ],
+      [
+        'DotBot',
+        'Mozilla/5.0 (compatible; DotBot/1.2; +https://opensiteexplorer.org/dotbot; help@moz.com)',
+      ],
+      [
+        'PetalBot',
+        'Mozilla/5.0 (Linux; Android 7.0;) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; PetalBot;+https://webmaster.petalsearch.com/site/petalbot)',
+      ],
+      [
+        'HeadlessChrome',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/129.0.0.0 Safari/537.36',
+      ],
+      [
+        'Chrome-Lighthouse',
+        'Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse',
+      ],
+    ];
+    const GOOGLEBOT = CRAWLERS[0][1];
+    const CHROME = BROWSERS['Chrome on macOS'];
+
+    for (const [name, ua] of Object.entries(BROWSERS)) {
+      ok(
+        `a person on ${name} is not taken for a crawler`,
+        bots.crawlerFrom(ua) === null
+      );
+    }
+    ok(
+      'the browser set has teeth: a bare /bot/ would refuse both Cubot phones in it',
+      /bot/i.test(BROWSERS['Chrome on a Cubot P50']) &&
+        /bot/i.test(BROWSERS['WebView on a Cubot X19'])
+    );
+    for (const [name, ua] of CRAWLERS) {
+      ok(
+        `${name} is recognized from the string it sends`,
+        bots.crawlerFrom(ua) === name
+      );
+    }
+    ok(
+      'every listed token names itself, so none is shadowed by one above it',
+      bots.CRAWLER_SIGNATURES.every(
+        (sig) =>
+          bots.crawlerFrom(`Mozilla/5.0 (compatible; ${sig}/1.0)`) === sig
+      )
+    );
+    ok(
+      'no entry is a generic word that a browser string could carry',
+      !bots.CRAWLER_SIGNATURES.some((sig) =>
+        /^(bot|robot|spider|crawl|crawler|headless|agent)$/i.test(sig)
+      )
+    );
+    ok(
+      'the match ignores case',
+      bots.crawlerFrom(GOOGLEBOT.toLowerCase()) === 'Googlebot' &&
+        bots.crawlerFrom(GOOGLEBOT.toUpperCase()) === 'Googlebot'
+    );
+    ok(
+      'a token inside a longer word is not that crawler',
+      bots.crawlerFrom('Mozilla/5.0 (compatible; NotGooglebot/1.0)') === null &&
+        bots.crawlerFrom('Mozilla/5.0 (compatible; Googlebotany/1.0)') === null
+    );
+    ok(
+      'a request with no User-Agent is not a crawler',
+      bots.crawlerFrom(null) === null &&
+        bots.crawlerFrom(undefined) === null &&
+        bots.crawlerFrom('') === null
+    );
+
+    /**
+     * The job route, run as the crawler and as the person.
+     *
+     * The database variable is removed for the duration, so the refusal's
+     * analytics write finds no database and returns rather than writing a row.
+     * A browser's request goes past the gate and stops at the session read,
+     * which throws outside a request scope; that throw is the proof it was
+     * not refused, and nothing after it runs.
+     */
+    {
+      const { NextRequest } = await import('next/server');
+      const { POST: createJobRoute } = await import('@/app/api/jobs/route');
+      const savedDb = process.env.DATABASE_URL;
+      const submit = async (
+        ua: string
+      ): Promise<{ status?: number; body?: Record<string, unknown> }> => {
+        try {
+          const res = await createJobRoute(
+            new NextRequest('http://localhost/api/jobs', {
+              method: 'POST',
+              headers: { 'user-agent': ua, 'content-type': 'application/json' },
+              body: JSON.stringify({
+                collection: {
+                  chain: 'base',
+                  address: '0x1111111111111111111111111111111111111111',
+                },
+              }),
+            })
+          );
+          return {
+            status: res.status,
+            body: (await res.json()) as Record<string, unknown>,
+          };
+        } catch {
+          return {};
+        }
+      };
+      try {
+        delete process.env.DATABASE_URL;
+        for (const [name, ua] of CRAWLERS) {
+          const r = await submit(ua);
+          ok(
+            `the job route starts nothing for ${name}, and answers without an error status`,
+            r.status === 200 &&
+              r.body?.status === bots.CRAWLER_SKIP.status &&
+              r.body?.jobId === undefined
+          );
+        }
+        for (const [name, ua] of Object.entries(BROWSERS)) {
+          const r = await submit(ua);
+          ok(
+            `the job route never turns away a person on ${name}`,
+            r.body?.status !== bots.CRAWLER_SKIP.status
+          );
+        }
+      } finally {
+        if (savedDb !== undefined) process.env.DATABASE_URL = savedDb;
+      }
+    }
+
+    const before = (src: string, first: string, second: string) => {
+      const a = src.indexOf(first);
+      const b = src.indexOf(second);
+      return a !== -1 && b !== -1 && a < b;
+    };
+    const jobsSrc = withoutComments(
+      readFileSync('app/api/jobs/route.ts', 'utf8')
+    );
+    const gate = "crawlerFrom(request.headers.get('user-agent'))";
+    ok(
+      'the crawler gate runs before the session read, the rate limiter and the body',
+      before(jobsSrc, gate, 'await cookies()') &&
+        before(jobsSrc, gate, 'checkIpRateLimit(') &&
+        before(jobsSrc, gate, 'await request.json()') &&
+        before(jobsSrc, gate, 'createJob(')
+    );
+    ok(
+      'the refusal is recorded under the event the growth report counts',
+      /trackEvent\(CRAWLER_REFUSAL_EVENT, \{\s*metadata: \{ bot: true, crawler \},\s*\}\)/.test(
+        jobsSrc
+      )
+    );
+
+    /**
+     * The public API serves programs by design, and a program is not a
+     * crawler. Neither route tree reads the list, and nothing applies it to
+     * every route from above.
+     */
+    const apiFiles = ['app/api/v1', 'app/api/mcp'].flatMap((dir) =>
+      filesUnder(dir, /\.tsx?$/)
+    );
+    ok(
+      'the public API never reads the crawler list',
+      apiFiles.length >= 10 &&
+        apiFiles.every((f) => {
+          const src = withoutComments(readFileSync(f, 'utf8'));
+          return !src.includes('@/lib/bots') && !/\bcrawlerFrom\(/.test(src);
+        })
+    );
+    ok(
+      'and no middleware applies the crawler list to every route',
+      ['middleware.ts', 'proxy.ts', 'src/middleware.ts', 'src/proxy.ts'].every(
+        (f) => !existsSync(f) || !readFileSync(f, 'utf8').includes('lib/bots')
+      )
+    );
+
+    /**
+     * The homepage stays honest when it is refused. A 200 with no job is "not
+     * started", never a job to poll and never an error, and the arrival link
+     * is read once and cleared before the run, so a refused crawler renders
+     * the front page and goes no further.
+     */
+    const homeSrc = withoutComments(readFileSync('app/page.tsx', 'utf8'));
+    ok(
+      'the homepage reads a response with no job as not started',
+      /const data = await response\.json\(\);\s*if \(typeof data\.jobId !== 'string'\) return \{ ok: false \};\s*return \{\s*ok: true,/.test(
+        homeSrc
+      )
+    );
+    ok(
+      'and so does adding addresses to a saved lookup',
+      /if \(typeof newJobId !== 'string'\) \{\s*setState\('ready'\);\s*return;\s*\}/.test(
+        homeSrc
+      ) &&
+        before(
+          homeSrc,
+          "if (typeof newJobId !== 'string')",
+          "localStorage.setItem('pendingMergeLookupId'"
+        )
+    );
+    ok(
+      'a refused collection run goes back to the front page, not to an error',
+      /if \(!submitted\.ok\) \{\s*setState\('upload'\);\s*return;\s*\}/.test(
+        homeSrc
+      )
+    );
+    const arrival = homeSrc.slice(
+      homeSrc.indexOf('const starterLinkRead = useRef(false);'),
+      homeSrc.indexOf('}, [runStarterCollection]);')
+    );
+    ok(
+      'a collection arrival is read once and cleared before it runs, so it cannot loop',
+      arrival.length > 100 &&
+        before(
+          arrival,
+          'starterLinkRead.current = true;',
+          'runStarterCollection('
+        ) &&
+        before(
+          arrival,
+          "window.history.replaceState({}, '', window.location.pathname);",
+          'runStarterCollection('
+        )
+    );
+
+    /**
+     * Every link that starts a run on arrival tells a crawler not to follow
+     * it. Found by its href builder rather than by file, so a second run link
+     * added anywhere is held to the same rule; and the parameter is spelled
+     * out nowhere else, so a hand-built link cannot slip past the search.
+     */
+    const tsxSources = ['app', 'components'].flatMap((dir) =>
+      filesUnder(dir, /\.tsx$/)
+    );
+    const runLinkTags: string[] = [];
+    for (const f of tsxSources) {
+      const src = withoutComments(readFileSync(f, 'utf8'));
+      for (
+        let at = src.indexOf('buildStarterHref(');
+        at !== -1;
+        at = src.indexOf('buildStarterHref(', at + 1)
+      ) {
+        const open = Math.max(
+          src.lastIndexOf('<Link', at),
+          src.lastIndexOf('<a ', at),
+          src.lastIndexOf('<a\n', at)
+        );
+        let depth = 0;
+        let end = -1;
+        for (let i = open; open !== -1 && i < src.length; i++) {
+          if (src[i] === '{') depth++;
+          else if (src[i] === '}') depth--;
+          else if (src[i] === '>' && depth === 0) {
+            end = i;
+            break;
+          }
+        }
+        runLinkTags.push(end > at ? src.slice(open, end + 1) : '');
+      }
+    }
+    ok(
+      'every link that starts a run on arrival carries rel="nofollow"',
+      runLinkTags.length >= 1 &&
+        runLinkTags.every((tag) => /\brel="[^"]*\bnofollow\b[^"]*"/.test(tag))
+    );
+    const spelledOut = ['app', 'components', 'lib', 'content'].flatMap((dir) =>
+      filesUnder(dir, /\.(tsx?|mdx?|json)$/)
+        // The builder, and the robots rule that disallows what it builds.
+        .filter(
+          (f) =>
+            f !== 'lib/starter-collections.ts' &&
+            f !== 'app/robots.txt/route.ts'
+        )
+        .filter((f) => {
+          const raw = readFileSync(f, 'utf8');
+          const code = /\.tsx?$/.test(f) ? withoutComments(raw) : raw;
+          return code.includes('?collection=');
+        })
+    );
+    ok(
+      'no run link is spelled out by hand: the parameter is built in one place',
+      spelledOut.length === 0
+    );
+
+    /**
+     * robots.txt, read the way a crawler reads it: one group, longest match
+     * wins, and an allow wins a tie (RFC 9309, section 2.2.2). Asserted on
+     * the served text, so the run links are refused AND every page and every
+     * render resource the existing rules allow is still allowed.
+     */
+    const { GET: robotsGet } = await import('@/app/robots.txt/route');
+    const robotsTxt = await robotsGet().text();
+    const robotsGroup = robotsTxt.slice(
+      robotsTxt.indexOf('User-Agent: *'),
+      robotsTxt.indexOf('\nSitemap:')
+    );
+    const robotsRules = [
+      ...robotsGroup.matchAll(/^(Allow|Disallow): (\S+)$/gm),
+    ].map((m) => ({ allow: m[1] === 'Allow', path: m[2] }));
+    const robotsLiteral = (s: string) =>
+      s.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    const robotsAllows = (url: string) => {
+      let best: { allow: boolean; length: number } | null = null;
+      for (const rule of robotsRules) {
+        const anchored = rule.path.endsWith('$');
+        const body = anchored ? rule.path.slice(0, -1) : rule.path;
+        const pattern = new RegExp(
+          `^${body.split('*').map(robotsLiteral).join('.*')}${anchored ? '$' : ''}`
+        );
+        if (!pattern.test(url)) continue;
+        const length = rule.path.length;
+        if (
+          !best ||
+          length > best.length ||
+          (length === best.length && rule.allow)
+        ) {
+          best = { allow: rule.allow, length };
+        }
+      }
+      return best === null || best.allow;
+    };
+    ok(
+      'robots.txt is still one group, so every crawler reads these rules',
+      (robotsTxt.match(/^User-Agent:/gim) ?? []).length === 1 &&
+        robotsRules.length >= 6
+    );
+    ok(
+      'robots.txt refuses a link that starts a run on arrival',
+      !robotsAllows(
+        '/?collection=base:0x1111111111111111111111111111111111111111'
+      ) &&
+        !robotsAllows(
+          '/?ref=x-day-3&collection=base:0x1111111111111111111111111111111111111111'
+        )
+    );
+    ok(
+      'and still allows the pages and the resources they render with',
+      robotsAllows('/') &&
+        robotsAllows('/?ref=x-day-3') &&
+        robotsAllows(
+          '/holders/base/0x1111111111111111111111111111111111111111'
+        ) &&
+        robotsAllows('/blog') &&
+        robotsAllows('/_next/static/chunks/main.js') &&
+        robotsAllows('/_next/image?url=%2Fog.png&w=640&q=75') &&
+        robotsAllows('/api/public-stats')
+    );
+    ok(
+      'and still refuses what it refused before',
+      !robotsAllows('/api/jobs') && !robotsAllows('/_next/data/build/page.json')
+    );
+
+    /**
+     * The analytics ingest tags every event, from the request's own
+     * User-Agent, and keeps nothing of the string itself (STA-45).
+     */
+    const tagged = bots.withCrawlerTag(
+      { path: '/', origin: 'direct' },
+      GOOGLEBOT
+    );
+    ok(
+      'a crawler’s event is tagged, names its crawler and keeps its own fields',
+      tagged.bot === true &&
+        tagged.crawler === 'Googlebot' &&
+        tagged.path === '/' &&
+        tagged.origin === 'direct'
+    );
+    const person = bots.withCrawlerTag({ path: '/' }, CHROME);
+    ok(
+      'a person’s event is tagged false and names no crawler',
+      person.bot === false && !('crawler' in person) && person.path === '/'
+    );
+    ok(
+      'a client cannot clear the tag its User-Agent earned',
+      bots.withCrawlerTag({ bot: false, crawler: null }, GOOGLEBOT).bot === true
+    );
+    const claimed = bots.withCrawlerTag(
+      { bot: true, crawler: 'Googlebot' },
+      CHROME
+    );
+    ok(
+      'nor tag itself, nor name a crawler',
+      claimed.bot === false && !('crawler' in claimed)
+    );
+    const driven = bots.withCrawlerTag({ webdriver: true }, CHROME);
+    ok(
+      'a browser that says it is automated is tagged, whatever its User-Agent',
+      driven.bot === true &&
+        driven.crawler === bots.WEBDRIVER &&
+        !('webdriver' in driven) &&
+        bots.withCrawlerTag({ webdriver: 'true' }, CHROME).bot === false
+    );
+    ok(
+      'the User-Agent is read and never stored',
+      ![tagged, person, driven].some((t) =>
+        JSON.stringify(t).includes('Mozilla')
+      )
+    );
+    ok(
+      'an event with no usable metadata is still classified',
+      bots.withCrawlerTag(undefined, CHROME).bot === false &&
+        bots.withCrawlerTag(['x'], GOOGLEBOT).bot === true
+    );
+    const ingestSrc = withoutComments(
+      readFileSync('app/api/analytics/track/route.ts', 'utf8')
+    );
+    ok(
+      'the ingest stores every event through the tag, from the request’s User-Agent',
+      (ingestSrc.match(/trackEvent\(/g) ?? []).length === 1 &&
+        /metadata: withCrawlerTag\(metadata, request\.headers\.get\('user-agent'\)\)/.test(
+          ingestSrc
+        )
+    );
+    const clientSrc = withoutComments(
+      readFileSync('lib/client-analytics.ts', 'utf8')
+    );
+    ok(
+      'the browser reports that it is automated, in the key the ingest reads',
+      /navigator\.webdriver === true/.test(clientSrc) &&
+        /\{ \.\.\.metadata, webdriver: true \}/.test(clientSrc)
+    );
+
+    /**
+     * The growth report counts people, and counts crawlers beside them.
+     *
+     * Read from the source, because the predicate is SQL and nothing here
+     * has a database. Every page-view read in the ledger names a session
+     * predicate, the human rollups only ever the negative one, and the
+     * predicate itself is the session test and not some looser one.
+     */
+    const ledger = withoutComments(readFileSync('lib/growth.ts', 'utf8'));
+    const ledgerFn = (name: string) => {
+      const start = ledger.indexOf(`function ${name}(`);
+      const next = ledger.indexOf('\nexport ', start + 1);
+      const nextLocal = ledger.indexOf('\nasync function ', start + 1);
+      const end = [next, nextLocal]
+        .filter((i) => i !== -1)
+        .reduce((a, b) => Math.min(a, b), ledger.length);
+      return start === -1 ? '' : ledger.slice(start, end);
+    };
+    const predicate = ledgerFn('crawlerSession');
+    ok(
+      'a crawler session is one whose own events carry the tag, inside the window',
+      /crawled\.session_id = e\.session_id\s+AND crawled\.bot\s+AND crawled\.created_at >= /.test(
+        predicate
+      ) && /return sql`NOT \$\{crawlerSession\(start, end\)\}`;/.test(ledger)
+    );
+    const pageViewReads = (ledger.match(/event_type = 'page_view'/g) ?? [])
+      .length;
+    const screenedReads = (
+      ledger.match(
+        /FROM growth_page_events e\s+WHERE e\.event_type = 'page_view'\s+AND \$\{(humanSession|crawlerSession)\(/g
+      ) ?? []
+    ).length;
+    ok(
+      'every page-view read in the growth ledger says whose sessions it counts',
+      pageViewReads >= 6 && screenedReads === pageViewReads
+    );
+    for (const fn of [
+      'getChannelTrend',
+      'getChannelSources',
+      'getContentPerformance',
+    ]) {
+      const body = ledgerFn(fn);
+      ok(
+        `${fn} counts people only`,
+        body.includes('${humanSession(start)}') &&
+          !body.includes('${crawlerSession(')
+      );
+    }
+    const totalsFn = ledgerFn('windowTotals');
+    ok(
+      'the headline sessions and lookups are people, and crawlers are counted from the complement',
+      /WITH seen AS \(\s*SELECT DISTINCT e\.session_id\s+FROM growth_page_events e\s+WHERE e\.event_type = 'page_view'\s+AND \$\{humanSession\(a, b\)\}/.test(
+        totalsFn
+      ) &&
+        /crawler_seen AS \(\s*SELECT DISTINCT e\.session_id\s+FROM growth_page_events e\s+WHERE e\.event_type = 'page_view'\s+AND \$\{crawlerSession\(a, b\)\}/.test(
+          totalsFn
+        ) &&
+        /\(SELECT count\(\*\)::int FROM seen\) AS "sessions"/.test(totalsFn) &&
+        /\(SELECT count\(\*\)::int FROM crawler_seen\) AS "crawlerSessions"/.test(
+          totalsFn
+        )
+    );
+    ok(
+      'crawler runs are the lookups started inside crawler sessions, and refusals are the route’s own event',
+      /WHERE event_type = 'lookup_started'\s+AND session_id IN \(SELECT session_id FROM crawler_seen\)/.test(
+        totalsFn
+      ) && /WHERE event_type = \$\{CRAWLER_REFUSAL_EVENT\}/.test(totalsFn)
+    );
+
+    const growthReport = withoutComments(
+      readFileSync('scripts/growth-report.ts', 'utf8')
+    );
+    ok(
+      'the report prints crawler sessions, runs and refusals on a line of their own',
+      /Crawlers, counted separately and excluded from every figure/.test(
+        growthReport
+      ) &&
+        ['c', 'p'].every((w) =>
+          ['crawlerSessions', 'crawlerRuns', 'crawlerRefused'].every((k) =>
+            growthReport.includes(`\${${w}.${k}}`)
+          )
+        )
+    );
+    ok(
+      'the report says when tagging began instead of reclassifying the past',
+      /Crawlers are counted apart only from \$\{since\}/.test(growthReport) &&
+        /Crawlers are not counted apart yet/.test(growthReport) &&
+        /WHERE event_type = 'page_view' AND bot IS NOT NULL/.test(growthReport)
+    );
+    ok(
+      'the report checks the crawler column before it reads a figure',
+      before(growthReport, 'await crawlerTagging()', 'await getGrowthTotals(')
+    );
+
+    /**
+     * The view exposes the tag as a boolean only where it is one. A bare cast
+     * would turn one stray value into a failed query on every read, and the
+     * weekly report would print nothing. And the column is the only thing
+     * added: the view still carries no user id and not the metadata itself.
+     */
+    const viewsSrc = withoutComments(
+      readFileSync('scripts/migrate-growth-views.ts', 'utf8')
+    );
+    const pageEventsView = viewsSrc.slice(
+      viewsSrc.indexOf('CREATE VIEW growth_page_events AS'),
+      viewsSrc.indexOf('FROM analytics_events')
+    );
+    ok(
+      'the view exposes the crawler tag only where it is a JSON boolean',
+      /CASE jsonb_typeof\(metadata->'bot'\)\s+WHEN 'boolean' THEN \(metadata->>'bot'\)::boolean\s+END AS bot/.test(
+        pageEventsView
+      )
+    );
+    ok(
+      'and still exposes no user id and none of the rest of the metadata',
+      pageEventsView.length > 50 &&
+        !/\buser_id\b/.test(pageEventsView) &&
+        !/\bmetadata\b(?!\s*->)/.test(pageEventsView)
+    );
+  }
+
   if (!failures.length) {
     console.log(`invariants ok — ${checked} adversarial assertions pass`);
     process.exit(0);

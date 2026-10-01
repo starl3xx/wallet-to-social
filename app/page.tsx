@@ -1064,6 +1064,17 @@ export default function Home() {
       }
 
       const data = await response.json();
+      /**
+       * A 200 that names no job started nothing, and is not an error.
+       *
+       * It is what `/api/jobs` answers a crawler with (STA-56): a
+       * `?collection=` arrival from a crawler submits on mount like any
+       * other, and the server declines it. Read as a refusal, so the caller
+       * goes back to where it was rather than polling a job that does not
+       * exist or showing an error to a page nobody is looking at. A person is
+       * never answered this way, so nobody sees the quiet return either.
+       */
+      if (typeof data.jobId !== 'string') return { ok: false };
       return {
         ok: true,
         jobId: data.jobId,
@@ -1173,7 +1184,8 @@ export default function Home() {
           inputSource === 'contract_import' ? sourceContract : undefined,
       });
 
-      // Refused, and already explained by the modal submitJob opened. Back to
+      // Refused, and already explained by the modal submitJob opened, or
+      // declined for a crawler, which has nobody to explain it to. Back to
       // the list, which is still loaded and still submittable once it is not.
       if (!submitted.ok) {
         setState('ready');
@@ -2009,6 +2021,11 @@ export default function Home() {
         }
 
         const { jobId: newJobId } = await response.json();
+        // No job started (see submitJob): back to the list, nothing to poll.
+        if (typeof newJobId !== 'string') {
+          setState('ready');
+          return;
+        }
 
         // Store the lookup ID we're updating for when job completes
         localStorage.setItem('pendingMergeLookupId', lookupId);

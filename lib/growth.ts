@@ -1,6 +1,7 @@
 import { getDb } from '@/db';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { utcBound } from '@/lib/analytics';
+import { CRAWLER_REFUSAL_EVENT } from '@/lib/bots';
 import {
   channelFrom,
   CHANNEL_ORDER,
@@ -36,6 +37,14 @@ import { RECOGNIZED_CONTRACTS } from '@/lib/recognized-contracts';
  * "any event", which would count a background beacon from a tab left open, and
  * not "distinct user", which the product cannot observe for anonymous traffic.
  * Every count below uses that definition so the rates divide honestly.
+ *
+ * ## People, and crawlers counted apart
+ *
+ * Every figure here is about people, and a session a crawler drove is taken
+ * out of all of them: sessions, ran something, checkout, entries and views
+ * (STA-56). It is not dropped. `windowTotals` counts crawler sessions, the
+ * lookups they started and the ones the job route refused, and the report
+ * prints them on a line of their own. See `crawlerSession` below.
  */
 
 /**
@@ -77,6 +86,41 @@ const activated = sql`event_type IN (${sql.join(
   ACTIVATION_EVENTS.map((e) => sql`${e}`),
   sql`, `
 )})`;
+
+/**
+ * Whether the session of the page view aliased `e` is a crawler's, as SQL.
+ *
+ * A session is a crawler's when any event in it, inside the window, carries
+ * the `bot` tag the analytics ingest writes from the request's User-Agent
+ * (lib/bots.ts, STA-56). Decided per session and not per event, so a lookup a
+ * crawler started, whose `lookup_started` is written server-side and carries
+ * no tag of its own, leaves the figures with the session that started it.
+ *
+ * `EXISTS` rather than `IN`, deliberately. `x NOT IN (…)` is NULL as soon as
+ * the list holds a NULL or `x` is one, and a WHERE clause drops a NULL row,
+ * so one untagged session id in the list would silently empty a figure. A
+ * correlated `EXISTS` has no such case, and `NOT EXISTS` is its exact
+ * complement, so people and crawlers add up to every session.
+ *
+ * Rows recorded before the ingest started tagging carry no `bot` at all, so
+ * every session from before then reads as a person's. That is stated in the
+ * report's own output rather than guessed at here.
+ */
+function crawlerSession(start: string, end?: string): SQL {
+  return sql`EXISTS (
+    SELECT 1 FROM growth_page_events crawled
+    WHERE crawled.session_id = e.session_id
+      AND crawled.bot
+      AND crawled.created_at >= ${start}::timestamp${
+        end ? sql` AND crawled.created_at < ${end}::timestamp` : sql``
+      }
+  )`;
+}
+
+/** The test every human figure applies: not a crawler's session. */
+function humanSession(start: string, end?: string): SQL {
+  return sql`NOT ${crawlerSession(start, end)}`;
+}
 
 /** One channel or one named source, with what its sessions went on to do. */
 export interface GrowthRow {
@@ -144,15 +188,16 @@ export async function getChannelTrend(weeks = 8): Promise<ChannelTrend> {
   try {
     const sessionRows = (await db.execute(sql`
       WITH first_view AS (
-        SELECT DISTINCT ON (session_id)
-          session_id,
-          to_char(date_trunc('week', created_at), 'YYYY-MM-DD') AS week,
-          coalesce(origin, '') AS origin
-        FROM growth_page_events
-        WHERE event_type = 'page_view'
-          AND session_id IS NOT NULL
-          AND created_at >= ${start}::timestamp
-        ORDER BY session_id, created_at
+        SELECT DISTINCT ON (e.session_id)
+          e.session_id,
+          to_char(date_trunc('week', e.created_at), 'YYYY-MM-DD') AS week,
+          coalesce(e.origin, '') AS origin
+        FROM growth_page_events e
+        WHERE e.event_type = 'page_view'
+          AND ${humanSession(start)}
+          AND e.session_id IS NOT NULL
+          AND e.created_at >= ${start}::timestamp
+        ORDER BY e.session_id, e.created_at
       ),
       acted AS (
         SELECT
@@ -275,14 +320,15 @@ export async function getChannelSources(days = 30): Promise<ChannelSources> {
   try {
     const sessionRows = (await db.execute(sql`
       WITH first_view AS (
-        SELECT DISTINCT ON (session_id)
-          session_id,
-          coalesce(origin, '') AS origin
-        FROM growth_page_events
-        WHERE event_type = 'page_view'
-          AND session_id IS NOT NULL
-          AND created_at >= ${start}::timestamp
-        ORDER BY session_id, created_at
+        SELECT DISTINCT ON (e.session_id)
+          e.session_id,
+          coalesce(e.origin, '') AS origin
+        FROM growth_page_events e
+        WHERE e.event_type = 'page_view'
+          AND ${humanSession(start)}
+          AND e.session_id IS NOT NULL
+          AND e.created_at >= ${start}::timestamp
+        ORDER BY e.session_id, e.created_at
       ),
       acted AS (
         SELECT
@@ -409,14 +455,15 @@ export async function getContentPerformance(
   try {
     const result = (await db.execute(sql`
       WITH first_view AS (
-        SELECT DISTINCT ON (session_id)
-          session_id,
-          coalesce(path, '(none)') AS path
-        FROM growth_page_events
-        WHERE event_type = 'page_view'
-          AND session_id IS NOT NULL
-          AND created_at >= ${start}::timestamp
-        ORDER BY session_id, created_at
+        SELECT DISTINCT ON (e.session_id)
+          e.session_id,
+          coalesce(e.path, '(none)') AS path
+        FROM growth_page_events e
+        WHERE e.event_type = 'page_view'
+          AND ${humanSession(start)}
+          AND e.session_id IS NOT NULL
+          AND e.created_at >= ${start}::timestamp
+        ORDER BY e.session_id, e.created_at
       ),
       acted AS (
         SELECT session_id, bool_or(${activated}) AS ran
@@ -436,11 +483,12 @@ export async function getContentPerformance(
       ),
       views AS (
         SELECT
-          coalesce(path, '(none)') AS path,
+          coalesce(e.path, '(none)') AS path,
           count(*)::int AS views
-        FROM growth_page_events
-        WHERE event_type = 'page_view'
-          AND created_at >= ${start}::timestamp
+        FROM growth_page_events e
+        WHERE e.event_type = 'page_view'
+          AND ${humanSession(start)}
+          AND e.created_at >= ${start}::timestamp
         GROUP BY 1
       )
       SELECT
@@ -496,6 +544,16 @@ export interface GrowthWindow {
   /** The onchain rail, reported beside the funnel rather than inside it. */
   agentPurchases: number;
   agentRevenueCents: number;
+  /**
+   * Sessions a crawler drove, by the same definition of a session as
+   * `sessions` and taken out of it: `sessions + crawlerSessions` is every
+   * session that recorded a page view in the window.
+   */
+  crawlerSessions: number;
+  /** Lookups started inside those sessions. */
+  crawlerRuns: number;
+  /** Lookups the job route refused a crawler, which start nothing. */
+  crawlerRefused: number;
 }
 
 export interface GrowthTotals {
@@ -514,6 +572,9 @@ const emptyWindow = (start: Date, end: Date): GrowthWindow => ({
   revenueCents: 0,
   agentPurchases: 0,
   agentRevenueCents: 0,
+  crawlerSessions: 0,
+  crawlerRuns: 0,
+  crawlerRefused: 0,
 });
 
 async function windowTotals(
@@ -525,12 +586,22 @@ async function windowTotals(
   const b = utcBound(end);
   const result = (await db.execute(sql`
     WITH seen AS (
-      SELECT DISTINCT session_id
-      FROM growth_page_events
-      WHERE event_type = 'page_view'
-        AND session_id IS NOT NULL
-        AND created_at >= ${a}::timestamp
-        AND created_at < ${b}::timestamp
+      SELECT DISTINCT e.session_id
+      FROM growth_page_events e
+      WHERE e.event_type = 'page_view'
+        AND ${humanSession(a, b)}
+        AND e.session_id IS NOT NULL
+        AND e.created_at >= ${a}::timestamp
+        AND e.created_at < ${b}::timestamp
+    ),
+    crawler_seen AS (
+      SELECT DISTINCT e.session_id
+      FROM growth_page_events e
+      WHERE e.event_type = 'page_view'
+        AND ${crawlerSession(a, b)}
+        AND e.session_id IS NOT NULL
+        AND e.created_at >= ${a}::timestamp
+        AND e.created_at < ${b}::timestamp
     ),
     ran AS (
       SELECT DISTINCT session_id
@@ -546,6 +617,21 @@ async function windowTotals(
         SELECT count(*)::int FROM seen
         WHERE session_id IN (SELECT session_id FROM ran)
       ) AS "lookupSessions",
+      (SELECT count(*)::int FROM crawler_seen) AS "crawlerSessions",
+      (
+        SELECT count(*)::int FROM growth_page_events
+        WHERE event_type = 'lookup_started'
+          AND session_id IN (SELECT session_id FROM crawler_seen)
+          AND created_at >= ${a}::timestamp
+          AND created_at < ${b}::timestamp
+      ) AS "crawlerRuns",
+      (
+        SELECT count(*)::int FROM growth_page_events
+        WHERE event_type = ${CRAWLER_REFUSAL_EVENT}
+          AND bot
+          AND created_at >= ${a}::timestamp
+          AND created_at < ${b}::timestamp
+      ) AS "crawlerRefused",
       (
         SELECT count(*)::int FROM growth_accounts
         WHERE created_at >= ${a}::timestamp

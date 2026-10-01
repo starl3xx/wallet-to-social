@@ -493,10 +493,14 @@ export default async function HolderPage({ params }: Props) {
             </p>
             {/* buildStarterHref, not buildContractDeepLink: that one targets
                 the paid importer and would meet a reader without credits with
-                a price. */}
+                a price. nofollow because the homepage runs this collection on
+                arrival, so a crawler that followed it started a lookup on
+                every report it read (STA-56). robots.txt disallows the URL
+                too; this keeps a compliant crawler from queueing it at all. */}
             <Button asChild size="hero" className="w-full">
               <Link
                 href={buildStarterHref(collection.chain, collection.address)}
+                rel="nofollow"
               >
                 Run these holders
                 <ArrowRight aria-hidden />

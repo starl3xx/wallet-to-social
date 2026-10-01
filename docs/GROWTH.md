@@ -139,7 +139,10 @@ comment.
 
 So the report reads three narrow views instead, created by
 `scripts/migrate-growth-views.ts`. `growth_page_events` exposes the event type,
-the session, the timestamp and the two metadata keys the rollups need.
+the session, the timestamp and the three metadata keys the rollups need:
+`origin`, `path` and the `bot` crawler tag, which it exposes as a boolean only
+where the stored value is one, and as NULL on every row recorded before
+tagging began.
 `growth_accounts` exposes the signup timestamp, the acquisition summary and the
 rail, and resolves "did this account ever buy" into a boolean, so it carries no
 account id at all. `growth_purchases` carries a lot's timestamp and amount with
@@ -301,6 +304,23 @@ would silence the watchlist line that exists to notice zero human conversion,
 and nothing would look wrong. The rail is printed on its own line underneath
 whenever it is non-zero, so nothing is hidden either.
 
+## People and crawlers, never added together
+
+Every figure in the report is people. A session is a crawler’s when any of its
+events carries the `bot` tag, which the analytics ingest writes on every event
+it receives, from the request’s own User-Agent (`lib/bots.ts`). Those sessions are taken out
+of sessions, ran something, checkout, entries, views and channels, and printed
+on their own line under the totals with the lookups they started and the ones
+the job route refused. Signups need no filter: an account is created by a
+sign-in, which a crawler cannot complete.
+
+Tagged, not dropped, because a crawler that renders the site is worth seeing.
+And the past is not reclassified: rows recorded before tagging began carry no
+tag and count as people, and the report names the date tagging began rather
+than guessing which of them were crawlers. A lookup started inside a crawler
+session goes on the watchlist, because the job route refuses a crawler’s
+User-Agent and one that got through means the refusal missed it.
+
 ## Tagging a link we post ourselves
 
 Every link in `content/social/queue.json` carries `?ref=x-<slug>` or
@@ -449,6 +469,52 @@ generating revenue before spending. Free surfaces only.
 
 Newest first. One row per intervention, with what it was expected to move, so a
 later reader can check whether it did.
+
+### 2026-10-01: a crawler was running the holder reports (STA-56)
+
+On 2026-09-30 between 17:27 and 17:40 UTC, 28 sessions each recorded a page
+view on `/` and a started lookup in the same second, with no referrer and no
+acquisition. Each was a free, anonymous starter run of 25 wallets, and each ran
+a different long-tail collection from the holder reports. Every holder report
+links “Run these holders” to `/?collection=<chain>:<address>`, and the homepage
+starts that run on arrival, so a crawler that renders JavaScript and follows
+links runs one lookup per report it reads. Earlier days had one to eight
+starter runs each, every one a distinct session, and some of those were
+probably the same pattern.
+
+It matters here because the report counted every one of them as a person who
+tried the product. In the 28 days to 2026-10-01, 110 sessions ran something and
+82 of those ran a starter collection.
+
+What shipped:
+
+1. **Crawlers cannot start a lookup.** `rel="nofollow"` on the run link,
+   `Disallow: /*?collection=` and `/*&collection=` in `robots.txt`, and
+   `POST /api/jobs` answering a crawler’s User-Agent with a 200 that starts
+   nothing. A person is never refused: the list is vendor product tokens,
+   tested against real browser strings including two Cubot phones, which a
+   bare `bot` would refuse.
+2. **Crawlers are counted apart.** Every event the browser sends carries `bot`
+   from the deploy on, and the report takes crawler sessions out of every human
+   figure and prints them on their own line with their runs and refusals.
+
+Expected to move:
+
+- **“Sessions that ran something” falls**, by the share the crawler was. The
+  82 starter-run sessions above are the ceiling on that fall, not the
+  estimate: some were people. The baseline stops being inflated from the
+  deploy on and is not corrected before it.
+- **Starter runs from sessions with no referrer fall toward zero**, if the
+  pattern was a crawler. If they continue at the same rate while the report
+  shows no crawler sessions and no refusals, they were people, or a crawler
+  that names itself nowhere, and this diagnosis was wrong.
+- **The crawler line shows refusals** when the crawler comes back. Zero
+  refusals with zero crawler sessions for a month says it obeyed `robots.txt`
+  or stopped coming, and either is fine.
+
+Run `scripts/migrate-growth-views.ts` before merging: the report reads the
+new column and refuses to run against the old view, with a message that names
+the script.
 
 ### 2026-09-21 — the Apify funnel never worked, and the report could not see it
 

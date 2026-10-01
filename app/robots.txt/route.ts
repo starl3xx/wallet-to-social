@@ -65,6 +65,19 @@
  * the RSC payloads live: never useful in an index, and duplicative of the
  * HTML when they are readable at all.
  *
+ * `/*?collection=` and `/*&collection=` are disallowed because that URL is
+ * not a page. The homepage reads the parameter wherever it sits in the query
+ * string and starts a lookup of that collection on arrival, and every holder
+ * report links to one. On 2026-09-30 a crawler that rendered the reports and
+ * followed those links started 28 lookups in thirteen minutes, each counted as
+ * a person trying the product (STA-56). The page it lands on is the homepage
+ * with the parameter cleared, so nothing indexable is behind the rule. Both
+ * beat `Allow: /` by longest match (14 octets against 1), and `*` matches the
+ * empty path, so `/?collection=` itself is covered. Search Console will list
+ * these URLs as "Blocked by robots.txt", which is the intended state. The
+ * link also carries `rel="nofollow"`, and the job route refuses a crawler's
+ * User-Agent, because a disallow binds only a crawler that reads it.
+ *
  * `/api/` stays disallowed, which has one known cost. A URL that robots.txt
  * refuses cannot be read, so a `noindex` on it cannot be seen either, and
  * Google may still index the bare URL on external signal alone: the
@@ -157,7 +170,18 @@ const CONTENT_SIGNAL = 'search=yes, ai-input=yes, ai-train=yes';
  * the rule it carves out of.
  */
 const ALLOW = ['/api/public-stats', '/_next/static', '/_next/image', '/'];
-const DISALLOW = ['/api/', '/_next/'];
+
+/**
+ * The run links (STA-56): `/` then the wildcard then the parameter, in either
+ * position in the query string. Joined from parts so this file never spells
+ * a slash and a star side by side: the invariants strip comments with a
+ * regex, and to it that pair opens one.
+ */
+const WILDCARD = '*';
+const RUN_LINK_PATTERNS = ['?collection=', '&collection='].map(
+  (query) => `/${WILDCARD}${query}`
+);
+const DISALLOW = ['/api/', '/_next/', ...RUN_LINK_PATTERNS];
 
 /**
  * `Content-Signal` goes inside the group, directly under its `User-Agent`.

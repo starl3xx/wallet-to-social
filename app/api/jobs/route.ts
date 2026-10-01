@@ -9,6 +9,7 @@ import { trackEvent } from '@/lib/analytics';
 import { validateSession, SESSION_COOKIE_NAME } from '@/lib/auth';
 import { isAnonUserId } from '@/lib/user-id';
 import { ANON_MATCHES_PER_JOB } from '@/lib/match-gate';
+import { crawlerFrom, CRAWLER_REFUSAL_EVENT, CRAWLER_SKIP } from '@/lib/bots';
 import {
   checkIpRateLimit,
   getClientIp,
@@ -71,6 +72,36 @@ interface JobRequest {
 }
 
 export async function POST(request: NextRequest) {
+  /**
+   * A crawler never starts a lookup (STA-56).
+   *
+   * Every holder report links “Run these holders” to `/?collection=…`, and
+   * the homepage submits that collection on arrival. A crawler that renders
+   * JavaScript and follows links ran one lookup per report it read: 28 of
+   * them in thirteen minutes on 2026-09-30, each counted as a person trying
+   * the product and each spending the upstream calls a lookup costs.
+   *
+   * First, before the session read, the rate limiter and the body, because
+   * it needs none of them and a refused crawler should cost none of them. A
+   * person is never refused here: the match is on a vendor's own product
+   * token, never on a pattern a browser could carry (lib/bots.ts).
+   *
+   * Answered with a 200 that starts nothing rather than an error status. The
+   * homepage reads a response with no `jobId` as “not started” and goes back
+   * to the front page, so the crawler renders an ordinary page instead of a
+   * broken one. The refusal is recorded, with the token and without the
+   * User-Agent, so the growth report can say the rule is firing.
+   *
+   * Only this route. `/api/v1/jobs` and `/api/mcp` serve programs by design.
+   */
+  const crawler = crawlerFrom(request.headers.get('user-agent'));
+  if (crawler) {
+    await trackEvent(CRAWLER_REFUSAL_EVENT, {
+      metadata: { bot: true, crawler },
+    });
+    return NextResponse.json(CRAWLER_SKIP);
+  }
+
   // Check for authenticated session - authenticated users bypass IP rate limits
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;

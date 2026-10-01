@@ -88,7 +88,13 @@ export type AnalyticsEventType =
   // repair refused because it matched more rows than its ceiling allows, which
   // means the detection is probably broken and nobody would otherwise find out.
   | 'graph_repair_applied'
-  | 'graph_repair_blocked';
+  | 'graph_repair_blocked'
+  /**
+   * The web job route turned a crawler away instead of starting its lookup
+   * (STA-56, lib/bots.ts). No session and no user: `bot: true` and the token
+   * that recognized the crawler, so the growth report can count refusals.
+   */
+  | 'crawler_lookup_refused';
 
 // API provider names
 export type ApiProvider = 'web3bio' | 'neynar' | 'ens';

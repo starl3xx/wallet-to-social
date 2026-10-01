@@ -198,6 +198,7 @@ wallet-to-social/
 │   ├── cache.ts              # 7-day wallet cache
 │   ├── social-graph.ts       # Permanent social data storage (normalises source; see below)
 │   ├── analytics.ts          # Event tracking
+│   ├── bots.ts               # Crawler User-Agent tokens: the job route refuses them, the analytics ingest tags them
 │   ├── ip-rate-limiter.ts    # IP-based rate limiting for UI endpoints
 │   ├── security-contact.ts   # security.txt fields; SECURITY.md is checked against them
 │   └── dashboard-analytics.ts # Admin dashboard metrics
@@ -311,11 +312,11 @@ Three **views** sit over those tables for the growth report, created by
 connects as `sweep_runner` and logs into a public Actions run, can read traffic
 numbers without a grant on a table holding email addresses.
 
-| View                 | Exposes                                                      |
-| -------------------- | ------------------------------------------------------------ |
-| `growth_page_events` | event type, session, timestamp, `origin` and `path` metadata |
-| `growth_accounts`    | signup timestamp, acquisition, rail, and a `bought` boolean  |
-| `growth_purchases`   | a credit lot's timestamp and amount, with the rail beside it |
+| View                 | Exposes                                                                                 |
+| -------------------- | --------------------------------------------------------------------------------------- |
+| `growth_page_events` | event type, session, timestamp, `origin` and `path` metadata, and the `bot` crawler tag |
+| `growth_accounts`    | signup timestamp, acquisition, rail, and a `bought` boolean                             |
+| `growth_purchases`   | a credit lot's timestamp and amount, with the rail beside it                            |
 
 Neither exposes `user_id`, an email or an account id. `lib/growth.ts` reads only
 these; an invariant asserts it never reads the base tables and that neither
@@ -374,9 +375,9 @@ The first action for a visitor who has brought nothing. Reads the seed corpus (`
 - `listStarterCollections(limit)`: composed over `listHolderCollections()` so the homepage cards and the `/holders` hub cannot disagree about the listing floor
 - `getStarterWallets(chain, address)`: the wallets behind one collection, `STARTER_WALLET_CAP` of them. **Refuses anything that is not a row in `seeded_contracts`, before reading a wallet**, or this is a free bypass of the paid contract importer for any contract on any chain
 - `STARTER_WALLET_CAP` is a quarter of `FREE_MATCHES_PER_WINDOW`. The wallet count is the worst-case spend, since every wallet in the sample might match, and the panel offers the **most** reachable collections it can find, so `MEASURED_MATCH_RATE` is the wrong estimator for it: the top card resolves 85 of its first 100 wallets. A demonstration may cost a quarter of the allowance; `scripts/check-invariants.ts` holds the ratio
-- `parseStarterParam` / `buildStarterHref`: the `?collection=<chain>:<address>` link, deliberately a different parameter from `?contract=`, which sends an account with no credits to the buy-credits modal
+- `parseStarterParam` / `buildStarterHref`: the `?collection=<chain>:<address>` link, deliberately a different parameter from `?contract=`, which sends an account with no credits to the buy-credits modal. The homepage runs it on arrival, so to a crawler it is a button and not a page: every link built with it carries `rel="nofollow"`, robots.txt disallows the parameter in either position, and `POST /api/jobs` refuses a crawler’s User-Agent (STA-56)
 
-It is **not** free of upstream calls. The seed cron writes holdings whether or not it had the budget to resolve them, so a mean of 71 wallets in a 100-wallet sample have never been checked and are resolved live, exactly as an uploaded list would be. `POST /api/jobs` takes `{ collection }` in place of `{ wallets }` and expands it at the top of the handler, so the IP limit, `canSubmit`, the per-lookup ceiling, the credit meter and the analytics all apply as they do to an upload. `input_source` is `starter_collection`, set server-side.
+It is **not** free of upstream calls. The seed cron writes holdings whether or not it had the budget to resolve them, so a mean of 71 wallets in a 100-wallet sample have never been checked and are resolved live, exactly as an uploaded list would be. `POST /api/jobs` takes `{ collection }` in place of `{ wallets }` and expands it at the top of the handler, after only the crawler gate, so the IP limit, `canSubmit`, the per-lookup ceiling, the credit meter and the analytics all apply as they do to an upload. `input_source` is `starter_collection`, set server-side.
 
 ### `lib/social-graph.ts`
 
@@ -400,13 +401,14 @@ The meter:
 
 ### `lib/growth.ts`
 
-The growth ledger, read through the two views above and never the base tables:
+The growth ledger, read through the views above and never the base tables:
 
 - `getChannelTrend(weeks)`: sessions, lookups and signups by channel, one row per ISO week
 - `getChannelSources(days)`: the named source inside each channel, uncapped, because the row worth seeing is the small one
 - `getContentPerformance(days)`: per path, entries against views; an entry is a session that arrived there
 - `getGrowthTotals(days)`: this window beside the previous one of the same length
 - Every rollup groups by the raw acquisition string and folds to a channel in TypeScript through `channelFrom`, so no second copy of the roster exists in SQL. `docs/GROWTH.md` holds the loop these feed.
+- Every figure is people only (STA-56). A session any of whose events carries the `bot` tag is a crawler’s: `crawlerSession` / `humanSession` decide it with a correlated `EXISTS`, never `NOT IN`, and every page-view read names one of them. `getGrowthTotals` counts crawlers from the complement (`crawlerSessions`, `crawlerRuns`, `crawlerRefused`) so people and crawlers add up to every session. Rows recorded before tagging began carry no tag and read as people; the report says from which date.
 
 ### `lib/access.ts`
 
@@ -442,17 +444,17 @@ Main page orchestrating:
 
 ### User-Facing
 
-| Endpoint                    | Method     | Purpose                                             |
-| --------------------------- | ---------- | --------------------------------------------------- |
-| `/api/jobs`                 | POST       | Create new lookup job                               |
-| `/api/starter-collections`  | GET        | Collections offered as a first action               |
-| `/api/jobs/[id]`            | GET        | Get job status/results                              |
-| `/api/jobs/[id]/unlock`     | POST       | Open a gated job's locked matches with pack credits |
-| `/api/history`              | GET/POST   | List/save lookup history                            |
-| `/api/history/[id]`         | GET/DELETE | Get/delete specific lookup                          |
-| `/api/checkout`             | POST       | Create Stripe checkout; needs `acceptTerms: true`   |
-| `/api/auth/send-magic-link` | POST       | Send login email                                    |
-| `/api/auth/verify`          | GET        | Verify magic link token                             |
+| Endpoint                    | Method     | Purpose                                                         |
+| --------------------------- | ---------- | --------------------------------------------------------------- |
+| `/api/jobs`                 | POST       | Create new lookup job; a crawler gets a 200 that starts nothing |
+| `/api/starter-collections`  | GET        | Collections offered as a first action                           |
+| `/api/jobs/[id]`            | GET        | Get job status/results                                          |
+| `/api/jobs/[id]/unlock`     | POST       | Open a gated job's locked matches with pack credits             |
+| `/api/history`              | GET/POST   | List/save lookup history                                        |
+| `/api/history/[id]`         | GET/DELETE | Get/delete specific lookup                                      |
+| `/api/checkout`             | POST       | Create Stripe checkout; needs `acceptTerms: true`               |
+| `/api/auth/send-magic-link` | POST       | Send login email                                                |
+| `/api/auth/verify`          | GET        | Verify magic link token                                         |
 
 ### Public API (for external developers)
 
@@ -1206,6 +1208,17 @@ The classifier reads only the parts that say where a browser came from, never
 `ref:`, so a campaign named after an assistant cannot manufacture arrivals
 from it.
 
+**Crawlers are tagged, not dropped** (`lib/bots.ts`, STA-56). The analytics
+ingest sets `metadata.bot` on every event from the request’s own User-Agent:
+`true` with the recognizing token in `metadata.crawler` for a listed crawler, or
+for a browser reporting `navigator.webdriver`, and `false` otherwise. A client
+cannot set, clear or name it. The User-Agent itself is never stored (STA-45).
+`POST /api/jobs` reads the same list and answers a crawler with a 200 that starts
+nothing (`{ status: 'skipped' }`), recorded as `crawler_lookup_refused`; the
+homepage reads a response with no `jobId` as not started. The list is product
+tokens matched as whole tokens, never a bare `bot`, which matches Cubot phones.
+The public API (`/api/v1`, `/api/mcp`) does not read it.
+
 **Listing links carry `?ref=dir-<surface>`** since 2026-09-29: `dir-apify` on
 the Apify Actor's README, input form and run messages, `dir-registry` on the
 MCP registry's `websiteUrl` in `server.json`, `dir-github` on the repo README.
@@ -1505,6 +1518,13 @@ Handler rather than the Next `robots.ts` metadata convention, because that
 convention's serializer discards any directive it does not recognize. An
 omitted signal grants and restricts nothing, so a label is never deleted; only
 its value changes. Reasoning in `docs/SEO-STRATEGY.md`.
+
+**The one path it disallows that a person could follow is the run link.**
+`Disallow: /*?collection=` and `/*&collection=` keep crawlers off
+`/?collection=…`, which starts a lookup on arrival rather than showing a page
+(STA-56). The patterns are built from parts in the route, so the file never
+spells a slash beside a star, which the invariants’ comment stripper would read
+as a comment.
 
 ## Files to Update on Changes
 

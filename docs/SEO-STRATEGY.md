@@ -364,6 +364,25 @@ that convention's serializer emits six known directives and silently discards
 anything else. `scripts/check-invariants.ts` asserts the file has not drifted
 back.
 
+### Run links
+
+Every holder report links “Run these holders” to `/?collection=<chain>:<address>`,
+and the homepage starts a lookup of that collection on arrival. To a crawler
+that is a button, not a page, and on 2026-09-30 one that rendered the reports
+started 28 lookups in thirteen minutes (STA-56). Three rules keep crawlers out
+of it, because each one binds a different kind of crawler:
+
+- **`rel="nofollow"`** on every link `buildStarterHref` builds, so a compliant
+  crawler does not queue the URL.
+- **`Disallow: /*?collection=` and `Disallow: /*&collection=`** in
+  `/robots.txt`, for every user agent. Both beat `Allow: /` by longest match.
+  Nothing indexable is behind them: the URL lands on the homepage with the
+  parameter cleared. Search Console lists these URLs as “Blocked by
+  robots.txt”, which is the intended state.
+- **`POST /api/jobs` refuses a crawler’s User-Agent** with a 200 that starts
+  nothing (`lib/bots.ts`), for the crawler that reads neither. The public API
+  is outside the rule, because its callers are programs by design.
+
 ### Content to Create
 
 - [x] `/vs/addressable` comparison page
