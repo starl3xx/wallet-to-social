@@ -2,6 +2,93 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-10-01 (crawlers no longer start lookups, and the growth report counts them apart from people)
+
+**A crawler was running the holder reports (STA-56).**
+
+- On 2026-09-30, between 17:27 and 17:40 UTC, 28 sessions with no referrer
+  each started a free anonymous starter run of a different long-tail
+  collection. 23 of them recorded a page view on `/` in the same second; the
+  other 5 recorded only the lookup. Every holder report links “Run these
+  holders” to `/?collection=<chain>:<address>`, and the homepage starts that
+  run on arrival, so a crawler that renders JavaScript and follows links ran
+  one lookup per report it read. The growth report counted each as a person
+  who tried the product.
+- **It rendered the holder reports too.** In the same minutes 42 more sessions
+  each viewed one holder report and nothing else, in an hour that usually has
+  three sessions or fewer, and at 00:33 on 2026-10-01 it came back: three
+  holder reports, then three runs a minute later. Every run in both bursts
+  came from Meta’s network (AS32934). The User-Agent is not stored, so which
+  Meta crawler it was is not known.
+
+**Crawlers cannot start a lookup. People keep the one-click run.**
+
+- **`rel="nofollow"`** on the holder report’s run link. An invariant finds
+  every link built with `buildStarterHref` and holds each to it, and refuses
+  a `?collection=` link spelled out anywhere else.
+- **`/robots.txt` disallows `/*?collection=` and `/*&collection=`** for every
+  user agent. Both beat `Allow: /` by longest match, and the invariants read
+  the served file the way a crawler does to prove the run links are refused
+  while `/`, the holder reports, `/_next/static`, `/_next/image` and
+  `/api/public-stats` are still allowed.
+- **`POST /api/jobs` refuses a crawler’s User-Agent** before it reads the
+  session, the rate limiter or the body, with a 200 that starts nothing
+  (`{ status: 'skipped' }`). The homepage reads a response with no `jobId` as
+  not started and goes back to the front page, so the crawler renders an
+  ordinary page and nothing loops. The refusal is recorded as
+  `crawler_lookup_refused`, with the crawler’s name and nothing else.
+- **The list is `lib/bots.ts`**: vendor product tokens (Googlebot, bingbot,
+  Applebot, GPTBot, ClaudeBot, PerplexityBot, every crawler Meta documents,
+  the link-preview fetchers, the SEO crawlers, HeadlessChrome, Lighthouse and
+  others), matched whole and without regard to case. Never a bare `bot`, which
+  matches Cubot phones. The invariants run 28 real browser strings
+  past it, the two Cubot phones and the X, LinkedIn, Facebook, Instagram,
+  Telegram, Slack and Discord in-app browsers among them, and require every
+  one to pass, and 44 real crawler strings that must each be named.
+  The public API (`/api/v1`, `/api/mcp`) does not read it: its callers are
+  programs by design.
+- **Meta’s five documented crawlers are all on it**, after review found two
+  missing: `meta-webindexer` (Meta AI search) and `meta-externalads` joined
+  `facebookexternalhit`, `meta-externalagent` and `meta-externalfetcher`, with
+  `facebookcatalog` beside them. A crawler that sends an ordinary browser
+  string is still recognized by nothing, and the report and `docs/GROWTH.md`
+  now say “known crawlers” and never read no crawler sessions as proof of
+  people.
+
+**Crawlers are counted apart from people, not dropped.**
+
+- **The analytics ingest tags every event** with `bot`, from the request’s
+  own User-Agent, plus `crawler` naming the token that matched. A browser
+  reporting `navigator.webdriver` is tagged too. A client cannot set, clear or
+  name it, and the User-Agent itself is not stored.
+- **The growth report takes crawler sessions out of every human figure**
+  (sessions, ran something, checkout, entries, views and every channel table)
+  and prints them on a line of their own with the lookups they started and
+  the ones refused. A lookup started inside a crawler session goes on the
+  watchlist. The lookup count is a floor: a lookup whose session recorded no
+  page view is in no session, as 5 of the 28 were.
+- **The past is not reclassified.** Rows recorded before tagging began carry
+  no tag and count as people, and the report says from which date crawlers are
+  counted apart instead of guessing. Whether a window holds untagged rows is
+  decided from the first tagged row’s exact time, not its day, since a window
+  opens at the time of day the report runs. While the previous window holds
+  them, “Sessions fell” on the watchlist says the comparison is not like for
+  like, because the crawler leaving the count also lowers Sessions, Direct and
+  the holder reports’ entries and views.
+- **`growth_page_events` exposes `bot`**, as a boolean only where the stored
+  value is a JSON boolean and NULL otherwise, so one stray value cannot fail
+  every read. Still no user id and none of the rest of the metadata.
+  **`scripts/migrate-growth-views.ts` must be run before this merges**: the
+  report refuses to run against the old view, with a message naming the
+  script.
+- **The privacy page says so**: each event records whether it came from a
+  known crawler or an automated browser, worked out from the browser string,
+  which is not kept, and from whether the browser reports that software is
+  controlling it, and when it did, which crawler it was or that the browser
+  was automated.
+
+52 guard mutations cover it, every one caught: 1049 in all.
+
 ### 2026-09-29 (the free lookup is linked, holder reports use searchable titles, listing copy is true, and caches are warm after a deploy)
 
 **The free lookup page has links to it.**

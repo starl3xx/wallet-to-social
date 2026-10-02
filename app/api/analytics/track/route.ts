@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { trackEvent, type AnalyticsEventType } from '@/lib/analytics';
+import { withCrawlerTag } from '@/lib/bots';
 
 export const runtime = 'nodejs';
 
@@ -22,8 +23,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    /**
+     * Tagged here, from the request's own User-Agent, never from the body.
+     *
+     * Every event gets `bot`, so the growth report can count a crawler's
+     * session apart from a person's instead of losing it (STA-56). Tagged
+     * rather than dropped: a crawler that renders the site is worth seeing,
+     * and the lookups it started on 2026-09-30 were found through the page
+     * views beside them. The User-Agent is read and not kept.
+     */
     // Fire and forget - don't block the response
-    trackEvent(eventType, { userId, sessionId, metadata });
+    trackEvent(eventType, {
+      userId,
+      sessionId,
+      metadata: withCrawlerTag(metadata, request.headers.get('user-agent')),
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -287,6 +287,11 @@ export function parseStarterParam(value: string | null): StarterLink | null {
  *
  * Same module as the parser, so the two cannot drift into disagreeing about
  * the parameter name, which is the usual way a link format breaks.
+ *
+ * Every link carrying this href carries `rel="nofollow"`, and robots.txt
+ * disallows the parameter. The homepage runs the collection on arrival, so to
+ * a crawler this is not a link to a page: it is a button that starts a lookup
+ * (STA-56). Built here and nowhere else, so the invariants can find every one.
  */
 export function buildStarterHref(chain: string, address: string): string {
   return `/?collection=${chain}:${address.toLowerCase()}`;

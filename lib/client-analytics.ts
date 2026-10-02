@@ -40,7 +40,20 @@ export async function trackClientEvent(
   try {
     const userId = getUserId();
     const sessionId = getSessionId();
-    const body = JSON.stringify({ eventType, userId, sessionId, metadata });
+    /**
+     * A browser driven by WebDriver or the DevTools protocol says so here,
+     * whatever User-Agent it was given. Sent only when true, and only as a
+     * hint: the ingest folds it into `bot` and decides the rest from the
+     * request's User-Agent (lib/bots.ts, STA-56).
+     */
+    const automated =
+      typeof navigator !== 'undefined' && navigator.webdriver === true;
+    const body = JSON.stringify({
+      eventType,
+      userId,
+      sessionId,
+      metadata: automated ? { ...metadata, webdriver: true } : metadata,
+    });
 
     // `keepalive` matters for events fired immediately before navigating away —
     // checkout_redirected is sent and then window.location.href is set, and a

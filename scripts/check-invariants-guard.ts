@@ -6149,10 +6149,13 @@ const MUTATIONS: Mutation[] = [
     to: "const UPDATED = '26 September 2026';",
   },
   {
+    // Re-anchored 2026-10-01: the privacy page's own date moved when STA-56
+    // added the crawler tag to what it says is recorded. The defect is the
+    // second line, not the date.
     name: 'terms: the privacy page types the terms date outside its own last-updated line',
     file: 'app/privacy/page.tsx',
-    from: "const UPDATED = '26 September 2026';\n",
-    to: "const UPDATED = '26 September 2026';\nconst TERMS_SHOWN = '2026-09-26';\n",
+    from: "const UPDATED = '1 October 2026';\n",
+    to: "const UPDATED = '1 October 2026';\nconst TERMS_SHOWN = '2026-09-26';\n",
   },
   {
     name: 'terms: a route keeps its own copy of the terms version',
@@ -6692,6 +6695,327 @@ const MUTATIONS: Mutation[] = [
     file: 'docs-site/openapi.yaml',
     from: '    A `GET` on the base URL itself, `https://walletlink.social/api/v1` with no\n',
     to: '    The base URL, `https://walletlink.social/api/v1` with no\n',
+  },
+  {
+    name: 'STA-56: the crawler test falls back to a bare /bot/, which refuses Cubot phones',
+    file: 'lib/bots.ts',
+    from: '  if (!userAgent) return null;\n  for (const { name, pattern } of SIGNATURE_PATTERNS) {',
+    to: "  if (!userAgent) return null;\n  if (/bot/i.test(userAgent)) return 'Googlebot';\n  for (const { name, pattern } of SIGNATURE_PATTERNS) {",
+  },
+  {
+    name: 'STA-56: a crawler token matches inside a longer word',
+    file: 'lib/bots.ts',
+    from: "  pattern: new RegExp(`(?:^|[^a-z0-9])${literal(name)}(?![a-z0-9])`, 'i'),",
+    to: "  pattern: new RegExp(literal(name), 'i'),",
+  },
+  {
+    name: 'STA-56: the crawler match becomes case-sensitive',
+    file: 'lib/bots.ts',
+    from: "  pattern: new RegExp(`(?:^|[^a-z0-9])${literal(name)}(?![a-z0-9])`, 'i'),",
+    to: '  pattern: new RegExp(`(?:^|[^a-z0-9])${literal(name)}(?![a-z0-9])`),',
+  },
+  {
+    name: 'STA-56: the crawler list gains a generic word',
+    file: 'lib/bots.ts',
+    from: "  // Search engines, and the renderers they fetch pages with.\n  'Googlebot',\n",
+    to: "  // Search engines, and the renderers they fetch pages with.\n  'bot',\n  'Googlebot',\n",
+  },
+  {
+    name: 'STA-56: Chrome-Lighthouse sorts below Lighthouse and can never be named',
+    file: 'lib/bots.ts',
+    from: "  'Chrome-Lighthouse',\n  'Lighthouse',\n",
+    to: "  'Lighthouse',\n  'Chrome-Lighthouse',\n",
+  },
+  {
+    name: 'STA-56: a client clears the crawler tag its User-Agent earned',
+    file: 'lib/bots.ts',
+    from: '  return crawler ? { ...rest, bot: true, crawler } : { ...rest, bot: false };',
+    to: '  return crawler\n    ? { bot: true, crawler, ...(metadata as object) }\n    : { ...rest, bot: false };',
+  },
+  {
+    name: 'STA-56: the ingest keeps the User-Agent on the event',
+    file: 'lib/bots.ts',
+    from: '  return crawler ? { ...rest, bot: true, crawler } : { ...rest, bot: false };',
+    to: '  return crawler\n    ? { ...rest, bot: true, crawler, userAgent }\n    : { ...rest, bot: false, userAgent };',
+  },
+  {
+    name: 'STA-56: a client names its own crawler and keeps it',
+    file: 'lib/bots.ts',
+    from: '  delete rest.bot;\n  delete rest.crawler;\n',
+    to: '',
+  },
+  {
+    name: 'STA-56: the webdriver hint is read and ignored',
+    file: 'lib/bots.ts',
+    from: '  const crawler = crawlerFrom(userAgent) ?? (automated ? WEBDRIVER : null);',
+    to: '  const crawler = crawlerFrom(userAgent);',
+  },
+  {
+    name: 'STA-56: the job route stops refusing crawlers',
+    file: 'app/api/jobs/route.ts',
+    from: "  const crawler = crawlerFrom(request.headers.get('user-agent'));\n  if (crawler) {",
+    to: "  const crawler = crawlerFrom(request.headers.get('user-agent'));\n  if (crawler && process.env.REFUSE_CRAWLERS) {",
+  },
+  {
+    name: 'STA-56: the job route reads the crawler from the wrong header',
+    file: 'app/api/jobs/route.ts',
+    from: "  const crawler = crawlerFrom(request.headers.get('user-agent'));\n",
+    to: "  const crawler = crawlerFrom(request.headers.get('referer'));\n",
+  },
+  {
+    name: 'STA-56: the job route refuses a crawler with an error status',
+    file: 'app/api/jobs/route.ts',
+    from: '    return NextResponse.json(CRAWLER_SKIP);\n',
+    to: '    return NextResponse.json(CRAWLER_SKIP, { status: 403 });\n',
+  },
+  {
+    name: 'STA-56: the crawler gate runs after the session read',
+    file: 'app/api/jobs/route.ts',
+    from: 'export async function POST(request: NextRequest) {\n',
+    to: 'export async function POST(request: NextRequest) {\n  const earlyCookies = await cookies();\n  void earlyCookies;\n',
+  },
+  {
+    name: 'STA-56: the refusal is not recorded, so the report cannot see the rule fire',
+    file: 'app/api/jobs/route.ts',
+    from: '    await trackEvent(CRAWLER_REFUSAL_EVENT, {\n      metadata: { bot: true, crawler },\n    });\n',
+    to: '',
+  },
+  {
+    name: 'STA-56: the public API applies the crawler rule to programs',
+    file: 'app/api/v1/jobs/route.ts',
+    from: "import { createJob, processJobChunk } from '@/lib/job-processor';\n",
+    to: "import { createJob, processJobChunk } from '@/lib/job-processor';\nimport { crawlerFrom } from '@/lib/bots';\nvoid crawlerFrom;\n",
+  },
+  {
+    name: 'STA-56: the homepage polls a job the server never started',
+    file: 'app/page.tsx',
+    from: "      if (typeof data.jobId !== 'string') return { ok: false };\n",
+    to: '',
+  },
+  {
+    name: 'STA-56: adding addresses polls a job the server never started',
+    file: 'app/page.tsx',
+    from: "        if (typeof newJobId !== 'string') {\n          setState('ready');\n          return;\n        }\n",
+    to: '',
+  },
+  {
+    name: 'STA-56: a collection arrival keeps its parameter, so a refresh replays the run',
+    file: 'app/page.tsx',
+    from: "    window.history.replaceState({}, '', window.location.pathname);\n\n    const link = parseStarterParam(",
+    to: '    const link = parseStarterParam(',
+  },
+  {
+    name: 'STA-56: the holder report run link loses nofollow',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: '                href={buildStarterHref(collection.chain, collection.address)}\n                rel="nofollow"\n',
+    to: '                href={buildStarterHref(collection.chain, collection.address)}\n',
+  },
+  {
+    name: 'STA-56: robots.txt stops disallowing the run links',
+    file: 'app/robots.txt/route.ts',
+    from: "const DISALLOW = ['/api/', '/_next/', ...RUN_LINK_PATTERNS];",
+    to: "const DISALLOW = ['/api/', '/_next/'];",
+  },
+  {
+    name: 'STA-56: robots.txt disallows the run parameter only in first position',
+    file: 'app/robots.txt/route.ts',
+    from: "const RUN_LINK_PATTERNS = ['?collection=', '&collection='].map(",
+    to: "const RUN_LINK_PATTERNS = ['?collection='].map(",
+  },
+  {
+    name: 'STA-56: robots.txt blocks every query string to catch the run links',
+    file: 'app/robots.txt/route.ts',
+    from: "const RUN_LINK_PATTERNS = ['?collection=', '&collection='].map(",
+    to: "const RUN_LINK_PATTERNS = ['?'].map(",
+  },
+  {
+    name: 'STA-56: the ingest stores events without the crawler tag',
+    file: 'app/api/analytics/track/route.ts',
+    from: "      metadata: withCrawlerTag(metadata, request.headers.get('user-agent')),\n",
+    to: '      metadata,\n',
+  },
+  {
+    name: 'STA-56: the browser never says it is automated',
+    file: 'lib/client-analytics.ts',
+    from: '      metadata: automated ? { ...metadata, webdriver: true } : metadata,\n',
+    to: '      metadata,\n',
+  },
+  {
+    name: 'STA-56: a crawler session is any classified session, not a tagged one',
+    file: 'lib/growth.ts',
+    from: '    WHERE crawled.session_id = e.session_id\n      AND crawled.bot\n',
+    to: '    WHERE crawled.session_id = e.session_id\n      AND crawled.bot IS NOT NULL\n',
+  },
+  {
+    name: 'STA-56: the weekly channel table counts crawler sessions as people',
+    file: 'lib/growth.ts',
+    from: "'YYYY-MM-DD') AS week,\n          coalesce(e.origin, '') AS origin\n        FROM growth_page_events e\n        WHERE e.event_type = 'page_view'\n          AND ${humanSession(start)}\n",
+    to: "'YYYY-MM-DD') AS week,\n          coalesce(e.origin, '') AS origin\n        FROM growth_page_events e\n        WHERE e.event_type = 'page_view'\n",
+  },
+  {
+    name: 'STA-56: the named-source table reads the crawler sessions instead of the people',
+    file: 'lib/growth.ts',
+    from: "        SELECT DISTINCT ON (e.session_id)\n          e.session_id,\n          coalesce(e.origin, '') AS origin\n        FROM growth_page_events e\n        WHERE e.event_type = 'page_view'\n          AND ${humanSession(start)}\n",
+    to: "        SELECT DISTINCT ON (e.session_id)\n          e.session_id,\n          coalesce(e.origin, '') AS origin\n        FROM growth_page_events e\n        WHERE e.event_type = 'page_view'\n          AND ${crawlerSession(start)}\n",
+  },
+  {
+    name: 'STA-56: content entries count crawler sessions as people',
+    file: 'lib/growth.ts',
+    from: "          coalesce(e.path, '(none)') AS path\n        FROM growth_page_events e\n        WHERE e.event_type = 'page_view'\n          AND ${humanSession(start)}\n",
+    to: "          coalesce(e.path, '(none)') AS path\n        FROM growth_page_events e\n        WHERE e.event_type = 'page_view'\n",
+  },
+  {
+    name: 'STA-56: content views count crawler page views',
+    file: 'lib/growth.ts',
+    from: "          count(*)::int AS views\n        FROM growth_page_events e\n        WHERE e.event_type = 'page_view'\n          AND ${humanSession(start)}\n",
+    to: "          count(*)::int AS views\n        FROM growth_page_events e\n        WHERE e.event_type = 'page_view'\n",
+  },
+  {
+    name: 'STA-56: the headline sessions count crawlers as people',
+    file: 'lib/growth.ts',
+    from: "      WHERE e.event_type = 'page_view'\n        AND ${humanSession(a, b)}\n",
+    to: "      WHERE e.event_type = 'page_view'\n",
+  },
+  {
+    name: 'STA-56: crawler runs count every lookup, not those inside crawler sessions',
+    file: 'lib/growth.ts',
+    from: "        WHERE event_type = 'lookup_started'\n          AND session_id IN (SELECT session_id FROM crawler_seen)\n",
+    to: "        WHERE event_type = 'lookup_started'\n",
+  },
+  {
+    name: 'STA-56: crawler refusals are counted from an event nothing writes',
+    file: 'lib/growth.ts',
+    from: '        WHERE event_type = ${CRAWLER_REFUSAL_EVENT}\n',
+    to: "        WHERE event_type = 'lookup_refused'\n",
+  },
+  {
+    name: 'STA-56: the report stops printing crawler refusals',
+    file: 'scripts/growth-report.ts',
+    from: '        `${c.crawlerRuns} lookups started and ${c.crawlerRefused} refused; ` +\n',
+    to: '        `${c.crawlerRuns} lookups started; ` +\n',
+  },
+  {
+    name: 'STA-56: the report stops saying when crawler tagging began',
+    file: 'scripts/growth-report.ts',
+    from: '      `**Crawlers are counted apart only from ${sinceDay}.** Rows recorded ` +\n',
+    to: '      `Rows recorded ` +\n',
+  },
+  {
+    name: 'STA-56: the report reads figures without checking for the crawler column',
+    file: 'scripts/growth-report.ts',
+    from: '  const tagging = await crawlerTagging();\n',
+    to: "  const tagging = { state: 'ok', since: null } as const;\n",
+  },
+  {
+    name: 'STA-56: the view casts the crawler tag, so one stray value fails every read',
+    file: 'scripts/migrate-growth-views.ts',
+    from: "      CASE jsonb_typeof(metadata->'bot')\n        WHEN 'boolean' THEN (metadata->>'bot')::boolean\n      END AS bot\n",
+    to: "      (metadata->>'bot')::boolean AS bot\n",
+  },
+  {
+    name: 'STA-56: the growth view exposes the whole metadata',
+    file: 'scripts/migrate-growth-views.ts',
+    from: "      metadata->>'path' AS path,\n",
+    to: "      metadata->>'path' AS path,\n      metadata,\n",
+  },
+  {
+    name: 'STA-56: the growth view exposes the user id',
+    file: 'scripts/migrate-growth-views.ts',
+    from: '    SELECT\n      event_type,\n      session_id,\n',
+    to: '    SELECT\n      event_type,\n      user_id,\n      session_id,\n',
+  },
+  // Review of STA-56 (2026-10-01). The burst came from Meta's network, and
+  // two of the five crawlers Meta documents were missing from the list.
+  {
+    name: 'STA-56 review: Meta-WebIndexer, which crawls for Meta AI search, leaves the crawler list',
+    file: 'lib/bots.ts',
+    from: "  'meta-externalads',\n  'meta-webindexer',\n",
+    to: "  'meta-externalads',\n",
+  },
+  {
+    name: 'STA-56 review: Meta-ExternalAds leaves the crawler list',
+    file: 'lib/bots.ts',
+    from: "  'meta-externalfetcher',\n  'meta-externalads',\n",
+    to: "  'meta-externalfetcher',\n",
+  },
+  {
+    name: "STA-56 review: Meta's catalog fetcher leaves the crawler list",
+    file: 'lib/bots.ts',
+    from: "  'facebookexternalhit',\n  'facebookcatalog',\n",
+    to: "  'facebookexternalhit',\n",
+  },
+  // The privacy page described the tag as coming from the browser string
+  // alone, while the browser's automation flag also sets it and a yes stores
+  // the crawler's name.
+  {
+    name: 'STA-56 review: the privacy page drops the automation flag as a source of the crawler tag',
+    file: 'app/privacy/page.tsx',
+    from: '            from the browser string, which is not kept, and from whether your\n            browser reports that software is controlling it. When the answer is\n',
+    to: '            from the browser string, which is not kept. When the answer is\n',
+  },
+  {
+    name: "STA-56 review: the privacy page stops saying a yes records the crawler's name",
+    file: 'app/privacy/page.tsx',
+    from: '            yes, the event also records which crawler it was, or that the\n            browser was automated. Also a record',
+    to: '            yes, nothing else is recorded. Also a record',
+  },
+  // A window opens at the time of day the report runs, so whether it holds
+  // untagged rows has to be decided from instants, not days.
+  {
+    name: 'STA-56 review: untagged history is decided by comparing days',
+    file: 'lib/growth.ts',
+    from: '  return Date.parse(taggedSince) > Date.parse(window.startsAt);\n',
+    to: '  return taggedSince.slice(0, 10) > window.start;\n',
+  },
+  {
+    name: 'STA-56 review: a growth window keeps only the day it opens',
+    file: 'lib/growth.ts',
+    from: '  startsAt: start.toISOString(),\n',
+    to: '  startsAt: start.toISOString().slice(0, 10),\n',
+  },
+  {
+    name: 'STA-56 review: the report reads only the day tagging began',
+    file: 'scripts/growth-report.ts',
+    from: 'SELECT to_char(min(created_at), \'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"\') AS "at"',
+    to: 'SELECT to_char(min(created_at), \'YYYY-MM-DD\') AS "at"',
+  },
+  {
+    name: 'STA-56 review: the untagged-history caveat compares day strings again',
+    file: 'scripts/growth-report.ts',
+    from: '  } else if (holdsUntaggedRows(since, p)) {\n',
+    to: '  } else if (since.slice(0, 10) > p.start) {\n',
+  },
+  // The crawler leaving the count lowers Sessions, so a fall against an
+  // untagged previous window must not read as lost traffic.
+  {
+    name: 'STA-56 review: a fall in sessions against an untagged window prints unqualified',
+    file: 'scripts/growth-report.ts',
+    from: '    const unlike = since !== null && holdsUntaggedRows(since, p);\n',
+    to: '    const unlike = false;\n',
+  },
+  {
+    name: 'STA-56 review: the crawler line implies every crawler is taken out',
+    file: 'scripts/growth-report.ts',
+    from: '        `${p.crawlerRefused} refused in the previous one. A crawler that ` +\n        `sends an ordinary browser string and does not say it is automated ` +\n        `is not known, and counts as a person.`\n',
+    to: '        `${p.crawlerRefused} refused in the previous one.`\n',
+  },
+  {
+    name: 'STA-56 review: GROWTH.md stops expecting Sessions, Direct and holder entries to fall',
+    file: 'docs/GROWTH.md',
+    from: '- **Sessions, the Direct channel, and the holder reports’ entries and views\n  fall**',
+    to: '- **Nothing else moves**',
+  },
+  {
+    name: 'STA-56 review: GROWTH.md reads no crawler sessions as proof of people',
+    file: 'docs/GROWTH.md',
+    from: '  shows no crawler sessions and no refusals, that does not make them people:\n',
+    to: '  shows no crawler sessions and no refusals, they were people:\n',
+  },
+  {
+    name: 'STA-56 review: the incident record says all 28 run sessions recorded a page view',
+    file: 'lib/bots.ts',
+    from: ' * On 2026-09-30, between 17:27 and 17:40 UTC, 28 sessions with no referrer\n',
+    to: ' * On 2026-09-30, between 17:27 and 17:40 UTC, 28 sessions each recorded a page view\n',
   },
 ];
 

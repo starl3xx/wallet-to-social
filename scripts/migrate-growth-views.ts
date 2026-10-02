@@ -18,9 +18,9 @@
  * logs are public, and the grant would be the thing standing between a future
  * one-line debugging `SELECT *` and a customer's address in a public log.
  *
- * The report needs five columns out of one table and four out of the other, so
+ * The report needs six columns out of one table and four out of the other, so
  * the narrower grant costs nothing. `growth_page_events` keeps the event type,
- * the session, the timestamp and the two metadata keys the rollups read, and
+ * the session, the timestamp and the three metadata keys the rollups read, and
  * drops `user_id` and the rest of the metadata. `growth_accounts` keeps the
  * signup timestamp, the acquisition summary and the rail, resolves "did this
  * account ever buy" into a boolean here, and therefore exposes no account id at
@@ -32,6 +32,23 @@
  * and the planner still reaches `analytics_events_created_at_idx`. Measured on
  * 2026-09-16: the channel rollup plans identically through the view and the
  * table.
+ *
+ * ## The crawler column (STA-56)
+ *
+ * `bot` is the tag `app/api/analytics/track/route.ts` writes on every event
+ * once STA-56 is deployed: true for a crawler's User-Agent, false otherwise,
+ * absent on every row recorded before the ingest started tagging. Exposed as a
+ * boolean only where the stored value is a JSON boolean, and NULL otherwise,
+ * never by a bare cast: the ingest used to store whatever metadata a client
+ * posted, so casting some stray `"bot": "yes"` would fail every query that
+ * reads the view, and the weekly report would print nothing. NULL means
+ * unclassified, which is exactly what a historical row is, and the report
+ * says so rather than guessing.
+ *
+ * Run this BEFORE merging the change that reads it. The column is additive,
+ * so the report already in production keeps working against the new view,
+ * and the new report refuses to run against the old one with a message that
+ * names this script.
  *
  * ## Idempotent
  *
@@ -65,7 +82,10 @@ async function main() {
       session_id,
       created_at,
       metadata->>'origin' AS origin,
-      metadata->>'path' AS path
+      metadata->>'path' AS path,
+      CASE jsonb_typeof(metadata->'bot')
+        WHEN 'boolean' THEN (metadata->>'bot')::boolean
+      END AS bot
     FROM analytics_events
   `;
   console.log('growth_page_events: ok');
@@ -159,8 +179,11 @@ async function main() {
   // Proves the views answer, not merely that they exist: a view over a renamed
   // column creates fine and fails on first read.
   const [events] = (await sql`
-    SELECT count(*)::int AS n FROM growth_page_events WHERE event_type = 'page_view'
-  `) as unknown as Array<{ n: number }>;
+    SELECT
+      count(*)::int AS n,
+      count(*) FILTER (WHERE bot IS NOT NULL)::int AS tagged
+    FROM growth_page_events WHERE event_type = 'page_view'
+  `) as unknown as Array<{ n: number; tagged: number }>;
   const [accounts] = (await sql`
     SELECT count(*)::int AS n FROM growth_accounts
   `) as unknown as Array<{ n: number }>;
@@ -168,7 +191,7 @@ async function main() {
     SELECT count(*)::int AS n FROM growth_purchases WHERE amount_cents > 0
   `) as unknown as Array<{ n: number }>;
   console.log(
-    `readback: ${events.n} page views, ${accounts.n} accounts, ${purchases.n} paid lots`
+    `readback: ${events.n} page views (${events.tagged} tagged for crawlers), ${accounts.n} accounts, ${purchases.n} paid lots`
   );
 }
 
