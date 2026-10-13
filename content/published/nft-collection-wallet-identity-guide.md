@@ -3,6 +3,7 @@ title: 'Wallet identity for NFT collections: a step-by-step guide'
 meta_description: 'A step-by-step tutorial for NFT collection teams to export holders, resolve wallet identities, and build a targeted outreach plan.'
 published: true
 publish_date: '2026-05-18'
+updated_date: '2026-10-13'
 ---
 
 # Wallet identity for NFT collections: a step-by-step guide
@@ -75,7 +76,7 @@ Here is what happens during resolution:
 3. Known AI agent wallets are flagged separately.
 4. Results are streamed back in real time so you can watch progress.
 
-For a collection with 5,000 holders, expect processing to take a few minutes. At current match rates (~22%), you will resolve roughly 1,100 wallets to at least one social profile.
+For a collection with 5,000 holders, expect processing to take a few minutes. At current rates, about 22% of wallets resolve to some identity, so expect roughly 1,100 of them, and about 650 with an X or Farcaster account you can message.
 
 ## Step 3: analyze your results
 

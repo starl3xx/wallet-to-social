@@ -127,7 +127,7 @@ export const CLAIMS: Claim[] = [
       // a routine refresh into a failure nobody can act on. Rounding to 4.9
       // to fit the old pattern would have been an over-claim, which is the
       // one thing this file exists to prevent.
-      /([0-9]+(?:\.[0-9]{1,2})?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9]{1,2})?) million wallets that we resolved|([0-9]+(?:\.[0-9]{1,2})?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9]{1,2})?)M'|INDEXED_WALLETS_LONG = '([0-9]+(?:\.[0-9]{1,2})?) million'|Resolve against a ([0-9]+(?:\.[0-9]{1,2})?)M-wallet/,
+      /([0-9]+(?:\.[0-9]{1,2})?)\s*(?:million|M)[- ]wallet index|([0-9]+(?:\.[0-9]{1,2})?) million wallets that we resolved|([0-9]+(?:\.[0-9]{1,2})?) million wallet identities|INDEXED_WALLETS = '([0-9]+(?:\.[0-9]{1,2})?)M'|INDEXED_WALLETS_LONG = '([0-9]+(?:\.[0-9]{1,2})?) million'|Resolve against an index of ([0-9]+(?:\.[0-9]{1,2})?)M\+ wallet identities/,
     /**
      * The SAME predicate /api/public-stats uses, and not `count(*)`.
      *
@@ -158,8 +158,22 @@ export const CLAIMS: Claim[] = [
      * enough to be honest" but "is this tighter than the distance to the
      * nearest value it could be confused with". That distance is 2.1 to 2.4%
      * here, so 1% is the widest defensible band.
+     *
+     * Then a floor, from 2026-10-13 (STA-57). The copy says "over 4.8 million"
+     * and "4.8M+", so the live counter on the homepage can never contradict
+     * it, and the claim is a ceiling: above the truth is false, below is
+     * safe. The tolerance above no longer applies; `staleBelow` does the job
+     * it did, and the same rule sets its width. It has to clear the rounding
+     * step, or a floor raised correctly fails at once: rounded down to one
+     * decimal, a fresh floor sits up to 0.1M (about 2.1%) behind. And it has
+     * to stay under the distance to the Farcaster figure, 3.4% on 2026-10-12
+     * (4.71 against 4.87), so "4.7" still fails as the wrong claim. 3% sits
+     * between the two. At the October growth rate, it asks for a raise about
+     * once a quarter.
      */
-    tolerance: 0.01,
+    tolerance: 0,
+    kind: 'ceiling',
+    staleBelow: 0.03,
   },
   {
     what: 'wallets with an X handle, in millions',
@@ -526,7 +540,13 @@ export const CLAIMS: Claim[] = [
      * matters is that the copy tracks it.
      */
     what: 'share of agent-list wallets that resolve to a social identity',
-    files: ['content/published/ai-agents-why-it-matters.md'],
+    files: [
+      'content/published/ai-agents-why-it-matters.md',
+      // Said "under 0.3%" until 2026-10-13 (STA-57), in the same blog as the
+      // declared 6.2%. It states the figure in the same words now, so this
+      // pattern reads it and the two posts cannot disagree again.
+      'content/published/ai-agent-wallets-what-we-found.md',
+    ],
     pattern: /resolution and \*\*([0-9]+\.[0-9])%\*\* come back/,
     actual: async () => {
       const total = await one(sql`SELECT count(*)::int FROM known_agents`);

@@ -20,7 +20,7 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { INDEXED_WALLETS_PLUS } from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -201,7 +201,7 @@ export default function FormoComparison() {
                 ones marked green. `items-start` because Figure is a
                 `flex-col-reverse` column and packs to the bottom of a cell. */}
             <dl className="mt-8 grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
-              <Figure value={INDEXED_WALLETS} label="wallets indexed" />
+              <Figure value={INDEXED_WALLETS_PLUS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure
                 value="16-46%"

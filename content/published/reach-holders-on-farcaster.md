@@ -3,6 +3,7 @@ title: 'How to reach your token holders on Farcaster'
 meta_description: 'A practical guide to finding your token holders on Farcaster and building a direct outreach rhythm that actually gets responses.'
 published: true
 publish_date: '2026-05-14'
+updated_date: '2026-10-13'
 ---
 
 # How to reach your token holders on Farcaster
@@ -37,7 +38,7 @@ For fewer than 50 holders, you can check each wallet manually. Go to Warpcast’
 
 For anything more than 50 wallets, you need a resolution tool. Export your holder list from Etherscan, Dune, or your preferred analytics platform. Upload the CSV to [walletlink.social](https://walletlink.social) and filter the results for Farcaster matches.
 
-At current resolution rates, roughly 22% of active Ethereum wallets map to a social identity, and Farcaster accounts make up a growing share of those matches. For a typical token with 5,000 holders, expect 600-800 Farcaster profiles.
+At current resolution rates, roughly 22% of the wallets on a typical holder list map to some identity, and Farcaster accounts make up a growing share of those matches. For a typical Ethereum token with 5,000 holders, expect 600-800 Farcaster profiles; a list of Base holders resolves several times as many.
 
 That is enough to build a real outreach operation.
 

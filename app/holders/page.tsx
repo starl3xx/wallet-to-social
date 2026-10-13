@@ -7,7 +7,7 @@ import {
   holderDisplayName,
   type ListedHolderCollection,
 } from '@/lib/holder-pages';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { INDEXED_WALLETS_PLUS } from '@/lib/public-figures';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
 /**
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://walletlink.social/holders' },
   openGraph: {
     title: 'Holder reachability reports',
-    description: `How many holders of each collection resolve to reachable people, measured against a ${INDEXED_WALLETS} wallet identity index.`,
+    description: `How many holders of each collection resolve to reachable people, measured against an identity index of ${INDEXED_WALLETS_PLUS} wallets.`,
     url: 'https://walletlink.social/holders',
     siteName: 'walletlink.social',
     // The root segment's opengraph-image file does not reach a page that

@@ -13,7 +13,7 @@ import {
   X,
 } from '@phosphor-icons/react/dist/ssr';
 import {
-  INDEXED_WALLETS,
+  INDEXED_WALLETS_PLUS,
   CHAIN_COUNT_WORD,
   ATTESTED_X_SHARE_PCT,
 } from '@/lib/public-figures';
@@ -161,7 +161,7 @@ export default function AbsoluteLabsComparison() {
             </div>
 
             <dl className="mt-8 grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
-              <Figure value={INDEXED_WALLETS} label="wallets indexed" />
+              <Figure value={INDEXED_WALLETS_PLUS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure
                 value="16-46%"
@@ -195,10 +195,10 @@ export default function AbsoluteLabsComparison() {
             <p className="text-muted-foreground mb-4">
               Its Acquire section offers access to more than 600 million
               data-rich profiles. That is their number for their product, and it
-              is not the same quantity as the {INDEXED_WALLETS} wallets below. A
-              profile in a CRM is a record about somebody. What we count is a
-              wallet carrying a social account its owner published, which is a
-              narrower thing and the only thing we sell.
+              is not the same quantity as the {INDEXED_WALLETS_PLUS} wallets
+              below. A profile in a CRM is a record about somebody. What we
+              count is a wallet carrying a social account its owner published,
+              which is a narrower thing and the only thing we sell.
             </p>
             <p className="text-muted-foreground">
               If you need the platform, buy the platform. This page exists for
@@ -464,11 +464,11 @@ export default function AbsoluteLabsComparison() {
               <li>Send it to an X list, or to whatever CRM you already run</li>
             </ol>
             <p className="text-muted-foreground">
-              The index holds {INDEXED_WALLETS} wallets with complete Farcaster
-              protocol coverage, refreshed daily. Over {ATTESTED_X_SHARE_PCT}%
-              of X matches are links the wallet owner published themselves, and
-              every match carries the evidence class behind it. Where we only
-              have a correlation, the row says so.
+              The index holds {INDEXED_WALLETS_PLUS} wallets with complete
+              Farcaster protocol coverage, refreshed daily. Over{' '}
+              {ATTESTED_X_SHARE_PCT}% of X matches are links the wallet owner
+              published themselves, and every match carries the evidence class
+              behind it. Where we only have a correlation, the row says so.
             </p>
           </section>
 

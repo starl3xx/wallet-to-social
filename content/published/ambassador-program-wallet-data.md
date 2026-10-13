@@ -3,6 +3,7 @@ title: 'Building an ambassador program with wallet identity data'
 meta_description: 'Use Priority Score (holdings x followers) to find your best potential ambassadors. A step-by-step guide to building a wallet-data-driven ambassador program.'
 published: true
 publish_date: '2026-04-06'
+updated_date: '2026-10-13'
 ---
 
 # Building an ambassador program with wallet identity data
@@ -61,7 +62,7 @@ Format the data as a CSV with at minimum two columns: `wallet_address` and `hold
 
 ### Step 2: resolve identities
 
-Run the holder list through a wallet identity resolution service. At a 22% match rate, a list of 5,000 holders typically yields 1,000-1,100 identified profiles with Twitter handles, Farcaster usernames, follower counts, and ENS names.
+Run the holder list through a wallet identity resolution service. At a 22% identity rate, a list of 5,000 holders typically yields 1,000-1,100 identified wallets, about 650 of them with an X or Farcaster account, along with follower counts and ENS names.
 
 Export the enriched data. You now have a spreadsheet with wallet addresses, holdings, social profiles, and follower counts.
 

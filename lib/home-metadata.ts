@@ -18,12 +18,12 @@
  * The title leads with the query words and ends with the brand, because the
  * start of a title is the part that survives a cut.
  */
-import { CHAIN_COUNT_WORD, INDEXED_WALLETS } from '@/lib/public-figures';
+import { CHAIN_COUNT_WORD, INDEXED_WALLETS_PLUS } from '@/lib/public-figures';
 
 export const HOME_TITLE =
   'Wallet to Twitter (X) and Farcaster lookup | walletlink.social';
 
-export const HOME_DESCRIPTION = `Turn wallet addresses into the X (Twitter) and Farcaster accounts behind them, across ${CHAIN_COUNT_WORD} EVM chains, from a ${INDEXED_WALLETS}-wallet index. No sales calls.`;
+export const HOME_DESCRIPTION = `Turn wallet addresses into the X (Twitter) and Farcaster accounts behind them, across ${CHAIN_COUNT_WORD} EVM chains, from an index of ${INDEXED_WALLETS_PLUS} wallets. No sales calls.`;
 
 /** The limits the invariant enforces, named once so the prose can cite them. */
 export const TITLE_MAX_CHARS = 65;

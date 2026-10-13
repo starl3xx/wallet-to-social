@@ -4,9 +4,10 @@ meta_description: "Farcaster integration brings 3x more wallet matches. Find you
 headline_variations:
   - 'walletlink.social now supports Farcaster: 3x more wallet matches'
   - 'Farcaster integration: turn 10,000 wallet addresses into reachable holders'
-  - '22% match rate: how Farcaster makes wallet identity actually work'
+  - '22% of wallets resolved: how Farcaster makes wallet identity actually work'
 published: true
 publish_date: '2026-02-21'
+updated_date: '2026-10-13'
 ---
 
 # walletlink.social now supports Farcaster: 3x more wallet matches
@@ -65,10 +66,10 @@ When we find a Farcaster profile, we pull the verified Twitter too. Another laye
 
 The bottom line:
 
-| Source      | Match rate |
-| ----------- | ---------- |
-| ENS only    | ~8%        |
-| + Farcaster | ~22%       |
+| Source      | Identity rate |
+| ----------- | ------------- |
+| ENS only    | ~8%           |
+| + Farcaster | ~22%          |
 
 **Nearly 3x the matches from the same list.** More matches = more holders you can reach.
 
@@ -113,7 +114,7 @@ Farcaster integration is live now. No setup required.
 2. Get social profiles back, now with Farcaster
 3. Export sorted by Priority Score
 
-**10K wallets. Under 2 minutes. 22% match rate.**
+**10K wallets. Under 2 minutes. 22% identity rate.**
 
 ## The bigger picture
 

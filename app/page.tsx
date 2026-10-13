@@ -35,7 +35,7 @@ import { OverflowMenu, MenuItem } from '@/components/ui/overflow-menu';
 import { useAuth } from '@/components/AuthProvider';
 import { useUpgradeModal } from '@/components/UpgradeModalProvider';
 import {
-  INDEXED_WALLETS,
+  INDEXED_WALLETS_PLUS,
   WALLETS_WITH_X,
   FARCASTER_WALLETS,
 } from '@/lib/public-figures';
@@ -2174,7 +2174,7 @@ export default function Home() {
                 wallets indexed
               </dt>
               <dd className="order-first ml-0 text-2xl font-extralight tabular-nums tracking-[var(--tracking-title)] text-foreground">
-                <RollingNumber value={indexedWallets ?? INDEXED_WALLETS} />
+                <RollingNumber value={indexedWallets ?? INDEXED_WALLETS_PLUS} />
               </dd>
               {newWallets !== null && newWallets > 0 && (
                 <dd

@@ -12,7 +12,10 @@ import {
   MagnifyingGlass,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { INDEXED_WALLETS, ATTESTED_X_SHARE_PCT } from '@/lib/public-figures';
+import {
+  INDEXED_WALLETS_PLUS,
+  ATTESTED_X_SHARE_PCT,
+} from '@/lib/public-figures';
 import { ReachabilityClaim } from '@/components/ReachabilityClaim';
 import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
 
@@ -154,7 +157,7 @@ export default function AirstackComparison() {
                 in a stretched grid cell it packs to the bottom, so a figure
                 whose caption wraps sat a line above its neighbours. */}
             <dl className="mt-8 grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
-              <Figure value={INDEXED_WALLETS} label="wallets indexed" />
+              <Figure value={INDEXED_WALLETS_PLUS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure
                 value="16-46%"
@@ -358,8 +361,8 @@ export default function AirstackComparison() {
             </h2>
             <p className="text-muted-foreground mb-4">
               We turn wallet addresses into social profiles, in the browser or
-              over a simple REST API. Our index covers {INDEXED_WALLETS} wallets
-              with complete Farcaster protocol coverage: every account’s
+              over a simple REST API. Our index covers {INDEXED_WALLETS_PLUS}{' '}
+              wallets with complete Farcaster protocol coverage: every account’s
               verified and custody addresses, usernames, and follower counts,
               refreshed daily. Over {ATTESTED_X_SHARE_PCT}% of X matches are
               user-attested: most through an X account verified on Farcaster,

@@ -2,7 +2,7 @@
 
 **One address? Look it up free at walletlink.social, in one step.** Paste it at [walletlink.social/find-twitter-account-from-wallet-address](https://walletlink.social/find-twitter-account-from-wallet-address?ref=dir-apify) and see the X handle and Farcaster account its owner published. No account, no API key and no run.
 
-This Actor is for lists, and for the reverse direction. It turns Ethereum or EVM **wallet addresses** into the **X (Twitter) handles** and **Farcaster accounts** their owners published, and finds every wallet attested to a handle. It runs on the walletlink.social index of 4.86 million wallet identities across eight onchain networks.
+This Actor is for lists, and for the reverse direction. It turns Ethereum or EVM **wallet addresses** into the **X (Twitter) handles** and **Farcaster accounts** their owners published, and finds every wallet attested to a handle. It runs on the walletlink.social index of over 4.8 million wallet identities across eight onchain networks.
 
 This Actor returns the identities a wallet owner published themselves, and labels any it could only correlate. It does not guess, and when it has nothing it says so.
 

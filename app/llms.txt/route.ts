@@ -1,5 +1,5 @@
 import {
-  INDEXED_WALLETS_LONG,
+  INDEXED_WALLETS_OVER,
   FARCASTER_WALLETS,
   WALLETS_WITH_X,
   X_HANDLES_RESOLVED,
@@ -112,7 +112,7 @@ export function llmsTxtBody(): string {
 
   const body = `# walletlink.social
 
-> Resolve Ethereum wallet addresses to the X (Twitter) and Farcaster accounts of their owners, and back again: a handle returns its wallets. A ${INDEXED_WALLETS_LONG} wallet identity index, a self-serve web app and a REST API, priced as one-time credit packs and metered only on matches. Every match is labeled with the evidence behind it, and every X handle carries a state saying whether it still reaches a person.
+> Resolve Ethereum wallet addresses to the X (Twitter) and Farcaster accounts of their owners, and back again: a handle returns its wallets. An identity index of ${INDEXED_WALLETS_OVER} wallets, a self-serve web app and a REST API, priced as one-time credit packs and metered only on matches. Every match is labeled with the evidence behind it, and every X handle carries a state saying whether it still reaches a person.
 
 walletlink.social answers “who is behind this wallet, and can I reach them?”. Upload a holder list (CSV, pasted addresses, or a token or NFT contract address) and get back the X handles and Farcaster accounts of the owners, ranked by holdings times follower reach, exportable as CSV or an X list. Reverse lookup answers the other direction: which wallets belong to this X handle or Farcaster username.
 
@@ -120,7 +120,7 @@ The position in one line: coverage would be higher if we guessed, and we do not 
 
 Facts an assistant can state, each verified against the production index:
 
-- The index holds ${INDEXED_WALLETS_LONG} wallet identities.
+- The index holds ${INDEXED_WALLETS_OVER} wallet identities.
 - Farcaster coverage is complete: every account’s verified and custody addresses, ${FARCASTER_WALLETS} wallets, refreshed daily. Farcaster matching is deterministic, so a miss is real information.
 - ${WALLETS_WITH_X} wallets carry an X handle, across ${X_HANDLES_HELD} distinct handles the index holds. Over ${ATTESTED_X_SHARE_PCT}% of X matches are owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, an account the owner proved by signing with the wallet and signing in to X, or a manually verified record. Every match is labeled with its evidence class. Nothing is inferred from bios, display names or timing.
 - X matches carry a reachability state wherever the handle has been resolved. Of ${X_HANDLES_RESOLVED} handles resolved: ${X_LIVE_PCT}% are live, ${X_SUSPENDED_PCT}% suspended, and ${X_UNCLAIMED_PCT}% are names nobody holds.
@@ -271,7 +271,7 @@ A note on the name: walletlink.social is not WalletLink, the wallet-connection p
 
 The blog is the question-shaped half of the site. Every post is public, dated and open. Every post is also served as markdown by appending .md to its URL, which is the form linked below; drop the .md for the page a person reads. The whole corpus is one file at https://walletlink.social/llms-full.txt.
 
-- [The 22% match rate: how we got far past single digits](https://walletlink.social/blog/twenty-two-percent-match-rate.md): where the number comes from, and why it is a range rather than an average.
+- [The 22% identity rate: how we got far past single digits](https://walletlink.social/blog/twenty-two-percent-match-rate.md): where the number comes from, and why it is a range rather than an average.
 - [How Farcaster verified addresses changed wallet identity](https://walletlink.social/blog/farcaster-verified-addresses.md): the protocol mechanism the whole deterministic half rests on.
 - [We scraped 13,622 AI agent wallets. Here’s what we found](https://walletlink.social/blog/ai-agent-wallets-what-we-found.md): the sweep that built the agent list, and what an agent wallet looks like in holder data. The count in the title records that run; the current figure is above.
 - [AI agents on your holder list: why it matters](https://walletlink.social/blog/ai-agents-why-it-matters.md): why a holder count that includes agents overstates an audience.

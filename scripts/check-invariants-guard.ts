@@ -6454,8 +6454,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-54: the Apify README keeps the old index size after a refresh',
     file: 'integrations/apify-actor/README.md',
-    from: 'index of 4.86 million wallet identities',
-    to: 'index of 4.85 million wallet identities',
+    from: 'index of over 4.8 million wallet identities',
+    to: 'index of over 4.7 million wallet identities',
   },
   {
     name: 'STA-54: the Apify README quotes a price no pack has',
@@ -6595,8 +6595,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-54: /vs/absolute-labs counts the attested share per handle again',
     file: 'app/vs/absolute-labs/page.tsx',
-    from: '              of X matches are links the wallet owner published themselves, and\n',
-    to: '              of the X handles were published by the wallet owner themselves, and\n',
+    from: '              {ATTESTED_X_SHARE_PCT}% of X matches are links the wallet owner\n',
+    to: '              {ATTESTED_X_SHARE_PCT}% of the X handles were published by the wallet owner\n',
   },
   {
     name: 'STA-54: /vs/nansen counts the attested share per handle again',

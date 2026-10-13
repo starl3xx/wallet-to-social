@@ -1,11 +1,12 @@
 ---
-title: 'Web3 marketing in 2025: from spray-and-pray to identity-first'
+title: 'How Web3 marketing moved from spray-and-pray to identity-first'
 meta_description: 'The evolution of Web3 marketing from Discord spam to identity-first outreach. Where the industry is heading and why match rates matter more than impressions.'
 published: true
 publish_date: '2026-04-09'
+updated_date: '2026-10-13'
 ---
 
-# Web3 marketing in 2025: from spray-and-pray to identity-first
+# How Web3 marketing moved from spray-and-pray to identity-first
 
 Web3 marketing has been through at least five distinct eras in the span of four years. Each one emerged as a response to the failures of the last. Understanding this evolution explains where the industry is heading, and why the current shift toward identity-first outreach is different from the cycles that came before.
 
@@ -87,7 +88,7 @@ Several factors converged to make this possible:
 
 **ENS maturation.** ENS text records now commonly include Twitter handles, URLs, and other social links. As ENS adoption grew past the speculative phase, the percentage of ENS holders with populated text records increased.
 
-**Aggregation tooling.** Services that combine multiple identity sources (ENS, Farcaster, Lens, aggregators) into a single resolution pipeline achieve match rates that no individual source could. The current state of the art is around 22%, against the low single digits that single-source lookups typically deliver.
+**Aggregation tooling.** Services that combine multiple identity sources (ENS, Farcaster, Lens, aggregators) into a single resolution pipeline resolve more wallets than any individual source could. The current state of the art is around 22% of a list resolved to some identity, against the low single digits that single-source lookups typically deliver.
 
 **AI agent detection.** As automated wallets proliferate, distinguishing humans from bots became essential. Identity resolution inherently filters for humans: wallets with linked social profiles are almost certainly operated by real people.
 
@@ -102,9 +103,9 @@ Each previous era was built on a proxy metric that eventually broke down:
 
 Identity-first marketing is built on a direct signal: verified wallet-to-social connections. When you resolve a wallet to a Farcaster profile with a verified address, that’s not a proxy. That’s a confirmed link between an onchain identity and a reachable person.
 
-This doesn’t mean identity-first marketing is perfect. Not every wallet resolves. Not every resolved profile leads to engagement. The 22% match rate means 78% of wallets remain anonymous.
+This doesn’t mean identity-first marketing is perfect. Not every wallet resolves. Not every resolved profile leads to engagement. A 22% identity rate means 78% of wallets remain anonymous.
 
-But 22% of a 10,000-holder community is 2,200 identified people, roughly 1,300 of them reachable on X or Farcaster. And because match rates skew toward more engaged, more connected holders, that 22% typically represents a disproportionate share of holdings, governance participation, and social influence.
+But 22% of a 10,000-holder community is 2,200 identified people, roughly 1,300 of them reachable on X or Farcaster. And because resolution skews toward more engaged, more connected holders, that 22% typically represents a disproportionate share of holdings, governance participation, and social influence.
 
 ## The practical implications
 
@@ -120,7 +121,7 @@ For project teams operating today, identity-first marketing means:
 
 ## What comes next
 
-The trajectory is clear: match rates will increase as more users adopt onchain identity standards. Farcaster’s verified addresses, ENS text records, and emerging identity protocols are all growing. The 22% match rate of 2025 will likely be 35-40% by 2027.
+The trajectory is clear: identity rates will increase as more users adopt onchain identity standards. Farcaster’s verified addresses, ENS text records, and emerging identity protocols are all growing. Today’s 22% will likely be 35-40% by 2027.
 
 As match rates climb, identity-first marketing becomes the default: not an edge, but table stakes. The projects building this muscle now are the ones that will have mature, tested outreach practices when 40% resolution makes it a competitive necessity.
 
@@ -130,4 +131,4 @@ The spray-and-pray era is ending. The question is whether you’ll adopt identit
 
 **Start with identity.**
 
-[walletlink.social](https://walletlink.social) resolves wallet addresses to the identities behind them: about 22% of a typical list resolves, and each match is labelled reachable or not. See who your holders actually are, and build marketing that reaches them directly.
+[walletlink.social](https://walletlink.social) resolves wallet addresses to the identities behind them: about 22% of a typical list resolves to some identity, roughly 13% to an X or Farcaster account you can message, and each result is labeled reachable or not. See who your holders actually are, and build marketing that reaches them directly.

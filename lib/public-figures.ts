@@ -35,16 +35,41 @@ import { SUPPORTED_CHAINS } from '@/lib/chains';
  */
 
 /**
- * Wallets with at least one linked identity, rounded for display.
+ * Wallets with at least one linked identity, as a floor: the live count
+ * rounded DOWN to one decimal.
  *
- * MUST match `/api/public-stats` `total_wallets`, which is the same predicate:
- * a twitter handle, farcaster name, ENS name, lens handle or github. Never
- * `count(*)` on the table.
+ * Same predicate as `/api/public-stats` `total_wallets`: a twitter handle,
+ * farcaster name, ENS name, lens handle or github. Never `count(*)` on the
+ * table.
+ *
+ * ## Why a floor and not the rounded count
+ *
+ * Until 2026-10-13 this was the rounded count, '4.86M', and it was within
+ * tolerance of the database. It still disagreed with the homepage: the counter
+ * there reads the live endpoint and showed 4.87M, two lines above an FAQ
+ * answer that said 4.86M. A rounded count matches the live one on the day it
+ * is written and loses that match the next time the index crosses a rounding
+ * step, which at the current rate is every few weeks. A floor is never
+ * contradicted by the live counter, because the counter can only sit above
+ * it. The figures check reads it as a ceiling with a staleness bound, so it is
+ * raised once the index has grown well past it, not every week.
+ *
+ * Print it through `INDEXED_WALLETS_PLUS` or `INDEXED_WALLETS_OVER` below,
+ * never bare: "4.8M wallets" next to a counter reading 4.87M is the
+ * disagreement this change removed. The bare values stay because two readers
+ * parse them as numbers: the preview branch of `/api/public-stats` and the
+ * figures check's declaration pattern.
  */
-export const INDEXED_WALLETS = '4.86M';
+export const INDEXED_WALLETS = '4.8M';
 
-/** The same figure written out, for prose that cannot use an abbreviation. */
-export const INDEXED_WALLETS_LONG = '4.86 million';
+/** The same floor written out, for prose that cannot use an abbreviation. */
+export const INDEXED_WALLETS_LONG = '4.8 million';
+
+/** The floor for a stat tile or a compact headline: "4.8M+". */
+export const INDEXED_WALLETS_PLUS = `${INDEXED_WALLETS}+`;
+
+/** The floor for prose: "over 4.8 million". */
+export const INDEXED_WALLETS_OVER = `over ${INDEXED_WALLETS_LONG}`;
 
 /**
  * Wallets carrying an X handle, rounded.

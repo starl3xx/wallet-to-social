@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { loadOgFonts, OG, OG_FONT_FAMILY } from '@/lib/og-fonts';
-import { INDEXED_WALLETS } from '@/lib/public-figures';
+import { INDEXED_WALLETS_PLUS } from '@/lib/public-figures';
 
 export const runtime = 'edge';
 export const alt =
@@ -108,7 +108,7 @@ export default async function OGImage() {
                 letterSpacing: '-0.03em',
               }}
             >
-              {INDEXED_WALLETS}
+              {INDEXED_WALLETS_PLUS}
             </span>
             <span
               style={{
