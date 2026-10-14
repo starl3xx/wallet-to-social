@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateMagicLinkToken, isAllowedReturnPath } from '@/lib/auth';
 import { safeAcquisition } from '@/lib/first-touch';
 import { sendMagicLink, isEmailConfigured } from '@/lib/email';
+import { isEmailShaped } from '@/lib/email-format';
 
 export const runtime = 'nodejs';
 
@@ -38,25 +39,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body: SendMagicLinkRequest = await request.json();
-    const { email } = body;
+    const email = typeof body.email === 'string' ? body.email.trim() : '';
     const acquisition = safeAcquisition(body.origin);
     const returnPath = isAllowedReturnPath(body.next ?? null)
       ? body.next
       : undefined;
 
-    // Validate email format
-    if (!email || !email.includes('@') || email.length > 254) {
+    // Checked before a token is minted, so a refused address leaves no row.
+    if (!isEmailShaped(email)) {
       return NextResponse.json(
-        { error: 'Valid email required' },
-        { status: 400 }
-      );
-    }
-
-    // Basic email format validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return NextResponse.json(
-        { error: 'Invalid email format' },
+        { error: 'Please enter a valid email address' },
         { status: 400 }
       );
     }

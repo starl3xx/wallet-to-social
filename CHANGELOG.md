@@ -2,6 +2,24 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-10-14 (sign-in refuses a mistyped address itself, in plain words)
+
+**An address copied with the period that ended its sentence,
+`name@gmail.com.`, passed the sign-in check and failed at the email
+provider.** The modal then showed Resend’s own message, “Invalid `to` field.
+The email address needs to follow the `email@example.com`...”, with its
+backticks drawn as stray accents over the letters beside them.
+
+- **One rule, in `lib/email-format.ts`, for the modal and the route.** Every
+  label of the domain must be non-empty, so a trailing period, a leading one
+  and a doubled one are refused before any token is minted. The modal checked
+  only for an `@`; the route’s pattern accepted the trailing period. Both trim
+  the address first, so a pasted space no longer fails.
+- **The provider’s message stays in the log.** A failed send now tells the
+  person “We could not send a sign-in link to that address. Check it and try
+  again.” This covers the purchase sign-in link too, which uses the same
+  sender.
+
 ### 2026-10-14 (the social queue posts three times a week, and fails loudly when it runs dry)
 
 **The social queue is refilled at a new cadence (STA-58).**
