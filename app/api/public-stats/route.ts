@@ -8,6 +8,7 @@ import {
   WALLETS_WITH_X,
   AGENT_WALLETS_FLAGGED,
 } from '@/lib/public-figures';
+import { CHAIN_LABELS, SUPPORTED_CHAINS } from '@/lib/chains';
 
 export const runtime = 'nodejs';
 
@@ -28,6 +29,17 @@ const figure = (s: string) =>
   Math.round(
     parseFloat(s.replace(/,/g, '')) * (/million|M$/.test(s) ? 1_000_000 : 1)
   );
+
+/**
+ * The supported chains, by display name, read from the chain config.
+ *
+ * Here so a page outside this repo can state the chain count without typing
+ * it. starl3xx.fun/walletlink said "seven EVM chains" for six weeks after
+ * HyperEVM made it eight, because the word was written by hand on a page that
+ * already read this endpoint for every other figure (STA-57). Not a database
+ * fact, so both branches below return the same list.
+ */
+const CHAINS = SUPPORTED_CHAINS.map((chain) => CHAIN_LABELS[chain]);
 
 export async function GET() {
   /**
@@ -51,6 +63,7 @@ export async function GET() {
       // not the detector's catalog. These disagreed 56-fold under one key.
       agents: figure(AGENT_WALLETS_FLAGGED),
       new_wallets_7d: null,
+      chains: CHAINS,
     });
   }
 
@@ -82,6 +95,7 @@ export async function GET() {
       twitter: stats?.withTwitter ?? 0,
       agents: stats?.agents ?? 0,
       new_wallets_7d: stats?.newWallets7d ?? null,
+      chains: CHAINS,
     });
   } catch (error) {
     console.error('public-stats query failed:', error);

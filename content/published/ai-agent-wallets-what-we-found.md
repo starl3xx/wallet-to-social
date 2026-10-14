@@ -3,6 +3,7 @@ title: 'We scraped 13,622 AI agent wallets. Here’s what we found'
 meta_description: 'Data breakdown of 13,622 AI agent wallets across Virtuals Protocol, ElizaOS, and Olas. How agents inflate holder counts and what to do about it.'
 published: true
 publish_date: '2026-02-27'
+updated_date: '2026-10-13'
 ---
 
 # We scraped 13,622 AI agent wallets. Here’s what we found
@@ -62,7 +63,7 @@ Agent wallets share recognizable patterns:
 - **Transaction regularity.** Agents transact at consistent intervals, often exactly every N blocks or every N minutes. Human wallets show irregular, bursty patterns.
 - **Gas optimization.** Agents almost always use gas estimation and set precise gas limits. Human wallets frequently overpay or use wallet defaults.
 - **Contract interaction patterns.** Agents call the same contract functions repeatedly with parameter variations. Humans browse, try things, make mistakes.
-- **No social graph.** This is the strongest signal. Agent wallets almost never resolve to any social identity: no ENS name, no Farcaster profile, no linked Twitter account. When we run agent wallets through identity resolution, the match rate is under 0.3%, compared to 22% for human wallets.
+- **No social graph.** This is the strongest signal. Agent wallets rarely resolve to any social identity: no ENS name, no Farcaster profile, no linked Twitter account. Run the agent wallets we hold through identity resolution and **6.2%** come back with a social identity, against about 22% of human wallets, and almost all of that 6.2% is owner-attested, because the address filed under an agent is often its creator’s own wallet.
 
 That last point is what makes identity resolution a powerful filter. If a wallet has a verified Farcaster profile or an ENS name with populated text records, it’s almost certainly human-controlled. The absence of identity doesn’t prove a wallet is an agent, but the presence of identity effectively rules it out.
 

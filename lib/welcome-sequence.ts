@@ -2,7 +2,7 @@ import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { sendLifecycleEmail, type LifecycleEmailContent } from '@/lib/email';
 import {
-  INDEXED_WALLETS_LONG,
+  INDEXED_WALLETS_OVER,
   X_HANDLES_RESOLVED,
   X_LIVE_PCT,
   X_SUSPENDED_PCT,
@@ -214,7 +214,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
             subject: 'Your credits are ready. Here’s what they do.',
             paragraphs: [
               'Hey, thanks for signing up for walletlink.social. There are credits on your account already, so here’s what you can do with them.',
-              `Upload a CSV of wallets, or paste a list. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
+              `Upload a CSV of wallets, or paste a list. We resolve each wallet against an index of ${INDEXED_WALLETS_OVER} wallet identities and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
               'A match is a wallet we resolve to an X or Farcaster account, and **wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your balance. Your credits are what open the X list export, the priority score and follower counts, contract import, and the wallet addresses behind a handle. The CSV export was never behind that line and is yours either way, every row of it.',
             ],
             button: { label: 'Run a lookup', url: SITE },
@@ -228,7 +228,7 @@ export const WELCOME_EMAILS: WelcomeEmail[] = [
               // contract import is credit-gated (`contractLocked={!entitled}`): the
               // first instruction in the first email was the one thing the reader
               // could not do. Upload and paste are the free paths, so they lead.
-              `Upload a CSV of wallets, or paste a list. We resolve each wallet against a ${INDEXED_WALLETS_LONG} wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
+              `Upload a CSV of wallets, or paste a list. We resolve each wallet against an index of ${INDEXED_WALLETS_OVER} wallet identities and return the people: X handles and Farcaster accounts, ranked by holdings times reach.`,
               // The last sentence is the boundary, and it belongs here rather than in
               // a later email. The allowance is a match count, `hasPaidAccess` is
               // binary, and an email that states only the first one lets a reader

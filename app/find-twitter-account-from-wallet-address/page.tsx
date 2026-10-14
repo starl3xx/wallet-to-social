@@ -4,7 +4,7 @@ import { WalletLookupTool } from '@/components/WalletLookupTool';
 import { SiteFooter } from '@/components/ui/site-footer';
 import { Button, FOCUS_RING } from '@/components/ui/button';
 import {
-  INDEXED_WALLETS,
+  INDEXED_WALLETS_PLUS,
   WALLETS_WITH_X,
   X_HANDLES_RESOLVED,
   X_LIVE_PCT,
@@ -152,8 +152,8 @@ export default function FindTwitterFromWalletPage() {
         <WalletLookupTool />
 
         <p className="mt-8 text-sm text-muted-foreground">
-          {INDEXED_WALLETS} wallets indexed across {CHAIN_COUNT_WORD} onchain
-          networks, {WALLETS_WITH_X} of them carrying a linked X handle.
+          {INDEXED_WALLETS_PLUS} wallets indexed across {CHAIN_COUNT_WORD}{' '}
+          onchain networks, {WALLETS_WITH_X} of them carrying a linked X handle.
         </p>
 
         <section className="mt-12">

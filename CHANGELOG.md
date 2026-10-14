@@ -2,6 +2,40 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-10-13 (the index figure is a floor, the chain list is public, and the blog says what 22% measures)
+
+**Copy that disagreed with itself or with the code (STA-57).**
+
+- **The index size is published as a floor: “over 4.8 million”, “4.8M+”.**
+  The static figure was the rounded count, 4.86M, while the homepage counter
+  read the live endpoint and showed 4.87M (4,874,227 on 2026-10-13) two lines
+  above an FAQ answer that said 4.86M. A rounded count goes stale every
+  rounding step; a floor never contradicts the live counter. Every surface
+  prints it through `INDEXED_WALLETS_PLUS` or `INDEXED_WALLETS_OVER`, and the
+  figures check reads the claim as a ceiling that turns STALE once it falls
+  more than 3% behind the index.
+- **`/api/public-stats` returns `chains`**, the supported chain names read from
+  `lib/chains.ts`. starl3xx.fun/walletlink said “seven EVM chains” for six
+  weeks after HyperEVM made it eight; it reads this list now instead of a word
+  typed by hand.
+- **The blog says what 22% measures.** It is the share of a list that resolves
+  to any identity (23.7%, CI 20.3% to 27.1%, re-measured 2026-08-13), and 17
+  posts used it as a match rate, which on this site now means a wallet
+  resolved to an X or Farcaster account. They call it the identity rate, state the
+  reachable share beside it where a reader plans on it, and no longer apply it
+  to “active Ethereum wallets”. “Web3 marketing in 2025” is retitled; every
+  slug is unchanged.
+- **Agent wallets resolve at 6.2%, not “under 0.3%”.** One post contradicted
+  the declared figure in another; it now states the same figure in the same
+  words, and the figures check reads both.
+- **The agent catalog is not the flagged count.** Two posts said 13,622+ agent
+  wallets are “flagged in the index” or “covered” by it. 13,622 is the catalog
+  the detector matches against; the index flags 141.
+- **The priority score sums Farcaster and X followers.** The formula post and
+  the README still described a Farcaster-only score.
+- **The README’s chain row no longer says HyperEVM is NFT only.** Token import
+  has worked there since 2026-09-19.
+
 ### 2026-10-01 (crawlers no longer start lookups, and the growth report counts them apart from people)
 
 **A crawler was running the holder reports (STA-56).**

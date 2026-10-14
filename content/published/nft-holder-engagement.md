@@ -3,6 +3,7 @@ title: 'NFT holder engagement: from anonymous wallets to real relationships'
 meta_description: 'NFT projects know who minted but can’t reach collectors. Learn how wallet identity resolution builds genuine holder relationships and drives secondary sales.'
 published: true
 publish_date: '2026-03-30'
+updated_date: '2026-10-13'
 ---
 
 # NFT holder engagement: from anonymous wallets to real relationships
@@ -13,7 +14,7 @@ And then nothing.
 
 The holders are there onchain, but they’re invisible. You can’t ask them what they think of the art. You can’t tell them about the upcoming collaboration. You can’t invite them to the IRL event. You have a community of collectors who chose your project with real money, and you have no way to talk to them.
 
-This is the default state of NFT projects in 2025, and it’s costing creators more than they realize.
+This is the default state of most NFT projects, and it’s costing creators more than they realize.
 
 ## The minting paradox
 
@@ -94,7 +95,7 @@ The result: secondary volume increased 40% the following week, and floor price h
 
 **Step 1: Export your holder list.** Pull current holders from your contract using Etherscan, Reservoir, or your own indexer. You need wallet addresses and token counts.
 
-**Step 2: Resolve identities.** Run the holder list through a wallet identity resolution service. At a 22% identity match rate, a 5,000-holder collection yields roughly 1,100 identified profiles; the messageable X-or-Farcaster subset runs closer to 13%, and results label which is which.
+**Step 2: Resolve identities.** Run the holder list through a wallet identity resolution service. At a 22% identity rate, a 5,000-holder collection yields roughly 1,100 identified profiles; the messageable X-or-Farcaster subset runs closer to 13%, and results label which is which.
 
 **Step 3: Calculate Priority Scores.** Rank holders by `holdings x log10(followers + 1)`. This surfaces people with both skin in the game and social reach.
 

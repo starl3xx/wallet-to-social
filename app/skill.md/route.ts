@@ -35,7 +35,7 @@
  * than being discovered missing by a reader.
  */
 import {
-  INDEXED_WALLETS_LONG,
+  INDEXED_WALLETS_OVER,
   CHAIN_MATCH_RATES,
   CHAIN_MATCH_RATES_MEASURED_ON,
 } from '@/lib/public-figures';
@@ -137,7 +137,7 @@ distinction is the product: \`attested: true\` is the owner’s own claim,
 \`attested: null\` means the record carried no classified evidence, which is a
 different claim from "not attested".
 
-The index holds ${INDEXED_WALLETS_LONG} wallets across ${CHAIN_COUNT_WORD} chains.
+The index holds ${INDEXED_WALLETS_OVER} wallets across ${CHAIN_COUNT_WORD} chains.
 
 ## Connecting
 

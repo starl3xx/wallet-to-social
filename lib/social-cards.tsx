@@ -36,7 +36,7 @@
  */
 
 import {
-  INDEXED_WALLETS,
+  INDEXED_WALLETS_PLUS,
   FARCASTER_WALLETS,
   WALLETS_WITH_X,
   X_HANDLES_RESOLVED,
@@ -237,7 +237,7 @@ export const SOCIAL_CARDS: Record<string, SocialCard> = {
     kicker: 'one index',
     headline: 'eight chains, one answer',
     emphasisWord: 'one',
-    stat: INDEXED_WALLETS,
+    stat: INDEXED_WALLETS_PLUS,
     statLabel: 'wallets indexed',
     sub: 'Ethereum, Base, Robinhood, Arbitrum, Polygon, Optimism, BNB, HyperEVM',
     cta: 'start with your list · walletlink.social',

@@ -444,17 +444,18 @@ Main page orchestrating:
 
 ### User-Facing
 
-| Endpoint                    | Method     | Purpose                                                         |
-| --------------------------- | ---------- | --------------------------------------------------------------- |
-| `/api/jobs`                 | POST       | Create new lookup job; a crawler gets a 200 that starts nothing |
-| `/api/starter-collections`  | GET        | Collections offered as a first action                           |
-| `/api/jobs/[id]`            | GET        | Get job status/results                                          |
-| `/api/jobs/[id]/unlock`     | POST       | Open a gated job's locked matches with pack credits             |
-| `/api/history`              | GET/POST   | List/save lookup history                                        |
-| `/api/history/[id]`         | GET/DELETE | Get/delete specific lookup                                      |
-| `/api/checkout`             | POST       | Create Stripe checkout; needs `acceptTerms: true`               |
-| `/api/auth/send-magic-link` | POST       | Send login email                                                |
-| `/api/auth/verify`          | GET        | Verify magic link token                                         |
+| Endpoint                    | Method     | Purpose                                                           |
+| --------------------------- | ---------- | ----------------------------------------------------------------- |
+| `/api/jobs`                 | POST       | Create new lookup job; a crawler gets a 200 that starts nothing   |
+| `/api/starter-collections`  | GET        | Collections offered as a first action                             |
+| `/api/jobs/[id]`            | GET        | Get job status/results                                            |
+| `/api/jobs/[id]/unlock`     | POST       | Open a gated job's locked matches with pack credits               |
+| `/api/history`              | GET/POST   | List/save lookup history                                          |
+| `/api/history/[id]`         | GET/DELETE | Get/delete specific lookup                                        |
+| `/api/checkout`             | POST       | Create Stripe checkout; needs `acceptTerms: true`                 |
+| `/api/auth/send-magic-link` | POST       | Send login email                                                  |
+| `/api/auth/verify`          | GET        | Verify magic link token                                           |
+| `/api/public-stats`         | GET        | Keyless index counts plus the `chains` list; read by starl3xx.fun |
 
 ### Public API (for external developers)
 

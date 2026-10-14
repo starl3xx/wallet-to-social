@@ -3,6 +3,7 @@ title: 'AI agents on your holder list: why it matters'
 meta_description: 'AI agents trade autonomously and inflate token holder counts. Learn how to detect them and why cleaning your data matters before any outreach campaign.'
 published: true
 publish_date: '2026-03-16'
+updated_date: '2026-10-13'
 ---
 
 # AI agents on your holder list: why it matters
@@ -91,7 +92,7 @@ Here’s how to clean your holder data before a campaign:
 
 1. **Export your holder list** from the chain (Etherscan, Dune, direct RPC).
 2. **Run identity resolution.** Wallets that resolve to social profiles are human. Set these aside as your verified group.
-3. **Check remaining wallets against known agent lists.** Our index covers 13,622+ agent wallets, grows monthly, and labels them directly in lookup results.
+3. **Check remaining wallets against known agent lists.** Our catalog holds 13,622+ known agent wallets, and lookup results label every one they meet.
 4. **Apply behavioral filters** to the remaining unresolved, non-listed wallets: transaction regularity, gas patterns, contract interaction analysis.
 5. **Categorize the results:**
 

@@ -3,6 +3,7 @@ title: 'From Dune dashboard to DMs: turning analytics into action'
 meta_description: 'Dune shows who holds your token. But you can’t DM a wallet address. Here’s how to bridge the gap between onchain analytics and real outreach.'
 published: true
 publish_date: '2026-05-07'
+updated_date: '2026-10-13'
 ---
 
 # From Dune dashboard to DMs: turning analytics into action
@@ -56,7 +57,7 @@ The workflow that actually works has four steps, not three:
 
 Most teams stop after step 2 because step 3 has historically been difficult. There was no reliable way to batch-resolve thousands of wallet addresses to social profiles. You could check ENS one at a time. You could search Farcaster manually. But there was no pipeline.
 
-This is exactly the problem that [walletlink.social](https://walletlink.social) solves. You take your Dune export, upload the wallet list, and get back Twitter handles, Farcaster accounts, and ENS names for every resolvable address. At current match rates, that is about 22% of wallets, enough to meaningfully act on your analytics.
+This is exactly the problem that [walletlink.social](https://walletlink.social) solves. You take your Dune export, upload the wallet list, and get back Twitter handles, Farcaster accounts, and ENS names for every resolvable address. At current rates, about 22% of wallets resolve to some identity, enough to meaningfully act on your analytics.
 
 ## A concrete example
 
@@ -107,7 +108,7 @@ The projects that close this loop have a structural advantage. Consider the comp
 
 The reason this workflow was not standard practice until recently is simple: wallet identity resolution at scale was unreliable. Match rates in the low single digits meant that resolving 2,300 wallets would give you maybe 50-60 identities. Not enough to justify the effort.
 
-At 22% match rates, the math changes. 2,300 wallets yield 500+ identities. That is a meaningful population. You can segment it, prioritize it, and build a real outreach operation around it.
+At a 22% identity rate, the math changes. 2,300 wallets yield 500+ identities. That is a meaningful population. You can segment it, prioritize it, and build a real outreach operation around it.
 
 And match rates are climbing. More users verifying on Farcaster, more ENS text records being populated, more attestation infrastructure coming online. The gap between “what Dune shows you” and “who you can actually reach” is narrowing.
 

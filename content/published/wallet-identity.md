@@ -3,10 +3,11 @@ title: 'Wallets are the new social profiles: why Web3 identity changes everythin
 meta_description: 'The wallet identity problem is being solved. Here’s what 16-46% match rates mean for token projects, DAOs, and NFT collections trying to reach their holders.'
 headline_variations:
   - 'Wallets are the new social profiles: why Web3 identity changes everything'
-  - 'From single digits to 22%: the match rate gap separating Web3 marketing success from failure'
+  - 'From single digits to 22%: the identity gap separating Web3 marketing success from failure'
   - 'The wallet identity shift: how Farcaster made your token holders findable'
 published: true
 publish_date: '2026-02-24'
+updated_date: '2026-10-13'
 ---
 
 # Wallets are the new social profiles: why Web3 identity changes everything
@@ -100,7 +101,7 @@ Let’s put this in concrete terms.
 
 A token project with 10,000 holders at a low-single-digit match rate can reach a few hundred people directly. That’s barely enough for a small Discord server.
 
-The same project at 22% can reach 2,200 people directly. That’s:
+The same project at 22% can identify 2,200 people, and roughly 1,300 of them have an X or Farcaster account it can message directly. That’s:
 
 - Enough for a meaningful governance outreach campaign
 - A substantial seed audience for any announcement
@@ -110,7 +111,7 @@ But the math gets more interesting when you look at value concentration.
 
 In most token distributions, the top 10% of holders control 80%+ of the supply. These high-value holders are disproportionately likely to have social profiles linked: they’re the builders, the early believers, the ones invested in the ecosystem.
 
-At 22% match rates, you’re not reaching a random 22% of your holders. You’re reaching a weighted sample that skews toward your most valuable community members.
+At a 22% identity rate, you’re not reaching a random 22% of your holders. You’re reaching a weighted sample that skews toward your most valuable community members.
 
 ## The comparison: old world vs. new world
 
@@ -174,13 +175,13 @@ Consider:
 - **Identity-verified communities** means Sybil resistance without friction
 - **Personalized outreach** means converting holders into advocates
 
-The tools exist today. [walletlink.social](https://walletlink.social) can process 10,000 wallets in under 2 minutes and return a 22% match rate, many times what typical tools publish.
+The tools exist today. [walletlink.social](https://walletlink.social) can process 10,000 wallets in under 2 minutes and resolve about 22% of them to some identity, many times what typical tools publish.
 
 ## What happens next
 
 The wallet identity gap is closing.
 
-As more users connect wallets to Farcaster, as ENS adoption grows, as onchain identity standards mature, match rates will climb. The 22% we see today will be 40% in two years.
+As more users connect wallets to Farcaster, as ENS adoption grows, as onchain identity standards mature, identity rates will climb. The 22% we see today will be 40% in two years.
 
 Projects that build identity-first marketing practices now will have a structural advantage. They’ll know their community. They’ll reach their holders. They’ll build genuine relationships instead of shouting into the void.
 
@@ -196,4 +197,4 @@ The question is whether you’ll build this capability before your competitors d
 
 [walletlink.social](https://walletlink.social) resolves wallet addresses to Twitter and Farcaster profiles. Upload your CSV, get results in minutes, see the 22% difference for yourself.
 
-10K wallets. Under 2 minutes. A 22% match rate.
+10K wallets. Under 2 minutes. A 22% identity rate.

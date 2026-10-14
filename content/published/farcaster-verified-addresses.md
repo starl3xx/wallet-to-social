@@ -3,6 +3,7 @@ title: 'How Farcaster verified addresses changed wallet identity'
 meta_description: 'Technical explanation of how Farcaster’s cryptographic wallet verification delivers 3x better match rates than ENS text records alone.'
 published: true
 publish_date: '2026-03-19'
+updated_date: '2026-10-13'
 ---
 
 # How Farcaster verified addresses changed wallet identity
@@ -143,7 +144,7 @@ From an identity resolution perspective, Farcaster’s design choices solve real
 
 ## The remaining gap
 
-Even with Farcaster, we’re at 22% match rates, not 100%. The 78% of unresolved wallets fall into several categories:
+Even with Farcaster, about 22% of a typical list resolves to an identity, not 100%. The 78% of unresolved wallets fall into several categories:
 
 - **Exchange deposit addresses**: not personal wallets at all
 - **Contract addresses**: multisigs, smart wallets, DeFi positions
@@ -157,7 +158,7 @@ As Farcaster adoption grows (active users have increased roughly 10x since early
 
 The shift from claim-based identity (ENS text records) to proof-based identity (Farcaster verified addresses) is the most important technical development in wallet identity resolution.
 
-It’s the reason walletlink.social achieves 22% match rates where ENS-only approaches top out around 7%. And it’s the foundation for even higher match rates as Farcaster continues to grow.
+It’s the reason walletlink.social resolves about 22% of a typical list where ENS-only approaches top out around 7%. And it’s the foundation for higher rates still as Farcaster continues to grow.
 
 ---
 

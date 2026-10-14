@@ -3,6 +3,7 @@ title: 'The priority score formula: finding your most valuable holders'
 meta_description: 'How the priority score formula (holdings x log10 followers) surfaces your best ambassador candidates by combining token position with social reach.'
 published: true
 publish_date: '2026-03-09'
+updated_date: '2026-10-13'
 ---
 
 # The priority score formula: finding your most valuable holders
@@ -19,7 +20,7 @@ That’s the problem the priority score solves.
 Priority Score = Holdings x log10(followers + 1)
 ```
 
-That’s it. Holdings is the raw token balance (or USD value, depending on your preference). Followers is the Farcaster follower count of the matched profile, the one follower figure the product can attest. The `+1` prevents the log of zero for accounts with no followers.
+That’s it. Holdings is the raw token balance (or USD value, depending on your preference). Followers is the reach of the matched profiles: the Farcaster follower count plus the X follower count, summed. Somebody reachable on both is more reachable than on one, and the logarithm keeps an overlapping audience from counting twice in any meaningful way. The `+1` prevents the log of zero for accounts with no followers.
 
 The logarithmic scale on followers is the key design choice. Here’s why.
 
@@ -92,7 +93,7 @@ Holder #5 in the priority list (@web3_educator) holds only 180,000 tokens (ranke
 
 The formula isn’t perfect. A few situations where it needs manual judgment:
 
-**Multi-platform presence.** The score reads Farcaster followers only, because that is the count the product can attest. A holder with a large X audience and a small Farcaster one scores low even though they might be more valuable for cross-platform outreach. The score doesn’t capture this.
+**Multi-platform presence.** The score sums Farcaster and X followers, so a holder with a large X audience and a small Farcaster one now ranks on the X audience. It does not weigh one platform above the other, and a person followed by the same people on both is counted on both; the logarithm shrinks that overlap to almost nothing, but it does not remove it.
 
 **Engagement rate.** A holder with 50,000 followers and 0.1% engagement rate is less useful than one with 5,000 followers and 10% engagement rate. Follower count is a proxy for reach, not influence. We’re exploring engagement-weighted variants but haven’t shipped them yet.
 

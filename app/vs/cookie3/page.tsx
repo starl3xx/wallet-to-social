@@ -13,7 +13,7 @@ import {
   X,
 } from '@phosphor-icons/react/dist/ssr';
 import {
-  INDEXED_WALLETS,
+  INDEXED_WALLETS_PLUS,
   KNOWN_AGENTS,
   KNOWN_AGENTS_SHORT,
 } from '@/lib/public-figures';
@@ -181,7 +181,7 @@ export default function Cookie3Comparison() {
                 in a stretched grid cell it packs to the bottom, so a figure
                 whose caption wraps sat a line above its neighbours. */}
             <dl className="mt-8 grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
-              <Figure value={INDEXED_WALLETS} label="wallets indexed" />
+              <Figure value={INDEXED_WALLETS_PLUS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure
                 value="16-46%"

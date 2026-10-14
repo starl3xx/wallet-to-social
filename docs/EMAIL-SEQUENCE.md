@@ -165,7 +165,7 @@ code disagree with it on three emails.
 
 Hey, thanks for signing up for walletlink.social. Here’s what you can do with it.
 
-Upload a CSV of wallets, or paste a list. We resolve each wallet against a 4.8 million wallet identity index and return the people: X handles and Farcaster accounts, ranked by holdings times reach.
+Upload a CSV of wallets, or paste a list. We resolve each wallet against an index of over 4.8 million wallet identities and return the people: X handles and Farcaster accounts, ranked by holdings times reach.
 
 You have 100 free matches in a rolling 30-day window. A match is a wallet we resolve to an X or Farcaster account. **Wallets we can’t resolve cost nothing**, so a low-match list spends almost none of your allowance. The CSV export is yours either way, every row of it. What credits add is the X list export, the priority score and follower counts, contract import, and the wallet addresses behind a handle.
 

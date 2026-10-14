@@ -4,7 +4,7 @@ meta_description: 'Blaze left web3 in 2026. An archived comparison of walletlink
 published: true
 publish_date: '2026-04-02'
 # The day the update note below was written, from git log for this file.
-updated_date: '2026-08-13'
+updated_date: '2026-10-13'
 ---
 
 # walletlink.social vs Blaze: comparison guide
@@ -37,15 +37,15 @@ This distinction mattered more than any individual feature comparison.
 | Community analytics dashboard     | No                              | Yes                      |
 | Discord/Telegram integration      | No                              | Yes                      |
 | Airdrop targeting tools           | Export-based                    | Built-in                 |
-| Match rate (reported)             | 22%                             | ~5-8% (varied)           |
+| Identity rate (reported)          | 22%                             | ~5-8% (varied)           |
 | Pricing model                     | One-time payment                | Monthly subscription     |
 | Free tier                         | 100 matches per rolling 30 days | Limited trial            |
 
 ## Match rate: the core metric
 
-For wallet-to-social resolution specifically, match rate is the number that matters. A tool that resolves 22% of your wallets gives you 4x more actionable data than one resolving 5%.
+For wallet-to-social resolution specifically, the share of wallets resolved is the number that matters. A tool that resolves 22% of your wallets gives you 4x more actionable data than one resolving 5%.
 
-walletlink.social reports a 22% match rate, many times the low-single-digit rates typical tools publish. Over 99.8% of its X matches come from deterministic, user-attested sources: Farcaster verified addresses, onchain records such as ENS, attested social sign-ins and manually verified records, held in a persistent social graph. The remainder is correlated from identity indexes and carries that as its evidence class, so every match tells you how it was established. (As of August 2026, Farcaster matching is backed by an in-house index of the complete Farcaster protocol.)
+walletlink.social resolves about 22% of a typical list to some identity, and about 13% to an X or Farcaster account you can message, many times the low-single-digit rates typical tools publish. Over 99.8% of its X matches come from deterministic, user-attested sources: Farcaster verified addresses, onchain records such as ENS, attested social sign-ins and manually verified records, held in a persistent social graph. The remainder is correlated from identity indexes and carries that as its evidence class, so every match tells you how it was established. (As of August 2026, Farcaster matching is backed by an in-house index of the complete Farcaster protocol.)
 
 Blaze’s match rate varied depending on the community type and data sources used. Published benchmarks were hard to find, but users reported rates in the 5-8% range for general wallet lists. Blaze compensated by offering more tools to act on the data it did resolve.
 
@@ -77,7 +77,7 @@ The economic comparison depended on the use case:
 
 ## When walletlink.social was (and is) the right choice
 
-**You need the highest possible match rate.** If your goal is to identify as many holders as possible from a wallet list, the 22% match rate was the primary differentiator. More matches means more actionable data.
+**You need to resolve as much of your list as possible.** If your goal is to identify as many holders as possible from a wallet list, the 22% identity rate was the primary differentiator. More identities means more actionable data.
 
 **You want a one-time resolution, not a subscription.** Running a specific campaign, preparing an airdrop, or doing holder analysis for a proposal: these are discrete tasks. Pay once, get results, move on.
 
@@ -136,4 +136,4 @@ There was no universally correct answer: it depended on whether you needed a sca
 
 **Migrating from Blaze, or just want to test the match rate?**
 
-[walletlink.social](https://walletlink.social) is free for your first 100 matches in every rolling 30-day window. Upload a sample of your holder list and see the 22% match rate firsthand, no subscription required. If you’re coming from Blaze, the [migration guide](https://walletlink.social/vs/blaze) covers the full switch.
+[walletlink.social](https://walletlink.social) is free for your first 100 matches in every rolling 30-day window. Upload a sample of your holder list and see the 22% identity rate firsthand, no subscription required. If you’re coming from Blaze, the [migration guide](https://walletlink.social/vs/blaze) covers the full switch.

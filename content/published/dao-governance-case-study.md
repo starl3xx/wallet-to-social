@@ -3,6 +3,7 @@ title: 'Case study: how a DAO increased governance participation from 5% to 22%'
 meta_description: 'A DAO used wallet identity resolution to reach their most engaged holders directly. Governance participation jumped 4x in 30 days.'
 published: true
 publish_date: '2026-03-02'
+updated_date: '2026-10-13'
 ---
 
 # Case study: how a DAO increased governance participation from 5% to 22%
@@ -196,7 +197,7 @@ Low participation often isn’t apathy; it’s invisibility. Holders can’t vot
 **The math:**
 
 - 10K wallets processed in under 2 minutes
-- 22% average match rate
+- 22% of holders resolved to an identity
 - 34%+ for governance-focused communities
 
 Every DAO thinks they have a participation problem. Most actually have an identity problem.

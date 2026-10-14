@@ -16,7 +16,7 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import { AuthProvider } from '@/components/AuthProvider';
 import { UpgradeModalProvider } from '@/components/UpgradeModalProvider';
 import './globals.css';
-import { INDEXED_WALLETS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
+import { INDEXED_WALLETS_PLUS, CHAIN_COUNT_WORD } from '@/lib/public-figures';
 import { HOME_DESCRIPTION, HOME_TITLE } from '@/lib/home-metadata';
 
 // Söhne is self-hosted from public/fonts and declared in globals.css, so there
@@ -68,14 +68,14 @@ export const metadata: Metadata = {
   ],
   openGraph: {
     title: HOME_TITLE,
-    description: `Turn wallet addresses into Twitter and Farcaster profiles across ${CHAIN_COUNT_WORD} EVM chains: ${CHAIN_LIST}. Backed by a ${INDEXED_WALLETS}-wallet index. No sales calls.`,
+    description: `Turn wallet addresses into Twitter and Farcaster profiles across ${CHAIN_COUNT_WORD} EVM chains: ${CHAIN_LIST}. Backed by an index of ${INDEXED_WALLETS_PLUS} wallets. No sales calls.`,
     type: 'website',
     siteName: 'walletlink.social',
   },
   twitter: {
     card: 'summary_large_image',
     title: HOME_TITLE,
-    description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Wallet-to-social lookup across ${CHAIN_COUNT_WORD} EVM chains.`,
+    description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Backed by an identity index of ${INDEXED_WALLETS_PLUS} wallets with complete Farcaster coverage. Wallet-to-social lookup across ${CHAIN_COUNT_WORD} EVM chains.`,
     creator: '@starl3xx',
   },
   alternates: {
@@ -158,7 +158,7 @@ const softwareApplication = {
   publisher: { '@id': ORGANIZATION_ID },
   provider: { '@id': ORGANIZATION_ID },
   isPartOf: { '@id': WEBSITE_ID },
-  description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Wallet-to-social lookup tool backed by a ${INDEXED_WALLETS}-wallet identity index with complete Farcaster coverage. Automatically identifies AI agent wallets.`,
+  description: `Find your DeFi users, NFT holders, and AI agents on Twitter and Farcaster. Wallet-to-social lookup tool backed by an identity index of ${INDEXED_WALLETS_PLUS} wallets with complete Farcaster coverage. Automatically identifies AI agent wallets.`,
   /**
    * Credit packs. A match is a wallet resolved to an X or Farcaster account,
    * and a miss costs nothing, which is why every price here is quoted against

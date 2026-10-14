@@ -13,7 +13,7 @@ import {
   X,
 } from '@phosphor-icons/react/dist/ssr';
 import {
-  INDEXED_WALLETS,
+  INDEXED_WALLETS_PLUS,
   CHAIN_COUNT_WORD,
   ATTESTED_X_SHARE_PCT,
 } from '@/lib/public-figures';
@@ -161,7 +161,7 @@ export default function NansenComparison() {
             </div>
 
             <dl className="mt-8 grid grid-cols-2 items-start gap-x-8 gap-y-6 border-t border-border pt-6 sm:grid-cols-4">
-              <Figure value={INDEXED_WALLETS} label="wallets indexed" />
+              <Figure value={INDEXED_WALLETS_PLUS} label="wallets indexed" />
               <Figure value="100%" label="Farcaster coverage" attested />
               <Figure
                 value="16-46%"
@@ -467,10 +467,10 @@ export default function NansenComparison() {
               <li>Send it to an X list, or to whatever CRM you already run</li>
             </ol>
             <p className="text-muted-foreground">
-              The index holds {INDEXED_WALLETS} wallets with complete Farcaster
-              protocol coverage, refreshed daily. A wallet that resolves to
-              nothing costs nothing: billing is per address that matched, not
-              per address submitted.
+              The index holds {INDEXED_WALLETS_PLUS} wallets with complete
+              Farcaster protocol coverage, refreshed daily. A wallet that
+              resolves to nothing costs nothing: billing is per address that
+              matched, not per address submitted.
             </p>
           </section>
 

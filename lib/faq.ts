@@ -6,8 +6,8 @@ import {
   CREDIT_LIFETIME_MONTHS,
 } from '@/lib/packs';
 import {
-  INDEXED_WALLETS,
-  INDEXED_WALLETS_LONG,
+  INDEXED_WALLETS_PLUS,
+  INDEXED_WALLETS_OVER,
   WALLETS_WITH_X,
   CHAIN_COUNT_WORD,
   CHAIN_MATCH_RATES,
@@ -186,7 +186,7 @@ export const FAQ: readonly FaqEntry[] = [
     answer: [
       {
         kind: 'p',
-        text: `Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social never fingerprints. Over ${ATTESTED_X_SHARE_PCT}% of Twitter matches are owner-attested (Farcaster verifications, onchain ENS records, and accounts proven by wallet signature), the rest are correlated from identity indexes and labeled as such, and every match carries the class of evidence behind it so you can set your own threshold. The index covers ${INDEXED_WALLETS} wallets with complete Farcaster coverage.`,
+        text: `Unlike Addressable which requires sales calls and enterprise contracts, walletlink.social offers instant self-serve access. You can start for free immediately, with simple one-time pricing instead of monthly subscriptions. Addressable’s matched-owner counts are built with probabilistic “fingerprinting”; walletlink.social never fingerprints. Over ${ATTESTED_X_SHARE_PCT}% of Twitter matches are owner-attested (Farcaster verifications, onchain ENS records, and accounts proven by wallet signature), the rest are correlated from identity indexes and labeled as such, and every match carries the class of evidence behind it so you can set your own threshold. The index covers ${INDEXED_WALLETS_PLUS} wallets with complete Farcaster coverage.`,
       },
     ],
   },
@@ -206,7 +206,7 @@ export const FAQ: readonly FaqEntry[] = [
     answer: [
       {
         kind: 'p',
-        text: `The index covers ${INDEXED_WALLETS_LONG} wallets with at least one linked social identity. Farcaster coverage is complete: every account’s verified and custody addresses, refreshed daily. Over ${WALLETS_WITH_X} wallets have a linked Twitter handle, nearly all of them owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X.`,
+        text: `The index covers ${INDEXED_WALLETS_OVER} wallets with at least one linked social identity. Farcaster coverage is complete: every account’s verified and custody addresses, refreshed daily. Over ${WALLETS_WITH_X} wallets have a linked Twitter handle, nearly all of them owner-attested: an X account verified on Farcaster, a handle the owner set in an onchain ENS record, or an account the owner proved by signing with the wallet and signing in to X.`,
       },
     ],
   },

@@ -3,6 +3,7 @@ title: 'walletlink.social vs Addressable: a practical comparison'
 meta_description: 'Honest comparison of walletlink.social and Addressable for wallet identity resolution. Different tools for different needs. Here’s when each makes sense.'
 published: true
 publish_date: '2026-03-05'
+updated_date: '2026-10-13'
 ---
 
 # walletlink.social vs Addressable: a practical comparison
@@ -64,7 +65,7 @@ This is where we have less data to share, because Addressable doesn’t publish 
 
 What we can say:
 
-- walletlink.social achieves a **22% match rate** across general wallet populations, driven by combining onchain ENS records, protocol-level Farcaster verifications, and correlated identity data.
+- walletlink.social resolves about **22%** of a general wallet population to some identity, and about 13% to an X or Farcaster account, driven by combining onchain ENS records, protocol-level Farcaster verifications, and correlated identity data.
 - Typical published rates for wallet-to-social resolution across the industry sit in the **low single digits**.
 - Addressable uses proprietary data sources and machine learning to match wallets, which likely gives them strong performance on certain wallet populations.
 

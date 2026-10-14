@@ -3,6 +3,7 @@ title: 'The wallet identity stack: ENS, Farcaster, and beyond'
 meta_description: 'Technical overview of wallet identity data sources: ENS text records, Farcaster verified addresses, Lens profiles, and identity aggregators.'
 published: true
 publish_date: '2026-04-20'
+updated_date: '2026-10-13'
 ---
 
 # The wallet identity stack: ENS, Farcaster, and beyond
@@ -146,7 +147,7 @@ Several hub APIs expose an addresses-to-users lookup and support batching hundre
 - May lag behind primary sources for very recent verifications
 - Response format may not include all metadata from each source
 
-**Typical match rate contribution:** an aggregator’s contribution is the sum of its sources minus overlap. A well-configured pipeline pairing an aggregator with direct protocol-level Farcaster lookups typically yields 18-22% total match rates.
+**Typical match rate contribution:** an aggregator’s contribution is the sum of its sources minus overlap. A well-configured pipeline pairing an aggregator with direct protocol-level Farcaster lookups typically resolves 18-22% of a list to some identity.
 
 ### Other sources
 
@@ -214,7 +215,7 @@ If you’re building your own resolution system, the recommended architecture is
 4. **Deduplication**: merge results where multiple sources resolve the same wallet
 5. **Confidence scoring**: weight matches by source verification strength
 
-Alternatively, use a service like [walletlink.social](https://walletlink.social) that solves the same problem at scale and returns matches already deduplicated, quality-scored and labelled with the class of evidence behind each one. The 22% match rate reflects the combined output of all major sources with deduplication and quality filtering applied.
+Alternatively, use a service like [walletlink.social](https://walletlink.social) that solves the same problem at scale and returns matches already deduplicated, quality-scored and labeled with the class of evidence behind each one. The 22% identity rate reflects the combined output of all major sources with deduplication and quality filtering applied.
 
 ## Where the stack is heading
 

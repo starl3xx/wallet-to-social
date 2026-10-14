@@ -3,6 +3,7 @@ title: 'Nine things to build with a wallet address, and the calls that do them'
 meta_description: 'Nine worked recipes for turning Ethereum addresses into people: holder outreach, airdrop screening, list auditing, and three that only work once an agent can call the API itself.'
 published: true
 publish_date: '2026-08-25'
+updated_date: '2026-10-13'
 ---
 
 # Nine things to build with a wallet address, and the calls that do them
@@ -38,7 +39,7 @@ That last point matters more than it reads. A list of 10,000 addresses is 200 ca
 
 Two fields decide this, and they answer different questions.
 
-`agent.is_agent` marks a wallet we have identified as belonging to an autonomous agent rather than a person: 13,622+ agent wallets are flagged in the index. If your allocation is meant for humans, these are the rows to drop first.
+`agent.is_agent` marks a wallet we have identified as belonging to an autonomous agent rather than a person, matched against a catalog of 13,622+ known agent wallets. If your allocation is meant for humans, these are the rows to drop first.
 
 The second is `twitter.verified`, and the name undersells it. It does not mean a blue tick. It means the link between this address and this handle was published by the address owner, onchain or in a signed record, rather than correlated by a third party. An attested link is expensive to fake because faking it means controlling the wallet.
 

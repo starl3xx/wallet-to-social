@@ -1,19 +1,21 @@
 ---
-title: 'The 22% match rate: how we got far past single digits'
+title: 'The 22% identity rate: how we got far past single digits'
 meta_description: 'Technical deep dive into how combining onchain records, protocol verifications, identity indexes and a social graph achieves a 16-46% wallet-to-social match rate, measured by chain.'
 published: true
 publish_date: '2026-03-26'
 # The day the update note below was written, from git log for this file.
 # Authored, never the clock: scripts/check-invariants.ts refuses a
 # structured-data date that comes from a clock read.
-updated_date: '2026-08-13'
+updated_date: '2026-10-13'
 ---
 
-# The 22% match rate: how we got far past single digits
+# The 22% identity rate: how we got far past single digits
 
 > **Update, August 2026:** Farcaster matching is now backed by our own index of the complete Farcaster protocol (every FID’s verified and custody addresses, 4.7M wallets, refreshed daily), so Farcaster matches are deterministic rather than best-effort API lookups. The pipeline and per-source contribution figures below describe the original architecture and predate the full index; treat them as historical context.
 >
 > **The 22% figure was re-measured on 2026-08-13 and holds.** See the verification below.
+>
+> **Update, October 2026:** this post first called 22% a match rate. On walletlink.social a match now means one thing: a wallet resolved to an X or Farcaster account, the unit a pack is billed in. 22% is the wider figure, the share of a list that resolves to any identity (ENS, Lens and GitHub included). The share you can message is the X-or-Farcaster row in the table below, and it depends heavily on the chain. The [coverage page](https://docs.walletlink.social/concepts/coverage) has the measured rate for each chain.
 
 ## Verification: re-measured 2026-08-13
 
@@ -45,7 +47,7 @@ Where the index is still thin is ENS: index-only “any identity” is 13-15% ag
 
 Tools that resolve wallets to social identities typically publish rates in the low single digits. That means if you have 10,000 wallet addresses, most tools will identify social profiles for a few hundred of them at best.
 
-walletlink.social matches 2,200 out of those 10,000, a 22% match rate. This post explains exactly how, covering the data sources, the pipeline architecture, and where each source contributes.
+walletlink.social resolves 2,200 out of those 10,000 to at least one identity, a 22% identity rate. This post explains exactly how, covering the data sources, the pipeline architecture, and where each source contributes.
 
 ## Why single digits is the baseline
 
@@ -166,13 +168,13 @@ The deduplication step normalizes handles, matches across platforms, and produce
 
 Across a representative sample of 500,000 wallets:
 
-| Source                      | Wallets matched | % of total matches | Unique contribution |
-| --------------------------- | --------------- | ------------------ | ------------------- |
-| Farcaster                   | 75,000          | 68.2%              | 42,000 (38.2%)      |
-| ENS                         | 35,500          | 32.3%              | 14,000 (12.7%)      |
-| Identity indexes            | 18,000          | 16.4%              | 3,300 (3.0%)        |
-| Social graph                | 11,500          | 10.5%              | 2,200 (2.0%)        |
-| **Combined (deduplicated)** | **110,000**     | **100%**           | **22% match rate**  |
+| Source                      | Wallets matched | % of total matches | Unique contribution   |
+| --------------------------- | --------------- | ------------------ | --------------------- |
+| Farcaster                   | 75,000          | 68.2%              | 42,000 (38.2%)        |
+| ENS                         | 35,500          | 32.3%              | 14,000 (12.7%)        |
+| Identity indexes            | 18,000          | 16.4%              | 3,300 (3.0%)          |
+| Social graph                | 11,500          | 10.5%              | 2,200 (2.0%)          |
+| **Combined (deduplicated)** | **110,000**     | **100%**           | **22% identity rate** |
 
 Note that the percentages in the “% of Total Matches” column sum to more than 100% because many wallets are matched by multiple sources. The “Unique Contribution” column shows wallets found by that source and no other.
 
@@ -202,7 +204,7 @@ Three factors will improve match rates over time:
 
 ## The takeaway
 
-The 22% match rate isn’t a single technique. It’s four data sources, a merge pipeline that handles conflicts and deduplication, and a social graph that compounds over time.
+The 22% identity rate isn’t a single technique. It’s four data sources, a merge pipeline that handles conflicts and deduplication, and a social graph that compounds over time.
 
 Any single source peaks around 7-15%. Combining them pushes to 22% because the overlap between sources is smaller than you’d expect: different identity platforms attract different user populations.
 

@@ -3,6 +3,7 @@ title: 'How to find the X account behind an Ethereum wallet'
 meta_description: 'Three ways to find the Twitter or X account behind an Ethereum address, what each one actually proves, and why most wallets still have no answer.'
 published: true
 publish_date: '2026-08-24'
+updated_date: '2026-10-13'
 ---
 
 # How to find the X account behind an Ethereum wallet
@@ -58,7 +59,7 @@ Connected X: alice_crypto
 
 The X handle attached to a Farcaster profile is connected through an OAuth flow, which means X itself confirmed the account at the moment it was linked. So this path gives you two verified halves: the wallet proved by a signature, and the X account proved by OAuth.
 
-That is why Farcaster is the largest single source in our index by a wide margin. The index holds 4.86 million wallet identities. Of those, 4.7 million Farcaster wallets came from the protocol itself, and 1.20 million wallets have a linked Twitter handle.
+That is why Farcaster is the largest single source in our index by a wide margin. The index holds over 4.8 million wallet identities. Of those, 4.7 million Farcaster wallets came from the protocol itself, and 1.20 million wallets have a linked Twitter handle.
 
 **Do this when:** you want the strongest proof available. This is the closest thing to certainty in wallet identity.
 
