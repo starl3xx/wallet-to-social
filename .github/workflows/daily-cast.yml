@@ -1,11 +1,19 @@
-# The Farcaster half of the daily social pipeline: casts the day's queued
-# post as @walletlink with its on-brand card embedded. The X half is
+# The Farcaster half of the social pipeline: casts the queued post that is
+# due as @walletlink with its on-brand card embedded. The X half is
 # scheduled in Typefully and never runs here.
 #
-# One cast per UTC day, idempotent (checkpointed in ingest_state), budget-
-# guarded like every other Neynar cron, and loud when the queue runs low.
-# The queue itself lives in content/social/queue.json and changes by PR,
-# so every post that will ever be cast has been through review.
+# Three posts a week since 2026-10-13, Monday, Wednesday and Friday. It was
+# daily until then and kept its name, because the name is also the run
+# history and the checkpoint key. The schedule below is the cadence:
+# scripts/check-social-queue.ts reads its weekday field and fails a PR whose
+# queue dates a post on a day this cron never runs, or skips one it does.
+#
+# Each post is cast once (checkpointed in ingest_state), budget-guarded like
+# every other Neynar cron, warns as the queue runs low, and FAILS once the
+# queue has run dry, so an empty queue shows as a red run rather than a
+# green one that cast nothing. The queue lives in content/social/queue.json
+# and changes by PR, so every post that will ever be cast has been through
+# review.
 #
 # Required repository secrets: DATABASE_URL (sweep_runner; needs the
 # ingest_state write the harvest grant script already gave it),
@@ -15,7 +23,7 @@ name: daily-cast
 
 on:
   schedule:
-    - cron: '35 17 * * *' # 17:35 UTC, half an hour after the X slot
+    - cron: '35 17 * * 1,3,5' # Mon, Wed, Fri 17:35 UTC, after the X slot
   workflow_dispatch: {}
 
 concurrency:

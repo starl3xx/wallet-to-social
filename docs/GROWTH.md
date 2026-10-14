@@ -485,6 +485,43 @@ generating revenue before spending. Free surfaces only.
 Newest first. One row per intervention, with what it was expected to move, so a
 later reader can check whether it did.
 
+### 2026-10-14: the social queue, three posts a week (STA-58)
+
+The queue ran dry after 2026-10-09 and the Farcaster half cast nothing from
+2026-10-10, while every `daily-cast` run passed: an empty queue exited 0 with a
+warning annotation nobody reads. Typefully had been scheduled to the end of
+the same queue, so the X half stopped with it.
+
+The 2026-09-16 entry below set the test for this refill: if a month of tagged
+posts still drew single figures, cut the channel rather than refill it. The
+owner’s count on 2026-10-13 was about 112 posts in 30 days for 18 sessions and
+2 signups. The decision was to cut the cadence, not the channel: three posts a
+week, Monday, Wednesday and Friday, because prospects reached by cold outreach
+check @walletlinkETH, and an account that stopped posting reads as a product
+that stopped.
+
+Shipped:
+
+- **18 posts, 2026-10-16 to 2026-11-25**, written for teams and agencies who
+  want to reach their holders: airdrops, governance, launches, ambassadors,
+  retention, agency packs, contract import and Farcaster DMs. The previous
+  month leaned on developers and agents. Every figure comes from
+  `lib/public-figures.ts` or `lib/packs.ts`, and every link is tagged.
+- **Each queue entry carries its own `date`.** `check:social` reads the
+  weekdays from the `daily-cast` cron and fails a post dated on a day the cast
+  never runs, or a cast day left without a post.
+- **A dry queue fails the run.** `daily-cast` exits 1 once the last post is
+  more than a day old, so the next dry spell is a red run and an email, and
+  it warns from six posts out. The growth report’s watchlist reads the dates
+  too.
+
+Expected to move: sessions per post, not sessions. At the daily rate (18 from
+about 112) these 18 posts would bring about 3 tagged sessions. More than that
+per post is the evidence that writing for teams with a holder list beats the
+developer mix; the same or less says the channel is presence only, and the
+next refill should be judged as that. Read the named-sources table on
+2026-11-25, when the queue ends.
+
 ### 2026-10-01: a crawler was running the holder reports (STA-56)
 
 On 2026-09-30 between 17:27 and 17:40 UTC, 28 sessions with no referrer and no

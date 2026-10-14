@@ -1,12 +1,21 @@
 /**
- * Guards the daily social queue the way check-published-figures guards the
- * site: every post that will ever be cast or scheduled has to pass here
- * first, at PR time, because a queued post fails much later than the diff
- * that introduced it and by then it has published itself.
+ * Guards the social queue the way check-published-figures guards the site:
+ * every post that will ever be cast or scheduled has to pass here first, at
+ * PR time, because a queued post fails much later than the diff that
+ * introduced it and by then it has published itself.
  *
  * What it asserts:
- * 1. Shape: days numbered 1..N with unique slugs; every day's slug has a
- *    card in SOCIAL_CARDS and every card is used by some day.
+ * 1. Shape: posts numbered 1..N with unique slugs and strictly ascending
+ *    UTC dates; every post's slug has a card in SOCIAL_CARDS and every card
+ *    is used by some post.
+ * 1b. Cadence: every post after the daily runway falls on a weekday the
+ *    `daily-cast` cron runs, and no cron day between the first and last of
+ *    them is left without a post. The cron is read from the workflow, so the
+ *    schedule and the calendar cannot drift apart: a post dated on a day the
+ *    cast never runs would go out on X and never on Farcaster, and a skipped
+ *    slot is a silent gap nobody chose. The calendar logic in
+ *    `lib/social-queue.ts` is driven here against synthetic queues, refusals
+ *    first.
  * 2. Length: an X post fits one tweet (each URL counted as 23, X's t.co
  *    length; 270 ceiling leaves headroom under 280). A Farcaster cast stays
  *    inside the ~320-byte display window; the hard 1024 wall is re-checked
@@ -51,38 +60,204 @@ import {
   CREDIT_LIFETIME_MONTHS,
 } from '../lib/packs';
 
-interface QueueDay {
-  day: number;
-  slug: string;
-  x: { text: string; link: string };
-  fc: { text: string; link: string };
-}
-interface Queue {
-  start: string;
-  days: QueueDay[];
-}
+import {
+  duePost,
+  utcDayNumber,
+  utcWeekday,
+  type QueuePost,
+  type SocialQueue,
+} from '../lib/social-queue';
 
 const failures: string[] = [];
 const fail = (msg: string) => failures.push(msg);
 
-const queue: Queue = JSON.parse(
+const queue: SocialQueue & { start?: unknown } = JSON.parse(
   readFileSync(join(process.cwd(), 'content/social/queue.json'), 'utf8')
 );
 
 /* ---------- 1. shape ---------- */
 
-if (!/^\d{4}-\d{2}-\d{2}$/.test(queue.start)) {
-  fail(`start "${queue.start}" is not YYYY-MM-DD`);
+// The queue was a start date plus one post per day until 2026-10-13. A
+// `start` left in the file would read as the schedule and is not one.
+if (queue.start !== undefined) {
+  fail('"start" is retired: each post carries its own "date"');
 }
+
+function isUtcDate(date: unknown): date is string {
+  return (
+    typeof date === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(date) &&
+    !Number.isNaN(Date.parse(`${date}T00:00:00Z`)) &&
+    new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date
+  );
+}
+
 const slugs = new Set<string>();
+let datesInOrder = true;
 queue.days.forEach((d, i) => {
   if (d.day !== i + 1) fail(`day ${d.day} at position ${i} breaks 1..N order`);
   if (slugs.has(d.slug)) fail(`duplicate slug "${d.slug}"`);
   slugs.add(d.slug);
   if (!SOCIAL_CARDS[d.slug]) fail(`day ${d.day}: no card for slug "${d.slug}"`);
+  if (!isUtcDate(d.date)) {
+    fail(`day ${d.day}: date "${d.date}" is not a real YYYY-MM-DD`);
+    datesInOrder = false;
+    return;
+  }
+  const prev = queue.days[i - 1];
+  if (
+    prev &&
+    isUtcDate(prev.date) &&
+    utcDayNumber(d.date) <= utcDayNumber(prev.date)
+  ) {
+    fail(
+      `day ${d.day} (${d.date}) is not after day ${prev.day} (${prev.date}): dates must strictly ascend, one post per day at most`
+    );
+    datesInOrder = false;
+  }
 });
 for (const slug of Object.keys(SOCIAL_CARDS)) {
   if (!slugs.has(slug)) fail(`card "${slug}" is used by no queue day`);
+}
+
+/* ---------- 1b. cadence ---------- */
+
+/**
+ * The last day of the original daily runway. Posts 1 to 30 went out every
+ * day from 2026-09-10; they stay in the queue because the checks below
+ * still apply to them (a figure refresh has to reach them) and because their
+ * cards are embedded in casts that are already published. The weekday rule
+ * starts after this date.
+ */
+const DAILY_RUNWAY_LAST = '2026-10-09';
+
+const WEEKDAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * The weekdays the `daily-cast` cron runs on, read from the workflow.
+ *
+ * Deliberately narrow: one cron line, `*` for day of month and month, and a
+ * comma list of weekday numbers. Anything else (a range, a name, a second
+ * schedule) fails here rather than being half understood, because a reader
+ * that guessed would pass a calendar the cast never runs.
+ */
+function cronWeekdays(): Set<number> | null {
+  const yml = readFileSync(
+    join(process.cwd(), '.github/workflows/daily-cast.yml'),
+    'utf8'
+  );
+  const crons = [...yml.matchAll(/^\s*-\s*cron:\s*['"]([^'"]+)['"]/gm)].map(
+    (m) => m[1].trim().split(/\s+/)
+  );
+  if (crons.length !== 1) {
+    fail(
+      `daily-cast.yml has ${crons.length} cron lines; the cadence check reads exactly one`
+    );
+    return null;
+  }
+  const [, , dom, month, dow] = crons[0];
+  if (crons[0].length !== 5 || dom !== '*' || month !== '*') {
+    fail(
+      `daily-cast.yml cron "${crons[0].join(' ')}" is not "m h * * <weekdays>"; the cadence check cannot read it`
+    );
+    return null;
+  }
+  if (dow === '*') return new Set([0, 1, 2, 3, 4, 5, 6]);
+  if (!/^[0-7](,[0-7])*$/.test(dow)) {
+    fail(
+      `daily-cast.yml weekday field "${dow}" is not a comma list of 0 to 7; the cadence check cannot read it`
+    );
+    return null;
+  }
+  return new Set(dow.split(',').map((n) => Number(n) % 7));
+}
+
+const castDays = cronWeekdays();
+if (castDays && datesInOrder) {
+  const cadence = queue.days.filter(
+    (d) => utcDayNumber(d.date) > utcDayNumber(DAILY_RUNWAY_LAST)
+  );
+  for (const d of cadence) {
+    if (!castDays.has(utcWeekday(d.date))) {
+      fail(
+        `day ${d.day} is dated ${d.date}, a ${WEEKDAY_NAMES[utcWeekday(d.date)]}, and daily-cast never runs then (it runs ${[
+          ...castDays,
+        ]
+          .sort((a, b) => a - b)
+          .map((n) => WEEKDAY_NAMES[n])
+          .join(', ')})`
+      );
+    }
+  }
+  if (cadence.length > 0) {
+    const dated = new Set(cadence.map((d) => d.date));
+    const first = utcDayNumber(cadence[0].date);
+    const last = utcDayNumber(cadence[cadence.length - 1].date);
+    for (let n = first; n <= last; n++) {
+      const date = new Date(n * 86_400_000).toISOString().slice(0, 10);
+      if (castDays.has(utcWeekday(date)) && !dated.has(date)) {
+        fail(
+          `${date} (${WEEKDAY_NAMES[utcWeekday(date)]}) is a cast day inside the queue with no post: a gap reads as an account that stopped`
+        );
+      }
+    }
+  }
+}
+
+/**
+ * The calendar logic, driven against a synthetic Mon/Wed/Fri queue.
+ *
+ * Refusals first, because the defect this whole change exists for was a
+ * refusal that never happened: the old cast exited 0 every day for days
+ * with nothing left to send. A version of `duePost` that always found
+ * something due, or never reported a dry queue, would pass a happy-path
+ * test of the days that have posts.
+ */
+{
+  const post = (day: number, date: string): QueuePost => ({
+    day,
+    date,
+    slug: `t${day}`,
+    x: { text: '', link: '' },
+    fc: { text: '', link: '' },
+  });
+  // Mon 2026-01-05, Wed 2026-01-07, Fri 2026-01-09
+  const days = [
+    post(1, '2026-01-05'),
+    post(2, '2026-01-07'),
+    post(3, '2026-01-09'),
+  ];
+  const cases: Array<[string, QueuePost[], string, string]> = [
+    // [what, queue, today, expected kind + slug]
+    ['the Monday after the last post', days, '2026-01-12', 'exhausted:t3'],
+    ['two days after the last post', days, '2026-01-11', 'exhausted:t3'],
+    ['an empty queue', [], '2026-01-05', 'empty'],
+    [
+      'a slot past its grace, with a later post queued',
+      [post(1, '2026-01-05'), post(2, '2026-01-09')],
+      '2026-01-07',
+      'between:t2',
+    ],
+    ['before the first post', days, '2026-01-04', 'not-started:t1'],
+    ['a post on its own date', days, '2026-01-07', 'due:t2'],
+    ['a late run the next UTC day', days, '2026-01-06', 'due:t1'],
+    ['the last post, late', days, '2026-01-10', 'due:t3'],
+  ];
+  for (const [what, q, today, want] of cases) {
+    const got = duePost(q, today);
+    const slug =
+      got.kind === 'due'
+        ? got.post.slug
+        : got.kind === 'exhausted'
+          ? got.last.slug
+          : got.kind === 'empty'
+            ? null
+            : got.next.slug;
+    const seen = slug ? `${got.kind}:${slug}` : got.kind;
+    if (seen !== want) {
+      fail(`lib/social-queue.ts: ${what} (${today}) gave ${seen}, not ${want}`);
+    }
+  }
 }
 
 /* ---------- 2 + 3. length and CTA ---------- */
@@ -158,6 +333,12 @@ const ALLOWED = new Set<string>(
     `${CHAIN_MATCH_RATES.base.either_pct}%`,
     `${CHAIN_MATCH_RATES.ethereum.either_pct}%`,
     `${CHAIN_MATCH_RATES.robinhood.either_pct}%`,
+    // The Base row split by platform, and the size of that row's sample:
+    // quoted only beside its date and collection count, as every per-chain
+    // rate is.
+    `${CHAIN_MATCH_RATES.base.farcaster_pct}%`,
+    `${CHAIN_MATCH_RATES.base.x_pct}%`,
+    String(CHAIN_MATCH_RATES.base.collections),
     '72,318',
     '26',
     String(FREE_MATCHES_PER_WINDOW),
@@ -262,6 +443,8 @@ if (failures.length) {
   for (const f of failures) console.error('  ' + f);
   process.exit(1);
 }
+const first = queue.days[0];
+const last = queue.days[queue.days.length - 1];
 console.log(
-  `social queue ok: ${queue.days.length} days from ${queue.start}, every post inside its limits, figures on the allowlist`
+  `social queue ok: ${queue.days.length} posts, ${first?.date} to ${last?.date}, on the cast’s cadence, every post inside its limits, figures on the allowlist`
 );

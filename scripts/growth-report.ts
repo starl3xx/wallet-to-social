@@ -37,6 +37,7 @@ import {
   CHANNEL_ORDER,
   type Channel,
 } from '../lib/first-touch';
+import { utcDayNumber, type SocialQueue } from '../lib/social-queue';
 
 const out: string[] = [];
 const say = (line = '') => out.push(line);
@@ -56,41 +57,35 @@ function table(headers: string[], rows: Array<Array<string | number>>) {
 }
 
 /**
- * Days of scheduled social posts left.
+ * Scheduled social posts left, and when the last one goes out.
  *
  * Distribution belongs in a growth report even though `check:social` already
  * gates the queue in CI. A gate stops a bad change; it does not tell the person
  * reading the numbers that the reason next month looks flat is that the posting
  * stopped.
+ *
+ * Read from each post's own `date` since the queue moved to three posts a
+ * week on 2026-10-13: a count of entries is no longer a count of days.
+ * `daysToLast` is whole UTC days from today to the last post's date, 0 when
+ * it goes out today and negative once the queue has run dry.
  */
-function socialRunwayDays(): number | null {
+function socialRunway(): {
+  posts: number;
+  last: string;
+  daysToLast: number;
+} | null {
   try {
-    const raw = readFileSync(
-      join(process.cwd(), 'content/social/queue.json'),
-      'utf8'
-    );
-    const queue = JSON.parse(raw) as {
-      start: string;
-      days: Array<{ day: number }>;
-    };
-    const start = Date.parse(`${queue.start}T00:00:00Z`);
-    if (!Number.isFinite(start) || !Array.isArray(queue.days)) return null;
-    const lastDay = Math.max(...queue.days.map((d) => d.day));
-    const endMs = start + (lastDay - 1) * 86400000;
-    /**
-     * Counted in whole UTC days from today, inclusive of today's own post, and
-     * the inclusive part is the correction. Subtracting timestamps reports the
-     * gap between now and the last post's midnight, so a queue whose final post
-     * goes out a week today read as six days and the refill warning fired a day
-     * late. The queue posts once per UTC day, so the unit has to be the day.
-     */
-    const now = new Date();
-    const todayMs = Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate()
-    );
-    return Math.round((endMs - todayMs) / 86400000) + 1;
+    const queue = JSON.parse(
+      readFileSync(join(process.cwd(), 'content/social/queue.json'), 'utf8')
+    ) as SocialQueue;
+    if (!Array.isArray(queue.days) || queue.days.length === 0) return null;
+    const last = queue.days[queue.days.length - 1].date;
+    const today = new Date().toISOString().slice(0, 10);
+    const t = utcDayNumber(today);
+    const daysToLast = utcDayNumber(last) - t;
+    if (!Number.isFinite(daysToLast)) return null;
+    const posts = queue.days.filter((d) => utcDayNumber(d.date) >= t).length;
+    return { posts, last, daysToLast };
   } catch {
     return null;
   }
@@ -444,14 +439,18 @@ async function main() {
 
   say('## Watchlist');
   say();
-  const runway = socialRunwayDays();
+  const runway = socialRunway();
   if (runway === null) {
     say('- Social queue: could not be read.');
-  } else if (runway < 0) {
-    say(`- **Social queue ran dry ${-runway} days ago.** Nothing is posting.`);
-  } else {
+  } else if (runway.daysToLast < 0) {
     say(
-      `- Social queue: ${runway} days left${runway <= 5 ? ' (refill now)' : ''}.`
+      `- **Social queue ran dry: its last post was due ${runway.last}, ${-runway.daysToLast} days ago.** Nothing is posting.`
+    );
+  } else {
+    // Two weeks: six posts at three a week, about what a refill takes to
+    // write, review and schedule on X.
+    say(
+      `- Social queue: ${runway.posts} posts left, the last due ${runway.last}${runway.daysToLast <= 14 ? ' (refill now)' : ''}.`
     );
   }
   if (c.sessions < p.sessions) {

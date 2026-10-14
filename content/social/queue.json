@@ -1,8 +1,8 @@
 {
-  "start": "2026-09-10",
   "days": [
     {
       "day": 1,
+      "date": "2026-09-10",
       "slug": "dead-handles",
       "x": {
         "text": "nearly a third of the X handles on wallet lists reach nobody\nwe resolved 482,968 distinct handles against X itself: 70.1% live, 19.7% suspended, 10.2% unclaimed\n\ncheck any handle before you spend anything\nhttps://walletlink.social/check",
@@ -15,6 +15,7 @@
     },
     {
       "day": 2,
+      "date": "2026-09-11",
       "slug": "hyperevm",
       "x": {
         "text": "no indexer covers HyperEVM, so we stopped waiting for one\nwe read every NFT owner straight off the contract, then resolve the socials\n\nif we can\u2019t walk a collection to the end we refuse the report, we don\u2019t ship a partial one\n\nhow it works: https://walletlink.social/blog/hyperevm-no-holder-index",
@@ -27,6 +28,7 @@
     },
     {
       "day": 3,
+      "date": "2026-09-12",
       "slug": "reverse-lookup",
       "x": {
         "text": "forward: a list of wallets in, the accounts behind them out\nreverse: paste an X handle or a Farcaster name, get the wallets its owner attested to\n\nsame index, both directions\n\ntry it at https://walletlink.social",
@@ -39,6 +41,7 @@
     },
     {
       "day": 4,
+      "date": "2026-09-13",
       "slug": "x402-agent-rail",
       "x": {
         "text": "an agent hits our API, gets a 402, pays $1 in USDC on Base and the response carries a working key\n12 matches, no account, no card, no email, no human in the loop\n\nnine things to build on that rail: https://walletlink.social/blog/nine-things-to-build",
@@ -51,6 +54,7 @@
     },
     {
       "day": 5,
+      "date": "2026-09-14",
       "slug": "free-tier",
       "x": {
         "text": "the free tier is 100 matches per rolling 30 days\na match is a wallet we resolve to an X or Farcaster account\na wallet we can\u2019t resolve costs you nothing, ever\n\nbring a list and find out what\u2019s on it\nhttps://walletlink.social",
@@ -63,6 +67,7 @@
     },
     {
       "day": 6,
+      "date": "2026-09-15",
       "slug": "holder-reports",
       "x": {
         "text": "holder reports: pick a collection, see how many holders link to an X or Farcaster account that still exists\nmeasured daily against the live index, not estimated\n\nbrowse them at https://walletlink.social/holders",
@@ -75,6 +80,7 @@
     },
     {
       "day": 7,
+      "date": "2026-09-16",
       "slug": "attested-vs-inferred",
       "x": {
         "text": "an identity is attested when the owner published it: a Farcaster verification, an onchain ENS record, a social sign-in\nanything else is labeled correlated, nothing is guessed off a bio or a display name\n\nrun your list against it at https://walletlink.social",
@@ -87,6 +93,7 @@
     },
     {
       "day": 8,
+      "date": "2026-09-17",
       "slug": "mcp-oauth",
       "x": {
         "text": "add walletlink to Claude or Cursor and there\u2019s nothing to paste\nthe first tool call opens a consent screen, OAuth does the rest\neight tools, both directions, same balance as the REST API\n\nsetup takes a minute: https://docs.walletlink.social/mcp-server",
@@ -99,6 +106,7 @@
     },
     {
       "day": 9,
+      "date": "2026-09-18",
       "slug": "filter-agents",
       "x": {
         "text": "13,622+ known AI agent wallets are flagged in the index, and the count only grows\nan airdrop that doesn\u2019t filter them pays bots to farm it\n\nhow to screen a list before you send anything: https://walletlink.social/blog/filter-agents-before-airdrop",
@@ -111,6 +119,7 @@
     },
     {
       "day": 10,
+      "date": "2026-09-19",
       "slug": "farcaster-coverage",
       "x": {
         "text": "4.7 million wallets in the index carry a Farcaster identity\nif a wallet has one, we have it: Farcaster coverage is complete, not sampled\n\nhand us a holder list and see who\u2019s already on the network\nhttps://walletlink.social",
@@ -123,6 +132,7 @@
     },
     {
       "day": 11,
+      "date": "2026-09-20",
       "slug": "matches-not-wallets",
       "x": {
         "text": "you don\u2019t pay per wallet here, you pay per match\nif we can\u2019t resolve a wallet, it isn\u2019t billed\na long-shot list is cheap to try, and coverage gaps are our problem, not your invoice\n\npacks from $29: https://walletlink.social/pricing",
@@ -135,6 +145,7 @@
     },
     {
       "day": 12,
+      "date": "2026-09-21",
       "slug": "two-rates",
       "x": {
         "text": "two rates, kept apart on purpose\n~23% of a real list resolves to some identity: ENS, Lens, anything\n~13% resolves to an X or Farcaster account, the one a campaign can plan on\nswap them and your audience nearly doubles\n\nsee both measured: https://walletlink.social",
@@ -147,6 +158,7 @@
     },
     {
       "day": 13,
+      "date": "2026-09-22",
       "slug": "priority-score",
       "x": {
         "text": "a 10k-wallet list is not 10k conversations\npriority score ranks every match by holdings \u00d7 reach, so the whale with an audience sits at row one and the quiet holders sink\n\nthe formula, in full: https://walletlink.social/blog/priority-score-formula",
@@ -159,6 +171,7 @@
     },
     {
       "day": 14,
+      "date": "2026-09-23",
       "slug": "eight-chains",
       "x": {
         "text": "eight chains, one index, one upload\nyour holder list doesn\u2019t care where it came from and neither do we\n\nstart with any CSV: https://walletlink.social",
@@ -171,6 +184,7 @@
     },
     {
       "day": 15,
+      "date": "2026-09-24",
       "slug": "chain-gap",
       "x": {
         "text": "the chain decides a list\u2019s match rate more than anything else about it\n\nBase collections: 46.2% of holders reachable\nEthereum: 16.6%\n\nmeasured across 26 collections on 2026-08-17\n\nfree reports, no account: https://walletlink.social/holders?ref=x-chain-gap",
@@ -183,6 +197,7 @@
     },
     {
       "day": 16,
+      "date": "2026-09-25",
       "slug": "no-sales-call",
       "x": {
         "text": "no sales call, no seat licence, no annual contract\n\nupload a CSV, pay only for the wallets that resolve, export\n\npacks start at $29 for 250 matches and the credits last 12 months\n\nside by side: https://walletlink.social/vs/addressable?ref=x-no-sales-call",
@@ -195,6 +210,7 @@
     },
     {
       "day": 17,
+      "date": "2026-09-26",
       "slug": "agent-wallets",
       "x": {
         "text": "13,622 wallets in the index belong to agents, not people\n\nthey hold tokens, they trade, and none of them will ever read your DM\n\nwe label them, so you can drop them before you spend on reach\n\nwhat we found: https://walletlink.social/blog/ai-agent-wallets-what-we-found?ref=x-agent-wallets",
@@ -207,6 +223,7 @@
     },
     {
       "day": 18,
+      "date": "2026-09-27",
       "slug": "agent-can-call",
       "x": {
         "text": "your agent can run the lookup itself\n\none MCP server, OAuth or an API key, drawing the same credits your account already holds\n\nno developer plan, no second bill\n\nadd it to your client: https://walletlink.social/mcp?ref=x-agent-can-call",
@@ -219,6 +236,7 @@
     },
     {
       "day": 19,
+      "date": "2026-09-28",
       "slug": "misses-free",
       "x": {
         "text": "you are charged per match, never per wallet submitted\n\na wallet that resolves to nothing costs nothing, and on most lists that is the majority of them\n\nfirst 100 matches every 30 days are free\n\nthe price sheet: https://walletlink.social/pricing?ref=x-misses-free",
@@ -231,6 +249,7 @@
     },
     {
       "day": 20,
+      "date": "2026-09-29",
       "slug": "handle-vs-person",
       "x": {
         "text": "an X handle attested by its owner can still be suspended today\n\nattestation is a fact about the past, reachability is a fact about now, and we publish both\n\ncheck any handle free, no account: https://walletlink.social/check?ref=x-handle-vs-person",
@@ -243,6 +262,7 @@
     },
     {
       "day": 21,
+      "date": "2026-09-30",
       "slug": "who-not-what",
       "x": {
         "text": "analytics tells you what wallets did\n\nwe tell you who to talk to\n\ndifferent jobs, and if you only need the second one you should not be paying for the first\n\nside by side: https://walletlink.social/vs/cookie3?ref=x-who-not-what",
@@ -255,6 +275,7 @@
     },
     {
       "day": 22,
+      "date": "2026-10-01",
       "slug": "credits-keep",
       "x": {
         "text": "credits last 12 months and there is nothing to cancel\n\nbuy once, run a launch this week and the next one in spring, same balance\n\npacks from $29: https://walletlink.social/pricing?ref=x-credits-keep",
@@ -267,6 +288,7 @@
     },
     {
       "day": 23,
+      "date": "2026-10-02",
       "slug": "attested-x",
       "x": {
         "text": "1.20 million wallets in the index carry an X handle\n\nalmost every one was published by the owner, in an onchain record or a protocol verification\n\nnot one was read off a display name or a bio\n\nhttps://walletlink.social/?ref=x-attested-x",
@@ -279,6 +301,7 @@
     },
     {
       "day": 24,
+      "date": "2026-10-03",
       "slug": "one-upload",
       "x": {
         "text": "drop in a CSV of addresses, get back X handles and Farcaster accounts with follower counts\n\neight chains, one upload, export to CSV or straight into an X list\n\nfirst 100 matches free: https://walletlink.social/?ref=x-one-upload",
@@ -291,6 +314,7 @@
     },
     {
       "day": 25,
+      "date": "2026-10-04",
       "slug": "read-the-report",
       "x": {
         "text": "we publish a standing report for every collection we have already resolved\n\nhow many holders, how many reachable on X or Farcaster, which chain they sit on\n\nno account and no credits to read one: https://walletlink.social/holders?ref=x-read-the-report",
@@ -303,6 +327,7 @@
     },
     {
       "day": 26,
+      "date": "2026-10-05",
       "slug": "labeled-evidence",
       "x": {
         "text": "every match tells you what it is standing on\n\nan onchain record the owner wrote, a verification made in the protocol, or a correlation from an index, each labeled as such\n\nso you set the confidence bar: https://walletlink.social/blog/wallet-identity-stack?ref=x-labeled-evidence",
@@ -315,6 +340,7 @@
     },
     {
       "day": 27,
+      "date": "2026-10-06",
       "slug": "holder-sunset",
       "x": {
         "text": "holder.xyz shut down two years ago and the lists people had built with it went with it\n\nif you are still carrying that CSV around, this is what moving looks like\n\nhttps://walletlink.social/vs/holder?ref=x-holder-sunset",
@@ -327,6 +353,7 @@
     },
     {
       "day": 28,
+      "date": "2026-10-07",
       "slug": "same-balance",
       "x": {
         "text": "the API and the app draw the same balance\n\nno developer tier, no separate key price, no monthly minimum\n\nbuy a pack, spend it from a browser or from code, whichever the week calls for\n\nhttps://walletlink.social/mcp?ref=x-same-balance",
@@ -339,6 +366,7 @@
     },
     {
       "day": 29,
+      "date": "2026-10-08",
       "slug": "holder-list-to-x-list",
       "x": {
         "text": "a token contract gives you addresses\n\nnobody can read an address, nobody can follow one\n\nupload the holders, get the accounts, turn them into an X list in your own account. public, so the whole community can follow it\n\nhttps://walletlink.social?ref=x-holder-list-to-x-list",
@@ -351,6 +379,7 @@
     },
     {
       "day": 30,
+      "date": "2026-10-09",
       "slug": "x-list-live-only",
       "x": {
         "text": "people rename on X. somebody else takes the old handle\n\nit still resolves. the account is active. it is not the person who attested it\n\nthose never go in a list we build for you\n\nhttps://walletlink.social/blog/holder-list-to-x-list?ref=x-x-list-live-only",
@@ -359,6 +388,240 @@
       "fc": {
         "text": "people rename on X. somebody else takes the old handle\n\nit still resolves. the account is active. it is not the person who attested it\n\nthose never go in a list we build for you\n\nhttps://walletlink.social/blog/holder-list-to-x-list?ref=fc-x-list-live-only",
         "link": "https://walletlink.social/blog/holder-list-to-x-list?ref=fc-x-list-live-only"
+      }
+    },
+    {
+      "day": 31,
+      "date": "2026-10-16",
+      "slug": "holders-not-followers",
+      "x": {
+        "text": "the people who hold your token and the people who follow your account are two different lists\n\none is a follower count. the other is a column of addresses\n\npaste the addresses, get back the X and Farcaster accounts behind them\n\nhttps://walletlink.social/?ref=x-holders-not-followers",
+        "link": "https://walletlink.social/?ref=x-holders-not-followers"
+      },
+      "fc": {
+        "text": "the people who hold your token and the people who follow you are two different lists\n\none is a follower count, the other is a column of addresses\n\npaste the addresses and get back the X and Farcaster accounts behind them\n\nhttps://walletlink.social/?ref=fc-holders-not-followers",
+        "link": "https://walletlink.social/?ref=fc-holders-not-followers"
+      }
+    },
+    {
+      "day": 32,
+      "date": "2026-10-19",
+      "slug": "base-on-farcaster",
+      "x": {
+        "text": "on Base collections, 44.4% of holders have a Farcaster account and 32.1% have an X account\n\nmeasured across 8 Base collections on 2026-08-17\n\nif your holders are on Base, start on Farcaster: https://walletlink.social/blog/reach-holders-on-farcaster?ref=x-base-on-farcaster",
+        "link": "https://walletlink.social/blog/reach-holders-on-farcaster?ref=x-base-on-farcaster"
+      },
+      "fc": {
+        "text": "on Base collections, 44.4% of holders have a Farcaster account and 32.1% an X account\n\nmeasured across 8 Base collections, 2026-08-17\n\nif your holders are on Base, start on Farcaster\n\nhow to reach them there\nhttps://walletlink.social/blog/reach-holders-on-farcaster?ref=fc-base-on-farcaster",
+        "link": "https://walletlink.social/blog/reach-holders-on-farcaster?ref=fc-base-on-farcaster"
+      }
+    },
+    {
+      "day": 33,
+      "date": "2026-10-21",
+      "slug": "airdrop-to-people",
+      "x": {
+        "text": "an airdrop sent to wallets rewards whoever runs the most wallets\n\nbefore you send, see which addresses on the list resolve to an X or Farcaster account, and what each link stands on\n\nidentity over transaction history: https://walletlink.social/blog/airdrop-targeting-identity?ref=x-airdrop-to-people",
+        "link": "https://walletlink.social/blog/airdrop-targeting-identity?ref=x-airdrop-to-people"
+      },
+      "fc": {
+        "text": "an airdrop sent to wallets rewards whoever runs the most wallets\n\nbefore you send, see which addresses resolve to an X or Farcaster account, and what each link stands on\n\nwhy identity beats transaction history\nhttps://walletlink.social/blog/airdrop-targeting-identity?ref=fc-airdrop-to-people",
+        "link": "https://walletlink.social/blog/airdrop-targeting-identity?ref=fc-airdrop-to-people"
+      }
+    },
+    {
+      "day": 34,
+      "date": "2026-10-23",
+      "slug": "agency-index",
+      "x": {
+        "text": "running holder outreach for several clients?\n\none account, one balance, every list. the Index pack is 25,000 matches for $899, and credits last 12 months\n\na client list that resolves to nothing costs nothing\n\nhttps://walletlink.social/pricing?ref=x-agency-index",
+        "link": "https://walletlink.social/pricing?ref=x-agency-index"
+      },
+      "fc": {
+        "text": "for agencies running holder outreach across clients\n\none account, one balance, every list\n\nthe Index pack is 25,000 matches for $899, credits last 12 months, and a list that resolves to nothing costs nothing\n\nhttps://walletlink.social/pricing?ref=fc-agency-index",
+        "link": "https://walletlink.social/pricing?ref=fc-agency-index"
+      }
+    },
+    {
+      "day": 35,
+      "date": "2026-10-26",
+      "slug": "query-to-people",
+      "x": {
+        "text": "your Dune query already found the wallets that matter\n\nexport the result, paste the address column, and get back the X and Farcaster accounts behind those wallets\n\nfrom dashboard to DMs: https://walletlink.social/blog/dune-to-dms?ref=x-query-to-people",
+        "link": "https://walletlink.social/blog/dune-to-dms?ref=x-query-to-people"
+      },
+      "fc": {
+        "text": "your Dune query already found the wallets that matter\n\nexport the result, paste the address column, and get back the X and Farcaster accounts behind them\n\nthe query says which wallets, this says who\n\nhttps://walletlink.social/blog/dune-to-dms?ref=fc-query-to-people",
+        "link": "https://walletlink.social/blog/dune-to-dms?ref=fc-query-to-people"
+      }
+    },
+    {
+      "day": 36,
+      "date": "2026-10-28",
+      "slug": "turnout-is-reach",
+      "x": {
+        "text": "low governance turnout is usually a reach problem, not apathy\n\nholders can\u2019t vote on a proposal they never saw, and a Discord announcement only reaches the people already in Discord\n\nreach the rest: https://walletlink.social/blog/dao-communication-problem?ref=x-turnout-is-reach",
+        "link": "https://walletlink.social/blog/dao-communication-problem?ref=x-turnout-is-reach"
+      },
+      "fc": {
+        "text": "low governance turnout is usually a reach problem, not apathy\n\nholders can\u2019t vote on a proposal they never saw, and a Discord post only reaches people already in Discord\n\nfind the rest on X and Farcaster\nhttps://walletlink.social/blog/dao-communication-problem?ref=fc-turnout-is-reach",
+        "link": "https://walletlink.social/blog/dao-communication-problem?ref=fc-turnout-is-reach"
+      }
+    },
+    {
+      "day": 37,
+      "date": "2026-10-30",
+      "slug": "contract-in",
+      "x": {
+        "text": "skip the holder export\n\npaste a token or NFT contract address and its holders come in without a CSV, ready to resolve to X and Farcaster accounts\n\nincluded with every pack: https://walletlink.social/?ref=x-contract-in",
+        "link": "https://walletlink.social/?ref=x-contract-in"
+      },
+      "fc": {
+        "text": "skip the holder export\n\npaste a token or NFT contract address, its holders come in without a CSV, and they resolve to X and Farcaster accounts from there\n\nincluded with every pack\nhttps://walletlink.social/?ref=fc-contract-in",
+        "link": "https://walletlink.social/?ref=fc-contract-in"
+      }
+    },
+    {
+      "day": 38,
+      "date": "2026-11-02",
+      "slug": "ambassadors-already-hold",
+      "x": {
+        "text": "your best ambassadors already hold your token\n\nstart from the holder list, not an application form: rank holders by what they hold and who follows them, then ask the top of the list\n\nhow: https://walletlink.social/blog/ambassador-program-wallet-data?ref=x-ambassadors-already-hold",
+        "link": "https://walletlink.social/blog/ambassador-program-wallet-data?ref=x-ambassadors-already-hold"
+      },
+      "fc": {
+        "text": "your best ambassadors already hold your token\n\nstart from the holder list, not an application form\n\nrank holders by what they hold and who follows them, then ask the top of the list first\n\nhttps://walletlink.social/blog/ambassador-program-wallet-data?ref=fc-ambassadors-already-hold",
+        "link": "https://walletlink.social/blog/ambassador-program-wallet-data?ref=fc-ambassadors-already-hold"
+      }
+    },
+    {
+      "day": 39,
+      "date": "2026-11-04",
+      "slug": "dm-by-name",
+      "x": {
+        "text": "send every matched holder a Farcaster DM from your own account, each one addressed to them by name\n\nwrite it once, preview it, send it, and retry any that fail\n\nincluded with every pack: https://walletlink.social/?ref=x-dm-by-name",
+        "link": "https://walletlink.social/?ref=x-dm-by-name"
+      },
+      "fc": {
+        "text": "send every matched holder a direct cast from your own account, each one addressed to them by name\n\nwrite it once, preview it, send it, and retry any that fail\n\nincluded with every pack\nhttps://walletlink.social/?ref=fc-dm-by-name",
+        "link": "https://walletlink.social/?ref=fc-dm-by-name"
+      }
+    },
+    {
+      "day": 40,
+      "date": "2026-11-06",
+      "slug": "pitch-with-the-report",
+      "x": {
+        "text": "agencies: before you pitch a collection, read its holder report\n\nhow many holders, how many are reachable on X or Farcaster, and which chain they sit on\n\nfree, no account: https://walletlink.social/holders?ref=x-pitch-with-the-report",
+        "link": "https://walletlink.social/holders?ref=x-pitch-with-the-report"
+      },
+      "fc": {
+        "text": "pitching a collection as a client?\n\nread its holder report first: how many holders, how many are reachable on X or Farcaster, and which chain they sit on\n\nfree, no account\nhttps://walletlink.social/holders?ref=fc-pitch-with-the-report",
+        "link": "https://walletlink.social/holders?ref=fc-pitch-with-the-report"
+      }
+    },
+    {
+      "day": 41,
+      "date": "2026-11-09",
+      "slug": "early-holders",
+      "x": {
+        "text": "your first holders bought before there was any proof\n\nthey are the people with the most reason to talk about it, and to most teams they are still only addresses\n\nfind them while the launch is still news: https://walletlink.social/blog/token-launch-marketing?ref=x-early-holders",
+        "link": "https://walletlink.social/blog/token-launch-marketing?ref=x-early-holders"
+      },
+      "fc": {
+        "text": "your first holders bought before there was any proof\n\nthey have the most reason to talk about it, and to most teams they are still only addresses\n\nfind them while the launch is still news\nhttps://walletlink.social/blog/token-launch-marketing?ref=fc-early-holders",
+        "link": "https://walletlink.social/blog/token-launch-marketing?ref=fc-early-holders"
+      }
+    },
+    {
+      "day": 42,
+      "date": "2026-11-11",
+      "slug": "airstack-offline",
+      "x": {
+        "text": "Airstack\u2019s Farcaster APIs were deprecated, and its site now redirects elsewhere\n\nif a holder pipeline of yours still points at them, wallet to Farcaster and back again still answers here\n\nhttps://walletlink.social/vs/airstack?ref=x-airstack-offline",
+        "link": "https://walletlink.social/vs/airstack?ref=x-airstack-offline"
+      },
+      "fc": {
+        "text": "Airstack\u2019s Farcaster APIs were deprecated, and its site now redirects elsewhere\n\nif a holder pipeline of yours still points at them, wallet to Farcaster and back again still answers here\n\nhttps://walletlink.social/vs/airstack?ref=fc-airstack-offline",
+        "link": "https://walletlink.social/vs/airstack?ref=fc-airstack-offline"
+      }
+    },
+    {
+      "day": 43,
+      "date": "2026-11-13",
+      "slug": "one-credit-per-wallet",
+      "x": {
+        "text": "what a wallet costs here\n\nan X account and a Farcaster account: one credit\nonly an ENS name, Lens, or GitHub: nothing\nno account at all: nothing\n\nyou pay once per wallet with an X or Farcaster account: https://walletlink.social/pricing?ref=x-one-credit-per-wallet",
+        "link": "https://walletlink.social/pricing?ref=x-one-credit-per-wallet"
+      },
+      "fc": {
+        "text": "what a wallet costs here\n\nX and Farcaster both: one credit\nonly ENS, Lens, or GitHub: nothing\nno account at all: nothing\n\nyou pay once per wallet with an X or Farcaster account\nhttps://walletlink.social/pricing?ref=fc-one-credit-per-wallet",
+        "link": "https://walletlink.social/pricing?ref=fc-one-credit-per-wallet"
+      }
+    },
+    {
+      "day": 44,
+      "date": "2026-11-16",
+      "slug": "nft-step-by-step",
+      "x": {
+        "text": "running an NFT collection and only know your holders as addresses?\n\nexport the holders, resolve them, segment them, then reach the ones worth reaching first\n\nthe whole walkthrough: https://walletlink.social/blog/nft-collection-wallet-identity-guide?ref=x-nft-step-by-step",
+        "link": "https://walletlink.social/blog/nft-collection-wallet-identity-guide?ref=x-nft-step-by-step"
+      },
+      "fc": {
+        "text": "run an NFT collection and only know your holders as addresses?\n\nexport them, resolve them, segment them, then reach the ones worth reaching first\n\nthe step-by-step\nhttps://walletlink.social/blog/nft-collection-wallet-identity-guide?ref=fc-nft-step-by-step",
+        "link": "https://walletlink.social/blog/nft-collection-wallet-identity-guide?ref=fc-nft-step-by-step"
+      }
+    },
+    {
+      "day": 45,
+      "date": "2026-11-18",
+      "slug": "quiet-holders",
+      "x": {
+        "text": "a holder who went quiet in Discord still holds\n\nthe announcement channel stopped reaching them. if they have an X or Farcaster account, that still can\n\nretention by direct outreach: https://walletlink.social/blog/community-retention-direct-outreach?ref=x-quiet-holders",
+        "link": "https://walletlink.social/blog/community-retention-direct-outreach?ref=x-quiet-holders"
+      },
+      "fc": {
+        "text": "a holder who went quiet in Discord still holds\n\nthe announcement channel stopped reaching them, and their X or Farcaster account, if they have one, still can\n\nhttps://walletlink.social/blog/community-retention-direct-outreach?ref=fc-quiet-holders",
+        "link": "https://walletlink.social/blog/community-retention-direct-outreach?ref=fc-quiet-holders"
+      }
+    },
+    {
+      "day": 46,
+      "date": "2026-11-20",
+      "slug": "campaign-pack",
+      "x": {
+        "text": "one launch, one airdrop, or one collection: the Campaign pack is 1,500 matches for $99\n\ncredits last 12 months, so whatever the first list leaves unused waits for the next\n\nhttps://walletlink.social/pricing?ref=x-campaign-pack",
+        "link": "https://walletlink.social/pricing?ref=x-campaign-pack"
+      },
+      "fc": {
+        "text": "one launch, one airdrop, or one collection\n\nthe Campaign pack is 1,500 matches for $99, and credits last 12 months, so what the first list leaves unused waits for the next\n\nhttps://walletlink.social/pricing?ref=fc-campaign-pack",
+        "link": "https://walletlink.social/pricing?ref=fc-campaign-pack"
+      }
+    },
+    {
+      "day": 47,
+      "date": "2026-11-23",
+      "slug": "kol-wallets",
+      "x": {
+        "text": "a partner or KOL says they hold your token\n\npaste their handle and see the wallets they attested to themselves, before you sign anything\n\nreverse lookup, included with every pack: https://walletlink.social/?ref=x-kol-wallets",
+        "link": "https://walletlink.social/?ref=x-kol-wallets"
+      },
+      "fc": {
+        "text": "a partner says they hold your token\n\npaste their X handle or Farcaster username and see the wallets they attested to themselves, before you sign anything\n\nreverse lookup, with every pack\nhttps://walletlink.social/?ref=fc-kol-wallets",
+        "link": "https://walletlink.social/?ref=fc-kol-wallets"
+      }
+    },
+    {
+      "day": 48,
+      "date": "2026-11-25",
+      "slug": "five-ways",
+      "x": {
+        "text": "five things teams do once their holders have names\n\ngovernance reminders, airdrop filtering, ambassador picks, retention, and asking power users what to build next\n\neach one, step by step: https://walletlink.social/blog/five-ways-wallet-identity?ref=x-five-ways",
+        "link": "https://walletlink.social/blog/five-ways-wallet-identity?ref=x-five-ways"
+      },
+      "fc": {
+        "text": "five things teams do once their holders have names\n\ngovernance reminders, airdrop filtering, ambassador picks, retention, and asking power users what to build next\n\neach one, step by step\nhttps://walletlink.social/blog/five-ways-wallet-identity?ref=fc-five-ways",
+        "link": "https://walletlink.social/blog/five-ways-wallet-identity?ref=fc-five-ways"
       }
     }
   ]

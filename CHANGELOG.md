@@ -2,6 +2,38 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-10-14 (the social queue posts three times a week, and fails loudly when it runs dry)
+
+**The social queue is refilled at a new cadence (STA-58).**
+
+- **Three posts a week, Monday, Wednesday and Friday.** The queue ran dry
+  after 2026-10-09 and nothing was cast from 2026-10-10. On 2026-10-13 the
+  owner cut the cadence rather than the channel: about 112 posts in 30 days
+  had brought 18 sessions and 2 signups, and prospects reached by cold
+  outreach still check the account. `daily-cast` runs on `35 17 * * 1,3,5`.
+- **18 new posts, 2026-10-16 to 2026-11-25**, for teams and agencies who
+  want to reach their holders, each with its own live card. Every figure is
+  read from `lib/public-figures.ts` or `lib/packs.ts`; the Base platform split
+  (`CHAIN_MATCH_RATES.base`) joins the queue allowlist, quoted only with its
+  date and collection count.
+- **Every queue entry carries its own UTC `date`.** The queue was a start
+  date plus one post a day, which cannot describe a weekly cadence after a
+  daily month. `lib/social-queue.ts` decides which post is due; a run up to a
+  day late still sends its slot’s post, and anything older is skipped rather
+  than sent out of step with X. Each post is cast once, checked by slug and
+  by date.
+- **An exhausted queue fails the run.** It exited 0 with a warning, and every
+  run from 2026-10-10 passed while casting nothing. It now exits 1 once the
+  last post is more than a day old, and it warns from six posts out.
+- **`check:social` holds the dates to the cron.** It reads the weekday field
+  of the `daily-cast` schedule and fails a post dated on a day the cast never
+  runs, or a cast day inside the queue with no post, and it drives the
+  calendar logic against synthetic queues, refusals first. The `social-queue`
+  workflow now also runs when `lib/social-queue.ts` or `daily-cast.yml`
+  changes.
+- **The growth report’s watchlist reads the dates**: posts left, the date of
+  the last, and “refill now” from two weeks out.
+
 ### 2026-10-13 (the dependency audit passes again: one critical and seven highs cleared)
 
 **The scheduled `dependency-audit` failed on 2026-10-05 and 2026-10-12
