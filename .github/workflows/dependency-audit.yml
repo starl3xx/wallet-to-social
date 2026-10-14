@@ -15,14 +15,28 @@
 #
 # WHY IT FAILS ONLY ON CRITICAL AND HIGH. A gate that fires on every moderate
 # advisory in a dev-only toolchain gets muted, and a muted gate is worse than
-# no gate. Four moderate advisories are open and accepted right now, all in the
-# drizzle-kit/esbuild dev chain, none reachable from the deployed app, and the
-# only "fix" npm offers for them is a downgrade of a tool this repo already
-# refuses to run. Those must not turn this red every morning.
+# no gate. `npm audit` counts ten moderate findings right now (2026-10-13),
+# one per affected package, and none must turn this red every morning. Four
+# are the accepted holds in the drizzle-kit/esbuild dev chain, none reachable
+# from the deployed app, where the only "fix" npm offers is a downgrade of a
+# tool this repo already refuses to run. Six came from two advisories published
+# later and wait on a decision (Linear STA-64): gray-matter's js-yaml 3 ->
+# argparse -> sprintf-js chain (sprintf-js has no fixed release, and argparse
+# loads only from js-yaml's command-line tool), and @tailwindcss/typography's
+# exact pin of postcss-selector-parser 6.0.10 (fixed only in 7.x; it parses our
+# own CSS at build time).
 #
 # A failure here is not necessarily a bug in our code. It usually means an
 # upstream package published an advisory and wants upgrading. Dependabot opens
 # the grouped PR that normally fixes it; this says whether it is urgent.
+#
+# WHEN NO FIXED RELEASE EXISTS. Dependabot cannot help, and neither can
+# `npm audit fix --force`, which offers a downgrade. Use an `overrides` entry in
+# package.json scoped to the one parent that pulls the package in, and say why
+# next to the code it affects. The current one (STA-61): braces has a high
+# advisory and no fixed release, every fast-glob release pulls it in, and
+# @next/eslint-plugin-next pins fast-glob, so fast-glob is aliased to tinyglobby
+# under that plugin. eslint.config.mjs explains the one difference it makes.
 name: dependency-audit
 
 on:
