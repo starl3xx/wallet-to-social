@@ -53,6 +53,23 @@ const TAILWIND_PALETTE =
  */
 const PALETTE_CLASS = `(?:[a-z0-9-]+:)*[a-z-]*-${TAILWIND_PALETTE}-[0-9]{2,3}`;
 
+// Read this before setting `settings.next.rootDir`.
+//
+// `package.json` overrides `fast-glob` with `tinyglobby` under
+// `@next/eslint-plugin-next` (STA-61). braces has a high advisory with no fixed
+// release (GHSA-vfj7-8cjw-p6xm), every fast-glob release pulls it in through
+// micromatch, and the plugin pins fast-glob exactly. The only fix npm offers
+// is a downgrade to eslint-config-next 14.
+//
+// The plugin globs in one place, `getRootDirs`, and only when
+// `settings.next.rootDir` is set. This config does not set it, so today the
+// swap changes nothing. If you set it, the two libraries differ on a bare
+// directory name: fast-glob returns just `apps` for the pattern `apps`, and
+// tinyglobby also returns every directory beneath it. A real pattern such as
+// `apps/*` gives the same list from both.
+//
+// Remove the override when braces publishes a fix or the plugin stops
+// depending on fast-glob.
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,

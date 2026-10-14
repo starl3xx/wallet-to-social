@@ -2,6 +2,41 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-10-13 (the dependency audit passes again: one critical and seven highs cleared)
+
+**The scheduled `dependency-audit` failed on 2026-10-05 and 2026-10-12
+(STA-61).** `npm audit` counted 18 findings: 1 critical, 7 high and 10
+moderate. It now counts 10 moderate and nothing higher.
+
+- **`next` 16.3.5 to 16.3.8, and `eslint-config-next` with it.** The critical
+  was remote code execution in `next/og` ImageResponse (GHSA-vcvr-r3jv-pc5j).
+  The same release fixes six more Next.js advisories, among them a high
+  server-side request forgery in image optimization and two cache-poisoning
+  bugs. 16.3.8 is the first release outside all seven ranges, so this is a
+  patch bump, not the 16.4.0 minor that Dependabot's #410/#411 proposes.
+- **`sharp` 0.35.4 to 0.35.5**, for a librsvg vulnerability
+  (GHSA-wq5f-xc86-pv6w). The range floor moves to `^0.35.5`, and
+  `scripts/check-identity-hero.ts` exercises it and passes.
+- **`source-map-js` 1.2.1 to 1.2.2**, lockfile only, under `postcss` and
+  `@tailwindcss/node` (GHSA-68fv-2mgg-jv7q).
+- **braces has no fixed release, so it is overridden out, not upgraded.**
+  GHSA-vfj7-8cjw-p6xm covers every braces version published. It came in by one
+  path, eslint-config-next → @next/eslint-plugin-next → fast-glob 3.3.1
+  (pinned exactly) → micromatch → braces, and the only fix npm offered was
+  eslint-config-next 14. An `overrides` entry aliases fast-glob to tinyglobby
+  under that plugin alone, which replaces 16 packages with 3. The plugin globs
+  in one function, only when `settings.next.rootDir` is set, and this repo
+  does not set it; `eslint.config.mjs` records the one difference for whoever
+  does.
+- **The lockfile was written with npm 10**, the version CI's Node 22 runs.
+  npm 11 rewrites `peer` flags across an untouched lockfile, which would have
+  buried these changes in unrelated churn.
+- **The four drizzle-kit/esbuild holds from 2026-09-22 stay**, for the same
+  reason as then. **Six newer moderate findings**, from gray-matter's js-yaml
+  3 chain and @tailwindcss/typography's pinned postcss-selector-parser, have
+  no fix short of a downgrade or a major. Neither is reachable from user
+  input, and STA-64 asks for the call.
+
 ### 2026-10-13 (the index figure is a floor, the chain list is public, and the blog says what 22% measures)
 
 **Copy that disagreed with itself or with the code (STA-57).**
