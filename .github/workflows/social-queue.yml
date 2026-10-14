@@ -1,7 +1,8 @@
 # Fails a PR whose social queue would publish something wrong later.
 #
 # check-social-queue.ts is the PR-time gate for content/social/queue.json
-# (lengths, CTAs, house style, the figures allowlist) and it only guards if
+# (dates against the cast's cadence, lengths, CTAs, house style, the
+# figures allowlist) and it only guards if
 # it runs where merges are decided. A queue-only PR touches none of the
 # design-token paths, so this is its own workflow rather than a job there:
 # the failure mode it exists for is exactly the PR that changes nothing but
@@ -18,6 +19,11 @@ on:
       - 'lib/packs.ts'
       - 'scripts/check-social-queue.ts'
       - '.github/workflows/social-queue.yml'
+      # The calendar logic the checker drives, and the cron it reads the
+      # cadence from: a schedule change alone can strand queued posts on days
+      # the cast never runs.
+      - 'lib/social-queue.ts'
+      - '.github/workflows/daily-cast.yml'
 
 permissions:
   contents: read
