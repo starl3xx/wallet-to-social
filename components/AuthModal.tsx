@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { InlineError } from '@/components/ui/inline-error';
+import { isEmailShaped } from '@/lib/email-format';
 import {
   CircleNotch as Loader2,
   Envelope as Mail,
@@ -70,7 +71,8 @@ export function AuthModal({ open, onOpenChange, next }: AuthModalProps) {
   }, [cooldown]);
 
   const handleSendMagicLink = async () => {
-    if (!email || !email.includes('@')) {
+    const address = email.trim();
+    if (!isEmailShaped(address)) {
       // The same sentence Buy credits uses for the same check.
       setError('Please enter a valid email address');
       return;
@@ -83,7 +85,7 @@ export function AuthModal({ open, onOpenChange, next }: AuthModalProps) {
       const response = await fetch('/api/auth/send-magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, origin: originTag(), next }),
+        body: JSON.stringify({ email: address, origin: originTag(), next }),
       });
 
       const data = await response.json();

@@ -143,6 +143,9 @@ export async function sendPurchaseSignInLink(
   return sendLinkEmail(email, token, purchaseCopy(pack.name, pack.matches));
 }
 
+const LINK_NOT_SENT =
+  'We could not send a sign-in link to that address. Check it and try again.';
+
 async function sendLinkEmail(
   email: string,
   token: string,
@@ -174,18 +177,19 @@ async function sendLinkEmail(
       text: getMagicLinkEmailText(magicLink, copy),
     });
 
+    // The provider's own message stays in the log. `/api/auth/send-magic-link`
+    // shows `error` to the person signing in, and Resend's text ("Invalid `to`
+    // field...") is written for a developer, with backticks the modal renders
+    // as stray accents.
     if (error) {
       console.error('Resend error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: LINK_NOT_SENT };
     }
 
     return { success: true };
   } catch (error) {
     console.error('Failed to send magic link:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
+    return { success: false, error: LINK_NOT_SENT };
   }
 }
 
