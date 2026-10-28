@@ -15,16 +15,15 @@
 #
 # WHY IT FAILS ONLY ON CRITICAL AND HIGH. A gate that fires on every moderate
 # advisory in a dev-only toolchain gets muted, and a muted gate is worse than
-# no gate. `npm audit` counts ten moderate findings right now (2026-10-13),
+# no gate. `npm audit` counts six moderate findings right now (2026-10-27),
 # one per affected package, and none must turn this red every morning. Four
 # are the accepted holds in the drizzle-kit/esbuild dev chain, none reachable
 # from the deployed app, where the only "fix" npm offers is a downgrade of a
-# tool this repo already refuses to run. Six came from two advisories published
-# later and wait on a decision (Linear STA-64): gray-matter's js-yaml 3 ->
-# argparse -> sprintf-js chain (sprintf-js has no fixed release, and argparse
-# loads only from js-yaml's command-line tool), and @tailwindcss/typography's
-# exact pin of postcss-selector-parser 6.0.10 (fixed only in 7.x; it parses our
-# own CSS at build time).
+# tool this repo already refuses to run. Two wait on a decision (Linear
+# STA-64): @tailwindcss/typography's exact pin of postcss-selector-parser
+# 6.0.10 (fixed only in 7.x; it parses our own CSS at build time). The
+# gray-matter -> js-yaml 3 -> argparse -> sprintf-js chain that STA-64 also
+# names counted four more on 2026-10-13 and no longer reports.
 #
 # A failure here is not necessarily a bug in our code. It usually means an
 # upstream package published an advisory and wants upgrading. Dependabot opens
@@ -33,10 +32,22 @@
 # WHEN NO FIXED RELEASE EXISTS. Dependabot cannot help, and neither can
 # `npm audit fix --force`, which offers a downgrade. Use an `overrides` entry in
 # package.json scoped to the one parent that pulls the package in, and say why
-# next to the code it affects. The current one (STA-61): braces has a high
-# advisory and no fixed release, every fast-glob release pulls it in, and
-# @next/eslint-plugin-next pins fast-glob, so fast-glob is aliased to tinyglobby
-# under that plugin. eslint.config.mjs explains the one difference it makes.
+# next to the code it affects. There are two today.
+#
+# STA-61: braces has a high advisory and no fixed release, every fast-glob
+# release pulls it in, and @next/eslint-plugin-next pins fast-glob, so
+# fast-glob is aliased to tinyglobby under that plugin. eslint.config.mjs
+# explains the one difference it makes.
+#
+# STA-67: zod below 4.6.6 has a high advisory (memory exhaustion on large
+# arrays), fixed only in 4.6.6, and @x402/core, @x402/evm and inngest each
+# declare zod ^3, so each of those three gets the root zod ("$zod"). Safe
+# because zod 4 still ships the v3 API: inngest imports only `zod/v3`, and
+# @x402/evm imports no zod at all. @x402/core imports the bare `zod`, which
+# is the v4 API under the override; its schemas parse what a paying agent
+# sends (through lib/x402.ts), and they gave the same verdict and the same
+# parsed output on 23 payment fixtures under 3.25.76 and 4.6.7. Remove these
+# three entries once those packages declare zod 4.
 name: dependency-audit
 
 on:

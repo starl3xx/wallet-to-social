@@ -156,8 +156,13 @@ export const X_REACHABILITY_COVERAGE_PCT = '99.9';
  * examples. Those two carry 91.5% of the wallets with an X handle, so a
  * sentence crediting the share to them alone is false with the right number
  * in it.
+ *
+ * 99.8 until 2026-10-27. The Monday figures check of 2026-10-26 measured
+ * 99.77%, so "over 99.8%" had become an over-claim with no commit in this
+ * repository. The share can fall as well as rise: a floor is lowered when
+ * the check says so, never left standing on the last good measurement.
  */
-export const ATTESTED_X_SHARE_PCT = '99.8';
+export const ATTESTED_X_SHARE_PCT = '99.7';
 
 /**
  * The reachability split: what happened to the X handles we resolved.
