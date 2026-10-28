@@ -2,6 +2,29 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-10-27 (a critical Next.js advisory, and an attested share that over-claimed)
+
+**Two Monday gates went red on 2026-10-26 with no change in this repository
+(STA-67).**
+
+- **`next` goes from 16.3.8 to 16.4.3.** The audit found one critical and
+  five high advisories. Two of the Next.js advisories allow unauthenticated
+  remote code execution. `eslint-config-next` moves with it.
+- **`@modelcontextprotocol/server` goes from 2.0.0 to 2.4.0,** and is now a
+  direct dependency, so the floor is in `package.json` and not only in the
+  lockfile. One of its advisories sends one client’s messages to another.
+  The MCP server was not exposed to that one, because `mcp-handler` builds a
+  new server for each request.
+- **`zod` goes to 4.6.7.** `@x402/core`, `@x402/evm` and `inngest` declare
+  zod 3, which has no fixed release, so three `overrides` entries give them
+  the root zod. The x402 schemas give the same result on 23 payment fixtures
+  under both versions. The workflow header of `dependency-audit.yml` records
+  why each entry is safe and when to remove it.
+- **The owner-attested share is now “over 99.7%”.** The figures check
+  measured 99.77%, so “over 99.8%” claimed more than the database holds. The
+  constant, five published files and two internal notes change, with the
+  guard anchors that quote them.
+
 ### 2026-10-14 (sign-in refuses a mistyped address itself, in plain words)
 
 **An address copied with the period that ended its sentence,

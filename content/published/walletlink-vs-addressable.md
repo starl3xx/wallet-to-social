@@ -87,7 +87,7 @@ We haven’t run a controlled head-to-head comparison, and we’d be skeptical o
 - Third-party data partnerships
 - Onchain analytics
 
-The approaches are fundamentally different. Over 99.8% of our X matches are deterministic and user-attested: cryptographic proofs (Farcaster verified addresses), explicit user-set onchain records (such as ENS text records), attested social sign-ins and manually verified records. The remainder is correlated from identity indexes and labeled as such, so every match tells you how it was established. Addressable uses probabilistic matching in addition to deterministic methods, which can produce more matches but with varying confidence levels.
+The approaches are fundamentally different. Over 99.7% of our X matches are deterministic and user-attested: cryptographic proofs (Farcaster verified addresses), explicit user-set onchain records (such as ENS text records), attested social sign-ins and manually verified records. The remainder is correlated from identity indexes and labeled as such, so every match tells you how it was established. Addressable uses probabilistic matching in addition to deterministic methods, which can produce more matches but with varying confidence levels.
 
 ## Feature comparison
 

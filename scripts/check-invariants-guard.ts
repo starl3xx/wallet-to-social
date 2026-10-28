@@ -6448,7 +6448,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-54: the Apify README over-claims the attested share again (live 2026-09-17 to 2026-09-29)',
     file: 'integrations/apify-actor/README.md',
-    from: 'Over 99.8% of the wallets in the index with a linked X handle got that link by one of these four routes.',
+    from: 'Over 99.7% of the wallets in the index with a linked X handle got that link by one of these four routes.',
     to: 'Over 99.9% of the wallets in the index with a linked X handle got that link by one of the first two routes.',
   },
   {
@@ -6583,14 +6583,14 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-54: the README counts the attested share per handle again',
     file: 'README.md',
-    from: 'Over 99.8% of X matches are links the wallet owner published themselves:',
-    to: 'Over 99.8% of handles were published by the wallet owner themselves:',
+    from: 'Over 99.7% of X matches are links the wallet owner published themselves:',
+    to: 'Over 99.7% of handles were published by the wallet owner themselves:',
   },
   {
     name: 'STA-54: the Apify README counts the attested share per handle again',
     file: 'integrations/apify-actor/README.md',
-    from: 'Over 99.8% of the wallets in the index with a linked X handle got that link by one of these four routes.',
-    to: 'Over 99.8% of the X handles in the index arrive by one of these four routes.',
+    from: 'Over 99.7% of the wallets in the index with a linked X handle got that link by one of these four routes.',
+    to: 'Over 99.7% of the X handles in the index arrive by one of these four routes.',
   },
   {
     name: 'STA-54: /vs/absolute-labs counts the attested share per handle again',
