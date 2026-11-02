@@ -133,11 +133,25 @@ async function fetchPage(cursor: string | null): Promise<{
   const query = `{ accounts(request: ${request}) { items { owner metadata { attributes { key value } } } pageInfo { next } } }`;
 
   for (let attempt = 1; ; attempt++) {
-    const res = await fetch(API, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
+    } catch (err) {
+      // A dropped connection (ECONNRESET, 2026-11-02, after 700 pages) or a
+      // failed DNS lookup (ENOTFOUND, four runs on 2026-09-21) throws instead
+      // of answering. Both are transient, so they retry like a 5xx.
+      if (attempt >= 4) throw err;
+      const cause = (err as { cause?: { code?: string } }).cause?.code;
+      console.warn(
+        `  network error (${cause ?? String(err)}), attempt ${attempt} of 4; retrying`
+      );
+      await new Promise((r) => setTimeout(r, attempt * 5000));
+      continue;
+    }
     if (res.status === 429 || res.status >= 500) {
       if (attempt >= 4)
         throw new Error(`Lens API ${res.status} after ${attempt} attempts`);

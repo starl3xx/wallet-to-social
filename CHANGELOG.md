@@ -2,6 +2,20 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-02 (the Lens harvest retries a dropped connection)
+
+**The first run after the sort-order fix walked 35,000 accounts and then
+failed on `ECONNRESET` (STA-70).** The script retried a 429 or a 5xx
+response, but a request that threw before any response ended the run. The
+four red runs on 2026-09-21 were the same gap (`ENOTFOUND`, a failed DNS
+lookup).
+
+- **A network error now retries like a 5xx:** up to four attempts, 5, 10
+  and 15 seconds apart, with a log line for each. A test that dropped the
+  first two connections loaded the page on the third attempt.
+- The checkpoint is saved after each page, so the 35,000 accounts already
+  read are not read again.
+
 ### 2026-11-02 (the agent-wallet figure catches up with the index)
 
 **The Monday `published-figures` check went red on 2026-11-02 (STA-70).**
