@@ -2,6 +2,16 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-02 (the agent-wallet figure catches up with the index)
+
+**The Monday `published-figures` check went red on 2026-11-02 (STA-70).**
+`AGENT_WALLETS_FLAGGED` said 122, and the index had 165 wallets with the agent
+flag: 26.1% off, over the 25% tolerance for this figure.
+
+- **`AGENT_WALLETS_FLAGGED` is now 165.** Only `/api/public-stats` reads it,
+  as the fallback when the live count is not available. A local run of the
+  figures check passes all 67 figures.
+
 ### 2026-11-02 (the Lens harvest sets its own sort order)
 
 **The monthly `lens-profile-harvest` run went red on 2026-11-01 with no
