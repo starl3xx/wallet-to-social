@@ -271,8 +271,11 @@ export const KNOWN_AGENTS = '13,622';
  * never declared it: `scripts/backfill-agent-claims.ts` said the check
  * compared it against `count(*) WHERE is_agent`, and no entry did. One does
  * now.
+ *
+ * 165 as of 2026-11-02. The Monday figures check measured 165 against 122
+ * (26.1% off, over its 25% tolerance for this figure).
  */
-export const AGENT_WALLETS_FLAGGED = '122';
+export const AGENT_WALLETS_FLAGGED = '165';
 /** The same fact at display size, for stat tiles. */
 export const KNOWN_AGENTS_SHORT = '13K+';
 
