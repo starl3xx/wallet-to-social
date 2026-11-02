@@ -47,6 +47,16 @@ const SOURCE: LinkSource = {
 
 const STATE_KEY = 'lens_profile_harvest';
 const API = 'https://api.lens.xyz/graphql';
+/**
+ * Always sent, never left to the API's default. The default is
+ * ACCOUNT_SCORE, and since October 2026 the API refuses that order without a
+ * search filter ("unbounded score ordering is disabled"), which turned the
+ * 2026-11-01 run red. ALPHABETICAL still walks the whole list unfiltered.
+ *
+ * A cursor belongs to the order that produced it, so the checkpoint stores
+ * the order too, and a cursor saved under another order is ignored.
+ */
+const ORDER_BY = 'ALPHABETICAL';
 // Keyless public API; a pause per request keeps a long walk polite.
 const PAUSE_MS = 250;
 
@@ -78,13 +88,23 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-async function getCheckpoint(): Promise<string | null> {
+async function getCheckpoint(): Promise<{
+  cursor: string | null;
+  staleOrder: boolean;
+}> {
   const db = getDb();
   if (!db) throw new Error('Database not configured');
   const result = (await db.execute(
-    sql`SELECT value->>'cursor' AS cursor FROM ingest_state WHERE name = ${STATE_KEY}`
-  )) as unknown as { rows: Array<{ cursor: string | null }> };
-  return result.rows[0]?.cursor ?? null;
+    sql`SELECT value->>'cursor' AS cursor, value->>'order_by' AS order_by FROM ingest_state WHERE name = ${STATE_KEY}`
+  )) as unknown as {
+    rows: Array<{ cursor: string | null; order_by: string | null }>;
+  };
+  const row = result.rows[0];
+  if (!row?.cursor) return { cursor: null, staleOrder: false };
+  // A checkpoint saved before the order was stored has no order_by: it came
+  // from the old ACCOUNT_SCORE walk, so it is stale too.
+  if (row.order_by !== ORDER_BY) return { cursor: null, staleOrder: true };
+  return { cursor: row.cursor, staleOrder: false };
 }
 
 async function saveCheckpoint(cursor: string | null): Promise<void> {
@@ -92,7 +112,7 @@ async function saveCheckpoint(cursor: string | null): Promise<void> {
   if (!db) throw new Error('Database not configured');
   await db.execute(sql`
     INSERT INTO ingest_state (name, value, updated_at)
-    VALUES (${STATE_KEY}, jsonb_build_object('cursor', ${cursor}::text), now())
+    VALUES (${STATE_KEY}, jsonb_build_object('cursor', ${cursor}::text, 'order_by', ${ORDER_BY}::text), now())
     ON CONFLICT (name) DO UPDATE
     SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
   `);
@@ -108,8 +128,8 @@ async function fetchPage(cursor: string | null): Promise<{
   next: string | null;
 }> {
   const request = cursor
-    ? `{ pageSize: FIFTY, cursor: ${JSON.stringify(cursor)} }`
-    : '{ pageSize: FIFTY }';
+    ? `{ pageSize: FIFTY, orderBy: ${ORDER_BY}, cursor: ${JSON.stringify(cursor)} }`
+    : `{ pageSize: FIFTY, orderBy: ${ORDER_BY} }`;
   const query = `{ accounts(request: ${request}) { items { owner metadata { attributes { key value } } } pageInfo { next } } }`;
 
   for (let attempt = 1; ; attempt++) {
@@ -175,11 +195,17 @@ async function main() {
     process.exit(1);
   }
 
-  const checkpoint = args.reset ? null : await getCheckpoint();
-  let cursor = checkpoint;
+  const checkpoint = args.reset
+    ? { cursor: null, staleOrder: false }
+    : await getCheckpoint();
+  let cursor = checkpoint.cursor;
   console.log(
     `${args.commit ? 'COMMIT' : 'dry run'}: max ${args.maxRequests} requests` +
-      (checkpoint ? ' (resuming from checkpoint)' : ' (from the top)')
+      (cursor
+        ? ' (resuming from checkpoint)'
+        : checkpoint.staleOrder
+          ? ` (from the top: the saved cursor is not from the ${ORDER_BY} order)`
+          : ' (from the top)')
   );
 
   const totals = {
