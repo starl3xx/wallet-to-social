@@ -2,6 +2,21 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-02 (the Lens harvest sets its own sort order)
+
+**The monthly `lens-profile-harvest` run went red on 2026-11-01 with no
+change in this repository (STA-70).** The script sent no sort order, so the
+Lens API used its default, `ACCOUNT_SCORE`. The API now refuses that order
+without a search filter: “unbounded score ordering is disabled”.
+
+- **Every request now sends `orderBy: ALPHABETICAL`,** which still walks the
+  whole account list with no filter. A dry run on 2026-11-02 read 150
+  accounts in three pages and found 53 X handles.
+- **The checkpoint stores the sort order with the cursor.** A cursor only
+  works with the order that produced it, so a saved cursor from another
+  order is ignored and the walk starts from the top. The old checkpoint has
+  no order, so the next run restarts by itself, with no `--reset` dispatch.
+
 ### 2026-10-27 (a critical Next.js advisory, and an attested share that over-claimed)
 
 **Two Monday gates went red on 2026-10-26 with no change in this repository
