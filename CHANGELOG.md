@@ -2,6 +2,16 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-07 (the SaaSHub listing is live)
+
+**SaaSHub approved the walletlink.social listing (STA-71).** No code changed.
+
+- **`docs/GROWTH.md` records it:** a new "Software directories" table under
+  Discovery surfaces, and a log entry with what it should move.
+- **Two edits wait on the owner's login (STA-72):** the website link needs
+  `?ref=dir-saashub`, and the short description says seven chains where the
+  site says eight.
+
 ### 2026-11-02 (the Lens harvest retries a dropped connection)
 
 **The first run after the sort-order fix walked 35,000 accounts and then

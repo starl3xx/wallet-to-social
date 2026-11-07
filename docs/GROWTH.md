@@ -452,6 +452,16 @@ for the head query, and the lever on it is the README and the links pointing at
 it. Both were worked on 2026-09-21; neither is a thing that pays inside a
 month.
 
+### Software directories
+
+Where a buyer compares tools rather than searches for one. Each listing is a
+form on the directory's own site, so its copy is outside CI: check it by hand
+against the site's meta description after any figure changes.
+
+| Surface | Status 2026-11-07                                                          |
+| ------- | -------------------------------------------------------------------------- |
+| SaaSHub | **Live** at `saashub.com/walletlink-social`; untagged, copy stale (STA-72) |
+
 ### Code and list surfaces
 
 The repo already outranks the website for product queries, and answer engines
@@ -484,6 +494,22 @@ generating revenue before spending. Free surfaces only.
 
 Newest first. One row per intervention, with what it was expected to move, so a
 later reader can check whether it did.
+
+### 2026-11-07: the SaaSHub listing is live (STA-71)
+
+SaaSHub approved the listing. It sits in Social Media Tools and Cryptocurrency
+Wallets, priced as Freemium from the $29 Trial pack. The main "Visit website"
+link is followed; the page itself serves `noindex, follow`, so Google does not
+list the SaaSHub page for now.
+
+Two things wait on the owner's login (STA-72). The website link has no
+`?ref=dir-saashub`, so a click that arrives without a referrer reads as
+direct. The short description says "seven EVM chains" and leaves out
+HyperEVM; the site says eight.
+
+Expected to move: referral sessions from `saashub.com`, plus `dir-saashub`
+once the tag is on. A handful a month would match the other free directories.
+Read the named-sources table on 2026-12-07.
 
 ### 2026-10-14: the social queue, three posts a week (STA-58)
 
