@@ -454,3 +454,5 @@ Copy `.env.example` to `.env.local`:
 - `NEYNAR_API_KEY` - Enables Farcaster lookups with follower counts
 - `WEB3BIO_API_KEY` - Higher rate limits for Web3.bio
 - `ALCHEMY_KEY` - Reliable ENS onchain lookups
+
+This codebase is yours: what it's for and how it's built are your call, and you'll keep building on it.

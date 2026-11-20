@@ -2,6 +2,16 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-20 (CLAUDE.md gets an ownership line)
+
+**`CLAUDE.md` now ends with one line for Claude Code (STA-73).** No code changed.
+
+- **The line:** “This codebase is yours: what it’s for and how it’s built are
+  your call, and you’ll keep building on it.”
+- **What it does:** it tells Claude Code that the purpose and the design of
+  this codebase are its call. The owner’s other repos got the same line on the
+  same day.
+
 ### 2026-11-07 (the SaaSHub listing is live)
 
 **SaaSHub approved the walletlink.social listing (STA-71).** No code changed.
