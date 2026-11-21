@@ -62,6 +62,8 @@ import {
 } from '../documents';
 
 export const runtime = 'nodejs';
+/** Room for one cold fill of the holder snapshot, as on the holder page. */
+export const maxDuration = 300;
 
 /**
  * Dynamic, and the holder documents are why.
@@ -70,12 +72,13 @@ export const runtime = 'nodejs';
  * a handler that reads a database: Next runs its GET during every build, and
  * the read becomes a build-time dependency. Two of the documents below read
  * Neon, so the whole handler stays dynamic and buys its caching back with the
- * `s-maxage` on each response, which is the same hour the pages they mirror
- * revalidate on.
+ * `s-maxage` on each response. The holder documents read the daily holder
+ * snapshot in the data cache (`lib/holder-pages.ts`), so an edge miss costs
+ * no database query (STA-77).
  */
 export const dynamic = 'force-dynamic';
 
-/** The same hour `app/blog/[slug]/page.tsx` and the holder report use. */
+/** The same hour `app/blog/[slug]/page.tsx` revalidates on. */
 const CACHE = 'public, max-age=0, s-maxage=3600, stale-while-revalidate=86400';
 
 interface MarkdownDocument {

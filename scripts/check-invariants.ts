@@ -24046,6 +24046,20 @@ async function main() {
         ) ?? []
       ).length === 3 && /Object\.hasOwn\(record, key\)/.test(holderCode)
     );
+    // A render cut off before the bulk query returns leaves the entry empty,
+    // and the next request starts over: 10 to 87 s on 2026-11-21.
+    for (const file of [
+      'app/holders/[chain]/[address]/page.tsx',
+      'app/api/markdown/[[...path]]/route.ts',
+    ]) {
+      const m = /export const maxDuration = (\d+);/.exec(
+        readFileSync(file, 'utf8')
+      );
+      ok(
+        `${file}: the render has room for one cold snapshot fill (maxDuration ${m?.[1]})`,
+        Number(m?.[1]) >= 180
+      );
+    }
     for (const file of [
       'app/holders/[chain]/[address]/page.tsx',
       'app/api/markdown/[[...path]]/route.ts',

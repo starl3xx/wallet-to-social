@@ -5289,6 +5289,12 @@ const MUTATIONS: Mutation[] = [
     to: '    getHolderStats(chain, address),\n    getHolderOverlapCached(chain, address),\n  ]);',
   },
   {
+    name: 'STA-77 the holder page keeps the default duration, so a cold snapshot fill is cut off',
+    file: 'app/holders/[chain]/[address]/page.tsx',
+    from: 'export const maxDuration = 300;',
+    to: 'export const maxDuration = 60;',
+  },
+  {
     name: 'STA-77 the current-batch CTE is inlined again, so Postgres re-runs it per joined row',
     file: 'lib/holder-pages.ts',
     from: '  current_holders AS MATERIALIZED (',
