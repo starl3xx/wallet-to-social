@@ -2,6 +2,29 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-21 (one holder snapshot for every report)
+
+**The database now suspends, and holder reports were the last caller that
+woke it (STA-77).** At 20:55 UTC Postgres had started 0.2 s before the check;
+at 21:44 a holder report woke it again. 667 collections render a report, but
+the warm jobs refilled only the 325 listed ones, and listed reports link to
+unlisted ones. Each crawler visit to one of the others, or to an address
+nobody seeded, ran 20 to 40 s of queries at a random hour.
+
+- **Every report reads one bulk snapshot.** Two queries compute all of them
+  (`readHolderReports`, `readHolderOverlaps` in `lib/holder-pages.ts`), and
+  each result is one data-cache entry. An address outside the snapshot 404s
+  without a query. Compared with the per-report queries on all 667 before
+  the swap: no differences.
+- **The overlap query is fast again.** Postgres inlined a subquery and re-ran
+  it for every joined row (21 to 37 s per report). The shared current-batch
+  CTE is `MATERIALIZED`; the bulk overlap for all reports takes about 4.5 s.
+- **The warm cron fills the snapshot first,** and the expire phase moved
+  from 07:20 to 07:28 UTC, so a visitor can meet an expired snapshot for two
+  minutes a day at most.
+- **Trade-off:** Vercel does not cache an item over 2 MB and does not warn.
+  The entries are about 0.3 MB each; the warm cron logs an error past 1 MB.
+
 ### 2026-11-21 (holder data from the data cache)
 
 **The first STA-77 change left one frequent caller, and its warm cron did

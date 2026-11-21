@@ -47,6 +47,14 @@ import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
  * answer stays /check and the app.
  */
 export const revalidate = 604800;
+/**
+ * Room for one cold fill of the holder snapshot. Every report reads it, and on
+ * the rare request that finds it empty (a new snapshot key, an eviction) this
+ * render runs the bulk query itself: 10 to 87 s on 2026-11-21. A render cut
+ * off first would leave the entry empty, and the next request would start
+ * over.
+ */
+export const maxDuration = 300;
 
 interface Props {
   params: Promise<{ chain: string; address: string }>;

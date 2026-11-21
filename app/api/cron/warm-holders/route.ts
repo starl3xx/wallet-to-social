@@ -3,6 +3,7 @@ import { revalidatePath, revalidateTag } from 'next/cache';
 import {
   HOLDER_DATA_TAG,
   listHolderCollectionsCached,
+  warmHolderSnapshot,
 } from '@/lib/holder-pages';
 import { listStarterCollectionsCached } from '@/lib/starter-collections';
 import { getSiteUrl } from '@/lib/site-url';
@@ -29,17 +30,23 @@ const DAILY_PATHS = ['/sitemap.xml', '/holders', '/api/public-stats'];
  * morning crons anyway. The pages show aggregates only, never an identity, so
  * a day-old render has nothing a removal must take back.
  *
+ * Every report reads one bulk snapshot (`warmHolderSnapshot` in
+ * lib/holder-pages.ts), so the warm fills that first and awaits it. A page
+ * fetched before it would start the aggregate itself, six at once, and each
+ * would outlast its fetch timeout on a cold database.
+ *
  * ## Two phases, two requests, on purpose
  *
  * Next applies `revalidatePath` and `revalidateTag` only after the route
  * handler returns. A single request that expired the caches and then fetched
  * the pages fetched them from the still-valid cache, and the real regeneration
  * happened later, whenever a crawler arrived: the random-hour wake this route
- * exists to prevent. So `?phase=expire` (07:20 UTC) only expires, and the plain
- * call (07:30 UTC) only regenerates: it fetches every page, whose stale render
- * is rebuilt from freshly computed data, and refills the starter collections
- * directly, because their edge cache may still answer a fetch without running
- * the route.
+ * exists to prevent. So `?phase=expire` (07:28 UTC) only expires, and the plain
+ * call (07:30 UTC) only regenerates: it refills the snapshot and the listing,
+ * fetches every listed page, whose stale render is rebuilt from the fresh
+ * snapshot, and refills the starter collections directly, because their edge
+ * cache may still answer a fetch without running the route. The two minutes
+ * between them are the only time a visitor can meet an expired snapshot.
  */
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -59,7 +66,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/** 07:20: mark everything stale. Applied when this request returns. */
+/** 07:28: mark everything stale. Applied when this request returns. */
 function expirePhase() {
   revalidateTag(HOLDER_DATA_TAG, { expire: 0 });
   revalidatePath('/holders/[chain]/[address]', 'page');
@@ -69,6 +76,7 @@ function expirePhase() {
 
 /** 07:30: rebuild everything the expire phase marked stale. */
 async function warmPhase() {
+  const snapshot = await warmHolderSnapshot();
   const collections = await listHolderCollectionsCached();
   const paths = [
     ...DAILY_PATHS,
@@ -99,5 +107,11 @@ async function warmPhase() {
   }
 
   const starters = await listStarterCollectionsCached(3);
-  return { pages: paths.length, warmed, failed, starters: starters.length };
+  return {
+    snapshot,
+    pages: paths.length,
+    warmed,
+    failed,
+    starters: starters.length,
+  };
 }

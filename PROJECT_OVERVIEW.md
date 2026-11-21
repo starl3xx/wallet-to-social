@@ -1275,7 +1275,15 @@ print them. This is the same split `/check` publishes in prose; the public
   aggregate through `unstable_cache` wrappers in `lib/holder-pages.ts` and
   `lib/starter-collections.ts` (a week, tag `holder-data`, keyed by
   `CACHE_ENV` from `lib/cache-env.ts`). `/api/cron/warm-holders?phase=expire`
-  (07:20 UTC) expires them; the plain call (07:30) regenerates.
+  (07:28 UTC) expires them; the plain call (07:30) regenerates.
+- **One holder snapshot for every report (STA-77, PR #432).** The holder
+  pages and the markdown mirror read `getHolderCollectionCached`,
+  `getHolderStatsCached` and `getHolderOverlapCached`, which look up two
+  bulk entries: `readHolderReports` (every seeded contract with imported
+  holders, and its stats) and `readHolderOverlaps` (the top five overlaps of
+  each, under `OVERLAP_MIN_SHARED`). The warm cron fills both first, through
+  `warmHolderSnapshot`. The per-report queries remain for
+  `scripts/concierge-signals.ts` only.
 
 ## Recent Changes (2026-08-24)
 

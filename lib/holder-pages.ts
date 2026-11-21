@@ -742,7 +742,7 @@ export function standardLabel(
 }
 
 /**
- * The holder queries behind Next's data cache (STA-77).
+ * The holder data behind Next's data cache (STA-77).
  *
  * These queries aggregate the whole holdings table, and three routes ran them
  * on demand: the holder pages, the holders hub and sitemap, and the markdown
@@ -752,10 +752,10 @@ export function standardLabel(
  * region, so agents and crawlers around the world re-ran a multi-second
  * aggregate every hour in each region and kept the database awake all day.
  *
- * The data cache sits behind every region and is filled at request time,
- * never at build. Entries keep a week, and `/api/cron/warm-holders` expires
- * the tag at 07:20 UTC and regenerates everything at 07:30, inside the morning
- * cron window. The values are plain strings and numbers, so they survive the
+ * The data cache sits behind every region, and Vercel keeps its entries across
+ * deployments. Entries keep a week, and `/api/cron/warm-holders` expires the
+ * tag at 07:28 UTC and refills everything at 07:30, inside the morning cron
+ * window. The values are plain strings and numbers, so they survive the
  * cache's JSON round trip. The environment is part of the key, because a
  * preview deployment deliberately answers an empty listing and must never
  * fill the production entry (`lib/cache-env.ts`).
@@ -771,34 +771,245 @@ export const listHolderCollectionsCached = unstable_cache(
   ['holder-list-v1', CACHE_ENV],
   HOLDER_CACHE
 );
-const getHolderCollectionCacheEntry = unstable_cache(
-  getHolderCollection,
-  ['holder-collection-v1', CACHE_ENV],
+
+/**
+ * # One snapshot for every report, not one query per report
+ *
+ * Until 2026-11-21 each report was cached under its own key, filled by its own
+ * three queries. That left a hole the database fell through every day. 667
+ * collections render a report, but the sitemap and both warm jobs reach only
+ * the 325 listed ones, and the overlap section on a listed report links to
+ * unlisted ones. So a crawler following those links refilled an entry at
+ * whatever hour it arrived, and so did any request for an address that was
+ * never seeded, because a per-key cache cannot hold an answer for a key nobody
+ * asked for. Each refill woke a suspended database. And the per-report overlap
+ * query took 21 to 37 seconds (Postgres inlined the `latest` subquery and
+ * re-ran it for each of 13,674 joined rows), so the post-deploy warm reached
+ * only 156 of 331 pages in its fifteen minutes.
+ *
+ * Now two bulk queries compute every report at once. On 2026-11-21 the
+ * reports took 10 to 87 seconds, depending on how much of the table was in
+ * memory, and the overlap about 4.5.
+ * Each result is one cache entry, filled by the morning warm before any page
+ * is fetched, and every page lookup below is a read of those two entries.
+ * An address that is not in the snapshot is not a report, so it 404s without
+ * a query.
+ *
+ * Vercel refuses to cache an item larger than 2 MB, and says nothing when it
+ * does: every lookup would then run the bulk query again. The two entries
+ * were 0.33 MB and 0.31 MB in JSON on 2026-11-21, and the warm cron logs an
+ * error once either passes `HOLDER_SNAPSHOT_WARN_BYTES`.
+ *
+ * The per-report functions above stay for `scripts/concierge-signals.ts`,
+ * which runs from a laptop. No rendered route calls them.
+ */
+
+/** The overlap rows a report shows. */
+export const OVERLAP_REPORT_LIMIT = 5;
+
+/** Half the item limit, so the warning comes long before the silent refusal. */
+export const HOLDER_SNAPSHOT_WARN_BYTES = 1_000_000;
+
+/** One renderable report: stats are null when it has no current holdings. */
+export interface HolderReport {
+  collection: HolderCollection;
+  stats: HolderStats | null;
+}
+
+/**
+ * The snapshot key: the chain as given, the address lowercased. The
+ * per-report queries compared the chain exactly and the address lowercased,
+ * so a URL resolves to the same report it did before.
+ */
+export function holderKey(chain: string, address: string): string {
+  return `${chain}:${address.toLowerCase()}`;
+}
+
+/** An own-property read, so a crafted URL cannot reach Object.prototype. */
+function ownEntry<T>(record: Record<string, T>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
+}
+
+/**
+ * The current batch of every collection, materialized once per query: the
+ * same rule as `getHolderStats` (rows within an hour of the collection's own
+ * newest `last_seen_at`). MATERIALIZED is load-bearing: inlined, Postgres
+ * re-ran `latest` for each joined row.
+ */
+const currentHolders = sql`
+  latest AS MATERIALIZED (
+    SELECT contract, chain, max(last_seen_at) AS at
+    FROM wallet_holdings GROUP BY contract, chain
+  ),
+  current_holders AS MATERIALIZED (
+    SELECT wh.contract, wh.chain, wh.wallet
+    FROM wallet_holdings wh
+    JOIN latest l ON l.contract = wh.contract AND l.chain = wh.chain
+    WHERE wh.last_seen_at >= l.at - interval '1 hour'
+  )
+`;
+
+/**
+ * Every renderable report: each seeded contract with imported holders, as
+ * `getHolderCollection` finds it, with the stats `getHolderStats` computes.
+ */
+export async function readHolderReports(): Promise<
+  Record<string, HolderReport>
+> {
+  const db = getDb();
+  if (!db) return {};
+  const result = (await db.execute(sql`
+    WITH ${currentHolders},
+    stats AS (
+      SELECT h.contract, h.chain, json_build_object(
+        'holderCount',     count(*)::int,
+        'checked',         count(g.wallet)::int,
+        'withTwitter',     count(*) FILTER (WHERE g.twitter_handle IS NOT NULL)::int,
+        'twitterVerified', count(*) FILTER (WHERE g.twitter_handle IS NOT NULL
+                                              AND g.twitter_verified = true)::int,
+        'withFarcaster',   count(*) FILTER (WHERE g.farcaster IS NOT NULL)::int,
+        'xLive',           count(*) FILTER (WHERE x.status = 'live')::int,
+        'xUnclaimed',      count(*) FILTER (WHERE x.status = 'not_found')::int,
+        'xSuspended',      count(*) FILTER (WHERE x.status = 'unavailable')::int,
+        'reachableAny',    count(*) FILTER (WHERE x.status = 'live'
+                                               OR g.farcaster IS NOT NULL)::int,
+        'avgFcFollowers',  round(avg(g.fc_followers)
+                             FILTER (WHERE g.farcaster IS NOT NULL))::int,
+        'medianFcFollowers', round(percentile_cont(0.5) WITHIN GROUP (ORDER BY g.fc_followers)
+                             FILTER (WHERE g.fc_followers IS NOT NULL))::int
+      ) AS stats
+      FROM current_holders h
+      LEFT JOIN social_graph g ON g.wallet = h.wallet
+      LEFT JOIN x_accounts x ON x.handle = lower(g.twitter_handle)
+      GROUP BY h.contract, h.chain
+    )
+    SELECT sc.address, sc.chain, sc.name, sc.symbol,
+           sc.contract_type AS "contractType",
+           sc.total_holders AS "totalHolders",
+           sc.holders_imported AS "holdersImported",
+           l.at AS "lastSeenAt",
+           s.stats
+    FROM seeded_contracts sc
+    LEFT JOIN latest l ON l.contract = sc.address AND l.chain = sc.chain
+    LEFT JOIN stats s ON s.contract = sc.address AND s.chain = sc.chain
+    WHERE sc.holders_imported > 0
+  `)) as unknown as {
+    rows: (HolderCollection & { stats: HolderStats | null })[];
+  };
+  const reports: Record<string, HolderReport> = {};
+  for (const { stats, ...collection } of result.rows) {
+    reports[holderKey(collection.chain, collection.address)] = {
+      collection,
+      stats: stats && stats.holderCount > 0 ? stats : null,
+    };
+  }
+  return reports;
+}
+
+/**
+ * The overlap section of every report, under the same floor and the same
+ * named-contract rule as `getHolderOverlap`. The floor is the whole defence
+ * against inverting a row into named wallets (see OVERLAP_MIN_SHARED), so it
+ * is the constant here, never a literal. Ties at the last place break by
+ * name, where the per-report query broke them arbitrarily.
+ */
+export async function readHolderOverlaps(): Promise<
+  Record<string, HolderOverlap[]>
+> {
+  const db = getDb();
+  if (!db) return {};
+  const result = (await db.execute(sql`
+    WITH ${currentHolders},
+    shared AS (
+      SELECT a.contract AS for_contract, a.chain AS for_chain,
+             b.contract, b.chain, count(*)::int AS shared_holders
+      FROM current_holders a
+      JOIN current_holders b
+        ON b.wallet = a.wallet
+       AND NOT (b.contract = a.contract AND b.chain = a.chain)
+      GROUP BY a.contract, a.chain, b.contract, b.chain
+      HAVING count(*) >= ${OVERLAP_MIN_SHARED}
+    ),
+    ranked AS (
+      SELECT s.for_contract, s.for_chain, sc.address, sc.chain, sc.name,
+             s.shared_holders,
+             row_number() OVER (
+               PARTITION BY s.for_contract, s.for_chain
+               ORDER BY s.shared_holders DESC, sc.name, sc.address, sc.chain
+             ) AS place
+      FROM shared s
+      JOIN seeded_contracts sc
+        ON sc.address = s.contract AND sc.chain = s.chain
+       AND sc.holders_imported > 0 AND ${namedContract}
+    )
+    SELECT for_contract AS "forAddress", for_chain AS "forChain",
+           address, chain, name, shared_holders AS "sharedHolders"
+    FROM ranked
+    WHERE place <= ${OVERLAP_REPORT_LIMIT}
+    ORDER BY for_chain, for_contract, place
+  `)) as unknown as {
+    rows: (HolderOverlap & { forAddress: string; forChain: string })[];
+  };
+  const overlaps: Record<string, HolderOverlap[]> = {};
+  for (const { forAddress, forChain, ...row } of result.rows) {
+    (overlaps[holderKey(forChain, forAddress)] ??= []).push(row);
+  }
+  return overlaps;
+}
+
+const readHolderReportsCached = unstable_cache(
+  readHolderReports,
+  ['holder-reports-v1', CACHE_ENV],
   HOLDER_CACHE
 );
-const getHolderStatsCacheEntry = unstable_cache(
-  getHolderStats,
-  ['holder-stats-v1', CACHE_ENV],
-  HOLDER_CACHE
-);
-const getHolderOverlapCacheEntry = unstable_cache(
-  getHolderOverlap,
-  ['holder-overlap-v1', CACHE_ENV],
+const readHolderOverlapsCached = unstable_cache(
+  readHolderOverlaps,
+  ['holder-overlaps-v1', CACHE_ENV],
   HOLDER_CACHE
 );
 
-/*
- * The address is lowercased before it becomes part of the cache key. The
- * queries lowercase it themselves, so a checksummed or mixed-case URL found the
- * same row but missed the entry the morning warm filled, woke the database and
- * stored a duplicate (Bugbot on PR #431).
+/**
+ * Fill both snapshot entries, one after the other, and report their sizes.
+ * The morning warm awaits this before it fetches a single page, so no page
+ * render ever starts the aggregate itself.
  */
-export const getHolderCollectionCached = (chain: string, address: string) =>
-  getHolderCollectionCacheEntry(chain, address.toLowerCase());
-export const getHolderStatsCached = (chain: string, address: string) =>
-  getHolderStatsCacheEntry(chain, address.toLowerCase());
-export const getHolderOverlapCached = (
+export async function warmHolderSnapshot() {
+  const reports = await readHolderReportsCached();
+  const overlaps = await readHolderOverlapsCached();
+  const reportBytes = Buffer.byteLength(JSON.stringify(reports));
+  const overlapBytes = Buffer.byteLength(JSON.stringify(overlaps));
+  if (Math.max(reportBytes, overlapBytes) > HOLDER_SNAPSHOT_WARN_BYTES) {
+    console.error(
+      `Holder snapshot nears the 2 MB cache item limit (reports ${reportBytes} B, overlaps ${overlapBytes} B); split it before Vercel stops caching it.`
+    );
+  }
+  return {
+    reports: Object.keys(reports).length,
+    reportBytes,
+    overlapBytes,
+  };
+}
+
+export async function getHolderCollectionCached(
   chain: string,
-  address: string,
-  limit = 5
-) => getHolderOverlapCacheEntry(chain, address.toLowerCase(), limit);
+  address: string
+): Promise<HolderCollection | null> {
+  const reports = await readHolderReportsCached();
+  return ownEntry(reports, holderKey(chain, address))?.collection ?? null;
+}
+
+export async function getHolderStatsCached(
+  chain: string,
+  address: string
+): Promise<HolderStats | null> {
+  const reports = await readHolderReportsCached();
+  return ownEntry(reports, holderKey(chain, address))?.stats ?? null;
+}
+
+export async function getHolderOverlapCached(
+  chain: string,
+  address: string
+): Promise<HolderOverlap[]> {
+  const overlaps = await readHolderOverlapsCached();
+  return ownEntry(overlaps, holderKey(chain, address)) ?? [];
+}
