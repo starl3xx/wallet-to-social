@@ -15,9 +15,9 @@ import {
   STARTER_WALLET_CAP,
 } from '@/lib/starter-collections';
 import {
-  getHolderCollection,
-  getHolderStats,
-  getHolderOverlap,
+  getHolderCollectionCached,
+  getHolderStatsCached,
+  getHolderOverlapCached,
   isNamed,
   measurementInProgress,
   chainLabel,
@@ -87,7 +87,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { chain, address } = await params;
-  const collection = await getHolderCollection(chain, address);
+  const collection = await getHolderCollectionCached(chain, address);
   if (!collection) return {};
   const canonical = `https://walletlink.social/holders/${collection.chain}/${collection.address}`;
   // One title for the tab, both cards and the Article headline, and one
@@ -178,11 +178,11 @@ function isoDay(at: Date): string {
 
 export default async function HolderPage({ params }: Props) {
   const { chain, address } = await params;
-  const collection = await getHolderCollection(chain, address);
+  const collection = await getHolderCollectionCached(chain, address);
   if (!collection) notFound();
   const [stats, overlap] = await Promise.all([
-    getHolderStats(chain, address),
-    getHolderOverlap(chain, address),
+    getHolderStatsCached(chain, address),
+    getHolderOverlapCached(chain, address),
   ]);
   if (!stats) notFound();
 

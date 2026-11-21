@@ -33,6 +33,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/warm-holders?phase=expire",
+      "schedule": "20 7 * * *"
+    },
+    {
       "path": "/api/cron/warm-holders",
       "schedule": "30 7 * * *"
     },

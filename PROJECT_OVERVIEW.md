@@ -1270,6 +1270,12 @@ print them. This is the same split `/check` publishes in prose; the public
   keep a week and `GET /api/cron/warm-holders` (07:30 UTC, `CRON_SECRET`)
   regenerates them and the sitemap each morning. The outreach runner reads the
   database only when it could send (`couldSendNow`).
+- **Holder data from the data cache (STA-77 follow-up).** The markdown mirror,
+  holder pages, hub, sitemap and `/api/starter-collections` read the holder
+  aggregate through `unstable_cache` wrappers in `lib/holder-pages.ts` and
+  `lib/starter-collections.ts` (a week, tag `holder-data`, keyed by
+  `CACHE_ENV` from `lib/cache-env.ts`). `/api/cron/warm-holders?phase=expire`
+  (07:20 UTC) expires them; the plain call (07:30) regenerates.
 
 ## Recent Changes (2026-08-24)
 

@@ -13,9 +13,10 @@ import { CHAIN_LABELS, SUPPORTED_CHAINS } from '@/lib/chains';
 export const runtime = 'nodejs';
 
 // Public, keyless stats for marketing surfaces (homepage stat strip).
-// Cached and revalidated hourly so the daily-refreshed index numbers stay
-// live without hitting the database on every page view.
-export const revalidate = 3600;
+// Cached for a day and regenerated each morning by `/api/cron/warm-holders`
+// (STA-77): the index numbers move daily, and an hourly regeneration on a
+// homepage visit woke the database at random hours.
+export const revalidate = 86400;
 
 /**
  * A published display figure back into the number it rounds.

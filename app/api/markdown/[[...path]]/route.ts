@@ -45,10 +45,10 @@
  */
 import { getAllPosts, getPostBySlug } from '@/lib/blog';
 import {
-  getHolderCollection,
-  getHolderOverlap,
-  getHolderStats,
-  listHolderCollections,
+  getHolderCollectionCached,
+  getHolderOverlapCached,
+  getHolderStatsCached,
+  listHolderCollectionsCached,
 } from '@/lib/holder-pages';
 import { PRODUCTION_URL } from '@/lib/site-url';
 import {
@@ -140,17 +140,17 @@ async function resolveDocument(
 
   if (segments.length === 1 && first === 'holders') {
     return {
-      body: holdersIndexMarkdown(await listHolderCollections()),
+      body: holdersIndexMarkdown(await listHolderCollectionsCached()),
       canonical: `${PRODUCTION_URL}/holders`,
     };
   }
 
   if (segments.length === 3 && first === 'holders') {
-    const collection = await getHolderCollection(second, third);
+    const collection = await getHolderCollectionCached(second, third);
     if (!collection) return null;
     const [stats, overlap] = await Promise.all([
-      getHolderStats(second, third),
-      getHolderOverlap(second, third),
+      getHolderStatsCached(second, third),
+      getHolderOverlapCached(second, third),
     ]);
     // The same condition the page 404s on, so a collection with no holdings
     // rows does not get a report in one representation and not the other.

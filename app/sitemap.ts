@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { getAllPosts } from '@/lib/blog';
 import {
   holderSitemapPriority,
-  listHolderCollections,
+  listHolderCollectionsCached,
   SITEMAP_MIN_REACHABLE,
 } from '@/lib/holder-pages';
 
@@ -42,7 +42,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
    * crawl", and it had been borrowing the answer to the first. See
    * SITEMAP_MIN_REACHABLE for what Search Console said about that.
    */
-  const holderCollections = await listHolderCollections();
+  const holderCollections = await listHolderCollectionsCached();
   const holderEntries: MetadataRoute.Sitemap = holderCollections
     .filter((c) => c.reachableAny >= SITEMAP_MIN_REACHABLE)
     .map((c) => ({

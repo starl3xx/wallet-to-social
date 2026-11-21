@@ -2,6 +2,22 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-21 (holder data from the data cache)
+
+**The first STA-77 change left one frequent caller, and its warm cron did
+nothing.** After deploy the database still never suspended. The markdown
+mirror and the starter collections ran the whole-table holder aggregate per
+request behind a per-region edge cache, so agents and crawlers re-ran it from
+every region every hour. And Next applies `revalidatePath` only after a route
+handler returns, so the warm cron's own fetches hit the old cache.
+
+- **Holder data reads through `unstable_cache`** (a week, tag `holder-data`,
+  keyed by environment through `lib/cache-env.ts`): the markdown mirror, the
+  holder pages, the hub, the sitemap and the starter collections.
+  `/api/wins` reads through it too, and `/api/public-stats` is a daily ISR.
+- **The warm cron runs in two requests:** `?phase=expire` at 07:20 UTC
+  expires the tag and paths, and the plain call at 07:30 regenerates them.
+
 ### 2026-11-21 (the database can sleep again)
 
 **The Neon compute had not suspended once since 2026-10-14 (STA-77).** Neon
