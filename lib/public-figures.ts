@@ -102,7 +102,7 @@ export const FARCASTER_WALLETS = '4.7 million';
  * safe. Safe is not the same as true, so the check now also fails when a
  * ceiling claim falls too far behind, and the literal lives here.
  */
-export const X_HANDLES_RESOLVED = '482,968';
+export const X_HANDLES_RESOLVED = '493,452';
 
 /**
  * Distinct X handles the index holds. The denominator for the figure above.
@@ -110,7 +110,7 @@ export const X_HANDLES_RESOLVED = '482,968';
  * Also previously duplicated and also already divergent: 446,070 in one module
  * header, 446,043 in the docs, 446,329 in the database.
  */
-export const X_HANDLES_HELD = '480,015';
+export const X_HANDLES_HELD = '489,618';
 
 /**
  * Share of the distinct held X handles that carry a reachability state.
@@ -185,9 +185,9 @@ export const ATTESTED_X_SHARE_PCT = '99.7';
  * Markdown surfaces still carry literals, because a `.md` cannot import a
  * constant. Those are exactly the ones the guard exists for.
  */
-export const X_LIVE_PCT = '70.1';
-export const X_SUSPENDED_PCT = '19.7';
-export const X_UNCLAIMED_PCT = '10.2';
+export const X_LIVE_PCT = '68.4';
+export const X_SUSPENDED_PCT = '20.7';
+export const X_UNCLAIMED_PCT = '10.9';
 
 /**
  * The share that reaches nobody, derived rather than typed.

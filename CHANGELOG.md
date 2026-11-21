@@ -23,6 +23,9 @@ alone when there is no work.
   `/api/cron/warm-holders` (07:30 UTC).
 - **Trade-offs:** a job whose kick fails waits for the hourly tick, not a
   minute. Welcome-1 lands 5 to 65 minutes after signup, not 5 to 10.
+- **Published figures refreshed** (the `figures` check found index growth):
+  493,452 X handles resolved (was 482,968), 68.4% live, 20.7% suspended and
+  10.9% unclaimed (was 70.1, 19.7 and 10.2), 489,618 distinct handles held.
 
 ### 2026-11-20 (CLAUDE.md gets an ownership line)
 
