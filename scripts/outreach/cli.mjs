@@ -13,6 +13,7 @@ import {
   report,
   digest,
   tick,
+  couldSendNow,
   audit,
   excludeEmails,
   refreshEvidence,
@@ -219,7 +220,20 @@ if (!command || command === 'help' || command === '--help') {
         case 'tick':
           if (args.length && (args.length !== 1 || args[0] !== '--send'))
             throw new Error('Use tick or tick --send');
-          if (args[0] === '--send' && !state.paused) {
+          // The exclusion refresh is the only database read. It runs before
+          // every live tick that could send, and never on one that cannot
+          // (STA-77). The credential is still required on every live tick,
+          // so a runner set up without it refuses at once rather than at the
+          // first due message.
+          if (
+            args[0] === '--send' &&
+            !state.paused &&
+            !process.env.OUTREACH_DATABASE_URL
+          )
+            throw new Error(
+              'OUTREACH_DATABASE_URL is required for a live tick: the account exclusions are read before any send'
+            );
+          if (args[0] === '--send' && couldSendNow(state, now)) {
             await syncExistingAccounts(state, now);
             store.save(state);
           }

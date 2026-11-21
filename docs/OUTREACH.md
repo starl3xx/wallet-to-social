@@ -157,7 +157,7 @@ OUTREACH_DATA_DIR=
 on `public.users`. The dedicated outreach role is connected; live privilege
 checks confirmed email-column access without full-table reads or user-table
 writes. The query names the schema explicitly so pooled connection search
-paths cannot select a different table. Before every live tick, the runner excludes all existing
+paths cannot select a different table. Before every live tick that could send (a message is due, inside sending hours, under the daily limit and past the minimum gap), the runner excludes all existing
 WalletLink accounts, including opted-out accounts, to avoid overlapping the
 welcome and nonbuyer campaigns. A failed query stops that tick. This is a
 read-only query; no owner credentials or schema changes are needed. Manual
@@ -181,7 +181,9 @@ including follow-ups, with at least 15 minutes between sends. Sending hours
 are 09:00 through 16:59 in the configured timezone. Daily limits use that
 timezone, including daylight-saving changes. Each tick sends at most one
 message. The worker polls every five minutes and survives individual tick
-failures, logging their exit codes.
+failures, logging their exit codes. A poll that cannot send reads nothing from
+the database, so the Neon compute can suspend between sends (STA-77). A live
+tick still refuses at once when `OUTREACH_DATABASE_URL` is unset.
 
 ```sh
 npm run outreach -- resume

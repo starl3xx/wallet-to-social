@@ -17,6 +17,7 @@ import {
   excludeEmails,
   refreshEvidence,
   candidates,
+  couldSendNow,
   NotSubmittedError,
 } from './engine.mjs';
 import { openStore } from './store.mjs';
@@ -147,6 +148,30 @@ test('dry run does not call the network or change the queue', async () => {
   assert.equal(result.due.length, 1);
   assert.deepEqual(calls, []);
   assert.deepEqual(state, before);
+});
+
+test('the exclusions are read from the database only when a send could happen', () => {
+  // STA-77: that read is the runner's only database query, and a query on
+  // every five-minute poll kept the Neon compute from ever suspending.
+  const f = fixture();
+  assert.equal(couldSendNow(f.state, NOW), true);
+  assert.equal(
+    couldSendNow(f.state, Date.parse('2026-09-26T15:00:00Z')),
+    false,
+    'Saturday'
+  );
+  assert.equal(
+    couldSendNow(f.state, Date.parse('2026-09-21T08:00:00Z')),
+    false,
+    'before 09:00 in the sender timezone'
+  );
+  f.state.paused = true;
+  assert.equal(couldSendNow(f.state, NOW), false, 'paused');
+  assert.equal(
+    couldSendNow(fixture({ approved: false }).state, NOW),
+    false,
+    'nothing due'
+  );
 });
 
 test('paused and unapproved queues send nothing', async () => {
