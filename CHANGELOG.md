@@ -15,9 +15,12 @@ deploy ran 126 s of bulk queries.
   entry's name, so every layer computes one key. The three holder entries use
   it. The name is now the only version: bump its `-vN` when what the entry
   holds changes.
-- **A cold read is shared for a minute** on each instance. A cold report read
-  the snapshot three times, and each read missed the write the one before had
-  only started. The morning warm reads past the hold (`.direct()`).
+- **One read per request.** A read that misses starts its write and returns
+  without waiting, so a cold report's second read missed too and ran the bulk
+  query again. Pages share one read per render through React's `cache`; the
+  markdown route reads each entry once (`getHolderReportCached`). Nothing is
+  held between requests, so no page rebuilt after the morning expiry can
+  carry the old snapshot (Bugbot).
 - **An invariant reads Next's own `unstable_cache` source**, so an upgrade
   that stops keying on `cb.toString()` fails CI instead of passing silently.
 

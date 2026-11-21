@@ -18,60 +18,19 @@ import { CACHE_ENV } from '@/lib/cache-env';
  * whenever the function changed. It no longer does, and the data cache
  * outlives deploys, so bump the `-vN` in the name on any change to what the
  * entry holds. If not, a deploy reads the old shape until the next expiry.
- *
- * ## Held for a minute after it settles
- *
- * A read that misses computes the value, starts writing it, and returns
- * without waiting for the write. A cold holder page reads the snapshot again a moment
- * later, before the write has landed, so that read missed too and ran the bulk
- * query a second time: two bulk queries inside one 126 s markdown request on
- * 2026-11-21. Concurrent requests on one instance did the same. So each
- * instance shares one read while it is in flight and for a minute after it
- * settles. A failed read is not held. `direct` skips the hold, for the morning
- * warm, which must refill an entry that has just expired.
+
+ * Only the key is shared. Nothing is held in memory between requests: a held
+ * value could outlive the morning expiry and be baked into a page rebuilt just
+ * after it, which would then count as fresh until the next morning (Bugbot on
+ * PR #433). Reads within one request are shared by the caller
+ * (`lib/holder-pages.ts`).
  */
-export const SHARED_CACHE_HOLD_MS = 60_000;
-
-export type SharedCache<T> = (() => Promise<T>) & {
-  direct: () => Promise<T>;
-};
-
 export function sharedCache<T>(
   name: string,
   fill: () => Promise<T>,
   options: { revalidate: number; tags: string[] }
-): SharedCache<T> {
+): () => Promise<T> {
   const callback = () => fill();
   callback.toString = () => name;
-  const direct = unstable_cache(callback, [name, CACHE_ENV], options);
-  return Object.assign(holdShared(direct, SHARED_CACHE_HOLD_MS), { direct });
-}
-
-/**
- * One read shared by every caller while it is in flight and for `holdMs`
- * after it resolves. A rejected read is dropped at once, so the next caller
- * tries again. Pure, so `scripts/check-invariants.ts` drives it directly.
- */
-export function holdShared<T>(
-  read: () => Promise<T>,
-  holdMs: number,
-  now: () => number = Date.now
-): () => Promise<T> {
-  let held: { value: Promise<T>; settledAt: number | null } | null = null;
-  return () => {
-    if (held && (held.settledAt === null || now() - held.settledAt < holdMs)) {
-      return held.value;
-    }
-    const entry = { value: read(), settledAt: null as number | null };
-    held = entry;
-    entry.value.then(
-      () => {
-        entry.settledAt = now();
-      },
-      () => {
-        if (held === entry) held = null;
-      }
-    );
-    return entry.value;
-  };
+  return unstable_cache(callback, [name, CACHE_ENV], options);
 }

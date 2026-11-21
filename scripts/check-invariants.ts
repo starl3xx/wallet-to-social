@@ -23984,7 +23984,7 @@ async function main() {
     ok(
       'the markdown mirror reads holder data only through the data cache',
       !uncachedHolderRead.test(markdownRoute) &&
-        /getHolderStatsCached\(/.test(markdownRoute)
+        /getHolderReportCached\(/.test(markdownRoute)
     );
     const starterRoute = withoutComments(
       readFileSync('app/api/starter-collections/route.ts', 'utf8')
@@ -24043,54 +24043,12 @@ async function main() {
           sharedCode.indexOf('unstable_cache(callback,')
     );
 
-    // A cold page reads the snapshot three times, and each read used to miss
-    // the write the one before it had only started. Through the code: one
-    // underlying read while in flight, one within the hold, none held after a
-    // rejection.
-    {
-      const { holdShared } = await import('@/lib/shared-cache');
-      let calls = 0;
-      let clock = 0;
-      let fail = false;
-      const shared = holdShared(
-        async () => {
-          calls++;
-          if (fail) throw new Error('read failed');
-          return calls;
-        },
-        60_000,
-        () => clock
-      );
-      const [a, b] = await Promise.all([shared(), shared()]);
-      clock = 59_000;
-      const c = await shared();
-      clock = 61_000;
-      const d = await shared();
-      fail = true;
-      clock = 200_000;
-      const e = await shared().catch(() => 'rejected');
-      fail = false;
-      const f = await shared();
-      ok(
-        `the hold shares one read in flight and within a minute, and never holds a failure (${[a, b, c, d, e, f].join(',')})`,
-        a === 1 &&
-          b === 1 &&
-          c === 1 &&
-          d === 2 &&
-          e === 'rejected' &&
-          f === 4 &&
-          calls === 4
-      );
-    }
-    // The morning warm must refill the entry the expiry just cleared, so it
-    // reads past the hold.
+    // A held value could outlive the morning expiry and be baked into a page
+    // rebuilt just after it, fresh in name until the next morning (Bugbot,
+    // PR #433). So the helper keeps nothing between requests.
     ok(
-      'the morning warm reads every holder entry past the hold',
-      /await readHolderReportsCached\.direct\(\)/.test(holderPagesSrc) &&
-        /await readHolderOverlapsCached\.direct\(\)/.test(holderPagesSrc) &&
-        /await listHolderCollectionsCached\.direct\(\)/.test(
-          readFileSync('app/api/cron/warm-holders/route.ts', 'utf8')
-        )
+      'the shared cache helper holds no value between requests',
+      sharedCode.length > 100 && !/\blet\b/.test(sharedCode)
     );
 
     // The SQL lowercases the address; a lookup key that did not would miss
@@ -24115,19 +24073,38 @@ async function main() {
       holderCode.indexOf('export async function getHolderCollectionCached(')
     );
     ok(
-      'the three report accessors read only the snapshot entries',
+      'the four report accessors read only the snapshot entries, once per render',
       accessors.length > 300 &&
-        (accessors.match(/await readHolder(Reports|Overlaps)Cached\(\)/g) ?? [])
-          .length === 3 &&
-        !/getHolder(Collection|Stats|Overlap)\(/.test(accessors)
+        (accessors.match(/await (reports|overlaps)ThisRender\(\)/g) ?? [])
+          .length === 4 &&
+        !/readHolder(Reports|Overlaps)Cached\(/.test(accessors) &&
+        !/getHolder(Collection|Stats|Overlap)\(/.test(accessors) &&
+        /const reportsThisRender = cache\(\(\) => readHolderReportsCached\(\)\);/.test(
+          holderCode
+        ) &&
+        /const overlapsThisRender = cache\(\(\) => readHolderOverlapsCached\(\)\);/.test(
+          holderCode
+        )
     );
+    // A route handler has no render for React's cache to share, so the
+    // markdown route reads the reports entry exactly once per request.
+    {
+      const md = withoutComments(
+        readFileSync('app/api/markdown/[[...path]]/route.ts', 'utf8')
+      );
+      ok(
+        'the markdown route reads the holder reports entry once per request',
+        (md.match(/getHolderReportCached\(/g) ?? []).length === 1 &&
+          !/getHolder(Collection|Stats)Cached\(/.test(md)
+      );
+    }
     ok(
       'each accessor looks up its key as an own property, so a crafted URL cannot reach Object.prototype',
       (
         accessors.match(
           /ownEntry\((reports|overlaps), holderKey\(chain, address\)\)/g
         ) ?? []
-      ).length === 3 && /Object\.hasOwn\(record, key\)/.test(holderCode)
+      ).length === 4 && /Object\.hasOwn\(record, key\)/.test(holderCode)
     );
     // A render cut off before the bulk query returns leaves the entry empty,
     // and the next request starts over: 10 to 87 s on 2026-11-21.

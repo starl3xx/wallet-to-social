@@ -5237,8 +5237,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-77 the markdown mirror reads holder stats from the database on every request again',
     file: 'app/api/markdown/[[...path]]/route.ts',
-    from: '      getHolderStatsCached(second, third),',
-    to: '      getHolderStats(second, third),',
+    from: '      getHolderReportCached(second, third),\n',
+    to: '      getHolderStats(second, third),\n',
   },
   {
     name: 'STA-77 the starter collections route skips the data cache',
@@ -5255,8 +5255,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-77 the warm phase revalidates in the same request, so its fetches hit the old cache',
     file: 'app/api/cron/warm-holders/route.ts',
-    from: '  const collections = await listHolderCollectionsCached.direct();\n',
-    to: "  revalidatePath('/holders/[chain]/[address]', 'page');\n  const collections = await listHolderCollectionsCached.direct();\n",
+    from: '  const collections = await listHolderCollectionsCached();\n',
+    to: "  revalidatePath('/holders/[chain]/[address]', 'page');\n  const collections = await listHolderCollectionsCached();\n",
   },
   {
     name: 'STA-77 the expire phase runs after the warm phase',
@@ -5273,7 +5273,7 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-77 a report accessor runs its own per-report query again',
     file: 'lib/holder-pages.ts',
-    from: '  const reports = await readHolderReportsCached();\n  return ownEntry(reports, holderKey(chain, address))?.stats ?? null;',
+    from: '  const reports = await reportsThisRender();\n  return ownEntry(reports, holderKey(chain, address))?.stats ?? null;',
     to: '  return getHolderStats(chain, address);',
   },
   {
@@ -5343,22 +5343,22 @@ const MUTATIONS: Mutation[] = [
     to: "export const listHolderCollectionsCached = Object.assign(\n  unstable_cache(listHolderCollections, ['holder-list-v1', CACHE_ENV], HOLDER_CACHE),\n  { direct: listHolderCollections }\n);",
   },
   {
-    name: 'STA-77 the hold never shares, so a cold page runs the bulk query once per read',
-    file: 'lib/shared-cache.ts',
-    from: '    if (held && (held.settledAt === null || now() - held.settledAt < holdMs)) {',
-    to: '    if (held && held.settledAt !== null && now() - held.settledAt < holdMs) {',
-  },
-  {
-    name: 'STA-77 a failed read stays held, so the snapshot is not retried until the hold lapses',
-    file: 'lib/shared-cache.ts',
-    from: '        if (held === entry) held = null;\n',
-    to: '        entry.settledAt = now();\n',
-  },
-  {
-    name: 'STA-77 the morning warm reads through the hold, so a just-expired entry may not be refilled',
+    name: 'STA-77 an accessor reads past the render cache, so a cold page runs the bulk query twice',
     file: 'lib/holder-pages.ts',
-    from: '  const reports = await readHolderReportsCached.direct();',
-    to: '  const reports = await readHolderReportsCached();',
+    from: '  const reports = await reportsThisRender();\n  return ownEntry(reports, holderKey(chain, address))?.collection ?? null;',
+    to: '  const reports = await readHolderReportsCached();\n  return ownEntry(reports, holderKey(chain, address))?.collection ?? null;',
+  },
+  {
+    name: 'STA-77 the markdown route reads the reports entry twice in one request',
+    file: 'app/api/markdown/[[...path]]/route.ts',
+    from: '      getHolderReportCached(second, third),\n',
+    to: '      getHolderReportCached(second, third),\n      getHolderStatsCached(second, third),\n',
+  },
+  {
+    name: 'STA-77 the shared cache helper holds a value across requests, so a page can bake in a pre-expiry snapshot',
+    file: 'lib/shared-cache.ts',
+    from: 'export function sharedCache<T>(',
+    to: 'let held: unknown = null;\nexport function sharedCache<T>(',
   },
   {
     name: 'STA-77 the cached starter cards re-run the whole-table aggregate',
