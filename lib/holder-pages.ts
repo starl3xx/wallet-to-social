@@ -787,8 +787,9 @@ export const listHolderCollectionsCached = unstable_cache(
  * re-ran it for each of 13,674 joined rows), so the post-deploy warm reached
  * only 156 of 331 pages in its fifteen minutes.
  *
- * Now two bulk queries compute every report at once: about 10 seconds for the
- * stats and 4 for the overlap on a warm database, 87 and 20 on a cold one.
+ * Now two bulk queries compute every report at once. On 2026-11-21 the
+ * reports took 10 to 87 seconds, depending on how much of the table was in
+ * memory, and the overlap about 4.5.
  * Each result is one cache entry, filled by the morning warm before any page
  * is fetched, and every page lookup below is a read of those two entries.
  * An address that is not in the snapshot is not a report, so it 404s without
@@ -796,7 +797,7 @@ export const listHolderCollectionsCached = unstable_cache(
  *
  * Vercel refuses to cache an item larger than 2 MB, and says nothing when it
  * does: every lookup would then run the bulk query again. The two entries
- * were 0.18 MB and 0.47 MB in JSON on 2026-11-21, and the warm cron logs an
+ * were 0.33 MB and 0.31 MB in JSON on 2026-11-21, and the warm cron logs an
  * error once either passes `HOLDER_SNAPSHOT_WARN_BYTES`.
  *
  * The per-report functions above stay for `scripts/concierge-signals.ts`,
