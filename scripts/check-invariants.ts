@@ -24010,6 +24010,29 @@ async function main() {
         )
     );
 
+    // The SQL lowercases the address; a cache key that did not would miss the
+    // warmed entry for a checksummed URL and wake the database (Bugbot, #431).
+    ok(
+      'every cached holder lookup lowercases the address before the cache key',
+      (
+        holderPagesSrc.match(
+          /CacheEntry\(\s*chain,\s*address\.toLowerCase\(\)/g
+        ) ?? []
+      ).length === 3
+    );
+    const starterLib = withoutComments(
+      readFileSync('lib/starter-collections.ts', 'utf8')
+    );
+    const starterCached = starterLib.slice(
+      starterLib.indexOf('export async function listStarterCollectionsCached(')
+    );
+    ok(
+      'the cached starter cards come from the cached holder listing, not a second aggregate',
+      /selectStarterCollections\(await listHolderCollectionsCached\(\), limit\)/.test(
+        starterCached
+      ) && !/\blistHolderCollections\(\)/.test(starterCached)
+    );
+
     // Next applies revalidations only after a route handler returns, so the
     // expire and the regeneration must be separate requests: the expire phase
     // never fetches, the warm phase never revalidates, and the expire cron

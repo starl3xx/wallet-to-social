@@ -5265,6 +5265,18 @@ const MUTATIONS: Mutation[] = [
     to: '"path": "/api/cron/warm-holders?phase=expire",\n      "schedule": "40 7 * * *"',
   },
   {
+    name: 'STA-77 a checksummed address keys its own cache entry, so it misses the warmed one',
+    file: 'lib/holder-pages.ts',
+    from: '  getHolderStatsCacheEntry(chain, address.toLowerCase());',
+    to: '  getHolderStatsCacheEntry(chain, address);',
+  },
+  {
+    name: 'STA-77 the cached starter cards re-run the whole-table aggregate',
+    file: 'lib/starter-collections.ts',
+    from: '  return selectStarterCollections(await listHolderCollectionsCached(), limit);',
+    to: '  return selectStarterCollections(await listHolderCollections(), limit);',
+  },
+  {
     name: 'STA-77 the submit route never hands on to the worker, so a large job waits for the hourly tick',
     file: 'app/api/jobs/route.ts',
     from: '        await handOnToWorker();\n',

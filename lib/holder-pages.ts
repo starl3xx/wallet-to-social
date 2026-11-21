@@ -771,18 +771,34 @@ export const listHolderCollectionsCached = unstable_cache(
   ['holder-list-v1', CACHE_ENV],
   HOLDER_CACHE
 );
-export const getHolderCollectionCached = unstable_cache(
+const getHolderCollectionCacheEntry = unstable_cache(
   getHolderCollection,
   ['holder-collection-v1', CACHE_ENV],
   HOLDER_CACHE
 );
-export const getHolderStatsCached = unstable_cache(
+const getHolderStatsCacheEntry = unstable_cache(
   getHolderStats,
   ['holder-stats-v1', CACHE_ENV],
   HOLDER_CACHE
 );
-export const getHolderOverlapCached = unstable_cache(
+const getHolderOverlapCacheEntry = unstable_cache(
   getHolderOverlap,
   ['holder-overlap-v1', CACHE_ENV],
   HOLDER_CACHE
 );
+
+/*
+ * The address is lowercased before it becomes part of the cache key. The
+ * queries lowercase it themselves, so a checksummed or mixed-case URL found the
+ * same row but missed the entry the morning warm filled, woke the database and
+ * stored a duplicate (Bugbot on PR #431).
+ */
+export const getHolderCollectionCached = (chain: string, address: string) =>
+  getHolderCollectionCacheEntry(chain, address.toLowerCase());
+export const getHolderStatsCached = (chain: string, address: string) =>
+  getHolderStatsCacheEntry(chain, address.toLowerCase());
+export const getHolderOverlapCached = (
+  chain: string,
+  address: string,
+  limit = 5
+) => getHolderOverlapCacheEntry(chain, address.toLowerCase(), limit);

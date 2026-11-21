@@ -1,14 +1,13 @@
-import { unstable_cache } from 'next/cache';
-import { CACHE_ENV } from '@/lib/cache-env';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { SUPPORTED_CHAINS, type SupportedChain } from '@/lib/chains';
 import { FREE_MATCHES_PER_WINDOW } from '@/lib/packs';
 import {
   getHolderCollection,
-  HOLDER_DATA_TAG,
   holderDisplayName,
   listHolderCollections,
+  listHolderCollectionsCached,
+  type ListedHolderCollection,
 } from '@/lib/holder-pages';
 
 /**
@@ -158,7 +157,19 @@ export const FEATURED_STARTER: {
 export async function listStarterCollections(
   limit = 3
 ): Promise<StarterCollection[]> {
-  const listed = (await listHolderCollections()).filter(
+  return selectStarterCollections(await listHolderCollections(), limit);
+}
+
+/**
+ * The cards, chosen from a holder listing. Pure, so the cached path
+ * (`listStarterCollectionsCached`) and the direct one choose identically from
+ * whichever listing they were given.
+ */
+export function selectStarterCollections(
+  listing: ListedHolderCollection[],
+  limit: number
+): StarterCollection[] {
+  const listed = listing.filter(
     (c) => !PLACEHOLDER_NAMES.has(c.name.trim().toLowerCase())
   );
 
@@ -301,13 +312,14 @@ export function buildStarterHref(chain: string, address: string): string {
 }
 
 /**
- * `listStarterCollections` behind the data cache, for the homepage's
- * `/api/starter-collections` (STA-77). It reads the same whole-table holder
- * aggregate as the holder pages, so it shares their tag and their daily
- * refresh by `/api/cron/warm-holders`; see `listHolderCollectionsCached`.
+ * The starter cards for the homepage's `/api/starter-collections`, chosen from
+ * the cached holder listing (STA-77). No cache of its own: the listing is the
+ * expensive part, it is already in the data cache under the holder tag, and a
+ * second entry would re-run the whole-table aggregate on every miss (Bugbot on
+ * PR #431).
  */
-export const listStarterCollectionsCached = unstable_cache(
-  listStarterCollections,
-  ['starter-collections-v1', CACHE_ENV],
-  { revalidate: 7 * 24 * 60 * 60, tags: [HOLDER_DATA_TAG] }
-);
+export async function listStarterCollectionsCached(
+  limit = 3
+): Promise<StarterCollection[]> {
+  return selectStarterCollections(await listHolderCollectionsCached(), limit);
+}
