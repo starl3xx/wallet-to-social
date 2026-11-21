@@ -10,8 +10,8 @@
  * read Postgres, so the database never got the five quiet minutes it needs to
  * suspend (STA-77). One list has ever been built. So a list now starts itself:
  * the X callback kicks this route (POST with `x-worker-kick`), which answers
- * 202 and, in `after()`, ticks once a minute for four minutes while a list is
- * open, then kicks its successor if one still is. The hourly cron (GET) is the
+ * 202 and, in `after()`, ticks once a minute for about four minutes while a
+ * list is open, then kicks its successor if one still is. The hourly cron (GET) is the
  * safety net for a kick that never arrived, and starts a chain itself when it
  * finds open work.
  */
@@ -27,7 +27,13 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 const TICK_SPACING_MS = 60_000;
-const TICKS_PER_RUN = 4;
+/**
+ * No tick starts after this much of the run has passed. A tick is bounded at
+ * about a minute (20 requests, 10 s timeout each, in practice far less), so
+ * the last one ends inside `maxDuration` and the run still kicks its
+ * successor rather than being killed before it can.
+ */
+const RUN_BUDGET_MS = 230_000;
 
 function authorized(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization');
@@ -85,14 +91,14 @@ export async function POST(request: NextRequest) {
   }
 
   after(async () => {
+    const startedAt = Date.now();
     try {
-      for (let i = 0; i < TICKS_PER_RUN; i++) {
-        if (i > 0) {
-          await new Promise((resolve) => setTimeout(resolve, TICK_SPACING_MS));
-        }
+      for (;;) {
         const result = await runXListTick();
         // Nothing claimable and nothing waiting: the list is done.
         if (result.jobId === null && !(await hasOpenXListJob())) return;
+        if (Date.now() - startedAt + TICK_SPACING_MS > RUN_BUDGET_MS) break;
+        await new Promise((resolve) => setTimeout(resolve, TICK_SPACING_MS));
       }
       if (await hasOpenXListJob()) {
         await kickWorker('/api/cron/x-list', hop + 1);
