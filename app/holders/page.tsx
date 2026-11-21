@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { PageShell } from '@/components/ui/page-shell';
 import {
-  listHolderCollections,
+  listHolderCollectionsCached,
   chainLabel,
   holderDisplayName,
   type ListedHolderCollection,
@@ -55,7 +55,7 @@ const breadcrumbJson = breadcrumbJsonLd([
 ]);
 
 export default async function HoldersHubPage() {
-  const collections = await listHolderCollections();
+  const collections = await listHolderCollectionsCached();
 
   const byChain = new Map<string, ListedHolderCollection[]>();
   for (const c of collections) {

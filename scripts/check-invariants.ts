@@ -23972,6 +23972,82 @@ async function main() {
       ) &&
         /deferred > 0 \|\| pageWasFull \|\|/.test(worker.replace(/\s+/g, ' '))
     );
+    // The holder aggregate is read through the data cache wherever a route
+    // runs per request. The markdown mirror and the starter collections are
+    // dynamic and edge-cached per region; reading the database there woke it
+    // from every region every hour (STA-77, follow-up to #430).
+    const markdownRoute = withoutComments(
+      readFileSync('app/api/markdown/[[...path]]/route.ts', 'utf8')
+    );
+    const uncachedHolderRead =
+      /\b(getHolderStats|getHolderOverlap|getHolderCollection|listHolderCollections)\(/;
+    ok(
+      'the markdown mirror reads holder data only through the data cache',
+      !uncachedHolderRead.test(markdownRoute) &&
+        /getHolderStatsCached\(/.test(markdownRoute)
+    );
+    const starterRoute = withoutComments(
+      readFileSync('app/api/starter-collections/route.ts', 'utf8')
+    );
+    ok(
+      'the starter collections route reads only through the data cache',
+      !/\blistStarterCollections\(/.test(starterRoute) &&
+        /listStarterCollectionsCached\(/.test(starterRoute)
+    );
+    // A preview deployment answers an empty listing; a cache key without the
+    // environment would let it fill the production entry for a week.
+    const holderPagesSrc = readFileSync('lib/holder-pages.ts', 'utf8');
+    const holderKeys =
+      holderPagesSrc.match(/\['holder-[a-z]+-v\d+', CACHE_ENV\]/g) ?? [];
+    ok(
+      `every holder data-cache key carries the environment (${holderKeys.length} of 4)`,
+      holderKeys.length === 4 &&
+        /import \{ CACHE_ENV \} from '@\/lib\/cache-env';/.test(
+          holderPagesSrc
+        ) &&
+        /export const CACHE_ENV = process\.env\.VERCEL_ENV \?\? 'local';/.test(
+          readFileSync('lib/cache-env.ts', 'utf8')
+        )
+    );
+
+    // Next applies revalidations only after a route handler returns, so the
+    // expire and the regeneration must be separate requests: the expire phase
+    // never fetches, the warm phase never revalidates, and the expire cron
+    // runs first.
+    const warmSrc = withoutComments(
+      readFileSync('app/api/cron/warm-holders/route.ts', 'utf8')
+    );
+    const expireBody = warmSrc.slice(
+      warmSrc.indexOf('function expirePhase('),
+      warmSrc.indexOf('async function warmPhase(')
+    );
+    const warmBody = warmSrc.slice(
+      warmSrc.indexOf('async function warmPhase(')
+    );
+    ok(
+      'the expire phase expires the holder data at once and fetches nothing',
+      expireBody.length > 50 &&
+        /revalidateTag\(HOLDER_DATA_TAG, \{ expire: 0 \}\)/.test(expireBody) &&
+        !/fetch\(/.test(expireBody)
+    );
+    ok(
+      'the warm phase regenerates and never revalidates, or its own fetches hit the old cache',
+      warmBody.length > 50 &&
+        /fetch\(/.test(warmBody) &&
+        !/revalidate(Path|Tag)\(/.test(warmBody)
+    );
+    const at = (path: string) => {
+      const c = vercel.crons.find((x) => x.path === path);
+      if (!c) return -1;
+      const [m, h] = c.schedule.split(' ').map(Number);
+      return h * 60 + m;
+    };
+    const expireAt = at('/api/cron/warm-holders?phase=expire');
+    const warmAt = at('/api/cron/warm-holders');
+    ok(
+      `the expire phase is scheduled before the warm phase (${expireAt} < ${warmAt} minutes)`,
+      expireAt >= 0 && warmAt > expireAt
+    );
     // A chain that made no progress stops, or a stuck job spins forever.
     ok(
       'a worker run kicks its successor only when it left work behind and made progress',

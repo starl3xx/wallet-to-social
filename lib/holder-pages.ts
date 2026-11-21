@@ -1,3 +1,5 @@
+import { unstable_cache } from 'next/cache';
+import { CACHE_ENV } from '@/lib/cache-env';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { CHAIN_LABELS, type SupportedChain } from '@/lib/chains';
@@ -738,3 +740,49 @@ export function standardLabel(
   }
   return contractType.startsWith('ERC') ? contractType : 'token';
 }
+
+/**
+ * The holder queries behind Next's data cache (STA-77).
+ *
+ * These queries aggregate the whole holdings table, and three routes ran them
+ * on demand: the holder pages, the holders hub and sitemap, and the markdown
+ * mirror (`app/api/markdown`) that answers agents. The mirror and the
+ * starter-collections route are dynamic on purpose (a build-time database read
+ * once froze production deploys for eight days), and their edge cache is per
+ * region, so agents and crawlers around the world re-ran a multi-second
+ * aggregate every hour in each region and kept the database awake all day.
+ *
+ * The data cache sits behind every region and is filled at request time,
+ * never at build. Entries keep a week, and `/api/cron/warm-holders` expires
+ * the tag at 07:20 UTC and regenerates everything at 07:30, inside the morning
+ * cron window. The values are plain strings and numbers, so they survive the
+ * cache's JSON round trip. The environment is part of the key, because a
+ * preview deployment deliberately answers an empty listing and must never
+ * fill the production entry (`lib/cache-env.ts`).
+ */
+export const HOLDER_DATA_TAG = 'holder-data';
+const HOLDER_CACHE = {
+  revalidate: 7 * 24 * 60 * 60,
+  tags: [HOLDER_DATA_TAG],
+};
+
+export const listHolderCollectionsCached = unstable_cache(
+  listHolderCollections,
+  ['holder-list-v1', CACHE_ENV],
+  HOLDER_CACHE
+);
+export const getHolderCollectionCached = unstable_cache(
+  getHolderCollection,
+  ['holder-collection-v1', CACHE_ENV],
+  HOLDER_CACHE
+);
+export const getHolderStatsCached = unstable_cache(
+  getHolderStats,
+  ['holder-stats-v1', CACHE_ENV],
+  HOLDER_CACHE
+);
+export const getHolderOverlapCached = unstable_cache(
+  getHolderOverlap,
+  ['holder-overlap-v1', CACHE_ENV],
+  HOLDER_CACHE
+);

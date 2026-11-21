@@ -1,9 +1,12 @@
+import { unstable_cache } from 'next/cache';
+import { CACHE_ENV } from '@/lib/cache-env';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { SUPPORTED_CHAINS, type SupportedChain } from '@/lib/chains';
 import { FREE_MATCHES_PER_WINDOW } from '@/lib/packs';
 import {
   getHolderCollection,
+  HOLDER_DATA_TAG,
   holderDisplayName,
   listHolderCollections,
 } from '@/lib/holder-pages';
@@ -296,3 +299,15 @@ export function parseStarterParam(value: string | null): StarterLink | null {
 export function buildStarterHref(chain: string, address: string): string {
   return `/?collection=${chain}:${address.toLowerCase()}`;
 }
+
+/**
+ * `listStarterCollections` behind the data cache, for the homepage's
+ * `/api/starter-collections` (STA-77). It reads the same whole-table holder
+ * aggregate as the holder pages, so it shares their tag and their daily
+ * refresh by `/api/cron/warm-holders`; see `listHolderCollectionsCached`.
+ */
+export const listStarterCollectionsCached = unstable_cache(
+  listStarterCollections,
+  ['starter-collections-v1', CACHE_ENV],
+  { revalidate: 7 * 24 * 60 * 60, tags: [HOLDER_DATA_TAG] }
+);

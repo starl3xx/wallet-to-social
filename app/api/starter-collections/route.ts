@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import {
-  listStarterCollections,
+  listStarterCollectionsCached,
   STARTER_WALLET_CAP,
 } from '@/lib/starter-collections';
 
@@ -87,7 +87,7 @@ export async function GET() {
    * the last good answer and tries again, which is exactly the outcome the
    * catch was reaching for and did not get.
    */
-  const collections = await listStarterCollections(3);
+  const collections = await listStarterCollectionsCached(3);
   return NextResponse.json(
     { collections, walletCap: STARTER_WALLET_CAP },
     {

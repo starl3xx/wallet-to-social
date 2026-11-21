@@ -5235,6 +5235,36 @@ const MUTATIONS: Mutation[] = [
     to: '      deferred > 0 ||\n',
   },
   {
+    name: 'STA-77 the markdown mirror reads holder stats from the database on every request again',
+    file: 'app/api/markdown/[[...path]]/route.ts',
+    from: '      getHolderStatsCached(second, third),',
+    to: '      getHolderStats(second, third),',
+  },
+  {
+    name: 'STA-77 the starter collections route skips the data cache',
+    file: 'app/api/starter-collections/route.ts',
+    from: 'await listStarterCollectionsCached(3)',
+    to: 'await listStarterCollections(3)',
+  },
+  {
+    name: 'STA-77 a holder data-cache key drops the environment, so a preview can fill production',
+    file: 'lib/holder-pages.ts',
+    from: "  ['holder-list-v1', CACHE_ENV],",
+    to: "  ['holder-list-v1'],",
+  },
+  {
+    name: 'STA-77 the warm phase revalidates in the same request, so its fetches hit the old cache',
+    file: 'app/api/cron/warm-holders/route.ts',
+    from: '  const collections = await listHolderCollectionsCached();\n',
+    to: "  revalidatePath('/holders/[chain]/[address]', 'page');\n  const collections = await listHolderCollectionsCached();\n",
+  },
+  {
+    name: 'STA-77 the expire phase runs after the warm phase',
+    file: 'vercel.json',
+    from: '"path": "/api/cron/warm-holders?phase=expire",\n      "schedule": "20 7 * * *"',
+    to: '"path": "/api/cron/warm-holders?phase=expire",\n      "schedule": "40 7 * * *"',
+  },
+  {
     name: 'STA-77 the submit route never hands on to the worker, so a large job waits for the hourly tick',
     file: 'app/api/jobs/route.ts',
     from: '        await handOnToWorker();\n',
