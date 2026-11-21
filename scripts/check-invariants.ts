@@ -24000,8 +24000,8 @@ async function main() {
     const holderKeys =
       holderPagesSrc.match(/\['holder-[a-z]+-v\d+', CACHE_ENV\]/g) ?? [];
     ok(
-      `every holder data-cache key carries the environment (${holderKeys.length} of 4)`,
-      holderKeys.length === 4 &&
+      `every holder data-cache key carries the environment (${holderKeys.length} of 3)`,
+      holderKeys.length === 3 &&
         /import \{ CACHE_ENV \} from '@\/lib\/cache-env';/.test(
           holderPagesSrc
         ) &&
@@ -24010,15 +24010,92 @@ async function main() {
         )
     );
 
-    // The SQL lowercases the address; a cache key that did not would miss the
-    // warmed entry for a checksummed URL and wake the database (Bugbot, #431).
+    // The SQL lowercases the address; a lookup key that did not would miss
+    // the snapshot for a checksummed URL and 404 a real report (Bugbot, #431).
+    // Through the code, not around it.
+    const holderPages = await import('@/lib/holder-pages');
     ok(
-      'every cached holder lookup lowercases the address before the cache key',
+      'the snapshot key lowercases the address and keeps the chain as given',
+      holderPages.holderKey('base', '0xAbC') === 'base:0xabc' &&
+        holderPages.holderKey('base', '0xAbC') ===
+          holderPages.holderKey('base', '0xabc')
+    );
+
+    /**
+     * Every rendered report reads the bulk snapshot, never a per-report query
+     * (STA-77, PR #432). A per-report read refilled at whatever hour a crawler
+     * followed an overlap link to one of the 342 unlisted reports, or asked
+     * for an address nobody seeded, and woke the suspended database.
+     */
+    const holderCode = withoutComments(holderPagesSrc);
+    const accessors = holderCode.slice(
+      holderCode.indexOf('export async function getHolderCollectionCached(')
+    );
+    ok(
+      'the three report accessors read only the snapshot entries',
+      accessors.length > 300 &&
+        (accessors.match(/await readHolder(Reports|Overlaps)Cached\(\)/g) ?? [])
+          .length === 3 &&
+        !/getHolder(Collection|Stats|Overlap)\(/.test(accessors)
+    );
+    ok(
+      'each accessor looks up its key as an own property, so a crafted URL cannot reach Object.prototype',
       (
-        holderPagesSrc.match(
-          /CacheEntry\(\s*chain,\s*address\.toLowerCase\(\)/g
+        accessors.match(
+          /ownEntry\((reports|overlaps), holderKey\(chain, address\)\)/g
         ) ?? []
-      ).length === 3
+      ).length === 3 && /Object\.hasOwn\(record, key\)/.test(holderCode)
+    );
+    for (const file of [
+      'app/holders/[chain]/[address]/page.tsx',
+      'app/api/markdown/[[...path]]/route.ts',
+      'app/holders/page.tsx',
+      'app/sitemap.ts',
+    ]) {
+      const route = withoutComments(readFileSync(file, 'utf8'));
+      ok(
+        `${file}: no rendered route calls a per-report holder query`,
+        !/\bgetHolder(Collection|Stats|Overlap)\(/.test(route)
+      );
+    }
+    // Inlined, Postgres re-ran `latest` for every joined row: 21 to 37 s per
+    // report, which is why a crawler's cold page woke the database for so long.
+    const currentHoldersSql = holderCode.slice(
+      holderCode.indexOf('const currentHolders = sql`'),
+      holderCode.indexOf('export async function readHolderReports(')
+    );
+    ok(
+      'the shared current-batch CTEs are both MATERIALIZED, and both bulk queries use them',
+      (currentHoldersSql.match(/ AS MATERIALIZED \(/g) ?? []).length === 2 &&
+        (holderCode.match(/WITH \$\{currentHolders\},/g) ?? []).length === 2
+    );
+    // The published overlap is the bulk query now, so the privacy floor and
+    // the named-contract rule must sit on it, not only on the per-report
+    // query the concierge script still calls.
+    const bulkOverlapSql = holderCode.slice(
+      holderCode.indexOf('export async function readHolderOverlaps('),
+      holderCode.indexOf('const readHolderReportsCached')
+    );
+    ok(
+      'the bulk overlap bounds every published group by OVERLAP_MIN_SHARED',
+      /HAVING count\(\*\) >= \$\{OVERLAP_MIN_SHARED\}/.test(bulkOverlapSql)
+    );
+    ok(
+      'the bulk overlap names only named, imported collections, through the shared predicate',
+      /sc\.holders_imported > 0 AND \$\{namedContract\}/.test(bulkOverlapSql)
+    );
+    ok(
+      'the bulk overlap keeps the top places only, under the published limit',
+      /WHERE place <= \$\{OVERLAP_REPORT_LIMIT\}/.test(bulkOverlapSql) &&
+        holderPages.OVERLAP_REPORT_LIMIT === 5
+    );
+    // Vercel refuses an item over 2 MB without a word, and then every lookup
+    // runs the bulk query again. The warning has to come well before that.
+    ok(
+      'the snapshot size warning fires at half the 2 MB cache item limit or less',
+      holderPages.HOLDER_SNAPSHOT_WARN_BYTES > 0 &&
+        holderPages.HOLDER_SNAPSHOT_WARN_BYTES <= 1_000_000 &&
+        /> HOLDER_SNAPSHOT_WARN_BYTES\)/.test(holderCode)
     );
     const starterLib = withoutComments(
       readFileSync('lib/starter-collections.ts', 'utf8')
@@ -24070,6 +24147,20 @@ async function main() {
     ok(
       `the expire phase is scheduled before the warm phase (${expireAt} < ${warmAt} minutes)`,
       expireAt >= 0 && warmAt > expireAt
+    );
+    // Between the two, a visitor meets an expired snapshot and its render runs
+    // the bulk aggregate itself, so the gap stays as short as cron allows.
+    ok(
+      `the expire phase runs at most two minutes before the warm phase (${warmAt - expireAt})`,
+      warmAt - expireAt <= 2
+    );
+    // A page fetched before the snapshot is filled starts the aggregate
+    // itself, six at once, each past its fetch timeout on a cold database.
+    ok(
+      'the warm phase fills the snapshot before it fetches a single page',
+      warmBody.indexOf('await warmHolderSnapshot()') !== -1 &&
+        warmBody.indexOf('await warmHolderSnapshot()') <
+          warmBody.indexOf('fetch(')
     );
     // A chain that made no progress stops, or a stuck job spins forever.
     ok(
