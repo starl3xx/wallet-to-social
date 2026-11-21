@@ -1,5 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { getNextPendingJobs, processJobChunk } from '@/lib/job-processor';
+import { kickHopOf, kickWorker } from '@/lib/worker-kick';
 
 export const runtime = 'nodejs';
 // 5 minutes max per invocation. Below LEASE_SECONDS in lib/job-processor.ts,
@@ -25,8 +26,16 @@ const PARALLEL_JOB_LIMIT = 5;
 const MAX_WALLETS_IN_FLIGHT = 2500;
 
 /**
- * Cron worker endpoint - called by Vercel Cron every minute.
+ * Worker endpoint: kicked whenever work is queued, and called by Vercel Cron
+ * once an hour as the safety net (STA-77, `lib/worker-kick.ts`).
  * Processes multiple jobs in parallel for faster queue clearing.
+ *
+ * A kicked request (it carries `x-worker-kick`) is answered 202 at once and
+ * worked in `after()`, so the caller never waits for the run. A run that leaves
+ * work behind and made progress kicks its successor, so a long job or a seed
+ * backlog drains without waiting for the hourly tick. A run that made no
+ * progress does not, or a job that cannot move would spin a chain of empty
+ * invocations; the hourly tick retries it.
  *
  * The only lookup pipeline since STA-44: every job the submit route's kick
  * did not finish is continued here. Each admitted job is worked slice after
@@ -37,31 +46,55 @@ const MAX_WALLETS_IN_FLIGHT = 2500;
  * comes back `busy` without being worked.
  */
 export async function POST(request: NextRequest) {
+  // Verify cron secret in production
+  const authHeader = request.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!process.env.DATABASE_URL) {
+    return NextResponse.json(
+      { error: 'Database not configured' },
+      { status: 500 }
+    );
+  }
+
+  const hop = kickHopOf(request.headers);
+  if (hop !== null) {
+    after(async () => {
+      const outcome = await workQueue(hop);
+      console.log('Kicked worker run:', outcome.body.message ?? outcome.body);
+    });
+    return NextResponse.json({ accepted: true, hop }, { status: 202 });
+  }
+
+  const outcome = await workQueue(null);
+  return NextResponse.json(outcome.body, { status: outcome.status });
+}
+
+/**
+ * One run over the queue. `hop` is the kick chain position, or null for the
+ * hourly cron or a manual call; either way a run that leaves work behind kicks
+ * the next one at `hop + 1`.
+ */
+async function workQueue(
+  hop: number | null
+): Promise<{ status: number; body: Record<string, unknown> }> {
   try {
-    // Verify cron secret in production
-    const authHeader = request.headers.get('authorization');
-    const cronSecret = process.env.CRON_SECRET;
-
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (!process.env.DATABASE_URL) {
-      return NextResponse.json(
-        { error: 'Database not configured' },
-        { status: 500 }
-      );
-    }
-
     // Get multiple pending jobs to process in parallel
     const candidates = await getNextPendingJobs(PARALLEL_JOB_LIMIT);
 
     if (candidates.length === 0) {
-      return NextResponse.json({
-        message: 'No pending jobs',
-        processed: false,
-        jobCount: 0,
-      });
+      return {
+        status: 200,
+        body: {
+          message: 'No pending jobs',
+          processed: false,
+          jobCount: 0,
+        },
+      };
     }
 
     /**
@@ -84,7 +117,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Admit in that order until the wallet budget is spent. Anything left stays
-    // queued and is picked up by the next tick, a minute later.
+    // queued, and this run kicks the next one to take it.
     const jobs: typeof candidates = [];
     let walletsInFlight = 0;
     for (const job of ordered) {
@@ -115,6 +148,8 @@ export async function POST(request: NextRequest) {
           return {
             jobId: job.id,
             walletCount: job.wallets.length,
+            progressed:
+              result.completed || result.processedCount > job.processedCount,
             ...result,
           };
         } catch (error) {
@@ -122,6 +157,7 @@ export async function POST(request: NextRequest) {
           return {
             jobId: job.id,
             walletCount: job.wallets.length,
+            progressed: false,
             completed: true,
             processedCount: job.processedCount,
             twitterFound: job.twitterFound,
@@ -140,19 +176,36 @@ export async function POST(request: NextRequest) {
     );
     const completedCount = results.filter((r) => r.completed).length;
 
-    return NextResponse.json({
-      message: `Processed ${jobs.length} jobs (${completedCount} completed)`,
-      jobCount: jobs.length,
-      totalProcessed,
-      completedCount,
-      results,
-    });
+    // Work left behind: a deferred job, or one this run advanced but did not
+    // finish. A `busy` job is another run's, and that run kicks its own
+    // successor.
+    const leftBehind =
+      deferred > 0 || results.some((r) => !r.completed && !r.busy);
+    const progressed = results.some((r) => r.progressed);
+    const kicked =
+      leftBehind && progressed
+        ? await kickWorker('/api/jobs/worker', (hop ?? -1) + 1)
+        : false;
+
+    return {
+      status: 200,
+      body: {
+        message: `Processed ${jobs.length} jobs (${completedCount} completed)`,
+        jobCount: jobs.length,
+        totalProcessed,
+        completedCount,
+        kickedNext: kicked,
+        results,
+      },
+    };
   } catch (error) {
     console.error('Worker error:', error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Worker failed' },
-      { status: 500 }
-    );
+    return {
+      status: 500,
+      body: {
+        error: error instanceof Error ? error.message : 'Worker failed',
+      },
+    };
   }
 }
 

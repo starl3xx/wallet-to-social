@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { cookies } from 'next/headers';
 import { createJob, processJobChunk } from '@/lib/job-processor';
+import { continueIfUnfinished } from '@/lib/worker-kick';
 import { getStarterWallets } from '@/lib/starter-collections';
 import { canSubmit, legacyTierIsUnmetered } from '@/lib/credits';
 import { FREE_MATCHES_PER_WINDOW, FREE_WINDOW_DAYS } from '@/lib/packs';
@@ -489,35 +490,40 @@ export async function POST(request: NextRequest) {
      * larger one is kicked after the response is sent: `after()` works it in
      * this invocation, slice after slice while `INVOCATION_BUDGET_MS` lasts,
      * which finishes most jobs outright (a fast scan of 10,000 addresses
-     * among them), and the cron worker takes whatever is left. Every slice
-     * goes through the claim in `processJobChunk`, so the kick and a tick
-     * cannot work the job at once; whichever claims first does the slice and
-     * the other finds it held and does nothing. A kick that fails or is
-     * refused leaves the job `pending` for the next tick, a minute at most.
+     * among them), and whatever is left goes to the worker through
+     * `continueIfUnfinished` (STA-77: the worker cron is hourly now). Every
+     * slice goes through the claim in `processJobChunk`, so the kick and a
+     * worker run cannot work the job at once; whichever claims first does the
+     * slice and the other finds it held and does nothing. A kick that fails
+     * or is refused leaves the job `pending` for the hourly tick.
      *
      * Jobs over ten addresses went to Inngest until 2026-09-24 (STA-44). The
      * cron worker raced it on every such job and finalized nearly all of them,
      * so it is now the only pipeline.
      */
     if (wallets.length <= INLINE_PROCESSING_THRESHOLD) {
+      let inline: Awaited<ReturnType<typeof processJobChunk>> | null = null;
       try {
-        await processJobChunk(jobId);
+        inline = await processJobChunk(jobId);
       } catch (error) {
         console.error(
-          'Inline processing error (cron will retry):',
+          'Inline processing error (the worker will retry):',
           error instanceof Error ? error.message : error
         );
       }
+      after(() => continueIfUnfinished(inline));
     } else {
       after(async () => {
+        let result: Awaited<ReturnType<typeof processJobChunk>> | null = null;
         try {
-          await processJobChunk(jobId);
+          result = await processJobChunk(jobId);
         } catch (error) {
           console.error(
-            'Job kick failed (cron will retry):',
+            'Job kick failed (the worker will retry):',
             error instanceof Error ? error.message : error
           );
         }
+        await continueIfUnfinished(result);
       });
     }
 

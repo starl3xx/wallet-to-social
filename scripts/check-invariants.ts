@@ -14099,9 +14099,16 @@ async function main() {
     ] as const) {
       ok(
         `${name} kicks the worker after the response for a job over the inline threshold`,
-        /after\(async \(\) => \{\s*try \{\s*await processJobChunk\(jobId\);/.test(
+        /after\(async \(\) => \{\s*let result[^=]*= null;\s*try \{\s*result = await processJobChunk\(jobId\);/.test(
           src
         )
+      );
+      // STA-77: the worker cron is hourly, so what the submit route leaves
+      // behind has to be handed on, on both branches, or it waits an hour.
+      ok(
+        `${name} hands whatever its own pass left to the worker, inline and kicked`,
+        /after\(\(\) => continueIfUnfinished\(inline\)\)/.test(src) &&
+          /await continueIfUnfinished\(result\);/.test(src)
       );
     }
 
@@ -23828,6 +23835,137 @@ async function main() {
       pageEventsView.length > 50 &&
         !/\buser_id\b/.test(pageEventsView) &&
         !/\bmetadata\b(?!\s*->)/.test(pageEventsView)
+    );
+  }
+
+  // --- STA-77: the database is allowed to sleep -------------------------
+  //
+  // Neon suspends the compute after five quiet minutes. Until 2026-11-21 it
+  // never did, because something queried it every few seconds. These hold the
+  // claims the fix makes, and each asserts the refusal: the shape that would
+  // wake the database, or break a promise, fails.
+  {
+    // No cron runs more often than hourly. A minute or five-minute schedule
+    // is a frequent caller on its own and undoes the whole saving.
+    const vercel = JSON.parse(readFileSync('vercel.json', 'utf8')) as {
+      crons: Array<{ path: string; schedule: string }>;
+    };
+    const frequent = vercel.crons.filter((c) => !/^\d{1,2} /.test(c.schedule));
+    ok(
+      `no Vercel cron runs more often than hourly (${frequent.map((c) => `${c.path} ${c.schedule}`).join(', ') || 'none'})`,
+      vercel.crons.length > 10 && frequent.length === 0
+    );
+    ok(
+      'the holder pages are regenerated each morning by a cron that exists',
+      vercel.crons.some(
+        (c) =>
+          c.path === '/api/cron/warm-holders' &&
+          /^\d{1,2} \d{1,2} /.test(c.schedule)
+      ) && existsSync('app/api/cron/warm-holders/route.ts')
+    );
+
+    // The memory limiter refuses past the limit, through the real function.
+    const { checkMemoryRateLimit, IP_RATE_LIMITS } =
+      await import('@/lib/ip-rate-limiter');
+    const limit = IP_RATE_LIMITS['/api/mcp'].limit;
+    const subject = `invariant-probe-${Date.now()}`;
+    let last = checkMemoryRateLimit(subject, '/api/mcp');
+    for (let i = 1; i <= limit; i++) {
+      last = checkMemoryRateLimit(subject, '/api/mcp');
+    }
+    ok(
+      'the in-memory MCP bucket refuses the request past its limit',
+      last.allowed === false && (last.retryAfter ?? 0) >= 1
+    );
+    ok(
+      'and a different address is still admitted',
+      checkMemoryRateLimit(`${subject}-other`, '/api/mcp').allowed === true
+    );
+
+    // Only the free discovery bucket is counted in memory. An account bucket,
+    // a lookup or a paid path in memory would let a caller spread across
+    // instances spend money past the bound.
+    const memoryCallers = execSync(
+      "git grep -n 'checkMemoryRateLimit(' -- 'app' 'lib' ':!lib/ip-rate-limiter.ts'",
+      { encoding: 'utf8' }
+    )
+      .split('\n')
+      .filter(Boolean);
+    const mcpRoute = withoutComments(
+      readFileSync('app/api/mcp/route.ts', 'utf8')
+    ).replace(/\s+/g, ' ');
+    ok(
+      `checkMemoryRateLimit is called only by the MCP route (${memoryCallers.join('; ')})`,
+      memoryCallers.length === 1 &&
+        memoryCallers[0].startsWith('app/api/mcp/route.ts')
+    );
+    ok(
+      'and only for the anonymous bucket; the account bucket stays in Postgres',
+      /decision\.endpoint === '\/api\/mcp' \? checkMemoryRateLimit\(decision\.subject, decision\.endpoint\) : await checkIpRateLimit\(decision\.subject, decision\.endpoint\)/.test(
+        mcpRoute
+      )
+    );
+
+    // A removal takes effect at once (privacy page), so the cached hero is
+    // expired immediately, never stale-while-revalidate, by every removal.
+    const heroCache = withoutComments(
+      readFileSync('lib/identity-hero/cache.ts', 'utf8')
+    );
+    ok(
+      'the hero cache is expired with { expire: 0 }, never served stale after a removal',
+      /revalidateTag\(HERO_CACHE_TAG, \{ expire: 0 \}\)/.test(heroCache) &&
+        !/'max'/.test(heroCache)
+    );
+    const removalAdmin = withoutComments(
+      readFileSync('lib/removal-admin.ts', 'utf8')
+    );
+    const insertFn = removalAdmin.slice(
+      removalAdmin.indexOf('export async function insertSuppressions('),
+      removalAdmin.indexOf('async function quarantineDelete(')
+    );
+    ok(
+      'every removal written through insertSuppressions expires the hero cache',
+      insertFn.length > 100 && /expireHeroCache\(\)/.test(insertFn)
+    );
+    const heroRoute = withoutComments(
+      readFileSync('app/api/hero/route.ts', 'utf8')
+    );
+    ok(
+      'the hero route reads the cached snapshot, which is still filtered against removals on fill',
+      /readHeroSnapshotCached\(\)/.test(heroRoute) &&
+        /unstable_cache\(\s*readHeroSnapshot,/.test(
+          readFileSync('lib/identity-hero/server.ts', 'utf8')
+        )
+    );
+
+    // A kick is a cron-secret request. The worker checks the secret before it
+    // looks at the kick header, so a stranger cannot start runs.
+    const worker = withoutComments(
+      readFileSync('app/api/jobs/worker/route.ts', 'utf8')
+    );
+    const authAt = worker.indexOf('authHeader !== `Bearer ${cronSecret}`');
+    const kickAt = worker.indexOf('kickHopOf(request.headers)');
+    ok(
+      'the worker refuses a kick without the cron secret: the check comes first',
+      authAt > 0 && kickAt > authAt
+    );
+    const xList = withoutComments(
+      readFileSync('app/api/cron/x-list/route.ts', 'utf8')
+    );
+    const postAt = xList.indexOf('export async function POST(');
+    ok(
+      'the X-list kick refuses without the cron secret',
+      postAt > 0 &&
+        xList.indexOf('if (!authorized(request))', postAt) > postAt &&
+        xList.indexOf('if (!authorized(request))', postAt) <
+          xList.indexOf('after(', postAt)
+    );
+    // A chain that made no progress stops, or a stuck job spins forever.
+    ok(
+      'a worker run kicks its successor only when it left work behind and made progress',
+      /leftBehind && progressed \? await kickWorker\('\/api\/jobs\/worker', \(hop \?\? -1\) \+ 1\)/.test(
+        worker.replace(/\s+/g, ' ')
+      )
     );
   }
 

@@ -18,7 +18,8 @@ import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
  * than the collection does. Each entry leads with the reachable-people
  * count, the one number a campaign can act on, rather than the sample size.
  */
-export const revalidate = 3600;
+// Kept a week; `/api/cron/warm-holders` regenerates it every morning (STA-77).
+export const revalidate = 604800;
 
 export const metadata: Metadata = {
   title: 'Holder reachability reports',

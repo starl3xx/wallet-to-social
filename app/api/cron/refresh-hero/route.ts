@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { refreshHeroSnapshot } from '@/lib/identity-hero/server';
+import { expireHeroCache } from '@/lib/identity-hero/cache';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 export async function GET(request: NextRequest) {
@@ -11,6 +12,7 @@ export async function GET(request: NextRequest) {
   }
   try {
     const snapshot = await refreshHeroSnapshot();
+    expireHeroCache();
     return NextResponse.json({
       ok: true,
       accounts: snapshot.accounts.length,

@@ -19,6 +19,16 @@ export interface RecentWin {
   completedAt: string;
 }
 
+/**
+ * Cached at the edge for six hours (STA-77). The homepage calls this on every
+ * load, crawlers included, about 440 times a day, and each uncached call woke
+ * the database. The strip shows completed lookups by collection and counts,
+ * never an identity, so a removal has nothing here to wait for.
+ */
+const CACHE_HEADERS = {
+  'Cache-Control': 'public, s-maxage=21600, stale-while-revalidate=86400',
+};
+
 export async function GET(request: NextRequest) {
   const db = getDb();
   if (!db) {
@@ -106,7 +116,7 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    return NextResponse.json({ wins });
+    return NextResponse.json({ wins }, { headers: CACHE_HEADERS });
   } catch (error) {
     console.error('Wins fetch error:', error);
     return NextResponse.json({ wins: [] });

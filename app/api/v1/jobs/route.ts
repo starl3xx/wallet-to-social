@@ -27,6 +27,7 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { createJob, processJobChunk } from '@/lib/job-processor';
+import { continueIfUnfinished } from '@/lib/worker-kick';
 import { canSubmit, legacyTierIsUnmetered } from '@/lib/credits';
 import { effectiveTierForUserId } from '@/lib/access';
 import { getSiteUrl } from '@/lib/site-url';
@@ -277,27 +278,31 @@ export async function POST(request: NextRequest) {
    */
   let status = 'pending';
   if (uniqueWallets.length <= INLINE_PROCESSING_THRESHOLD) {
+    let inline: Awaited<ReturnType<typeof processJobChunk>> | null = null;
     try {
-      const inline = await processJobChunk(jobId);
+      inline = await processJobChunk(jobId);
       // Report what actually happened rather than a 'pending' the caller
       // would disprove with their first poll.
       if (inline.completed && !inline.error) status = 'completed';
     } catch (error) {
       console.error(
-        'Inline processing error (cron will retry):',
+        'Inline processing error (the worker will retry):',
         error instanceof Error ? error.message : error
       );
     }
+    after(() => continueIfUnfinished(inline));
   } else {
     after(async () => {
+      let result: Awaited<ReturnType<typeof processJobChunk>> | null = null;
       try {
-        await processJobChunk(jobId);
+        result = await processJobChunk(jobId);
       } catch (error) {
         console.error(
-          'Job kick failed (cron will retry):',
+          'Job kick failed (the worker will retry):',
           error instanceof Error ? error.message : error
         );
       }
+      await continueIfUnfinished(result);
     });
   }
 

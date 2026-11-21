@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStaleWallets } from '@/lib/social-graph';
 import { checkBackgroundBudget } from '@/lib/neynar-budget';
 import { createJob } from '@/lib/job-processor';
+import { kickWorker } from '@/lib/worker-kick';
 import { trackEvent } from '@/lib/analytics';
 
 export const runtime = 'nodejs';
@@ -96,6 +97,9 @@ export async function POST(request: NextRequest) {
     console.log(
       `Created refresh job ${jobId} for ${staleWallets.length} wallets`
     );
+
+    // The worker cron is hourly (STA-77): start the refresh now.
+    await kickWorker('/api/jobs/worker');
 
     return NextResponse.json({
       message: `Queued ${staleWallets.length} stale wallets for refresh`,

@@ -70,6 +70,7 @@ import { isAttestedSource } from '@/lib/api-sources';
 import serverManifest from '@/server.json';
 import {
   checkIpRateLimit,
+  checkMemoryRateLimit,
   formatRateLimitHeaders,
   getClientIp,
   IP_RATE_LIMITS,
@@ -1043,7 +1044,14 @@ async function guarded(request: NextRequest): Promise<Response> {
   }
 
   if (decision.action === 'limit') {
-    const limit = await checkIpRateLimit(decision.subject, decision.endpoint);
+    // The anonymous bucket is counted in memory: it bounds discovery, which
+    // costs nothing to serve, and a database write per probe kept the Neon
+    // compute from ever suspending (STA-77). The account bucket stays on the
+    // database. See checkMemoryRateLimit.
+    const limit =
+      decision.endpoint === '/api/mcp'
+        ? checkMemoryRateLimit(decision.subject, decision.endpoint)
+        : await checkIpRateLimit(decision.subject, decision.endpoint);
     if (!limit.allowed) {
       return NextResponse.json(
         {

@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache';
 import { and, eq, inArray } from 'drizzle-orm';
 import { getDb } from '@/db';
 import { ingestState, socialGraph } from '@/db/schema';
@@ -11,6 +12,7 @@ import { heroSnapshotSchema, type HeroSnapshot } from './types';
 import seeds from './seeds.json';
 import { refreshPortrait } from './avatars';
 import sampleSeeds from './sample-seeds.json';
+import { HERO_CACHE_SECONDS, HERO_CACHE_TAG } from './cache';
 
 export const HERO_STATE_KEY = 'landing_identity_hero_v1';
 const MAX_AGE = 7 * 24 * 60 * 60 * 1000;
@@ -69,6 +71,16 @@ export async function readHeroSnapshot(): Promise<HeroSnapshot | null> {
     return null;
   return filterHeroSnapshot(parsed.data, sets);
 }
+
+/**
+ * `readHeroSnapshot` behind the data cache, for the landing page's `/api/hero`.
+ * A removal and a refresh both expire it at once; see `./cache`.
+ */
+export const readHeroSnapshotCached = unstable_cache(
+  readHeroSnapshot,
+  ['identity-hero-snapshot'],
+  { revalidate: HERO_CACHE_SECONDS, tags: [HERO_CACHE_TAG] }
+);
 
 /** The landing page never calls this. Only a secret-authenticated refresh does. */
 export async function refreshHeroSnapshot(): Promise<HeroSnapshot> {

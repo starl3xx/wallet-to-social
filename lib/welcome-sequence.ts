@@ -626,8 +626,10 @@ async function claimAndSend(
 }
 
 /**
- * Welcome-1 only, every five minutes, for accounts that cleared
- * FIRST_TOUCH_DELAY_MINUTES. The daily runner still has a day-0 pass and is
+ * Welcome-1 only, hourly, for accounts that cleared
+ * FIRST_TOUCH_DELAY_MINUTES. Every five minutes until STA-77, which slowed it
+ * so the database can suspend: welcome-1 now lands 5 to 65 minutes after
+ * signup. The daily runner still has a day-0 pass and is
  * left in place as the safety net: if this route stops, the first email is
  * late rather than lost, and claimAndSend keeps the overlap from doubling.
  */
