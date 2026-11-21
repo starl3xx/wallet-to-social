@@ -5249,8 +5249,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-77 a holder data-cache key drops the environment, so a preview can fill production',
     file: 'lib/shared-cache.ts',
-    from: '  const direct = unstable_cache(callback, [name, CACHE_ENV], options);',
-    to: '  const direct = unstable_cache(callback, [name], options);',
+    from: '  return unstable_cache(callback, [name, CACHE_ENV], options);',
+    to: '  return unstable_cache(callback, [name], options);',
   },
   {
     name: 'STA-77 the warm phase revalidates in the same request, so its fetches hit the old cache',
