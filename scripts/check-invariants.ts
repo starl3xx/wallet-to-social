@@ -23997,16 +23997,99 @@ async function main() {
     // A preview deployment answers an empty listing; a cache key without the
     // environment would let it fill the production entry for a week.
     const holderPagesSrc = readFileSync('lib/holder-pages.ts', 'utf8');
-    const holderKeys =
-      holderPagesSrc.match(/\['holder-[a-z]+-v\d+', CACHE_ENV\]/g) ?? [];
+    const sharedSrc = readFileSync('lib/shared-cache.ts', 'utf8');
+    const sharedCode = withoutComments(sharedSrc);
+    const holderEntries =
+      holderPagesSrc.match(/sharedCache\(\s*'holder-[a-z]+-v\d+',/g) ?? [];
     ok(
-      `every holder data-cache key carries the environment (${holderKeys.length} of 3)`,
-      holderKeys.length === 3 &&
-        /import \{ CACHE_ENV \} from '@\/lib\/cache-env';/.test(
-          holderPagesSrc
-        ) &&
+      `every holder data-cache entry is a named shared entry (${holderEntries.length} of 3), none a bare unstable_cache`,
+      holderEntries.length === 3 &&
+        !/unstable_cache\(/.test(withoutComments(holderPagesSrc))
+    );
+    ok(
+      'a shared entry keys on its name and the environment',
+      /unstable_cache\(callback, \[name, CACHE_ENV\], options\)/.test(
+        sharedCode
+      ) &&
+        /import \{ CACHE_ENV \} from '@\/lib\/cache-env';/.test(sharedSrc) &&
         /export const CACHE_ENV = process\.env\.VERCEL_ENV \?\? 'local';/.test(
           readFileSync('lib/cache-env.ts', 'utf8')
+        )
+    );
+
+    /**
+     * Next keys an unstable_cache entry on the callback's compiled source
+     * (`cb.toString()`), and pages and route handlers compile the same module
+     * differently. So the holder page and the markdown route kept separate
+     * copies of the snapshot, and an agent's first markdown request ran 126 s
+     * of bulk queries at a random hour (STA-77, PR #433). The override is
+     * load-bearing only while Next builds the key that way, so both halves
+     * are asserted: if Next changes, this fails and the helper gets looked at.
+     */
+    const nextUnstableCache = readFileSync(
+      'node_modules/next/dist/server/web/spec-extension/unstable-cache.js',
+      'utf8'
+    );
+    ok(
+      'Next still keys unstable_cache on the callback source, which the shared helper pins',
+      nextUnstableCache.includes(
+        "const fixedKey = `${cb.toString()}-${Array.isArray(keyParts) && keyParts.join(',')}`;"
+      )
+    );
+    ok(
+      'the shared callback reports its name as its source, before Next reads it',
+      sharedCode.indexOf('callback.toString = () => name;') !== -1 &&
+        sharedCode.indexOf('callback.toString = () => name;') <
+          sharedCode.indexOf('unstable_cache(callback,')
+    );
+
+    // A cold page reads the snapshot three times, and each read used to miss
+    // the write the one before it had only started. Through the code: one
+    // underlying read while in flight, one within the hold, none held after a
+    // rejection.
+    {
+      const { holdShared } = await import('@/lib/shared-cache');
+      let calls = 0;
+      let clock = 0;
+      let fail = false;
+      const shared = holdShared(
+        async () => {
+          calls++;
+          if (fail) throw new Error('read failed');
+          return calls;
+        },
+        60_000,
+        () => clock
+      );
+      const [a, b] = await Promise.all([shared(), shared()]);
+      clock = 59_000;
+      const c = await shared();
+      clock = 61_000;
+      const d = await shared();
+      fail = true;
+      clock = 200_000;
+      const e = await shared().catch(() => 'rejected');
+      fail = false;
+      const f = await shared();
+      ok(
+        `the hold shares one read in flight and within a minute, and never holds a failure (${[a, b, c, d, e, f].join(',')})`,
+        a === 1 &&
+          b === 1 &&
+          c === 1 &&
+          d === 2 &&
+          e === 'rejected' &&
+          f === 4 &&
+          calls === 4
+      );
+    }
+    // The morning warm must refill the entry the expiry just cleared, so it
+    // reads past the hold.
+    ok(
+      'the morning warm reads every holder entry past the hold',
+      /await readHolderReportsCached\.direct\(\)/.test(holderPagesSrc) &&
+        /await readHolderOverlapsCached\.direct\(\)/.test(holderPagesSrc) &&
+        /await listHolderCollectionsCached\.direct\(\)/.test(
+          readFileSync('app/api/cron/warm-holders/route.ts', 'utf8')
         )
     );
 

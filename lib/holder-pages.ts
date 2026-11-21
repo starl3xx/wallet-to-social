@@ -1,5 +1,4 @@
-import { unstable_cache } from 'next/cache';
-import { CACHE_ENV } from '@/lib/cache-env';
+import { sharedCache } from '@/lib/shared-cache';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { CHAIN_LABELS, type SupportedChain } from '@/lib/chains';
@@ -759,6 +758,10 @@ export function standardLabel(
  * cache's JSON round trip. The environment is part of the key, because a
  * preview deployment deliberately answers an empty listing and must never
  * fill the production entry (`lib/cache-env.ts`).
+ *
+ * Each entry goes through `sharedCache` (`lib/shared-cache.ts`), so the
+ * pages, the route handlers and the warm cron read one entry under one name.
+ * Bump the `-vN` in a name whenever what its entry holds changes.
  */
 export const HOLDER_DATA_TAG = 'holder-data';
 const HOLDER_CACHE = {
@@ -766,9 +769,9 @@ const HOLDER_CACHE = {
   tags: [HOLDER_DATA_TAG],
 };
 
-export const listHolderCollectionsCached = unstable_cache(
+export const listHolderCollectionsCached = sharedCache(
+  'holder-list-v1',
   listHolderCollections,
-  ['holder-list-v1', CACHE_ENV],
   HOLDER_CACHE
 );
 
@@ -957,14 +960,14 @@ export async function readHolderOverlaps(): Promise<
   return overlaps;
 }
 
-const readHolderReportsCached = unstable_cache(
+const readHolderReportsCached = sharedCache(
+  'holder-reports-v1',
   readHolderReports,
-  ['holder-reports-v1', CACHE_ENV],
   HOLDER_CACHE
 );
-const readHolderOverlapsCached = unstable_cache(
+const readHolderOverlapsCached = sharedCache(
+  'holder-overlaps-v1',
   readHolderOverlaps,
-  ['holder-overlaps-v1', CACHE_ENV],
   HOLDER_CACHE
 );
 
@@ -974,8 +977,8 @@ const readHolderOverlapsCached = unstable_cache(
  * render ever starts the aggregate itself.
  */
 export async function warmHolderSnapshot() {
-  const reports = await readHolderReportsCached();
-  const overlaps = await readHolderOverlapsCached();
+  const reports = await readHolderReportsCached.direct();
+  const overlaps = await readHolderOverlapsCached.direct();
   const reportBytes = Buffer.byteLength(JSON.stringify(reports));
   const overlapBytes = Buffer.byteLength(JSON.stringify(overlaps));
   if (Math.max(reportBytes, overlapBytes) > HOLDER_SNAPSHOT_WARN_BYTES) {

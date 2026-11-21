@@ -77,7 +77,8 @@ function expirePhase() {
 /** 07:30: rebuild everything the expire phase marked stale. */
 async function warmPhase() {
   const snapshot = await warmHolderSnapshot();
-  const collections = await listHolderCollectionsCached();
+  // Past the one-minute hold, so the entry the expiry just cleared is refilled.
+  const collections = await listHolderCollectionsCached.direct();
   const paths = [
     ...DAILY_PATHS,
     ...collections.map((c) => `/holders/${c.chain}/${c.address}`),

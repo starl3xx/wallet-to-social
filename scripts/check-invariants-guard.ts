@@ -5248,15 +5248,15 @@ const MUTATIONS: Mutation[] = [
   },
   {
     name: 'STA-77 a holder data-cache key drops the environment, so a preview can fill production',
-    file: 'lib/holder-pages.ts',
-    from: "  ['holder-list-v1', CACHE_ENV],",
-    to: "  ['holder-list-v1'],",
+    file: 'lib/shared-cache.ts',
+    from: '  const direct = unstable_cache(callback, [name, CACHE_ENV], options);',
+    to: '  const direct = unstable_cache(callback, [name], options);',
   },
   {
     name: 'STA-77 the warm phase revalidates in the same request, so its fetches hit the old cache',
     file: 'app/api/cron/warm-holders/route.ts',
-    from: '  const collections = await listHolderCollectionsCached();\n',
-    to: "  revalidatePath('/holders/[chain]/[address]', 'page');\n  const collections = await listHolderCollectionsCached();\n",
+    from: '  const collections = await listHolderCollectionsCached.direct();\n',
+    to: "  revalidatePath('/holders/[chain]/[address]', 'page');\n  const collections = await listHolderCollectionsCached.direct();\n",
   },
   {
     name: 'STA-77 the expire phase runs after the warm phase',
@@ -5321,14 +5321,44 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'STA-77 the warm phase fetches pages before it fills the snapshot',
     file: 'app/api/cron/warm-holders/route.ts',
-    from: '  const snapshot = await warmHolderSnapshot();\n  const collections = await listHolderCollectionsCached();',
-    to: '  const collections = await listHolderCollectionsCached();\n  const snapshot = { reports: 0 };',
+    from: '  const snapshot = await warmHolderSnapshot();\n',
+    to: '  const snapshot = { reports: 0 };\n',
   },
   {
     name: 'STA-77 the expire phase runs ten minutes before the warm, so visitors meet an expired snapshot',
     file: 'vercel.json',
     from: '"path": "/api/cron/warm-holders?phase=expire",\n      "schedule": "28 7 * * *"',
     to: '"path": "/api/cron/warm-holders?phase=expire",\n      "schedule": "20 7 * * *"',
+  },
+  {
+    name: 'STA-77 the shared callback keeps its compiled source, so each layer keys its own snapshot copy',
+    file: 'lib/shared-cache.ts',
+    from: '  callback.toString = () => name;\n',
+    to: '',
+  },
+  {
+    name: 'STA-77 a holder entry is a bare unstable_cache again, keyed per compiled layer',
+    file: 'lib/holder-pages.ts',
+    from: "export const listHolderCollectionsCached = sharedCache(\n  'holder-list-v1',\n  listHolderCollections,\n  HOLDER_CACHE\n);",
+    to: "export const listHolderCollectionsCached = Object.assign(\n  unstable_cache(listHolderCollections, ['holder-list-v1', CACHE_ENV], HOLDER_CACHE),\n  { direct: listHolderCollections }\n);",
+  },
+  {
+    name: 'STA-77 the hold never shares, so a cold page runs the bulk query once per read',
+    file: 'lib/shared-cache.ts',
+    from: '    if (held && (held.settledAt === null || now() - held.settledAt < holdMs)) {',
+    to: '    if (held && held.settledAt !== null && now() - held.settledAt < holdMs) {',
+  },
+  {
+    name: 'STA-77 a failed read stays held, so the snapshot is not retried until the hold lapses',
+    file: 'lib/shared-cache.ts',
+    from: '        if (held === entry) held = null;\n',
+    to: '        entry.settledAt = now();\n',
+  },
+  {
+    name: 'STA-77 the morning warm reads through the hold, so a just-expired entry may not be refilled',
+    file: 'lib/holder-pages.ts',
+    from: '  const reports = await readHolderReportsCached.direct();',
+    to: '  const reports = await readHolderReportsCached();',
   },
   {
     name: 'STA-77 the cached starter cards re-run the whole-table aggregate',

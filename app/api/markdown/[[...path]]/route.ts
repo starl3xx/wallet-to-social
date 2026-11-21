@@ -72,9 +72,9 @@ export const maxDuration = 300;
  * a handler that reads a database: Next runs its GET during every build, and
  * the read becomes a build-time dependency. Two of the documents below read
  * Neon, so the whole handler stays dynamic and buys its caching back with the
- * `s-maxage` on each response. The holder documents read the daily holder
- * snapshot in the data cache (`lib/holder-pages.ts`), so an edge miss costs
- * no database query (STA-77).
+ * `s-maxage` on each response. The holder documents read the same holder
+ * snapshot entry as the holder pages (`lib/shared-cache.ts`), so while it is
+ * filled an edge miss costs no database query (STA-77).
  */
 export const dynamic = 'force-dynamic';
 
