@@ -793,3 +793,77 @@ export async function consumeAnonMatchBudget(
     console.error('Anon match budget write failed:', error);
   }
 }
+
+/**
+ * Buckets held in this function instance's memory, for traffic that reaches
+ * no database and no paid upstream. Keyed `endpoint|subject|hour`.
+ */
+const memoryBuckets = new Map<string, number>();
+
+/**
+ * The same sliding-window bound as `checkIpRateLimit`, counted in memory.
+ *
+ * ## Why the anonymous MCP bucket lives here, not in Postgres
+ *
+ * Keyless MCP traffic is discovery: `initialize`, `tools/list`, stream opens
+ * and teardowns from registries and scanners, about 2,600 requests a day from
+ * about 150 addresses. It reaches no handler, no database and no paid
+ * provider. Counting it in `ip_rate_limit_buckets` made every one of those
+ * requests a database write, which alone kept the Neon compute from ever
+ * reaching its five idle minutes and suspending (STA-77).
+ *
+ * The trade is precision. Each function instance counts on its own, so a
+ * caller spread across instances gets up to the limit per instance rather than
+ * per hour overall. That is acceptable only because what it bounds costs
+ * nothing to serve: the bound exists to stop a flood, and the platform's own
+ * protection sits in front of it. Anything that costs money (a metered tool
+ * call, an account bucket, a lookup) stays on the database limiter.
+ */
+export function checkMemoryRateLimit(
+  subject: string,
+  endpoint: RateLimitedEndpoint,
+  units: number = 1
+): IpRateLimitResult {
+  const config = IP_RATE_LIMITS[endpoint];
+  const now = new Date();
+  const bucketKey = getHourlyBucketKey(now);
+  const previousBucketKey = getHourlyBucketKey(
+    new Date(now.getTime() - 60 * 60 * 1000)
+  );
+  const resetAt = getResetTime(now);
+
+  // Drop buckets older than the previous hour, so the map stays bounded by
+  // the subjects seen in the last two hours.
+  for (const key of memoryBuckets.keys()) {
+    const hour = key.slice(key.lastIndexOf('|') + 1);
+    if (hour !== bucketKey && hour !== previousBucketKey) {
+      memoryBuckets.delete(key);
+    }
+  }
+
+  const currentKey = `${endpoint}|${subject}|${bucketKey}`;
+  const count = (memoryBuckets.get(currentKey) ?? 0) + units;
+  memoryBuckets.set(currentKey, count);
+  const previousCount =
+    memoryBuckets.get(`${endpoint}|${subject}|${previousBucketKey}`) ?? 0;
+
+  const effective = slidingWindowCount(previousCount, count, now);
+  const remaining = Math.max(0, Math.floor(config.limit - effective));
+  const allowed = effective <= config.limit;
+  const retryAfterSeconds = allowed
+    ? undefined
+    : Math.max(
+        1,
+        secondsUntilNextAllowed(previousCount, count, config.limit, now, units)
+      );
+
+  return {
+    allowed,
+    limit: config.limit,
+    remaining,
+    resetAt: retryAfterSeconds
+      ? new Date(now.getTime() + retryAfterSeconds * 1000)
+      : resetAt,
+    retryAfter: retryAfterSeconds,
+  };
+}

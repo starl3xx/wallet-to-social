@@ -2,6 +2,7 @@ import type { getDb } from '@/db';
 import { sql, type SQL } from 'drizzle-orm';
 import { scrubStoredBatchResponse } from '@/lib/idempotency';
 import type { SuppressionSets } from '@/lib/suppression';
+import { expireHeroCache } from '@/lib/identity-hero/cache';
 
 /**
  * The operator side of the right-to-removal system: stage 1.
@@ -253,6 +254,9 @@ export async function insertSuppressions(
       res.rows.length > 0 ? 'created' : 'already-present'
     );
   }
+  // The landing hero is cached (STA-77). A removal takes effect at once, so
+  // the cache goes with it.
+  if ([...outcomes.values()].includes('created')) expireHeroCache();
   return outcomes;
 }
 

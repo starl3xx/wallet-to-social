@@ -10,13 +10,15 @@ export const runtime = 'nodejs';
 export const maxDuration = 300;
 
 /**
- * Welcome-1 on a five-minute tick.
+ * Welcome-1 on an hourly tick (every five minutes until STA-77, which slowed
+ * it so the database can suspend between ticks).
  *
  * The daily 15:00 UTC runner owns days 2 to 14 and keeps a day-0 pass as a
  * safety net, but on its own it made the *welcome* email arrive up to a day
  * after the welcome: someone who signed up at 15:01 UTC waited 23 hours and
  * 59 minutes. This route closes that to FIRST_TOUCH_DELAY_MINUTES plus up to
- * five, without putting welcome-1 in the same inbox second as the magic link.
+ * an hour, without putting welcome-1 in the same inbox second as the magic
+ * link.
  *
  * Overlap with the daily runner is expected at 15:00 and is safe:
  * claimAndSend takes the lifecycle_emails row before it sends, so the second

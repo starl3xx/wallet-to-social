@@ -27,6 +27,7 @@ import {
 } from '@/lib/api-auth';
 import { trackApiUsage } from '@/lib/api-usage';
 import { createJob, processJobChunk } from '@/lib/job-processor';
+import { handOnToWorker } from '@/lib/worker-kick';
 import { canSubmit, legacyTierIsUnmetered } from '@/lib/credits';
 import { effectiveTierForUserId } from '@/lib/access';
 import { getSiteUrl } from '@/lib/site-url';
@@ -284,20 +285,22 @@ export async function POST(request: NextRequest) {
       if (inline.completed && !inline.error) status = 'completed';
     } catch (error) {
       console.error(
-        'Inline processing error (cron will retry):',
+        'Inline processing error (the worker will retry):',
         error instanceof Error ? error.message : error
       );
     }
+    after(() => handOnToWorker());
   } else {
     after(async () => {
       try {
         await processJobChunk(jobId);
       } catch (error) {
         console.error(
-          'Job kick failed (cron will retry):',
+          'Job kick failed (the worker will retry):',
           error instanceof Error ? error.message : error
         );
       }
+      await handOnToWorker();
     });
   }
 

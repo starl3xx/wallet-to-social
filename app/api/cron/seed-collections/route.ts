@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { runDailySeed } from '@/lib/seed-collections';
+import { kickWorker } from '@/lib/worker-kick';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -35,6 +36,9 @@ export async function GET(request: NextRequest) {
   try {
     const results = await runDailySeed();
     const failures = results.filter((r) => r.error);
+
+    // The worker cron is hourly (STA-77): start the queued resolution jobs now.
+    if (results.some((r) => r.jobId)) await kickWorker('/api/jobs/worker');
 
     return NextResponse.json({
       message: `Seeded ${results.length - failures.length} contracts (${failures.length} failures)`,

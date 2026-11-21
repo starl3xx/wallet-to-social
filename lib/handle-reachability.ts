@@ -9,10 +9,10 @@
  * renames or gets suspended.
  *
  * A daily cron resolves these: `/api/cron/x-reachability`, scheduled on
- * 2026-08-18. It has checked 482,968 distinct handles, which is every handle in
+ * 2026-08-18. It has checked 493,452 distinct handles, which is every handle in
  * `x_accounts`.
  *
- * That is slightly MORE than the 480,015 distinct handles the index holds, and
+ * That is slightly MORE than the 489,618 distinct handles the index holds, and
  * it is not an error: the table keeps every handle it has ever seen a state
  * for, including ones the conflict resolver has since replaced, so it is a
  * superset rather than a subset. Treating one as the other's denominator gives

@@ -37,14 +37,16 @@ import { breadcrumbJsonLd } from '@/lib/breadcrumbs';
  * Every page ranking for "[collection] holders" today lists bare addresses;
  * this one answers the question those searches are actually asking: who are
  * the people behind the wallets, and how many can you reach? The numbers
- * come from the index at ISR time (hourly), so the page moves as the index
- * does, and none of them is a static literal the figure checker would need
- * to watch.
+ * come from the index at ISR time, so the page moves as the index does, and
+ * none of them is a static literal the figure checker would need to watch.
+ * The render is regenerated once a day by `/api/cron/warm-holders` inside the
+ * morning cron window, and otherwise kept for a week, so a crawler never
+ * wakes the database (STA-77).
  *
  * Aggregates only, by rule: no wallet list, no handle list. The interactive
  * answer stays /check and the app.
  */
-export const revalidate = 3600;
+export const revalidate = 604800;
 
 interface Props {
   params: Promise<{ chain: string; address: string }>;

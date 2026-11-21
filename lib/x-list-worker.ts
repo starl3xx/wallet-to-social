@@ -45,7 +45,8 @@ import {
 /**
  * How many additions one tick attempts.
  *
- * Below the window allowance on purpose. The cron runs every minute, so a
+ * Below the window allowance on purpose. A building list ticks once a minute
+ * (`app/api/cron/x-list/route.ts`), so a
  * smaller batch spreads the same 300 across the window instead of spending it
  * in the first twenty seconds and then sitting rate-limited for fourteen
  * minutes. It also bounds the tick inside a serverless maxDuration: 20 requests
@@ -737,4 +738,19 @@ function rateLimited(res: Response): Date | null {
  */
 export function estimatedMinutes(memberCount: number): number {
   return Math.max(1, Math.ceil(memberCount / BATCH));
+}
+
+/**
+ * Whether any list is still being built, including one waiting out X's rate
+ * window. A kicked run of the list cron keeps going while this is true and
+ * stops when it is not, so an idle site sends the database no list queries at
+ * all (STA-77).
+ */
+export async function hasOpenXListJob(): Promise<boolean> {
+  const db = getDb();
+  if (!db) return false;
+  const open = (await db.execute(sql`
+    SELECT 1 FROM x_list_jobs WHERE status IN ('pending', 'running') LIMIT 1
+  `)) as unknown as { rows: unknown[] };
+  return open.rows.length > 0;
 }

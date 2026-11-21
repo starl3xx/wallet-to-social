@@ -2,11 +2,11 @@
   "crons": [
     {
       "path": "/api/jobs/worker",
-      "schedule": "* * * * *"
+      "schedule": "7 * * * *"
     },
     {
       "path": "/api/cron/x-list",
-      "schedule": "* * * * *"
+      "schedule": "7 * * * *"
     },
     {
       "path": "/api/cron/refresh-stale",
@@ -31,6 +31,10 @@
     {
       "path": "/api/cron/seed-collections",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/warm-holders",
+      "schedule": "30 7 * * *"
     },
     {
       "path": "/api/cron/ethos-sweep",
@@ -70,7 +74,7 @@
     },
     {
       "path": "/api/cron/welcome-first",
-      "schedule": "*/5 * * * *"
+      "schedule": "7 * * * *"
     },
     {
       "path": "/api/cron/cleanup",
@@ -82,7 +86,7 @@
     },
     {
       "path": "/api/cron/sanctions-refresh",
-      "schedule": "15 */6 * * *"
+      "schedule": "7 */6 * * *"
     }
   ],
   "headers": [

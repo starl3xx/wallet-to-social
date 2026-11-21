@@ -2,6 +2,31 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-21 (the database can sleep again)
+
+**The Neon compute had not suspended once since 2026-10-14 (STA-77).** Neon
+stops billing compute after five quiet minutes, but something queried the
+database every few seconds: minute crons that almost always found nothing,
+a rate-limit write per keyless MCP probe, uncached homepage reads, and holder
+pages that crawlers regenerated hourly. Each caller now leaves the database
+alone when there is no work.
+
+- **Work starts itself.** The submit routes, the seed and refresh crons and
+  the X callback kick the worker (`lib/worker-kick.ts`). A run that leaves
+  work behind kicks the next one. The job, X-list and welcome-1 crons run
+  hourly at :07 as the safety net, and the sanctions refresh moved to :07.
+- **Keyless MCP discovery is rate-limited in memory**
+  (`checkMemoryRateLimit`). The account bucket stays in Postgres.
+- **Caches:** `/api/wins` for 6 hours at the edge. The landing hero in the
+  data cache, expired at once by every removal and every refresh. Holder
+  pages for a week, regenerated each morning by the new
+  `/api/cron/warm-holders` (07:30 UTC).
+- **Trade-offs:** a job whose kick fails waits for the hourly tick, not a
+  minute. Welcome-1 lands 5 to 65 minutes after signup, not 5 to 10.
+- **Published figures refreshed** (the `figures` check found index growth):
+  493,452 X handles resolved (was 482,968), 68.4% live, 20.7% suspended and
+  10.9% unclaimed (was 70.1, 19.7 and 10.2), 489,618 distinct handles held.
+
 ### 2026-11-20 (CLAUDE.md gets an ownership line)
 
 **`CLAUDE.md` now ends with one line for Claude Code (STA-73).** No code changed.

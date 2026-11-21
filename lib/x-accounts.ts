@@ -3,7 +3,7 @@
  *
  * Every X handle in the graph is a string somebody chose, and they can change it
  * whenever they like without telling anyone. Measured across the whole index:
- * of 482,968 handles resolved, X_UNREACHABLE_PCT reach nobody (see
+ * of 493,452 handles resolved, X_UNREACHABLE_PCT reach nobody (see
  * lib/public-figures.ts; the share is derived from suspended + unclaimed).
  *
  * ## Why this is a table about handles, not a column on wallets

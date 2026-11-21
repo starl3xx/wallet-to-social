@@ -509,7 +509,8 @@ export interface ProcessResult {
 /**
  * Work one job for as long as this invocation can afford.
  *
- * The only lookup pipeline. Called by the cron worker every minute, and once
+ * The only lookup pipeline. Called by the worker (kicked when work is queued,
+ * and hourly by cron as the safety net; STA-77), and once
  * straight after submission by both job routes, inline for ten addresses or
  * fewer and through `after()` above that. Each call takes slices of the job
  * while `INVOCATION_BUDGET_MS` lasts (`runSlices`), so the call that starts a

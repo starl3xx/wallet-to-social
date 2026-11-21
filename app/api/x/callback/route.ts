@@ -28,7 +28,7 @@
  * `not_found`, because the difference is exactly the oracle a bare uuid in a URL
  * would otherwise provide.
  */
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { cookies } from 'next/headers';
 import { sql } from 'drizzle-orm';
 import { getDb } from '@/db';
@@ -49,6 +49,7 @@ import {
 } from '@/lib/x-oauth';
 import { completeClaimCallback } from '@/lib/claim-callback';
 import { getSiteUrl } from '@/lib/site-url';
+import { kickWorker } from '@/lib/worker-kick';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -278,6 +279,10 @@ export async function GET(request: NextRequest) {
     WHERE id = ${jobId}::uuid
       AND status = 'awaiting_auth'
   `);
+
+  // The list cron is hourly (STA-77): start building now. A failed kick leaves
+  // the job `pending` for the hourly tick.
+  after(() => kickWorker('/api/cron/x-list'));
 
   return back('queued', jobId);
 }

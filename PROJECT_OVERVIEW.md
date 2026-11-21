@@ -1254,6 +1254,23 @@ print them. This is the same split `/check` publishes in prose; the public
 
 ---
 
+## Recent Changes (2026-11-21)
+
+- **The database is allowed to sleep (STA-77).** Neon suspends the compute
+  after five idle minutes and then bills storage only. Work now starts itself:
+  the submit routes, the seed and refresh crons and the X callback call
+  `kickWorker` (`lib/worker-kick.ts`), a POST with the cron secret and an
+  `x-worker-kick` hop count that the worker answers 202 and works in
+  `after()`. A run that leaves work behind and made progress kicks the next
+  one. `/api/jobs/worker`, `/api/cron/x-list` and `/api/cron/welcome-first`
+  run hourly at :07 as the safety net. Keyless MCP discovery is limited in
+  memory (`checkMemoryRateLimit`); `/api/wins` is edge-cached for 6 hours; the
+  hero read is data-cached and expired by `expireHeroCache`
+  (`lib/identity-hero/cache.ts`) on every removal and refresh; holder pages
+  keep a week and `GET /api/cron/warm-holders` (07:30 UTC, `CRON_SECRET`)
+  regenerates them and the sitemap each morning. The outreach runner reads the
+  database only when it could send (`couldSendNow`).
+
 ## Recent Changes (2026-08-24)
 
 - **The welcome sequence has two runners.** `/api/cron/welcome-first`

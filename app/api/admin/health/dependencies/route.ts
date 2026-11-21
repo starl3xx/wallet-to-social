@@ -205,14 +205,15 @@ const JOBS: Array<{
      * only cron in the product that touches a person within minutes of signup
      * was also the only one nothing watched.
      *
-     * Two hours, not 48: it runs every five minutes, so a gap of two hours is
-     * already 24 missed runs and unambiguous. It emits on every run, including
-     * quiet ones, so this cannot flap with signup volume.
+     * Three hours, not 48: it runs hourly (every five minutes until STA-77,
+     * which slowed it so the database can suspend), so a gap of three hours
+     * is already two missed runs and unambiguous. It emits on every run,
+     * including quiet ones, so this cannot flap with signup volume.
      */
     name: 'Welcome first touch',
-    schedule: 'every 5 minutes',
+    schedule: 'hourly, at :07',
     subtype: 'welcome_first_touch',
-    maxAgeHours: 2,
+    maxAgeHours: 3,
     reportsOutcome: true,
   },
   {
@@ -224,7 +225,7 @@ const JOBS: Array<{
      * latest run was refused or could not download.
      */
     name: 'Sanctions list refresh',
-    schedule: 'every 6 hours, at :15',
+    schedule: 'every 6 hours, at :07',
     subtype: 'sanctions_refresh',
     maxAgeHours: SANCTIONS_ALERT_AFTER_HOURS,
     reportsOutcome: true,

@@ -399,6 +399,48 @@ export function candidates(state, now) {
 }
 
 /**
+ * Why no message may go out at `now`, or null when one may: outside weekday
+ * sending hours, at the daily limit, or inside the minimum gap. The one copy
+ * of these rules; `tick` and `couldSendNow` both read it.
+ */
+export function sendGate(state, now) {
+  const clock = localClock(now, state.config.timezone);
+  if (
+    ['Sat', 'Sun'].includes(clock.weekday) ||
+    clock.hour < 9 ||
+    clock.hour >= 17
+  )
+    return 'outside-hours';
+  const sent = state.leads
+    .flatMap((l) => l.messages)
+    .filter((m) => m.status === 'sent');
+  if (
+    sent.filter(
+      (m) => localClock(m.sentAt, state.config.timezone).day === clock.day
+    ).length >= state.config.dailyLimit
+  )
+    return 'daily-limit';
+  if (sent.some((m) => now - m.sentAt < state.config.minGapMinutes * 60_000))
+    return 'spacing';
+  return null;
+}
+
+/**
+ * Whether a live tick at `now` could send anything: a message is due and the
+ * send gate is open. The CLI refreshes the account exclusions from the
+ * database only when this is true, because that refresh is the runner's only
+ * database read, and doing it on every five-minute poll kept the Neon compute
+ * from ever suspending (STA-77). A tick that cannot send needs no exclusions.
+ */
+export function couldSendNow(state, now) {
+  return (
+    !state.paused &&
+    sendGate(state, now) === null &&
+    candidates(state, now).length > 0
+  );
+}
+
+/**
  * Provider contract: profile, hasReply, send, findSent. No outbound call without
  * live=true. send throws NotSubmittedError for a failure before submission;
  * any other error from send is treated as a possible delivery.
@@ -462,24 +504,8 @@ export async function tick(
       mode: 'blocked',
       reason: 'Uncertain delivery requires reconciliation',
     };
-  const clock = localClock(now, state.config.timezone);
-  if (
-    ['Sat', 'Sun'].includes(clock.weekday) ||
-    clock.hour < 9 ||
-    clock.hour >= 17
-  )
-    return { mode: 'outside-hours' };
-  const sent = state.leads
-    .flatMap((l) => l.messages)
-    .filter((m) => m.status === 'sent');
-  if (
-    sent.filter(
-      (m) => localClock(m.sentAt, state.config.timezone).day === clock.day
-    ).length >= state.config.dailyLimit
-  )
-    return { mode: 'daily-limit' };
-  if (sent.some((m) => now - m.sentAt < state.config.minGapMinutes * 60_000))
-    return { mode: 'spacing' };
+  const gate = sendGate(state, now);
+  if (gate) return { mode: gate };
   const notSubmitted = [];
   for (const { lead, message, index } of candidates(state, now)) {
     // Includes new threads from a recipient, not just replies in the original thread.

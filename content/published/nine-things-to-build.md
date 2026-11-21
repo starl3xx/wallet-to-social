@@ -73,7 +73,7 @@ A page holds up to 100 wallets and each one is a match, so a widely held handle 
 
 Here is the recipe we would run first, and almost nobody does.
 
-We resolve the X handles in the index against X itself, daily. Of those checked so far: **70.1% are live**, **19.7% are suspended**, and **10.2% are names nobody holds any more**. Roughly a third reach no person at all.
+We resolve the X handles in the index against X itself, daily. Of those checked so far: **68.4% are live**, **20.7% are suspended**, and **10.9% are names nobody holds any more**. Roughly a third reach no person at all.
 
 Nothing about a stale list looks broken. The handles are well-formed, the CSV opens, the send completes. The messages simply arrive nowhere, and the campaign reports a low response rate rather than a dead list.
 

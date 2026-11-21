@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { readHeroSnapshot } from '@/lib/identity-hero/server';
+import { readHeroSnapshotCached } from '@/lib/identity-hero/server';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const headers = { 'Cache-Control': 'private, no-store' };
   try {
-    const snapshot = await readHeroSnapshot();
+    const snapshot = await readHeroSnapshotCached();
     if (!snapshot || snapshot.accounts.length < 2)
       return NextResponse.json(
         { error: 'Snapshot unavailable' },
