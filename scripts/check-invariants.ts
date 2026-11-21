@@ -14099,16 +14099,18 @@ async function main() {
     ] as const) {
       ok(
         `${name} kicks the worker after the response for a job over the inline threshold`,
-        /after\(async \(\) => \{\s*let result[^=]*= null;\s*try \{\s*result = await processJobChunk\(jobId\);/.test(
+        /after\(async \(\) => \{\s*try \{\s*await processJobChunk\(jobId\);/.test(
           src
         )
       );
-      // STA-77: the worker cron is hourly, so what the submit route leaves
-      // behind has to be handed on, on both branches, or it waits an hour.
+      // STA-77: the worker cron is hourly, so the submit route hands on to
+      // the worker on both branches, or what it leaves waits an hour.
       ok(
-        `${name} hands whatever its own pass left to the worker, inline and kicked`,
-        /after\(\(\) => continueIfUnfinished\(inline\)\)/.test(src) &&
-          /await continueIfUnfinished\(result\);/.test(src)
+        `${name} hands on to the worker after its own pass, inline and kicked`,
+        /after\(\(\) => handOnToWorker\(\)\)/.test(src) &&
+          /await processJobChunk\(jobId\);[\s\S]{0,400}?await handOnToWorker\(\);/.test(
+            src
+          )
       );
     }
 
@@ -23959,6 +23961,16 @@ async function main() {
         xList.indexOf('if (!authorized(request))', postAt) > postAt &&
         xList.indexOf('if (!authorized(request))', postAt) <
           xList.indexOf('after(', postAt)
+    );
+    // A full page of candidates means more may be queued behind it; a run
+    // that stopped there would strand the sixth job until the hourly tick
+    // (Bugbot on PR #430).
+    ok(
+      'a worker run that read a full page of candidates counts as work left behind',
+      /const pageWasFull = candidates\.length >= PARALLEL_JOB_LIMIT;/.test(
+        worker
+      ) &&
+        /deferred > 0 \|\| pageWasFull \|\|/.test(worker.replace(/\s+/g, ' '))
     );
     // A chain that made no progress stops, or a stuck job spins forever.
     ok(

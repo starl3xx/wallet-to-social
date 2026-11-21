@@ -84,14 +84,14 @@ export async function kickWorker(
 }
 
 /**
- * After a submit route's own pass at a job, hands whatever is left to the
- * worker. `null` means that pass threw, and the job is still queued. A `busy`
- * result means another run holds the job, and that run kicks its own
- * successor.
+ * After a submit route's own pass at a job, starts a worker run. Always, not
+ * only when this job is unfinished: the worker takes whatever the queue holds,
+ * which includes a job deferred behind this one by another run's wallet
+ * budget, or queued behind the parallel limit. A run that finds the queue
+ * empty costs one query, on a database this request has already woken.
+ * (Bugbot on PR #430: kicking only for an unfinished job stranded a deferred
+ * job behind a finished one until the hourly tick.)
  */
-export async function continueIfUnfinished(
-  result: { completed: boolean; busy?: boolean } | null
-): Promise<void> {
-  if (result && (result.completed || result.busy)) return;
+export async function handOnToWorker(): Promise<void> {
   await kickWorker('/api/jobs/worker');
 }

@@ -176,11 +176,15 @@ async function workQueue(
     );
     const completedCount = results.filter((r) => r.completed).length;
 
-    // Work left behind: a deferred job, or one this run advanced but did not
-    // finish. A `busy` job is another run's, and that run kicks its own
-    // successor.
+    // Work left behind: a deferred job, one this run advanced but did not
+    // finish, or a full page of candidates, which means more may be queued
+    // behind it (Bugbot on PR #430). A `busy` job is another run's, and that
+    // run, or the submit route holding it, hands on when it is done.
+    const pageWasFull = candidates.length >= PARALLEL_JOB_LIMIT;
     const leftBehind =
-      deferred > 0 || results.some((r) => !r.completed && !r.busy);
+      deferred > 0 ||
+      pageWasFull ||
+      results.some((r) => !r.completed && !r.busy);
     const progressed = results.some((r) => r.progressed);
     const kicked =
       leftBehind && progressed

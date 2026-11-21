@@ -2243,8 +2243,8 @@ const MUTATIONS: Mutation[] = [
     // pipelines then race on the job row again, which is the defect.
     name: 'a job route sends the lookup event to Inngest again, so two pipelines race',
     file: 'app/api/jobs/route.ts',
-    from: '      after(async () => {\n        let result: Awaited<ReturnType<typeof processJobChunk>> | null = null;\n        try {\n          result = await processJobChunk(jobId);',
-    to: "      after(async () => {\n        let result: Awaited<ReturnType<typeof processJobChunk>> | null = null;\n        try {\n          await inngest.send({ name: 'wallet/lookup.requested', data: { jobId } });\n          result = await processJobChunk(jobId);",
+    from: '      after(async () => {\n        try {\n          await processJobChunk(jobId);',
+    to: "      after(async () => {\n        try {\n          await inngest.send({ name: 'wallet/lookup.requested', data: { jobId } });\n          await processJobChunk(jobId);",
   },
   {
     name: 'the Inngest route registers a lookup function again',
@@ -2255,8 +2255,8 @@ const MUTATIONS: Mutation[] = [
   {
     name: 'the API route stops kicking the worker, so a large job waits for a tick',
     file: 'app/api/v1/jobs/route.ts',
-    from: '    after(async () => {\n      let result: Awaited<ReturnType<typeof processJobChunk>> | null = null;\n      try {\n        result = await processJobChunk(jobId);',
-    to: '    after(async () => {\n      let result: Awaited<ReturnType<typeof processJobChunk>> | null = null;\n      try {\n        void jobId;',
+    from: '    after(async () => {\n      try {\n        await processJobChunk(jobId);',
+    to: '    after(async () => {\n      try {\n        void jobId;',
   },
   {
     // The race itself: a claim that ignores the lease takes a job a live
@@ -5229,9 +5229,15 @@ const MUTATIONS: Mutation[] = [
     to: '      leftBehind\n',
   },
   {
-    name: 'STA-77 the submit route drops what its own pass left, so a large job waits for the hourly tick',
+    name: 'STA-77 a worker run that read a full page stops there, so a sixth queued job waits for the hourly tick',
+    file: 'app/api/jobs/worker/route.ts',
+    from: '      deferred > 0 ||\n      pageWasFull ||\n',
+    to: '      deferred > 0 ||\n',
+  },
+  {
+    name: 'STA-77 the submit route never hands on to the worker, so a large job waits for the hourly tick',
     file: 'app/api/jobs/route.ts',
-    from: '        await continueIfUnfinished(result);\n',
+    from: '        await handOnToWorker();\n',
     to: '',
   },
   {

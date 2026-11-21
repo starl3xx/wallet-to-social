@@ -51,15 +51,19 @@ export async function GET(request: NextRequest) {
     for (let i = 0; i < paths.length; i += WARM_CONCURRENCY) {
       const batch = paths.slice(i, i + WARM_CONCURRENCY);
       const outcomes = await Promise.allSettled(
-        batch.map((path) =>
-          fetch(`${origin}${path}`, {
+        batch.map(async (path) => {
+          const response = await fetch(`${origin}${path}`, {
             cache: 'no-store',
             signal: AbortSignal.timeout(30_000),
-          })
-        )
+          });
+          // Read the body: it releases the socket, and the render is only
+          // known to have finished once the stream has.
+          await response.arrayBuffer();
+          return response.ok;
+        })
       );
       for (const outcome of outcomes) {
-        if (outcome.status === 'fulfilled' && outcome.value.ok) warmed++;
+        if (outcome.status === 'fulfilled' && outcome.value) warmed++;
         else failed++;
       }
     }
