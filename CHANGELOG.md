@@ -2,6 +2,16 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-22 (what still wakes the database)
+
+**Authenticated MCP requests wake it (STA-78).** Each one reads its
+credential and writes the account rate-limit bucket in Postgres. On 2026-11-21
+those requests came from the owner's own clients, in bursts most hours, and
+kept the compute awake from 21:44 to at least 23:17 UTC. Which client sends
+them, and whether to keep each connected, is STA-78. The MCP authorization
+spec requires a dead token to be refused on every request, so OAuth clients
+cannot skip the read.
+
 ### 2026-11-21 (one cache entry per name, for pages and routes alike)
 
 **The markdown route kept its own copy of the holder snapshot (STA-77).**
@@ -26,12 +36,13 @@ deploy ran 126 s of bulk queries.
 
 ### 2026-11-21 (one holder snapshot for every report)
 
-**The database now suspends, and holder reports were the next caller that
-woke it (STA-77).** At 20:55 UTC Postgres had started 0.2 s before the check;
-at 21:44 a holder report woke it again. 667 collections render a report, but
-the warm jobs refilled only the 325 listed ones, and listed reports link to
-unlisted ones. Each crawler visit to one of the others, or to an address
-nobody seeded, ran 20 to 40 s of queries at a random hour.
+**The database now suspends, and holder reports were one caller that could
+wake it (STA-77).** At 20:55 UTC Postgres had started 0.2 s before the check.
+It woke again at 21:44, the second an MCP client's OAuth token was refreshed,
+and a holder-report aggregate then ran on it. 667 collections render a
+report, but the warm jobs refilled only the 325 listed ones, and listed
+reports link to unlisted ones. Each crawler visit to one of the others, or to
+an address nobody seeded, ran 20 to 40 s of queries at a random hour.
 
 - **Every report reads one bulk snapshot.** Two queries compute all of them
   (`readHolderReports`, `readHolderOverlaps` in `lib/holder-pages.ts`), and
