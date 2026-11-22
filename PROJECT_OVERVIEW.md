@@ -1284,6 +1284,12 @@ print them. This is the same split `/check` publishes in prose; the public
   each, under `OVERLAP_MIN_SHARED`). The warm cron fills both first, through
   `warmHolderSnapshot`. The per-report queries remain for
   `scripts/concierge-signals.ts` only.
+- **Shared cache entries (STA-77, PR #433).** `sharedCache` in
+  `lib/shared-cache.ts` wraps `unstable_cache` so pages and route handlers
+  read one entry per name (Next otherwise keys on the compiled callback, which
+  differs per layer). The `-vN` in a name is the entry's only version. Pages
+  read each holder entry once per render (React `cache`); the markdown route
+  reads it once per request (`getHolderReportCached`).
 
 ## Recent Changes (2026-08-24)
 

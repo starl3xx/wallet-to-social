@@ -23984,7 +23984,7 @@ async function main() {
     ok(
       'the markdown mirror reads holder data only through the data cache',
       !uncachedHolderRead.test(markdownRoute) &&
-        /getHolderStatsCached\(/.test(markdownRoute)
+        /getHolderReportCached\(/.test(markdownRoute)
     );
     const starterRoute = withoutComments(
       readFileSync('app/api/starter-collections/route.ts', 'utf8')
@@ -23997,17 +23997,58 @@ async function main() {
     // A preview deployment answers an empty listing; a cache key without the
     // environment would let it fill the production entry for a week.
     const holderPagesSrc = readFileSync('lib/holder-pages.ts', 'utf8');
-    const holderKeys =
-      holderPagesSrc.match(/\['holder-[a-z]+-v\d+', CACHE_ENV\]/g) ?? [];
+    const sharedSrc = readFileSync('lib/shared-cache.ts', 'utf8');
+    const sharedCode = withoutComments(sharedSrc);
+    const holderEntries =
+      holderPagesSrc.match(/sharedCache\(\s*'holder-[a-z]+-v\d+',/g) ?? [];
     ok(
-      `every holder data-cache key carries the environment (${holderKeys.length} of 3)`,
-      holderKeys.length === 3 &&
-        /import \{ CACHE_ENV \} from '@\/lib\/cache-env';/.test(
-          holderPagesSrc
-        ) &&
+      `every holder data-cache entry is a named shared entry (${holderEntries.length} of 3), none a bare unstable_cache`,
+      holderEntries.length === 3 &&
+        !/unstable_cache\(/.test(withoutComments(holderPagesSrc))
+    );
+    ok(
+      'a shared entry keys on its name and the environment',
+      /unstable_cache\(callback, \[name, CACHE_ENV\], options\)/.test(
+        sharedCode
+      ) &&
+        /import \{ CACHE_ENV \} from '@\/lib\/cache-env';/.test(sharedSrc) &&
         /export const CACHE_ENV = process\.env\.VERCEL_ENV \?\? 'local';/.test(
           readFileSync('lib/cache-env.ts', 'utf8')
         )
+    );
+
+    /**
+     * Next keys an unstable_cache entry on the callback's compiled source
+     * (`cb.toString()`), and pages and route handlers compile the same module
+     * differently. So the holder page and the markdown route kept separate
+     * copies of the snapshot, and an agent's first markdown request ran 126 s
+     * of bulk queries at a random hour (STA-77, PR #433). The override is
+     * load-bearing only while Next builds the key that way, so both halves
+     * are asserted: if Next changes, this fails and the helper gets looked at.
+     */
+    const nextUnstableCache = readFileSync(
+      'node_modules/next/dist/server/web/spec-extension/unstable-cache.js',
+      'utf8'
+    );
+    ok(
+      'Next still keys unstable_cache on the callback source, which the shared helper pins',
+      nextUnstableCache.includes(
+        "const fixedKey = `${cb.toString()}-${Array.isArray(keyParts) && keyParts.join(',')}`;"
+      )
+    );
+    ok(
+      'the shared callback reports its name as its source, before Next reads it',
+      sharedCode.indexOf('callback.toString = () => name;') !== -1 &&
+        sharedCode.indexOf('callback.toString = () => name;') <
+          sharedCode.indexOf('unstable_cache(callback,')
+    );
+
+    // A held value could outlive the morning expiry and be baked into a page
+    // rebuilt just after it, fresh in name until the next morning (Bugbot,
+    // PR #433). So the helper keeps nothing between requests.
+    ok(
+      'the shared cache helper holds no value between requests',
+      sharedCode.length > 100 && !/\blet\b/.test(sharedCode)
     );
 
     // The SQL lowercases the address; a lookup key that did not would miss
@@ -24032,19 +24073,38 @@ async function main() {
       holderCode.indexOf('export async function getHolderCollectionCached(')
     );
     ok(
-      'the three report accessors read only the snapshot entries',
+      'the four report accessors read only the snapshot entries, once per render',
       accessors.length > 300 &&
-        (accessors.match(/await readHolder(Reports|Overlaps)Cached\(\)/g) ?? [])
-          .length === 3 &&
-        !/getHolder(Collection|Stats|Overlap)\(/.test(accessors)
+        (accessors.match(/await (reports|overlaps)ThisRender\(\)/g) ?? [])
+          .length === 4 &&
+        !/readHolder(Reports|Overlaps)Cached\(/.test(accessors) &&
+        !/getHolder(Collection|Stats|Overlap)\(/.test(accessors) &&
+        /const reportsThisRender = cache\(\(\) => readHolderReportsCached\(\)\);/.test(
+          holderCode
+        ) &&
+        /const overlapsThisRender = cache\(\(\) => readHolderOverlapsCached\(\)\);/.test(
+          holderCode
+        )
     );
+    // A route handler has no render for React's cache to share, so the
+    // markdown route reads the reports entry exactly once per request.
+    {
+      const md = withoutComments(
+        readFileSync('app/api/markdown/[[...path]]/route.ts', 'utf8')
+      );
+      ok(
+        'the markdown route reads the holder reports entry once per request',
+        (md.match(/getHolderReportCached\(/g) ?? []).length === 1 &&
+          !/getHolder(Collection|Stats)Cached\(/.test(md)
+      );
+    }
     ok(
       'each accessor looks up its key as an own property, so a crafted URL cannot reach Object.prototype',
       (
         accessors.match(
           /ownEntry\((reports|overlaps), holderKey\(chain, address\)\)/g
         ) ?? []
-      ).length === 3 && /Object\.hasOwn\(record, key\)/.test(holderCode)
+      ).length === 4 && /Object\.hasOwn\(record, key\)/.test(holderCode)
     );
     // A render cut off before the bulk query returns leaves the entry empty,
     // and the next request starts over: 10 to 87 s on 2026-11-21.

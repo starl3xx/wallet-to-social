@@ -2,9 +2,31 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-21 (one cache entry per name, for pages and routes alike)
+
+**The markdown route kept its own copy of the holder snapshot (STA-77).**
+Next keys an `unstable_cache` entry on the callback's compiled source as well
+as its key parts, and pages and route handlers compile the same module
+differently. So the snapshot the page and the warm cron filled was not the one
+the markdown route read, and an agent's first markdown request after the
+deploy ran 126 s of bulk queries.
+
+- **`sharedCache` in `lib/shared-cache.ts`** pins the callback's source to the
+  entry's name, so every layer computes one key. The three holder entries use
+  it. The name is now the only version: bump its `-vN` when what the entry
+  holds changes.
+- **One read per request.** A read that misses starts its write and returns
+  without waiting, so a cold report's second read missed too and ran the bulk
+  query again. Pages share one read per render through React's `cache`; the
+  markdown route reads each entry once (`getHolderReportCached`). Nothing is
+  held between requests, so no page rebuilt after the morning expiry can
+  carry the old snapshot (Bugbot).
+- **An invariant reads Next's own `unstable_cache` source**, so an upgrade
+  that stops keying on `cb.toString()` fails CI instead of passing silently.
+
 ### 2026-11-21 (one holder snapshot for every report)
 
-**The database now suspends, and holder reports were the last caller that
+**The database now suspends, and holder reports were the next caller that
 woke it (STA-77).** At 20:55 UTC Postgres had started 0.2 s before the check;
 at 21:44 a holder report woke it again. 667 collections render a report, but
 the warm jobs refilled only the 325 listed ones, and listed reports link to

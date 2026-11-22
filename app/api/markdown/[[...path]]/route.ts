@@ -45,9 +45,8 @@
  */
 import { getAllPosts, getPostBySlug } from '@/lib/blog';
 import {
-  getHolderCollectionCached,
   getHolderOverlapCached,
-  getHolderStatsCached,
+  getHolderReportCached,
   listHolderCollectionsCached,
 } from '@/lib/holder-pages';
 import { PRODUCTION_URL } from '@/lib/site-url';
@@ -72,9 +71,9 @@ export const maxDuration = 300;
  * a handler that reads a database: Next runs its GET during every build, and
  * the read becomes a build-time dependency. Two of the documents below read
  * Neon, so the whole handler stays dynamic and buys its caching back with the
- * `s-maxage` on each response. The holder documents read the daily holder
- * snapshot in the data cache (`lib/holder-pages.ts`), so an edge miss costs
- * no database query (STA-77).
+ * `s-maxage` on each response. The holder documents read the same holder
+ * snapshot entry as the holder pages (`lib/shared-cache.ts`), so while it is
+ * filled an edge miss costs no database query (STA-77).
  */
 export const dynamic = 'force-dynamic';
 
@@ -149,12 +148,14 @@ async function resolveDocument(
   }
 
   if (segments.length === 3 && first === 'holders') {
-    const collection = await getHolderCollectionCached(second, third);
-    if (!collection) return null;
-    const [stats, overlap] = await Promise.all([
-      getHolderStatsCached(second, third),
+    // One read of the reports entry: a second read in the same request can
+    // miss the write the first only started (lib/holder-pages.ts).
+    const [report, overlap] = await Promise.all([
+      getHolderReportCached(second, third),
       getHolderOverlapCached(second, third),
     ]);
+    if (!report) return null;
+    const { collection, stats } = report;
     // The same condition the page 404s on, so a collection with no holdings
     // rows does not get a report in one representation and not the other.
     if (!stats) return null;

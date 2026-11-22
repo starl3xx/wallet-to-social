@@ -1,5 +1,5 @@
-import { unstable_cache } from 'next/cache';
-import { CACHE_ENV } from '@/lib/cache-env';
+import { cache } from 'react';
+import { sharedCache } from '@/lib/shared-cache';
 import { getDb } from '@/db';
 import { sql } from 'drizzle-orm';
 import { CHAIN_LABELS, type SupportedChain } from '@/lib/chains';
@@ -759,6 +759,10 @@ export function standardLabel(
  * cache's JSON round trip. The environment is part of the key, because a
  * preview deployment deliberately answers an empty listing and must never
  * fill the production entry (`lib/cache-env.ts`).
+ *
+ * Each entry goes through `sharedCache` (`lib/shared-cache.ts`), so the
+ * pages, the route handlers and the warm cron read one entry under one name.
+ * Bump the `-vN` in a name whenever what its entry holds changes.
  */
 export const HOLDER_DATA_TAG = 'holder-data';
 const HOLDER_CACHE = {
@@ -766,9 +770,9 @@ const HOLDER_CACHE = {
   tags: [HOLDER_DATA_TAG],
 };
 
-export const listHolderCollectionsCached = unstable_cache(
+export const listHolderCollectionsCached = sharedCache(
+  'holder-list-v1',
   listHolderCollections,
-  ['holder-list-v1', CACHE_ENV],
   HOLDER_CACHE
 );
 
@@ -957,14 +961,14 @@ export async function readHolderOverlaps(): Promise<
   return overlaps;
 }
 
-const readHolderReportsCached = unstable_cache(
+const readHolderReportsCached = sharedCache(
+  'holder-reports-v1',
   readHolderReports,
-  ['holder-reports-v1', CACHE_ENV],
   HOLDER_CACHE
 );
-const readHolderOverlapsCached = unstable_cache(
+const readHolderOverlapsCached = sharedCache(
+  'holder-overlaps-v1',
   readHolderOverlaps,
-  ['holder-overlaps-v1', CACHE_ENV],
   HOLDER_CACHE
 );
 
@@ -990,11 +994,25 @@ export async function warmHolderSnapshot() {
   };
 }
 
+/**
+ * One read of each entry per render.
+ *
+ * A read that misses computes the value, starts writing it and returns without
+ * waiting for the write. So a second read a moment later in the same request
+ * missed too and ran the bulk query again: two bulk queries inside one 126 s
+ * markdown request on 2026-11-21. React's `cache` shares one read across a page
+ * render (its metadata and its body) and ends with it, so no render can see a
+ * value from before an expiry. A route handler has no render, so the markdown
+ * route reads each entry once, through `getHolderReportCached`.
+ */
+const reportsThisRender = cache(() => readHolderReportsCached());
+const overlapsThisRender = cache(() => readHolderOverlapsCached());
+
 export async function getHolderCollectionCached(
   chain: string,
   address: string
 ): Promise<HolderCollection | null> {
-  const reports = await readHolderReportsCached();
+  const reports = await reportsThisRender();
   return ownEntry(reports, holderKey(chain, address))?.collection ?? null;
 }
 
@@ -1002,7 +1020,7 @@ export async function getHolderStatsCached(
   chain: string,
   address: string
 ): Promise<HolderStats | null> {
-  const reports = await readHolderReportsCached();
+  const reports = await reportsThisRender();
   return ownEntry(reports, holderKey(chain, address))?.stats ?? null;
 }
 
@@ -1010,6 +1028,15 @@ export async function getHolderOverlapCached(
   chain: string,
   address: string
 ): Promise<HolderOverlap[]> {
-  const overlaps = await readHolderOverlapsCached();
+  const overlaps = await overlapsThisRender();
   return ownEntry(overlaps, holderKey(chain, address)) ?? [];
+}
+
+/** The collection and its stats from one read, for a caller with no render. */
+export async function getHolderReportCached(
+  chain: string,
+  address: string
+): Promise<HolderReport | null> {
+  const reports = await reportsThisRender();
+  return ownEntry(reports, holderKey(chain, address)) ?? null;
 }
