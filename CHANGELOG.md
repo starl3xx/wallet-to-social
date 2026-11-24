@@ -2,6 +2,26 @@
 
 All notable changes to walletlink.social. Newest first.
 
+### 2026-11-23 (two days of database sleep, measured)
+
+**The database now sleeps for part of each day (STA-77).** On 2026-11-22 and
+2026-11-23 it was awake at least 6 hours a day. Before STA-77 it never
+suspended. The rate-limit buckets keep only the first and last request of each
+hour, so the MCP requests between them are hidden. If they were spread out, the
+compute was awake up to 11 hours on the first day and 15 on the second. Neon's
+own usage figures give the real value.
+
+- **The morning refill works.** The listed holder pages were rebuilt at about
+  07:33 UTC on 2026-11-23, after the 07:28 expiry. Unlisted reports and their
+  markdown answer from the snapshot in under 0.7 s.
+- **What still wakes it.** Without the MCP requests, the writes explain about
+  4 hours a day, mostly the hourly :07 crons. Authenticated MCP requests from
+  the owner's own account add 2 to 11 hours (STA-78). They come from the
+  claude.ai connector, a Claude Code server that connects when a session
+  starts, or both: the two write the same account bucket. A handshake does not
+  update `api_keys.last_used_at`, so that column cannot show which key is in
+  use.
+
 ### 2026-11-22 (what still wakes the database)
 
 **Authenticated MCP requests wake it (STA-78).** Each one reads its
